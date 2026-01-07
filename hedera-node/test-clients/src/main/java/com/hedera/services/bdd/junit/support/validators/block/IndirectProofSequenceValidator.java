@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.BLOCK_CONTENTS_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.EXPECTED_MERKLE_PATH_COUNT;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_MERKLE_PATH_INDEX;
@@ -18,6 +19,7 @@ import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
@@ -70,6 +72,17 @@ class IndirectProofSequenceValidator {
     private long firstUnsignedBlockNum = -1;
     private long signedBlockNum;
     private boolean endOfSequenceReached = false;
+
+    /**
+     * Runs a test case verifying an indirect proof sequence.
+     * <p>
+     * <b>FOR DEVELOPMENT PURPOSES ONLY</b>
+     *
+     * @param args
+     */
+    public static void main(String[] args) {
+        TestCase.run();
+    }
 
     boolean containsIndirectProofs() {
         return !partialPathsByBlock.isEmpty();
@@ -163,10 +176,7 @@ class IndirectProofSequenceValidator {
                     "Cannot verify indirect proof sequence: end of sequence not reached, signed proof missing");
         }
 
-        log.info(
-                "Beginning verification of indirect state proofs for blocks {} to {}",
-                firstUnsignedBlockNum,
-                signedBlockNum);
+        log.info("Beginning verification of proof sequence for blocks {} to {}", firstUnsignedBlockNum, signedBlockNum);
 
         verifyIndirectProofs();
         verifyHashSequence();
@@ -545,4 +555,358 @@ class IndirectProofSequenceValidator {
             @Nullable MerkleLeaf leaf,
             @Nullable Bytes previousBlockHash,
             @Nullable List<MerkleSiblingHash> siblingHashes) {}
+
+    private static class TestCase {
+        private static final Bytes INITIAL_PREV_BLOCK_HASH = Bytes.fromHex(
+                "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+        private static final Bytes BLOCK_8_HASH = Bytes.fromHex(
+                "b76b8abdc86af21d5098f3680790b5951b3244a7fc2a407c5d0e314c3b1b90a4d371185c6bcc153ee5e104f7fd1a4b97");
+        private static final Bytes BLOCK_9_HASH = Bytes.fromHex(
+                "481962490ece4be2da9a467a43d5efd4871c10ddd78a4e40cdc357573107d05a3e23bdce2cfbbd75846a1b1dcbc86a69");
+        private static final Bytes BLOCK_10_HASH = Bytes.fromHex(
+                "98c6572c628b7441b1108e5027519e207771bf445b5ddf63657170e7b7d0148ff74f3c560597b5a27a6e564218c45438");
+
+        private static final Bytes BLOCK_10_SIGNATURE = Bytes.fromBase64(
+                "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");
+
+        /**
+         * Runs the indirect proof sequence test case
+         */
+        static void run() {
+            final var validator = new IndirectProofSequenceValidator();
+
+            validator.registerProof(
+                    8L, BLOCK_8.proof, BLOCK_8_HASH, INITIAL_PREV_BLOCK_HASH, BLOCK_8.timestamp, BLOCK_8.siblings);
+
+            validator.registerProof(9L, BLOCK_9.proof, BLOCK_9_HASH, BLOCK_8_HASH, BLOCK_9.timestamp, BLOCK_9.siblings);
+
+            validator.registerProof(
+                    10L, BLOCK_10.proof, BLOCK_10_HASH, BLOCK_9_HASH, BLOCK_10.timestamp, BLOCK_10.siblings);
+
+            validator.verify();
+        }
+
+        // --- Inputs for test case ---
+        // Block 8 Starting hashes:
+        // previous block hash:
+        // 000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+        // prev blocks hash:
+        // 111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+        // start of state hash:
+        // 222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222
+        // consensus headers hash:
+        // 333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333
+        // input items hash:
+        // 444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444
+        // output items hash:
+        // 555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555
+        // state changes hash:
+        // 666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
+        // trace items hash:
+        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+        // Block 9 Starting hashes:
+        // previous block hash (block 8's result):
+        // b76b8abdc86af21d5098f3680790b5951b3244a7fc2a407c5d0e314c3b1b90a4d371185c6bcc153ee5e104f7fd1a4b97
+        // prev blocks hash:
+        // 101010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+        // start of state hash:
+        // BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+        // consensus headers hash:
+        // CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+        // input items hash:
+        // DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+        // output items hash:
+        // EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+        // state changes hash:
+        // 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+        // trace items hash:
+        // 200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+        // Block 10 Starting hashes:
+        // previous block hash (from block 9):
+        // 481962490ece4be2da9a467a43d5efd4871c10ddd78a4e40cdc357573107d05a3e23bdce2cfbbd75846a1b1dcbc86a69
+        // prev blocks hash:
+        // 202020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+        // start of state hash:
+        // 300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+        // consensus headers hash:
+        // 400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+        // input items hash:
+        // 500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+        // output items hash:
+        // 600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+        // state changes hash:
+        // A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+        // trace items hash:
+        // B00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+
+        private record TestBlock(BlockProof proof, Timestamp timestamp, MerkleSiblingHash[] siblings) {
+            Bytes timestampBytes() {
+                return Timestamp.PROTOBUF.toBytes(timestamp);
+            }
+        }
+
+        private static final TestBlock BLOCK_10;
+
+        static {
+            final var signedProof10 = TssSignedBlockProof.newBuilder()
+                    .blockSignature(BLOCK_10_SIGNATURE)
+                    .build();
+            final var blockProof10 = BlockProof.newBuilder()
+                    .block(10)
+                    .signedBlockProof(signedProof10)
+                    .build();
+            BLOCK_10 = new TestBlock(
+                    blockProof10,
+                    Timestamp.newBuilder().seconds(1764666650).nanos(3000000).build(),
+                    new MerkleSiblingHash[] {
+                        // given subroot 2
+                        MerkleSiblingHash.newBuilder()
+                                .isFirst(false)
+                                .siblingHash(
+                                        Bytes.fromHex(
+                                                "202020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"))
+                                .build(),
+                        // start of state hash:
+                        // 300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                        // consensus headers hash:
+                        // 400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                        MerkleSiblingHash.newBuilder()
+                                .isFirst(false)
+                                .siblingHash(
+                                        Bytes.fromHex(
+                                                "6f10274a6c0789c585affe53562124db4c30d5ce0f801fb53e82aa362408264c307bce42cf82d20f9f727094fa5e55d2"))
+                                .build(),
+                        // input items hash:
+                        // 500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                        // output items hash:
+                        // 600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                        // state changes hash:
+                        // A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                        // trace items hash:
+                        // B00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                        MerkleSiblingHash.newBuilder()
+                                .isFirst(false)
+                                .siblingHash(
+                                        Bytes.fromHex(
+                                                "f9a4263aaefecd1f0c7afdf451bfd2d733925a5ad7b6a022c3285bba9817b5b5f7a63f571faecffae9483225460eec35"))
+                                .build()
+                    });
+        }
+
+        private static final TestBlock BLOCK_9;
+
+        static {
+            final var ts9 =
+                    Timestamp.newBuilder().seconds(1764666647).nanos(830783000).build();
+            final var ts9Bytes = Timestamp.PROTOBUF.toBytes(ts9);
+            final var hashedTs9Bytes = hashLeaf(ts9Bytes);
+            final var b9Siblings = new MerkleSiblingHash[] {
+                // given subroot 2
+                MerkleSiblingHash.newBuilder()
+                        .isFirst(false)
+                        .siblingHash(
+                                Bytes.fromHex(
+                                        "101010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"))
+                        .build(),
+                // start of state hash:
+                // BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+                // consensus headers hash:
+                // CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+                MerkleSiblingHash.newBuilder()
+                        .isFirst(false)
+                        .siblingHash(
+                                Bytes.fromHex(
+                                        "89fc9381888427a01c46d1f3175c774425cf51124db1b702864b2e8f6e0b2e60970bee612fab1d4ad9d236d39c09d624"))
+                        .build(),
+                // input items hash:
+                // DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+                // output items hash:
+                // EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+                // state changes hash:
+                // 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                // trace items hash:
+                // 200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+                MerkleSiblingHash.newBuilder()
+                        .isFirst(false)
+                        .siblingHash(
+                                Bytes.fromHex(
+                                        "4596c82a149dd85f1b15ed1d31dc27695326c372b7a81808192bd14cd98a57bd77c8510b6b3bd47d7bfa4d79b197a2d4"))
+                        .build()
+            };
+            final var proof9 = BlockProof.newBuilder()
+                    .block(9)
+                    .blockStateProof(StateProof.newBuilder()
+                            .paths(List.of(
+                                    MerklePath.newBuilder()
+                                            .nextPathIndex(2)
+                                            .leaf(MerkleLeaf.newBuilder()
+                                                    .blockConsensusTimestamp(BLOCK_10.timestampBytes())
+                                                    .build())
+                                            .build(),
+                                    MerklePath.newBuilder()
+                                            .hash(BLOCK_8_HASH)
+                                            .siblings(List.of(
+                                                    // m1L6 sibling (signed block minus 1, Level 6)
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(b9Siblings[0].siblingHash())
+                                                            .build(),
+                                                    // m1L5 sibling
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(b9Siblings[1].siblingHash())
+                                                            .build(),
+                                                    // m1L4 sibling
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(b9Siblings[2].siblingHash())
+                                                            .build(),
+                                                    // m1L2 sibling (timestamp)
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(true)
+                                                            .hash(hashedTs9Bytes)
+                                                            .build(),
+                                                    // sL6 sibling (signed block, Level 6)
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(BLOCK_10.siblings[0].siblingHash())
+                                                            .build(),
+                                                    // sL5 sibling
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(BLOCK_10.siblings[1].siblingHash())
+                                                            .build(),
+                                                    // sL4 sibling
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(BLOCK_10.siblings[2].siblingHash())
+                                                            .build()))
+                                            .nextPathIndex(2)
+                                            .build(),
+                                    MerklePath.newBuilder().nextPathIndex(-1).build()))
+                            .signedBlockProof(BLOCK_10.proof.signedBlockProof()))
+                    .build();
+
+            BLOCK_9 = new TestBlock(proof9, ts9, b9Siblings);
+        }
+
+        private static final TestBlock BLOCK_8;
+
+        static {
+            final var ts8 =
+                    Timestamp.newBuilder().seconds(1764666645).nanos(540871000).build();
+            final var ts8Bytes = Timestamp.PROTOBUF.toBytes(ts8);
+            final var hashedTs8Bytes = hashLeaf(ts8Bytes);
+            final var b8Siblings =
+                    new MerkleSiblingHash[] {
+                        // given subroot 2
+                        MerkleSiblingHash.newBuilder()
+                                .isFirst(false)
+                                .siblingHash(
+                                        Bytes.fromHex(
+                                                "111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"))
+                                .build(),
+                        // start of state hash:
+                        // 222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222
+                        // consensus headers hash:
+                        // 333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333333				//
+                        MerkleSiblingHash.newBuilder()
+                                .isFirst(false)
+                                .siblingHash(
+                                        Bytes.fromHex(
+                                                "aeacfb6b41ddb2ef373fa3835d0fc9cbff06ffd730bade969797aa3ca7549e065f9b44fe7ce96987ec3e8f17aea0b5c7"))
+                                .build(),
+                        // input items hash:
+                        // 444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444444
+                        // output items hash:
+                        // 555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555
+                        // state changes hash:
+                        // 666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666
+                        // trace items hash:
+                        // AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                        MerkleSiblingHash.newBuilder()
+                                .isFirst(false)
+                                .siblingHash(
+                                        Bytes.fromHex(
+                                                "2d1149d3e744ac28a809b89959869d7432f29f5998d1000abe92a28501a8369f9af2d9cc8ae7ae7f308d3258ccac955c"))
+                                .build()
+                    };
+            final var hashedTs9Bytes = hashLeaf(BLOCK_9.timestampBytes());
+            final var proof8 = BlockProof.newBuilder()
+                    .block(8)
+                    .blockStateProof(StateProof.newBuilder()
+                            .paths(List.of(
+                                    MerklePath.newBuilder()
+                                            .nextPathIndex(2)
+                                            .leaf(MerkleLeaf.newBuilder()
+                                                    .blockConsensusTimestamp(BLOCK_10.timestampBytes())
+                                                    .build())
+                                            .build(),
+                                    MerklePath.newBuilder()
+                                            .hash(INITIAL_PREV_BLOCK_HASH)
+                                            .siblings(List.of(
+                                                    // m2L6 sibling (signed block minus 2, Level 6)
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(b8Siblings[0].siblingHash())
+                                                            .build(),
+                                                    // m2L5 sibling
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(b8Siblings[1].siblingHash())
+                                                            .build(),
+                                                    // m2L4 sibling
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(b8Siblings[2].siblingHash())
+                                                            .build(),
+                                                    // m2L2 sibling (timestamp)
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(true)
+                                                            .hash(hashedTs8Bytes)
+                                                            .build(),
+                                                    // m1L6 sibling (signed block minus 1, Level 6)
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(BLOCK_9.siblings[0].siblingHash())
+                                                            .build(),
+                                                    // m1L5 sibling
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(BLOCK_9.siblings[1].siblingHash())
+                                                            .build(),
+                                                    // m1L4 sibling
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(BLOCK_9.siblings[2].siblingHash())
+                                                            .build(),
+                                                    // m1L2 sibling (timestamp)
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(true)
+                                                            .hash(hashedTs9Bytes)
+                                                            .build(),
+                                                    // sL6 sibling (signed block, Level 6)
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(BLOCK_10.siblings[0].siblingHash())
+                                                            .build(),
+                                                    // sL5 sibling
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(BLOCK_10.siblings[1].siblingHash())
+                                                            .build(),
+                                                    // sL4 sibling
+                                                    SiblingNode.newBuilder()
+                                                            .isLeft(false)
+                                                            .hash(BLOCK_10.siblings[2].siblingHash())
+                                                            .build()))
+                                            .nextPathIndex(2)
+                                            .build(),
+                                    MerklePath.newBuilder().nextPathIndex(-1).build()))
+                            .signedBlockProof(BLOCK_10.proof.signedBlockProof()))
+                    .build();
+
+            BLOCK_8 = new TestBlock(proof8, ts8, b8Siblings);
+        }
+    }
 }
