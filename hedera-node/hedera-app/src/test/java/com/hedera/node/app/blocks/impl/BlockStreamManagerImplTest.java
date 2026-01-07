@@ -9,6 +9,8 @@ import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
 import static com.hedera.node.app.blocks.BlockStreamService.FAKE_RESTART_BLOCK_HASH;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNode;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_LABEL;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
@@ -111,7 +113,8 @@ class BlockStreamManagerImplTest {
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L);
     private static final Timestamp CONSENSUS_THEN = new Timestamp(890, 0);
     private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(new byte[48]);
-    private static final Bytes N_MINUS_2_BLOCK_HASH = Bytes.wrap(noThrowSha384HashOf(new byte[] {(byte) 0xAA}));
+    private static final Bytes N_MINUS_2_BLOCK_HASH =
+            hashLeaf(Bytes.wrap(noThrowSha384HashOf(new byte[] {(byte) 0xAA})));
     private static final Bytes FIRST_FAKE_SIGNATURE = Bytes.fromHex("ff".repeat(48));
     private static final Bytes SECOND_FAKE_SIGNATURE = Bytes.fromHex("ee".repeat(48));
     private static final BlockItem FAKE_SIGNED_TRANSACTION =
@@ -524,7 +527,7 @@ class BlockStreamManagerImplTest {
         final var resultHashes = Bytes.fromHex("aa".repeat(48) + "bb".repeat(48) + "cc".repeat(48) + "dd".repeat(48));
         givenSubjectWith(
                 2,
-                2, // Use time-based blocks with 2 second period
+                2, // Use time-based blocks with 2-second period
                 blockStreamInfoWith(resultHashes, CREATION_VERSION),
                 platformStateWithFreezeTime(CONSENSUS_NOW),
                 aWriter);
@@ -577,7 +580,7 @@ class BlockStreamManagerImplTest {
         final var expectedBlockInfo = new BlockStreamInfo(
                 N_BLOCK_NO,
                 asTimestamp(CONSENSUS_NOW),
-                appendHash(combine(Bytes.fromHex("dd".repeat(48)), FAKE_RESULT_HASH), resultHashes, 4),
+                appendHash(hashInternalNode(Bytes.fromHex("dd".repeat(48)), FAKE_RESULT_HASH), resultHashes, 4),
                 appendHash(FAKE_RESTART_BLOCK_HASH, appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256), 256),
                 Bytes.fromHex(
                         "edde6b2beddb2fda438665bbe6df0a639c518e6d5352e7276944b70777d437d28d1b22813ed70f5b8a3a3cbaf08aa9a8"),
@@ -1023,9 +1026,8 @@ class BlockStreamManagerImplTest {
         assertNotNull(footer.previousBlockRootHash(), "Previous block root hash should be set");
         assertEquals(
                 Bytes.fromHex(
-                        "bf95370fb03d71634b937b1a19b4f8c445914600247af794788a322b1c4123798e94e328b34f166b38a9a6b1aea93414"),
-                footer.rootHashOfAllBlockHashesTree(),
-                "Block hashes tree root should be NULL_HASH until #21210 is implemented");
+                        "375e2716c54ffaa05659c7656d6692c7c5e110ebcabf81f3335c82a8153f274a16978b0c131916f5fa56d70754d02043"),
+                footer.rootHashOfAllBlockHashesTree());
         assertNotNull(footer.startOfBlockStateRootHash(), "Start of block state root hash should be set");
 
         // Verify BlockProof was also written
@@ -1086,7 +1088,7 @@ class BlockStreamManagerImplTest {
         // Verify rootHashOfAllBlockHashesTree is correct
         assertEquals(
                 Bytes.fromHex(
-                        "bf95370fb03d71634b937b1a19b4f8c445914600247af794788a322b1c4123798e94e328b34f166b38a9a6b1aea93414"),
+                        "375e2716c54ffaa05659c7656d6692c7c5e110ebcabf81f3335c82a8153f274a16978b0c131916f5fa56d70754d02043"),
                 footer.rootHashOfAllBlockHashesTree(),
                 "Block hashes tree root should be NULL_HASH placeholder");
 
@@ -1393,7 +1395,7 @@ class BlockStreamManagerImplTest {
     }
 
     private static Bytes noThrowSha384HashOfItem(@NonNull final BlockItem item) {
-        return Bytes.wrap(noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(item).toByteArray()));
+        return hashLeaf(BlockItem.PROTOBUF.toBytes(item));
     }
 
     private void mockRoundWithTxnTimestamp(Instant timestamp) {
