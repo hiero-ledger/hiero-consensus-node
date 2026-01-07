@@ -65,7 +65,7 @@ defaults:
 jobs:
   parameters:
     name: Workflow Parameters
-    runs-on: hiero-citr-linux-medium
+    runs-on: hiero-cn-citr-linux-medium
     outputs:
       solo-version: ${{ steps.params.outputs.solo-version }}
       helm-release-name: ${{ steps.params.outputs.helm-release-name }}

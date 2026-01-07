@@ -267,7 +267,7 @@ jobs:
 
   set-failure-mode:
     name: Set Failure Mode
-    runs-on: hiero-citr-linux-medium
+    runs-on: hiero-cn-citr-linux-medium
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
