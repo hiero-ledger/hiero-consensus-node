@@ -3,7 +3,7 @@ package com.swirlds.platform.gui.hashgraph.internal;
 
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants;
 import com.swirlds.platform.gui.hashgraph.HashgraphPictureOptions;
-import com.swirlds.platform.internal.EventImpl;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import java.awt.Color;
 
 /**

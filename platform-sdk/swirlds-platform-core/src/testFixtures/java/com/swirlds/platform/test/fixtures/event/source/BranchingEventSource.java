@@ -2,7 +2,7 @@
 package com.swirlds.platform.test.fixtures.event.source;
 
 import com.swirlds.common.test.fixtures.TransactionGenerator;
-import com.swirlds.platform.internal.EventImpl;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;

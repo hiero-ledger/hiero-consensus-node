@@ -82,7 +82,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.event;
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.event.orphan;
     exports com.swirlds.platform.state.snapshot;
     exports com.swirlds.platform.state.service.schemas;
     exports com.swirlds.platform.state.service;
@@ -113,7 +112,6 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
-    requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
@@ -127,13 +125,14 @@ module com.swirlds.platform.core {
     requires com.github.spotbugs.annotations;
     requires com.google.common;
     requires java.annotation;
-    requires java.desktop;
     requires java.management;
     requires java.scripting;
     requires jdk.management;
     requires jdk.net;
+    requires java.desktop;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
+    requires info.picocli;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.swirlds.platform.config.PlatformConfigurationExtension;

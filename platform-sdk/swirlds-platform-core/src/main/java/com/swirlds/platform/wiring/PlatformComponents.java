@@ -47,8 +47,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
@@ -64,9 +66,9 @@ public record PlatformComponents(
         WiringModel model,
         EventCreatorModule eventCreatorModule,
         EventIntakeModule eventIntakeModule,
+        HashgraphModule hashgraphModule,
         ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
         ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
-        ConsensusWiring consensusEngineWiring,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
         ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring,
@@ -120,7 +122,6 @@ public record PlatformComponents(
 
         eventSignatureValidatorWiring.bind(builder::buildEventSignatureValidator);
         orphanBufferWiring.bind(builder::buildOrphanBuffer);
-        consensusEngineWiring.bind(builder::buildConsensusEngine);
         stateSnapshotManagerWiring.bind(builder::buildStateSnapshotManager);
         stateSignerWiring.bind(builder::buildStateSigner);
         pcesReplayerWiring.bind(pcesReplayer);
@@ -161,7 +162,8 @@ public record PlatformComponents(
             @NonNull final PlatformContext platformContext,
             @NonNull final WiringModel model,
             @NonNull final EventCreatorModule eventCreatorModule,
-            @NonNull final EventIntakeModule eventIntakeModule) {
+            @NonNull final EventIntakeModule eventIntakeModule,
+            @NonNull final HashgraphModule hashgraphModule) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
@@ -173,9 +175,9 @@ public record PlatformComponents(
                 model,
                 eventCreatorModule,
                 eventIntakeModule,
+                hashgraphModule,
                 new ComponentWiring<>(model, EventSignatureValidator.class, config.eventSignatureValidator()),
                 new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer()),
-                ConsensusWiring.create(model, config.consensusEngine()),
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler()),
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
                 new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),

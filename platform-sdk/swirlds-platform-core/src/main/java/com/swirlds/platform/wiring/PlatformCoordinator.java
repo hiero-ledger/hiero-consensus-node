@@ -11,7 +11,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
@@ -74,7 +73,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         components.orphanBufferWiring().flush();
         components.pcesInlineWriterWiring().flush();
         components.gossipWiring().flush();
-        components.consensusEngineWiring().flush();
+        components.hashgraphModule().flush();
         components.applicationTransactionPrehandlerWiring().flush();
         components.eventCreatorModule().flush();
         components.branchDetectorWiring().flush();
@@ -97,8 +96,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // Phase 1: squelch
         // Break cycles in the system. Flush squelched components just in case there is a task being executed when
         // squelch is activated.
-        components.consensusEngineWiring().startSquelching();
-        components.consensusEngineWiring().flush();
+        components.hashgraphModule().startSquelching();
+        components.hashgraphModule().flush();
         components.eventCreatorModule().startSquelching();
         components.eventCreatorModule().flush();
 
@@ -119,7 +118,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
 
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
-        components.consensusEngineWiring().stopSquelching();
+        components.hashgraphModule().stopSquelching();
         components.eventCreatorModule().stopSquelching();
         components.transactionHandlerWiring().stopSquelching();
 
@@ -233,8 +232,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
      */
     public void consensusSnapshotOverride(@NonNull final ConsensusSnapshot consensusSnapshot) {
         components
-                .consensusEngineWiring()
-                .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)
+                .hashgraphModule()
+                .consensusSnapshotInputWire()
                 .inject(consensusSnapshot);
         if (callbacks.snapshotOverrideConsumer() != null) {
             callbacks.snapshotOverrideConsumer().accept(consensusSnapshot);

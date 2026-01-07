@@ -4,7 +4,7 @@ package com.swirlds.platform.consensus;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.internal.EventImpl;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import java.util.List;

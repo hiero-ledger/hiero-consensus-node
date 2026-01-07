@@ -10,7 +10,7 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.HashgraphPictureOptions;
-import com.swirlds.platform.internal.EventImpl;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import java.awt.AWTException;
 import java.awt.BasicStroke;
 import java.awt.Color;
