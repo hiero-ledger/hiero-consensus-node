@@ -78,7 +78,7 @@ public interface GaugeAdapter<M> extends SettableMetric<Supplier<M>, M> {
      *
      * @param <M> the type of the measurement data held by the metric
      */
-    final class Builder<M> extends SettableMetric.Builder<Supplier<M>, M, Builder<M>, GaugeAdapter<M>> {
+    final class Builder<M> extends SettableMetric.Builder<Supplier<M>, Builder<M>, GaugeAdapter<M>> {
 
         private final ToNumberFunction<M> exportGetter;
         private Consumer<M> reset;
@@ -94,7 +94,7 @@ public interface GaugeAdapter<M> extends SettableMetric<Supplier<M>, M> {
                 @NonNull MetricKey<GaugeAdapter<M>> key,
                 @NonNull Supplier<M> measurementFactory,
                 @NonNull ToNumberFunction<M> exportGetter) {
-            super(MetricType.GAUGE, key, measurementFactory, Supplier::get);
+            super(MetricType.GAUGE, key, measurementFactory);
             this.exportGetter = Objects.requireNonNull(exportGetter, "exportGetter cannot be null");
         }
 

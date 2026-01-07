@@ -18,9 +18,9 @@ import org.hiero.metrics.internal.core.MetricUtils;
  * per dynamic labels set, that can be updated with new values.
  * Metrics can also be reset to their initial state, which resets all associated measurements.
  * <p>
- * Since metric can support aggregations (like sum, min, max, avg, etc.), this interface doesn't expose
- * export or snapshot functionality - {@link org.hiero.metrics.api.export.MetricsExporter} should be used
- * to export metrics to different destinations.
+ * This interface and extensions do not expose export or snapshot functionality
+ * - {@link org.hiero.metrics.api.export.MetricsExporter} should be used
+ * to export metrics to different destinations, when creating {@link MetricRegistry}.
  */
 public interface Metric extends MetricInfo {
 

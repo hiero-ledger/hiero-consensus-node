@@ -41,7 +41,7 @@ public abstract class AbstractMetric<M> implements Metric {
     private final List<Label> staticLabels;
     private final List<String> dynamicLabelNames;
 
-    private final UpdatableMetricSnapshot<M> metricSnapshot;
+    private final UpdatableMetricSnapshot<M> snapshot;
 
     protected AbstractMetric(Builder<?, ?> builder) {
         type = builder.type();
@@ -51,22 +51,22 @@ public abstract class AbstractMetric<M> implements Metric {
 
         staticLabels = builder.getStaticLabels().stream().sorted().toList();
         dynamicLabelNames = builder.getDynamicLabelNames().stream().sorted().toList();
-        metricSnapshot = new UpdatableMetricSnapshot<>(this, this::updateMeasurementSnapshot);
+
+        snapshot = new UpdatableMetricSnapshot<>(this);
     }
 
-    protected final MeasurementAndSnapshot<M> createMeasurementAndSnapshot(
-            M measurement, LabelValues dynamicLabelValues) {
-        MeasurementAndSnapshot<M> measurementAndSnapshot =
-                new MeasurementAndSnapshot<>(measurement, createMeasurementSnapshot(measurement, dynamicLabelValues));
-        metricSnapshot.addMeasurementAndSnapshot(measurementAndSnapshot);
-        return measurementAndSnapshot;
+    public final UpdatableMetricSnapshot<M> snapshot() {
+        return snapshot;
+    }
+
+    protected final void addMeasurementSnapshot(M measurement, LabelValues dynamicLabelValues) {
+        snapshot.addMeasurementAndSnapshot(new MeasurementAndSnapshot<>(
+                measurement,
+                createMeasurementSnapshot(measurement, dynamicLabelValues),
+                this::updateMeasurementSnapshot));
     }
 
     protected abstract MeasurementSnapshot createMeasurementSnapshot(M measurement, LabelValues dynamicLabelValues);
-
-    private void updateMeasurementSnapshot(MeasurementAndSnapshot<M> measurementAndSnapshot) {
-        updateMeasurementSnapshot(measurementAndSnapshot.measurement(), measurementAndSnapshot.snapshot());
-    }
 
     protected abstract void updateMeasurementSnapshot(M measurement, MeasurementSnapshot snapshot);
 
@@ -121,7 +121,7 @@ public abstract class AbstractMetric<M> implements Metric {
             }
         }
 
-        return new LabelNamesAndValues(nv);
+        return new LabelValues(nv);
     }
 
     @Override
@@ -158,10 +158,6 @@ public abstract class AbstractMetric<M> implements Metric {
     @Override
     public final List<String> dynamicLabelNames() {
         return dynamicLabelNames;
-    }
-
-    public final UpdatableMetricSnapshot<M> snapshot() {
-        return metricSnapshot;
     }
 
     @Override

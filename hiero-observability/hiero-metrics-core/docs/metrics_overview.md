@@ -4,18 +4,19 @@ Metrics are one of the three pillars of observability, alongside logging and tra
 Metrics provide quantitative, numerical data about a system’s state and performance, typically sampled at regular intervals.
 They help track trends, resource usage, and system health over time.
 
-### Goals
+### Goals and Requirements
 
 1. Minimum dependencies.
 2. High performance with low memory footprint.
 3. Support for different exporters (e.g., Prometheus, JMX, CSV, etc.).
-4. Support client aggregations and resetting on export.
+4. Support client aggregations and optional resetting on export.
 5. Support plugging any external code into metrics.
 6. Provide SPI for easy configuration.
-
-### Architecture
-
-![metrics_architecture.svg](img/metrics_architecture.svg)
+7. Support common metric types (counters, gauges, etc.) that are compatible with OpenMetrics standard.
+8. Support dynamic labels for dimensionality.
+9. Thread-safe and concurrent updates.
+10. Provide clear API for creating, updating, and exporting metrics. Application code should not depend and have access to internal implementation.
+11. Application code should be able only to update metrics values and not read/export them directly.
 
 ### Key Concepts
 
@@ -26,8 +27,7 @@ In many standards like **OpenMetrics** and **OpenTelemetry** metric has these ke
 
 Metric labels provide dimensionality to metrics, allowing for more granular analysis.
 Each unique combination of labels (even empty) represents a distinct time series within the metric over time with exporting.
-Metric value(s), uniquely identified by the combination of metric name and labels.
-**Measurement** serve as a container for the actual metric value(s) and provide methods
+**Measurement** serve as a container for the actual metric value(s) per unique combination of labels, and provide methods
 to update them on observation and retrieve value(s) during exporting.<br/>
 **Metric Registry** acts as a central repository for managing and organizing metrics and providing snapshots to metrics exporter.
 
@@ -40,8 +40,8 @@ Some metrics support client aggregations (tracking min, max, etc.) and allow to 
 ---
 
 The Metrics Core module is split into two root packages:
-- `org.hiero.metrics.api` - contains public API for recording and exporting metrics.
-- `org.hiero.metrics.internal` - contains internal implementation of the API, hiding snapshotting implementation.
+- `org.hiero.metrics.api` - contains public API for recording and exporting metrics. This package and nested are accessible to clients.
+- `org.hiero.metrics.internal` - contains internal implementation of the API, hiding snapshotting implementation. This package and nested are not accessible to clients.
 
 The Metrics Core module has an optional dependency on `com.swirlds.config.api` for configuration support while discovering exporter factory SPI implementation.
 

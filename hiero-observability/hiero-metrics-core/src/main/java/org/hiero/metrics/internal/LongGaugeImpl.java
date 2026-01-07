@@ -2,39 +2,35 @@
 package org.hiero.metrics.internal;
 
 import java.util.function.LongSupplier;
-import java.util.function.ToLongFunction;
 import org.hiero.metrics.api.LongGauge;
 import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.measurement.LongGaugeMeasurement;
 import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
+import org.hiero.metrics.internal.measurement.AtomicLongGaugeMeasurement;
 
-public final class LongGaugeImpl extends AbstractSettableMetric<LongSupplier, LongGaugeMeasurement>
+public final class LongGaugeImpl
+        extends AbstractSettableMetric<LongSupplier, LongGaugeMeasurement, AtomicLongGaugeMeasurement>
         implements LongGauge {
 
-    private final ToLongFunction<LongGaugeMeasurement> exportValueSupplier;
-
     public LongGaugeImpl(LongGauge.Builder builder) {
-        super(builder);
-
-        exportValueSupplier =
-                builder.isResetOnExport() ? LongGaugeMeasurement::getAndReset : LongGaugeMeasurement::getAsLong;
+        super(builder, AtomicLongGaugeMeasurement::new);
     }
 
     @Override
     protected LongValueMeasurementSnapshotImpl createMeasurementSnapshot(
-            LongGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
+            AtomicLongGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
         return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateMeasurementSnapshot(LongGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
-        ((LongValueMeasurementSnapshotImpl) snapshot).set(exportValueSupplier.applyAsLong(measurement));
+    protected void updateMeasurementSnapshot(AtomicLongGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
+        ((LongValueMeasurementSnapshotImpl) snapshot).set(measurement.get());
     }
 
     @Override
-    protected void reset(LongGaugeMeasurement measurement) {
+    protected void reset(AtomicLongGaugeMeasurement measurement) {
         measurement.reset();
     }
 }

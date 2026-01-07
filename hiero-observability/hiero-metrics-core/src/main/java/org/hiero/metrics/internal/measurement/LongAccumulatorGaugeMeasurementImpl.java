@@ -6,13 +6,14 @@ import java.util.Objects;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.function.LongBinaryOperator;
 import java.util.function.LongSupplier;
-import org.hiero.metrics.api.measurement.LongGaugeMeasurement;
+import org.hiero.metrics.api.measurement.LongAccumulatorGaugeMeasurement;
 
-public final class LongAccumulatorGaugeMeasurement implements LongGaugeMeasurement {
+public final class LongAccumulatorGaugeMeasurementImpl implements LongAccumulatorGaugeMeasurement {
 
     private final LongAccumulator accumulator;
 
-    public LongAccumulatorGaugeMeasurement(@NonNull LongBinaryOperator operator, @NonNull LongSupplier initializer) {
+    public LongAccumulatorGaugeMeasurementImpl(
+            @NonNull LongBinaryOperator operator, @NonNull LongSupplier initializer) {
         Objects.requireNonNull(operator, "operator must not be null");
         Objects.requireNonNull(initializer, "initializer must not be null");
 
@@ -20,21 +21,18 @@ public final class LongAccumulatorGaugeMeasurement implements LongGaugeMeasureme
     }
 
     @Override
-    public void update(long value) {
+    public void accumulate(long value) {
         accumulator.accumulate(value);
     }
 
-    @Override
+    public long get() {
+        return accumulator.getThenReset();
+    }
+
     public long getAndReset() {
         return accumulator.get();
     }
 
-    @Override
-    public long getAsLong() {
-        return accumulator.getThenReset();
-    }
-
-    @Override
     public void reset() {
         accumulator.reset();
     }

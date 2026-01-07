@@ -9,7 +9,6 @@ import org.hiero.metrics.api.core.SettableMetric;
 import org.hiero.metrics.api.measurement.DoubleCounterMeasurement;
 import org.hiero.metrics.internal.DoubleCounterImpl;
 import org.hiero.metrics.internal.core.MetricUtils;
-import org.hiero.metrics.internal.measurement.DoubleAdderCounterMeasurement;
 
 /**
  * A metric of type {@link MetricType#COUNTER} that holds {@link DoubleCounterMeasurement} per label set.
@@ -56,11 +55,10 @@ public interface DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCoun
      * <p>
      * Default initial value is {@code 0.0}, but could be modified using {@link #setInitValue(double)}.
      */
-    final class Builder
-            extends SettableMetric.Builder<DoubleSupplier, DoubleCounterMeasurement, Builder, DoubleCounter> {
+    final class Builder extends SettableMetric.Builder<DoubleSupplier, Builder, DoubleCounter> {
 
         private Builder(@NonNull MetricKey<DoubleCounter> key) {
-            super(MetricType.COUNTER, key, MetricUtils.DOUBLE_ZERO_INIT, DoubleAdderCounterMeasurement::new);
+            super(MetricType.COUNTER, key, MetricUtils.DOUBLE_ZERO_INIT);
         }
 
         /**

@@ -6,13 +6,13 @@ import java.util.Objects;
 import java.util.concurrent.atomic.DoubleAccumulator;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleSupplier;
-import org.hiero.metrics.api.measurement.DoubleGaugeMeasurement;
+import org.hiero.metrics.api.measurement.DoubleAccumulatorGaugeMeasurement;
 
-public final class DoubleAccumulatorGaugeMeasurement implements DoubleGaugeMeasurement {
+public final class DoubleAccumulatorGaugeMeasurementImpl implements DoubleAccumulatorGaugeMeasurement {
 
     private final DoubleAccumulator accumulator;
 
-    public DoubleAccumulatorGaugeMeasurement(
+    public DoubleAccumulatorGaugeMeasurementImpl(
             @NonNull DoubleBinaryOperator operator, @NonNull DoubleSupplier initializer) {
         Objects.requireNonNull(operator, "operator must not be null");
         Objects.requireNonNull(initializer, "initializer must not be null");
@@ -21,21 +21,18 @@ public final class DoubleAccumulatorGaugeMeasurement implements DoubleGaugeMeasu
     }
 
     @Override
-    public void update(double value) {
+    public void accumulate(double value) {
         accumulator.accumulate(value);
     }
 
-    @Override
+    public double get() {
+        return accumulator.get();
+    }
+
     public double getAndReset() {
         return accumulator.getThenReset();
     }
 
-    @Override
-    public double getAsDouble() {
-        return accumulator.get();
-    }
-
-    @Override
     public void reset() {
         accumulator.reset();
     }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.internal.export.snapshot;
 
+import java.util.function.BiConsumer;
 import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 
 /**
@@ -10,4 +11,10 @@ import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
  * @param measurement the measurement
  * @param snapshot the snapshot of the measurement
  */
-public record MeasurementAndSnapshot<M>(M measurement, MeasurementSnapshot snapshot) {}
+public record MeasurementAndSnapshot<M>(
+        M measurement, MeasurementSnapshot snapshot, BiConsumer<M, MeasurementSnapshot> updater) {
+
+    public void update() {
+        updater.accept(measurement, snapshot);
+    }
+}

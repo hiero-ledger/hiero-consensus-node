@@ -19,23 +19,16 @@ public final class AtomicDoubleGaugeMeasurement implements DoubleGaugeMeasuremen
     }
 
     @Override
-    public void update(double value) {
+    public void set(double value) {
         container.set(fromDouble(value));
     }
 
-    @Override
-    public double getAndReset() {
-        return toDouble(container.getAndSet(fromDouble(initializer.getAsDouble())));
-    }
-
-    @Override
-    public double getAsDouble() {
+    public double get() {
         return toDouble(container.get());
     }
 
-    @Override
     public void reset() {
-        update(initializer.getAsDouble());
+        set(initializer.getAsDouble());
     }
 
     private static long fromDouble(double value) {

@@ -9,7 +9,6 @@ import org.hiero.metrics.api.core.SettableMetric;
 import org.hiero.metrics.api.measurement.LongCounterMeasurement;
 import org.hiero.metrics.internal.LongCounterImpl;
 import org.hiero.metrics.internal.core.MetricUtils;
-import org.hiero.metrics.internal.measurement.LongAdderCounterMeasurement;
 
 /**
  * A metric of type {@link MetricType#COUNTER} that holds {@link LongCounterMeasurement} per label set.
@@ -57,10 +56,10 @@ public interface LongCounter extends SettableMetric<LongSupplier, LongCounterMea
      * Default initial value is {@code 0L}. <br>
      * {@link java.util.concurrent.atomic.LongAdder} is used in the measurement implementation.
      */
-    final class Builder extends SettableMetric.Builder<LongSupplier, LongCounterMeasurement, Builder, LongCounter> {
+    final class Builder extends SettableMetric.Builder<LongSupplier, Builder, LongCounter> {
 
         private Builder(@NonNull MetricKey<LongCounter> key) {
-            super(MetricType.COUNTER, key, MetricUtils.LONG_ZERO_INIT, LongAdderCounterMeasurement::new);
+            super(MetricType.COUNTER, key, MetricUtils.LONG_ZERO_INIT);
         }
 
         /**

@@ -58,7 +58,7 @@ public final class ObservableGaugeImpl extends AbstractMetric<NumberSupplier> im
                     "A measurement with the same label values already exists: " + labelValues);
         }
 
-        createMeasurementAndSnapshot(valueSupplier, labelValues);
+        addMeasurementSnapshot(valueSupplier, labelValues);
         return this;
     }
 }

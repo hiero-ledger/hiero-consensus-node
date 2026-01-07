@@ -1,18 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.api.measurement;
 
-import java.util.function.DoubleSupplier;
-
 /**
- * A gauge measurement that holds a {@code double} value that can be updated using {@link #update(double)} to any value.
- * <br>
- * Some implementations can use additional calculations/aggregations on observed values.
- * <p>
- * This interface extends {@link DoubleSupplier} to provide the current value of the gauge.
- * <p>
- * <b>All operations are thread-safe and atomic.</b>
+ * A gauge measurement that holds the latest {@code double} value that set by {@link #set(double)}.
+ * Updating gauge is thread-safe and atomic.
  */
-public interface DoubleGaugeMeasurement extends DoubleSupplier, Measurement {
+public interface DoubleGaugeMeasurement {
 
     /**
      * Update the gauge by the specified value.
@@ -20,20 +13,5 @@ public interface DoubleGaugeMeasurement extends DoubleSupplier, Measurement {
      *
      * @param value the value to update the gauge by
      */
-    void update(double value);
-
-    /**
-     * Reset the gauge to its initial value and return the value before reset.
-     *
-     * @return the value before reset
-     */
-    double getAndReset();
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    default void reset() {
-        getAndReset();
-    }
+    void set(double value);
 }

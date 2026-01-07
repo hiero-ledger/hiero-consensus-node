@@ -32,14 +32,12 @@ public final class LongAdderCounterMeasurement implements LongCounterMeasurement
         container.add(1L);
     }
 
-    @Override
+    public long get() {
+        return container.sum();
+    }
+
     public void reset() {
         container.reset();
         increment(initializer.getAsLong());
-    }
-
-    @Override
-    public long getAsLong() {
-        return container.sum();
     }
 }

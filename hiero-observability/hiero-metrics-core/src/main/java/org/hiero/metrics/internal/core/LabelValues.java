@@ -6,28 +6,28 @@ import java.util.Objects;
 
 /**
  * Represents a set of label values for a specific combination of dynamic labels.
+ * Source for this class  is array of strings where even indices are label names and odd indices are label values.
  */
-public abstract class LabelValues {
+public final class LabelValues {
 
-    public static final LabelValues EMPTY = new LabelValues() {
-        @Override
-        public int size() {
-            return 0;
-        }
+    public static final LabelValues EMPTY = new LabelValues();
 
-        @NonNull
-        @Override
-        public String get(int index) {
-            throw new IndexOutOfBoundsException("Label values is empty");
-        }
-    };
+    private final String[] namesAndValues;
 
     private int hashCode = 0;
 
-    public abstract int size();
+    public LabelValues(String... namesAndValues) {
+        this.namesAndValues = namesAndValues;
+    }
+
+    public int size() {
+        return namesAndValues.length / 2;
+    }
 
     @NonNull
-    public abstract String get(int index);
+    public String get(int index) {
+        return namesAndValues[2 * index + 1];
+    }
 
     @Override
     public final boolean equals(Object other) {

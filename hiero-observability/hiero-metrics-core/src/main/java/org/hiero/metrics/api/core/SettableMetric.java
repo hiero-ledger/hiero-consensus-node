@@ -3,7 +3,6 @@ package org.hiero.metrics.api.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * Base interface for a metric, which holds measurements per unique combination
@@ -70,15 +69,12 @@ public interface SettableMetric<I, M> extends Metric {
      * Base abstract builder for {@link SettableMetric}.
      *
      * @param <I> the type of the initializer used to create new measurements per label set
-     * @param <D> the type of the measurement
      * @param <B> the type of the builder
      * @param <M> the type of the metric
      */
-    abstract class Builder<I, D, B extends Builder<I, D, B, M>, M extends SettableMetric<I, D>>
-            extends Metric.Builder<B, M> {
+    abstract class Builder<I, B extends Builder<I, B, M>, M extends SettableMetric<I, ?>> extends Metric.Builder<B, M> {
 
         private I defaultInitializer;
-        private Function<I, D> measurementFactory;
 
         /**
          * Constructor for a settable metric builder.
@@ -86,24 +82,10 @@ public interface SettableMetric<I, M> extends Metric {
          * @param type               the metric type, must not be {@code null}
          * @param key                the metric key, must not be {@code null}
          * @param defaultInitializer the default initializer to use to create new measurements, must not be {@code null}
-         * @param measurementFactory   the factory function to create new measurements, must not be {@code null}
          */
-        protected Builder(
-                @NonNull MetricType type,
-                @NonNull MetricKey<M> key,
-                @NonNull I defaultInitializer,
-                @NonNull Function<I, D> measurementFactory) {
+        protected Builder(@NonNull MetricType type, @NonNull MetricKey<M> key, @NonNull I defaultInitializer) {
             super(type, key);
             setDefaultInitializer(defaultInitializer);
-            setMeasurementFactory(measurementFactory);
-        }
-
-        /**
-         * @return the measurement factory, never {@code null}
-         */
-        @NonNull
-        public Function<I, D> getMeasurementFactory() {
-            return measurementFactory;
         }
 
         /**
@@ -123,20 +105,7 @@ public interface SettableMetric<I, M> extends Metric {
         @NonNull
         public final B setDefaultInitializer(@NonNull I defaultInitializer) {
             this.defaultInitializer =
-                    Objects.requireNonNull(defaultInitializer, "Default initializer must not be null");
-            return self();
-        }
-
-        /**
-         * Set the factory function to use to create new measurements.
-         *
-         * @param measurementFactory the factory function, must not be {@code null}
-         * @return this builder
-         */
-        @NonNull
-        protected B setMeasurementFactory(@NonNull Function<I, D> measurementFactory) {
-            this.measurementFactory =
-                    Objects.requireNonNull(measurementFactory, "Measurement factory must not be null");
+                    Objects.requireNonNull(defaultInitializer, "default initializer must not be null");
             return self();
         }
     }

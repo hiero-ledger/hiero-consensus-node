@@ -36,14 +36,16 @@ If no dynamic labels are defined for the metric, then it will have a single meas
 Supported metric types are defined by enum [MetricType](../src/main/java/org/hiero/metrics/api/core/MetricType.java)
 Here is the table of all metrics available to use:
 
-|                                       Metric                                       |  Type   |                                                             Description                                                              |
-|------------------------------------------------------------------------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------|
-| [LongCounter](../src/main/java/org/hiero/metrics/api/LongCounter.java)             | Counter | Allows to increment `long` (only increasing), should be used also for lower types like `integer`.                                    |
-| [DoubleCounter](../src/main/java/org/hiero/metrics/api/DoubleCounter.java)         | Counter | Allows to increment `double` (only increasing).                                                                                      |
-| [ObservableGauge](../src/main/java/org/hiero/metrics/api/ObservableGauge.java)     | Gauge   | Requires zero ore more `DoubleSupplier`/`LongSupplier` (with optional labels), which will be called on export.                       |
-| [LongGauge](../src/main/java/org/hiero/metrics/api/LongGauge.java)                 | Gauge   | Gauge to store and update `long`. May have an accumulator applied to previous and observed values.                                   |
-| [DoubleGauge](../src/main/java/org/hiero/metrics/api/DoubleGauge.java)             | Gauge   | Gauge to store and update `double`. May have an accumulator applied to previous and observed values.                                 |
-| [GaugeAdapter](../src/main/java/org/hiero/metrics/api/GaugeAdapter.java)           | Gauge   | A gauge to adapt to any external class that is used to store and update a single value. Parametrized with external measurement type. |
+|                                            Metric                                            |  Type   |                                                             Description                                                              |
+|----------------------------------------------------------------------------------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------|
+| [LongCounter](../src/main/java/org/hiero/metrics/api/LongCounter.java)                       | Counter | Allows to increment `long` (only increasing), should be used also for lower types like `integer`.                                    |
+| [DoubleCounter](../src/main/java/org/hiero/metrics/api/DoubleCounter.java)                   | Counter | Allows to increment `double` (only increasing).                                                                                      |
+| [ObservableGauge](../src/main/java/org/hiero/metrics/api/ObservableGauge.java)               | Gauge   | Requires zero ore more `DoubleSupplier`/`LongSupplier` (with optional labels), which will be called on export.                       |
+| [LongGauge](../src/main/java/org/hiero/metrics/api/LongGauge.java)                           | Gauge   | Gauge to store latest `long` value.                                                                                                  |
+| [LongAccumulatorGauge](../src/main/java/org/hiero/metrics/api/LongAccumulatorGauge.java)     | Gauge   | Gauge to accumulate `long` value. Requires `LongAccumulator`.                                                                        |
+| [DoubleGauge](../src/main/java/org/hiero/metrics/api/DoubleGauge.java)                       | Gauge   | Gauge to store latest `double` value.                                                                                                |
+| [DoubleAccumulatorGauge](../src/main/java/org/hiero/metrics/api/DoubleAccumulatorGauge.java) | Gauge   | Gauge to accumulate `double` value. Requires `DoubleAccumulator`.                                                                    |
+| [GaugeAdapter](../src/main/java/org/hiero/metrics/api/GaugeAdapter.java)                     | Gauge   | A gauge to adapt to any external class that is used to store and update a single value. Parametrized with external measurement type. |
 
 ### Metric Registry
 
@@ -89,7 +91,7 @@ Snapshots internally are reusable objects and values are added/updates during ea
 3. Metric must be registered once in a registry and may be use in different places in the code.
    Use [MetricsRegistrationProvider](../src/main/java/org/hiero/metrics/api/core/MetricsRegistrationProvider.java) for metrics registration
    and [MetricsBinder](../src/main/java/org/hiero/metrics/api/core/MetricsBinder.java) to propagate registry and access metrics and their measurements in application classes.
-4. When metric has dynamic labels, it is recommended to pass `String` label names and values in **alphabetical** order to access labeled measurements. This may slightly improve performance of map lookups internally, because framework will not need to reorder label names and values on each access.
+4. When metric has dynamic labels, it is recommended to pass `String` label names and values in **alphabetical** label name order to access labeled measurements. This may slightly improve performance of map lookups internally, because framework will not need to reorder label names and values on each access.
 5. If label values are known in advance (not provided from outside), it is recommended to access labeled measurement once and keep in some class field. This will avoid map lookups on each access labeled measurement update.
 
 [📘Back to Overview](metrics_overview.md)

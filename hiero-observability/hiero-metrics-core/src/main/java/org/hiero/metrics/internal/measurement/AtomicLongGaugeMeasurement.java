@@ -18,21 +18,14 @@ public final class AtomicLongGaugeMeasurement implements LongGaugeMeasurement {
     }
 
     @Override
-    public void update(long value) {
+    public void set(long value) {
         container.set(value);
     }
 
-    @Override
-    public long getAndReset() {
-        return container.getAndSet(initializer.getAsLong());
-    }
-
-    @Override
-    public long getAsLong() {
+    public long get() {
         return container.get();
     }
 
-    @Override
     public void reset() {
         container.set(initializer.getAsLong());
     }

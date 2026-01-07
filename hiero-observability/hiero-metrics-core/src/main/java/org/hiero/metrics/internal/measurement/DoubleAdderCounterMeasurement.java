@@ -35,12 +35,10 @@ public final class DoubleAdderCounterMeasurement implements DoubleCounterMeasure
         container.add(ONE);
     }
 
-    @Override
-    public double getAsDouble() {
+    public double get() {
         return container.sum();
     }
 
-    @Override
     public void reset() {
         container.reset();
         increment(initializer.getAsDouble());

@@ -10,7 +10,10 @@ import java.util.List;
  */
 public interface MetricInfo {
 
+    /** Regex for validating metric names. */
     String METRIC_NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_:]*$";
+
+    /** Regex for validating unit and label names. */
     String UNIT_LABEL_NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_]*$";
 
     /**

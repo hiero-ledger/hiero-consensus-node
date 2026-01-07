@@ -172,10 +172,12 @@ public sealed interface MetricRegistry extends Closeable permits MetricRegistryI
         }
 
         /**
-         * Enables discovery of {@link MetricsExporter} via {@link MetricsExporterFactory}
-         * implementations using the provided configuration.
+         * Enables discovery {@link MetricsExporterFactory} implementation that creates {@link MetricsExporter}
+         * using the provided configuration.
          * Actual discovery happens during the {@link #build()} call and if successful, overrides exporter set
          * by {@link #setMetricsExporter(MetricsExporter)}.
+         * {@link MetricsExporter} will be used only if single {@link MetricsExporterFactory} is discovered and
+         * {@value #PROPERTY_EXPORT_DISCOVERY_DISABLED} configuration property is not set to {@code true}.
          *
          * @param configuration the configuration to use for creating an instance of {@link MetricsExporter}, must not be {@code null}
          * @return this builder instance

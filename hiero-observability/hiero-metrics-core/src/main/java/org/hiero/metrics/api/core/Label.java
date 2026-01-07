@@ -10,7 +10,7 @@ import org.hiero.metrics.internal.core.MetricUtils;
  * such as tracking the number of requests to a web server by different HTTP methods (e.g., GET,
  * POST, etc.) or by different response status codes (e.g., 200, 404, 500, etc.).
  * <p>
- * Label names must not be blank and must only contain valid characters defined by {@value MetricInfo#UNIT_LABEL_NAME_REGEX}.
+ * Label names must contain valid characters matching regex {@value MetricInfo#UNIT_LABEL_NAME_REGEX}.
  */
 public record Label(@NonNull String name, @NonNull String value) implements Comparable<Label> {
 

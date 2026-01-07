@@ -6,7 +6,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.function.Consumer;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricType;
@@ -16,17 +15,19 @@ import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 public final class UpdatableMetricSnapshot<M> implements MetricSnapshot {
 
     private final Metric metric;
-    private final Consumer<MeasurementAndSnapshot<M>> snapshotUpdater;
     private final ConcurrentLinkedQueue<MeasurementAndSnapshot<M>> measurementAndSnapshots;
 
-    public UpdatableMetricSnapshot(Metric metric, Consumer<MeasurementAndSnapshot<M>> snapshotUpdater) {
+    public UpdatableMetricSnapshot(Metric metric) {
         this.metric = metric;
-        this.snapshotUpdater = snapshotUpdater;
         this.measurementAndSnapshots = new ConcurrentLinkedQueue<>();
     }
 
     public void addMeasurementAndSnapshot(MeasurementAndSnapshot<M> measurementAndSnapshot) {
         measurementAndSnapshots.add(measurementAndSnapshot);
+    }
+
+    public void update() {
+        measurementAndSnapshots.forEach(MeasurementAndSnapshot::update);
     }
 
     @Override
@@ -71,9 +72,5 @@ public final class UpdatableMetricSnapshot<M> implements MetricSnapshot {
         return measurementAndSnapshots.stream()
                 .map(MeasurementAndSnapshot::snapshot)
                 .iterator();
-    }
-
-    public void update() {
-        measurementAndSnapshots.forEach(snapshotUpdater);
     }
 }
