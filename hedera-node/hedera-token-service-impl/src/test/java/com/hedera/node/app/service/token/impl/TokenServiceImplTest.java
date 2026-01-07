@@ -52,9 +52,9 @@ class TokenServiceImplTest {
 
         subject.registerSchemas(schemaRegistry);
         final var captor = ArgumentCaptor.forClass(Schema.class);
-        verify(schemaRegistry, times(5)).register(captor.capture());
+        verify(schemaRegistry, times(4)).register(captor.capture());
         final var schemas = captor.getAllValues();
-        assertThat(schemas).hasSize(5);
+        assertThat(schemas).hasSize(4);
         assertThat(schemas.getFirst()).isInstanceOf(V0490TokenSchema.class);
         assertThat(schemas.getLast()).isInstanceOf(V0700TokenSchema.class);
     }

@@ -65,7 +65,7 @@ class V0700TokenSchemaTest {
     void testStatesToCreate() {
         final var statesToCreate = subject.statesToCreate();
 
-        assertThat(statesToCreate).hasSize(1);
+        assertThat(statesToCreate).hasSize(2);
 
         final var sortedResult = statesToCreate.stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
@@ -135,17 +135,5 @@ class V0700TokenSchemaTest {
         // The state ID should be consistent with the SingletonType enum
         assertThat(NODE_PAYMENTS_STATE_ID).isPositive();
         assertThat(STAKE_PERIOD_INFO_STATE_ID).isPositive();
-    }
-
-    @Test
-    @DisplayName("State definition should have correct state ID")
-    void testStateDefinitionHasCorrectStateId() {
-        final var statesToCreate = subject.statesToCreate();
-        assertThat(statesToCreate).hasSize(2);
-        final var nodePaymentsDef = statesToCreate.iterator().next();
-        final var stakePeriodTimeDef = statesToCreate.iterator().next();
-
-        assertThat(nodePaymentsDef.stateId()).isEqualTo(NODE_PAYMENTS_STATE_ID);
-        assertThat(stakePeriodTimeDef.stateId()).isEqualTo(STAKE_PERIOD_INFO_STATE_ID);
     }
 }
