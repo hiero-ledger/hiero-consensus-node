@@ -3,7 +3,11 @@ package org.hiero.interledger.clpr.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
@@ -13,7 +17,9 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.MessageDigest;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -130,9 +136,31 @@ public class ClprStateProofManager {
             throw new IllegalStateException(
                     "CLPR ledger configurations state not found - service may not be properly initialized");
         }
+
+        final var tssSigBytes = snapshot.tssSignature();
+        if (tssSigBytes == null || Objects.equals(tssSigBytes, Bytes.EMPTY)) {
+            throw new IllegalStateException("TSS signature is missing or invalid");
+        }
+
+        final var blockTimestamp = snapshot.blockTimestamp();
+        if (blockTimestamp == null || Objects.equals(blockTimestamp, Timestamp.DEFAULT)) {
+            throw new IllegalStateException("Block timestamp is missing or invalid");
+        }
+
+        final var path = snapshot.path();
+        if (path == null || Objects.equals(path, MerklePath.DEFAULT) || !path.hasHash()) {
+            throw new IllegalStateException("Merkle path is missing or invalid");
+        }
+
         // TODO: If the ledger id is blank, it's a query for the local ledger configuration. Add code to handle.
+
         return buildMerkleStateProof(
-                state, V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
+                state,
+                V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID,
+                ClprLedgerId.PROTOBUF.toBytes(ledgerId),
+                tssSigBytes,
+                blockTimestamp,
+                path);
     }
 
     /**
@@ -167,11 +195,16 @@ public class ClprStateProofManager {
     }
 
     /**
-     * Builds a proper Merkle state proof from the actual state tree.
+     * Builds a proper Merkle state proof from the actual state tree to the containing block's root.
      */
     @Nullable
     private StateProof buildMerkleStateProof(
-            @NonNull final MerkleNodeState merkleState, final int STATE_ID, @NonNull final Bytes STATE_KEY) {
+            @NonNull final MerkleNodeState merkleState,
+            final int STATE_ID,
+            @NonNull final Bytes STATE_KEY,
+            final Bytes tssSignature,
+            final Timestamp blockTimestamp,
+            final MerklePath stateSubrootToBlockRoot) {
         // Ensure state is hashed before getting Merkle proof
         if (!merkleState.isHashed()) {
             merkleState.computeHash();
@@ -195,10 +228,33 @@ public class ClprStateProofManager {
             throw new IllegalStateException("State root hash is null.");
         }
 
-        return StateProofBuilder.newBuilder()
+        // Extend the merkle proof from the state subroot to the block root
+        final var mbp = new MerklePathBuilder().appendSiblingNodes(stateSubrootToBlockRoot.siblings());
+        // Add the block timestamp hash as the final sibling node
+        mbp.appendSiblingNode(SiblingNode.newBuilder()
+                .isLeft(true)
+                .hash(hashTimestamp(blockTimestamp))
+                .build());
+        final var fullProof = StateProofBuilder.newBuilder()
                 .addProof(merkleProof)
-                .withTssSignature(Bytes.wrap(stateRootHash.copyToByteArray()))
+                .extendRoot(mbp)
+                .withTssSignature(tssSignature)
                 .build();
+
+        // Verify and return the completed proof
+        StateProofVerifier.verify(fullProof); // probably not _needed_, but why not have it?
+        return fullProof;
+    }
+
+    private Bytes hashTimestamp(@NonNull final Timestamp timestamp) {
+        try {
+            final var digest = MessageDigest.getInstance("SHA-384");
+            final var tsBytes = Timestamp.PROTOBUF.toBytes(timestamp);
+            tsBytes.writeTo(digest);
+            return Bytes.wrap(digest.digest());
+        } catch (final java.security.NoSuchAlgorithmException fatal) {
+            throw new IllegalStateException(fatal);
+        }
     }
 
     /**

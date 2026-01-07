@@ -16,6 +16,7 @@ package com.hedera.node.internal.network;
 
 // SPDX-License-Identifier: Apache-2.0
 import "block/stream/block_proof.proto";
+import "services/timestamp.proto";
 
 option java_package = "com.hedera.node.internal.network.legacy";
 // <<<pbj.java_package = "com.hedera.node.internal.network">>> This comment is special code for setting PBJ Compiler java package
@@ -51,4 +52,19 @@ message PendingProof {
      * for any indirect proofs.
      */
     repeated com.hedera.hapi.block.stream.MerkleSiblingHash sibling_hashes_from_prev_block_root = 5;
+
+    /**
+     * The previous blocks subroot hash for the pending block.
+     */
+    bytes prev_blocks_root_hash = 6;
+
+    /**
+     * The consensus header root hash for the pending block.
+     */
+    bytes consensus_header_root_hash = 7;
+
+    /**
+     * The timestamp of the pending block.
+     */
+    proto.Timestamp block_timestamp = 8;
 }
