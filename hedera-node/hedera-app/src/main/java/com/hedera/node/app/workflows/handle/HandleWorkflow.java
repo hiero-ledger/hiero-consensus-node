@@ -6,6 +6,8 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.services.StakePeriodInfoManager.LastStakePeriodCalculationsTime.NEVER;
+import static com.hedera.node.app.services.StakePeriodInfoManager.LastStakePeriodCalculationsTime.PREVIOUS_PERIOD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartRound;
@@ -60,6 +62,7 @@ import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.services.StakePeriodInfoManager;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -155,6 +158,7 @@ public class HandleWorkflow {
     private final BlockBufferService blockBufferService;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
     private final QuiescenceController quiescenceController;
+    private final StakePeriodInfoManager stakePeriodInfoManager;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -200,7 +204,8 @@ public class HandleWorkflow {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
             @NonNull final QuiescenceController quiescenceController,
-            @NonNull final NodeFeeManager nodeFeeManager) {
+            @NonNull final NodeFeeManager nodeFeeManager,
+            @NonNull final StakePeriodInfoManager stakePeriodInfoManager) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -234,6 +239,7 @@ public class HandleWorkflow {
         this.blockBufferService = requireNonNull(blockBufferService);
         this.apiProviders = requireNonNull(apiProviders);
         this.nodeFeeManager = requireNonNull(nodeFeeManager);
+        this.stakePeriodInfoManager = requireNonNull(stakePeriodInfoManager);
     }
 
     /**
@@ -310,18 +316,28 @@ public class HandleWorkflow {
                         ? blockRecordManager.lastUsedConsensusTime()
                         : blockStreamManager.lastUsedConsensusTime())
                 : round.getConsensusTimestamp();
-        // Using the last used consensus time, we need to add 2ns, in case this triggers stake periods side effects
-        try {
-            transactionsDispatched |=
-                    nodeFeeManager.distributeFees(state, lastUsedConsTime.plusNanos(2), systemTransactions);
-        } catch (Exception e) {
-            logger.error("{} Failed to pay node fees to nodes", ALERT_MESSAGE, e);
-        }
-        try {
-            transactionsDispatched |=
-                    nodeRewardManager.maybeRewardActiveNodes(state, lastUsedConsTime.plusNanos(4), systemTransactions);
-        } catch (Exception e) {
-            logger.error("{} Failed to reward active nodes", ALERT_MESSAGE, e);
+        final var lastStakePeriodCalculationTime =
+                stakePeriodInfoManager.classifyLastStakePeriodCalculationTime(state, lastUsedConsTime);
+        if (lastStakePeriodCalculationTime == NEVER) {
+            // In genesis case, we need to update the last stake period calculation time. So, we can use this time for
+            // the next
+            // stake period calculation time.
+            stakePeriodInfoManager.updateStakePeriodCalculationTime(state, lastUsedConsTime);
+        } else if (lastStakePeriodCalculationTime == PREVIOUS_PERIOD) {
+            // Using the last used consensus time, we need to add 2ns, in case this triggers stake periods side effects
+            try {
+                transactionsDispatched |=
+                        nodeFeeManager.distributeFees(state, lastUsedConsTime.plusNanos(2), systemTransactions);
+            } catch (Exception e) {
+                logger.error("{} Failed to pay node fees to nodes", ALERT_MESSAGE, e);
+            }
+            try {
+                transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
+                        state, lastUsedConsTime.plusNanos(4), systemTransactions);
+            } catch (Exception e) {
+                logger.error("{} Failed to reward active nodes", ALERT_MESSAGE, e);
+            }
+            stakePeriodInfoManager.updateStakePeriodCalculationTime(state, lastUsedConsTime.plusNanos(6));
         }
         try {
             final int receiptEntriesBatchSize = configProvider

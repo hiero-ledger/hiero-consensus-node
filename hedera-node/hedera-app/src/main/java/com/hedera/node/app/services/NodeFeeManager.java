@@ -3,8 +3,6 @@ package com.hedera.node.app.services;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NODE_PAYMENTS_STATE_ID;
-import static com.hedera.node.app.services.StakePeriodInfoManager.LastStakePeriodCalculationsTime.CURRENT_PERIOD;
-import static com.hedera.node.app.services.StakePeriodInfoManager.LastStakePeriodCalculationsTime.PREVIOUS_PERIOD;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 
@@ -20,7 +18,6 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNodePaymentsStore;
-import com.hedera.node.app.service.token.impl.WritableStakePeriodInfoStore;
 import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.config.ConfigProvider;
@@ -154,104 +151,91 @@ public class NodeFeeManager implements NodeFeeAccumulator {
         final var ledgerConfig = configProvider.getConfiguration().getConfigData(LedgerConfig.class);
         final var stakingConfig = configProvider.getConfiguration().getConfigData(StakingConfig.class);
 
-        final var lastStakePeriodCalculationTime = stakePeriodInfoManager.classifyLastStakePeriodCalculationTime(state, now);
-        // If we're in the same staking period as the last time stake period calculations were done, we don't
-        // need to do anything
-        if (lastStakePeriodCalculationTime == CURRENT_PERIOD) {
-            return false;
-        }
-
         final var writableTokenStates = state.getWritableStates(TokenService.NAME);
         final var entityIdStore = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
         final var nodePaymentsStore = new WritableNodePaymentsStore(writableTokenStates);
-        final var stakePeriodInfoStore = new WritableStakePeriodInfoStore(writableTokenStates);
-        if (lastStakePeriodCalculationTime == PREVIOUS_PERIOD) {
-            log.info("Considering distributing node fees for staking period @ {}", asTimestamp(now));
-            // commit the node fees accumulated in the previous period from nodeFees to nodePaymentsStore
-            updateNodePaymentsState(state);
 
-            final var accountStore = new WritableAccountStore(writableTokenStates, entityIdStore);
-            final var feeCollectionAccountId = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
-            final var feeCollectionAccount = requireNonNull(accountStore.getAccountById(feeCollectionAccountId));
-            final long feeCollectionBalance = feeCollectionAccount.tinybarBalance();
+        log.info("Considering distributing node fees for staking period @ {}", asTimestamp(now));
+        // commit the node fees accumulated in the previous period from nodeFees to nodePaymentsStore
+        updateNodePaymentsState(state);
 
-            final var transferAmounts = new ArrayList<AccountAmount>();
-            long totalNodeFees = 0L;
+        final var accountStore = new WritableAccountStore(writableTokenStates, entityIdStore);
+        final var feeCollectionAccountId = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
+        final var feeCollectionAccount = requireNonNull(accountStore.getAccountById(feeCollectionAccountId));
+        final long feeCollectionBalance = feeCollectionAccount.tinybarBalance();
 
-            // Pay node fees to each node's account
-            for (final var payment : requireNonNull(nodePaymentsStore.get()).payments()) {
-                final var nodeAccount = accountStore.getAccountById(payment.nodeAccountId());
-                final var nodeFee = payment.fees();
-                // If the node's account cannot accept fees (deleted or doesn't exist), they are forfeit
-                if (nodeAccount != null && !nodeAccount.deleted()) {
-                    if (nodeFee > 0) {
-                        transferAmounts.add(AccountAmount.newBuilder()
-                                .accountID(payment.nodeAccountId())
-                                .amount(nodeFee)
-                                .build());
-                        totalNodeFees += nodeFee;
-                        log.info("Node account {} will receive {} tinybars", payment.nodeAccountId(), nodeFee);
-                    }
-                } else {
-                    log.info(
-                            "Node account {} is deleted or doesn't exist, forfeiting {} tinybars",
-                            payment.nodeAccountId(),
-                            nodeFee);
+        final var transferAmounts = new ArrayList<AccountAmount>();
+        long totalNodeFees = 0L;
+
+        // Pay node fees to each node's account
+        for (final var payment : requireNonNull(nodePaymentsStore.get()).payments()) {
+            final var nodeAccount = accountStore.getAccountById(payment.nodeAccountId());
+            final var nodeFee = payment.fees();
+            // If the node's account cannot accept fees (deleted or doesn't exist), they are forfeit
+            if (nodeAccount != null && !nodeAccount.deleted()) {
+                if (nodeFee > 0) {
+                    transferAmounts.add(AccountAmount.newBuilder()
+                            .accountID(payment.nodeAccountId())
+                            .amount(nodeFee)
+                            .build());
+                    totalNodeFees += nodeFee;
+                    log.info("Node account {} will receive {} tinybars", payment.nodeAccountId(), nodeFee);
                 }
-            }
-
-            // This should never happen
-            if (totalNodeFees > feeCollectionBalance) {
-                throw new IllegalStateException(ALERT_MESSAGE + "Total node fees to be distributed" + totalNodeFees
-                        + " exceeds fee collection balance " + feeCollectionBalance);
-            }
-            final long networkServiceFees = feeCollectionBalance - totalNodeFees;
-
-            // Distribute network/service fees to 0.0.98, 0.0.800, and 0.0.801
-            final var fundingAccountId = entityIdFactory.newAccountId(ledgerConfig.fundingAccount());
-            final var stakingRewardAccountId = entityIdFactory.newAccountId(accountsConfig.stakingRewardAccount());
-            final var nodeRewardAccountId = entityIdFactory.newAccountId(accountsConfig.nodeRewardAccount());
-
-            if (networkServiceFees > 0) {
-                updateNetworkAndServiceTransferAmounts(
-                        networkServiceFees,
-                        fundingAccountId,
-                        stakingRewardAccountId,
-                        nodeRewardAccountId,
-                        accountStore,
-                        transferAmounts,
-                        nodesConfig,
-                        stakingConfig);
-            }
-
-            // Add the debit from fee collection account
-            if (!transferAmounts.isEmpty()) {
-                // To avoid any rounding error, so we need to sum up the total distributed amount
-                // instead of just using the feeCollectionBalance
-                final long totalDistributed = transferAmounts.stream()
-                        .mapToLong(AccountAmount::amount)
-                        .sum();
-                transferAmounts.add(AccountAmount.newBuilder()
-                        .accountID(feeCollectionAccountId)
-                        .amount(-totalDistributed)
-                        .build());
+            } else {
                 log.info(
-                        "Distributing {} tinybars from fee collection account: {} as node fees, {} to network/service accounts",
-                        feeCollectionBalance,
-                        totalNodeFees,
-                        networkServiceFees);
+                        "Node account {} is deleted or doesn't exist, forfeiting {} tinybars",
+                        payment.nodeAccountId(),
+                        nodeFee);
             }
-
-            systemTransactions.dispatchNodePayments(
-                    state,
-                    now,
-                    TransferList.newBuilder().accountAmounts(transferAmounts).build());
         }
-        // Even when the lastStakePeriodCalculationTime=NEVER in genesis case we should reset the node payments state.
-        // So, we count this time for next distribution.
+
+        // This should never happen
+        if (totalNodeFees > feeCollectionBalance) {
+            throw new IllegalStateException(ALERT_MESSAGE + "Total node fees to be distributed" + totalNodeFees
+                    + " exceeds fee collection balance " + feeCollectionBalance);
+        }
+        final long networkServiceFees = feeCollectionBalance - totalNodeFees;
+
+        // Distribute network/service fees to 0.0.98, 0.0.800, and 0.0.801
+        final var fundingAccountId = entityIdFactory.newAccountId(ledgerConfig.fundingAccount());
+        final var stakingRewardAccountId = entityIdFactory.newAccountId(accountsConfig.stakingRewardAccount());
+        final var nodeRewardAccountId = entityIdFactory.newAccountId(accountsConfig.nodeRewardAccount());
+
+        if (networkServiceFees > 0) {
+            updateNetworkAndServiceTransferAmounts(
+                    networkServiceFees,
+                    fundingAccountId,
+                    stakingRewardAccountId,
+                    nodeRewardAccountId,
+                    accountStore,
+                    transferAmounts,
+                    nodesConfig,
+                    stakingConfig);
+        }
+
+        // Add the debit from fee collection account
+        if (!transferAmounts.isEmpty()) {
+            // To avoid any rounding error, so we need to sum up the total distributed amount
+            // instead of just using the feeCollectionBalance
+            final long totalDistributed =
+                    transferAmounts.stream().mapToLong(AccountAmount::amount).sum();
+            transferAmounts.add(AccountAmount.newBuilder()
+                    .accountID(feeCollectionAccountId)
+                    .amount(-totalDistributed)
+                    .build());
+            log.info(
+                    "Distributing {} tinybars from fee collection account: {} as node fees, {} to network/service accounts",
+                    feeCollectionBalance,
+                    totalNodeFees,
+                    networkServiceFees);
+        }
+
+        systemTransactions.dispatchNodePayments(
+                state,
+                now,
+                TransferList.newBuilder().accountAmounts(transferAmounts).build());
+
         nodePaymentsStore.resetForNewStakingPeriod(asTimestamp(now));
-        // Update the stake period info singleton with the current time
-        stakePeriodInfoStore.updateLastStakePeriodCalculationTime(asTimestamp(now));
         resetNodeFees();
         ((CommittableWritableStates) writableTokenStates).commit();
         return true;

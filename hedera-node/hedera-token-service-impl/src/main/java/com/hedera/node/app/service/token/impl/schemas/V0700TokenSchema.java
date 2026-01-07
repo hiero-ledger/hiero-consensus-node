@@ -2,9 +2,11 @@
 package com.hedera.node.app.service.token.impl.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.StakePeriodInfo;
 import com.hedera.hapi.platform.state.SingletonType;
@@ -13,6 +15,7 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.Set;
 
 public class V0700TokenSchema extends Schema<SemanticVersion> {
@@ -48,10 +51,16 @@ public class V0700TokenSchema extends Schema<SemanticVersion> {
             final var nodePaymentsState = ctx.newStates().getSingleton(NODE_PAYMENTS_STATE_ID);
             nodePaymentsState.put(NodePayments.DEFAULT);
         }
-
+        final var stakePeriodInfoState = ctx.newStates().getSingleton(STAKE_PERIOD_INFO_STATE_ID);
         if (ctx.isGenesis() || !previousStates.contains(STAKE_PERIOD_INFO_STATE_ID)) {
-            final var stakePeriodInfoState = ctx.newStates().getSingleton(STAKE_PERIOD_INFO_STATE_ID);
             stakePeriodInfoState.put(StakePeriodInfo.DEFAULT);
+        } else {
+            final var nodeRewardsState = ctx.newStates().getSingleton(STAKING_NETWORK_REWARDS_STATE_ID);
+            final var lastNodeRewardsPayment = ((NetworkStakingRewards) Objects.requireNonNull(nodeRewardsState.get()))
+                    .lastNodeRewardPaymentsTime();
+            stakePeriodInfoState.put(StakePeriodInfo.newBuilder()
+                    .lastStakePeriodCalculationTime(lastNodeRewardsPayment)
+                    .build());
         }
     }
 }

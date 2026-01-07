@@ -229,9 +229,7 @@ class NodeFeeManagerTest {
         // 1234567 / 60 = 20576.11... so period 20576 starts at 20576 * 60 = 1234560
         // Use a time that's definitely in the same period (same minute)
         final var sameMinuteTime = Instant.ofEpochSecond(1234565L); // 2 seconds before NOW, same minute
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(sameMinuteTime))
                 .build();
@@ -271,9 +269,7 @@ class NodeFeeManagerTest {
     @Test
     void testDistributeFeesWhenNeverPaid() {
         // Set up with null last stake period calculation time (genesis case)
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime((Timestamp) null)
                 .build();
@@ -357,13 +353,12 @@ class NodeFeeManagerTest {
         subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodInfoManager);
 
         // Set up with 0.0.801 having low balance (below minimum)
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(PREV_PERIOD))
                 .build();
-        givenSetupForDistributionWithNodeRewardBalance(nodePayments, stakePeriodInfo, 1000L, 500L); // 500 < 10000 minimum
+        givenSetupForDistributionWithNodeRewardBalance(
+                nodePayments, stakePeriodInfo, 1000L, 500L); // 500 < 10000 minimum
 
         // Accumulate fees in memory (simulating block processing)
         subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
@@ -402,9 +397,7 @@ class NodeFeeManagerTest {
         subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodInfoManager);
 
         // Set up with 0.0.801 having high balance (above minimum)
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(PREV_PERIOD))
                 .build();
@@ -447,9 +440,7 @@ class NodeFeeManagerTest {
 
     @Test
     void testDistributeFeesSkipsNonExistentNodeAccounts() {
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(PREV_PERIOD))
                 .build();
@@ -529,9 +520,7 @@ class NodeFeeManagerTest {
     @Test
     void testDistributeFeesWithZeroBalance() {
         // Set up with zero fee collection balance
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(PREV_PERIOD))
                 .build();
@@ -550,13 +539,12 @@ class NodeFeeManagerTest {
 
     @Test
     void testDistributeFeesWithMultipleNodesVaryingFees() {
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(PREV_PERIOD))
                 .build();
-        givenSetupForDistributionWithMultipleNodes(nodePayments, stakePeriodInfo, 1600L); // 100+300+200=600 node fees, 1000 network fees
+        givenSetupForDistributionWithMultipleNodes(
+                nodePayments, stakePeriodInfo, 1600L); // 100+300+200=600 node fees, 1000 network fees
 
         // Accumulate fees in memory (simulating block processing)
         subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
@@ -605,9 +593,7 @@ class NodeFeeManagerTest {
 
     @Test
     void testDistributeFeesVerifiesExactTransferAmounts() {
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(PREV_PERIOD))
                 .build();
@@ -649,9 +635,7 @@ class NodeFeeManagerTest {
 
     @Test
     void testDistributeFeesResetsNodePaymentsState() {
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(PREV_PERIOD))
                 .build();
@@ -685,11 +669,9 @@ class NodeFeeManagerTest {
                 .withValue("staking.fees.stakingRewardPercentage", 10)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeManager(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodInfoManager);
 
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(PREV_PERIOD))
                 .build();
@@ -726,9 +708,7 @@ class NodeFeeManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         subject = new NodeFeeManager(configProvider, entityIdFactory);
 
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(PREV_PERIOD))
                 .build();
@@ -766,9 +746,7 @@ class NodeFeeManagerTest {
     @Test
     void testDistributeFeesWithZeroNodeFeePayment() {
         // Test when a node has zero fees in the payments list
-        final var nodePayments = NodePayments.newBuilder()
-                .payments(List.of())
-                .build();
+        final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(PREV_PERIOD))
                 .build();
@@ -820,13 +798,17 @@ class NodeFeeManagerTest {
         lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(writableStates);
     }
 
-    private void givenSetupForDistribution(NodePayments nodePayments, StakePeriodInfo stakePeriodInfo, long feeCollectionBalance) {
+    private void givenSetupForDistribution(
+            NodePayments nodePayments, StakePeriodInfo stakePeriodInfo, long feeCollectionBalance) {
         nodePaymentsState = new FunctionWritableSingletonState<>(
                 NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get, nodePaymentsRef::set);
         nodePaymentsRef.set(nodePayments);
 
         stakePeriodInfoState = new FunctionWritableSingletonState<>(
-                STAKE_PERIOD_INFO_STATE_ID, STAKE_PERIOD_INFO_STATE_LABEL, stakePeriodInfoRef::get, stakePeriodInfoRef::set);
+                STAKE_PERIOD_INFO_STATE_ID,
+                STAKE_PERIOD_INFO_STATE_LABEL,
+                stakePeriodInfoRef::get,
+                stakePeriodInfoRef::set);
         stakePeriodInfoRef.set(stakePeriodInfo);
 
         final var readableNodePaymentsState = new FunctionReadableSingletonState<>(
@@ -964,13 +946,19 @@ class NodeFeeManagerTest {
     }
 
     private void givenSetupForDistributionWithNodeRewardBalance(
-            NodePayments nodePayments, StakePeriodInfo stakePeriodInfo, long feeCollectionBalance, long nodeRewardBalance) {
+            NodePayments nodePayments,
+            StakePeriodInfo stakePeriodInfo,
+            long feeCollectionBalance,
+            long nodeRewardBalance) {
         nodePaymentsState = new FunctionWritableSingletonState<>(
                 NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get, nodePaymentsRef::set);
         nodePaymentsRef.set(nodePayments);
 
         stakePeriodInfoState = new FunctionWritableSingletonState<>(
-                STAKE_PERIOD_INFO_STATE_ID, STAKE_PERIOD_INFO_STATE_LABEL, stakePeriodInfoRef::get, stakePeriodInfoRef::set);
+                STAKE_PERIOD_INFO_STATE_ID,
+                STAKE_PERIOD_INFO_STATE_LABEL,
+                stakePeriodInfoRef::get,
+                stakePeriodInfoRef::set);
         stakePeriodInfoRef.set(stakePeriodInfo);
 
         final var readableNodePaymentsState = new FunctionReadableSingletonState<>(
@@ -1038,13 +1026,19 @@ class NodeFeeManagerTest {
     }
 
     private void givenSetupForDistributionWithMissingAccount(
-            NodePayments nodePayments, StakePeriodInfo stakePeriodInfo, long feeCollectionBalance, long missingAccountNum) {
+            NodePayments nodePayments,
+            StakePeriodInfo stakePeriodInfo,
+            long feeCollectionBalance,
+            long missingAccountNum) {
         nodePaymentsState = new FunctionWritableSingletonState<>(
                 NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get, nodePaymentsRef::set);
         nodePaymentsRef.set(nodePayments);
 
         stakePeriodInfoState = new FunctionWritableSingletonState<>(
-                STAKE_PERIOD_INFO_STATE_ID, STAKE_PERIOD_INFO_STATE_LABEL, stakePeriodInfoRef::get, stakePeriodInfoRef::set);
+                STAKE_PERIOD_INFO_STATE_ID,
+                STAKE_PERIOD_INFO_STATE_LABEL,
+                stakePeriodInfoRef::get,
+                stakePeriodInfoRef::set);
         stakePeriodInfoRef.set(stakePeriodInfo);
 
         final var readableNodePaymentsState = new FunctionReadableSingletonState<>(
@@ -1112,13 +1106,17 @@ class NodeFeeManagerTest {
         lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
     }
 
-    private void givenSetupForDistributionWithMultipleNodes(NodePayments nodePayments, StakePeriodInfo stakePeriodInfo, long feeCollectionBalance) {
+    private void givenSetupForDistributionWithMultipleNodes(
+            NodePayments nodePayments, StakePeriodInfo stakePeriodInfo, long feeCollectionBalance) {
         nodePaymentsState = new FunctionWritableSingletonState<>(
                 NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get, nodePaymentsRef::set);
         nodePaymentsRef.set(nodePayments);
 
         stakePeriodInfoState = new FunctionWritableSingletonState<>(
-                STAKE_PERIOD_INFO_STATE_ID, STAKE_PERIOD_INFO_STATE_LABEL, stakePeriodInfoRef::get, stakePeriodInfoRef::set);
+                STAKE_PERIOD_INFO_STATE_ID,
+                STAKE_PERIOD_INFO_STATE_LABEL,
+                stakePeriodInfoRef::get,
+                stakePeriodInfoRef::set);
         stakePeriodInfoRef.set(stakePeriodInfo);
 
         final var readableNodePaymentsState = new FunctionReadableSingletonState<>(

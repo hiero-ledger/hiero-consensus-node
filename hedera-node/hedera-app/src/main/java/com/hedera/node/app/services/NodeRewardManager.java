@@ -25,7 +25,6 @@ import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
-import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableNodeRewardsStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableStakePeriodInfoStore;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
@@ -150,7 +149,8 @@ public class NodeRewardManager {
         if (!nodesConfig.nodeRewardsEnabled()) {
             return false;
         }
-        final var lastStakePeriodCalculationTime = stakePeriodInfoManager.classifyLastStakePeriodCalculationTime(state, now);
+        final var lastStakePeriodCalculationTime =
+                stakePeriodInfoManager.classifyLastStakePeriodCalculationTime(state, now);
         // If we're in the same staking period as the last time stake period calculations were done, we don't
         // need to do anything
         if (lastStakePeriodCalculationTime == CURRENT_PERIOD) {
@@ -205,15 +205,7 @@ public class NodeRewardManager {
                     minimumRewardInTinycents,
                     rosterStore.getActiveRoster().rosterEntries());
         }
-        // Record this as the last time node rewards were paid
-        final var rewardsStore = new WritableNetworkStakingRewardsStore(writableStates);
-        rewardsStore.put(rewardsStore
-                .get()
-                .copyBuilder()
-                .lastNodeRewardPaymentsTime(asTimestamp(now))
-                .build());
         // Update the stake period info singleton with the current time
-        stakePeriodInfoStore.updateLastStakePeriodCalculationTime(asTimestamp(now));
         nodeRewardStore.resetForNewStakingPeriod();
         resetNodeRewards();
         ((CommittableWritableStates) writableStates).commit();

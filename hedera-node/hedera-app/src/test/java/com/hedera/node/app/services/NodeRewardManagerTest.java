@@ -128,7 +128,11 @@ class NodeRewardManagerTest {
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()), stakePeriodInfoManager);
+                configProvider,
+                entityIdFactory,
+                exchangeRateManager,
+                new NodeMetrics(new NoOpMetrics()),
+                stakePeriodInfoManager);
     }
 
     @Test
@@ -209,7 +213,11 @@ class NodeRewardManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
 
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()), stakePeriodInfoManager);
+                configProvider,
+                entityIdFactory,
+                exchangeRateManager,
+                new NodeMetrics(new NoOpMetrics()),
+                stakePeriodInfoManager);
 
         nodeRewardManager.maybeRewardActiveNodes(state, Instant.now(), systemTransactions);
         verify(systemTransactions, never())
@@ -222,7 +230,11 @@ class NodeRewardManagerTest {
         given(stakePeriodInfoManager.classifyLastStakePeriodCalculationTime(any(), any()))
                 .willReturn(StakePeriodInfoManager.LastStakePeriodCalculationsTime.CURRENT_PERIOD);
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()), stakePeriodInfoManager);
+                configProvider,
+                entityIdFactory,
+                exchangeRateManager,
+                new NodeMetrics(new NoOpMetrics()),
+                stakePeriodInfoManager);
         nodeRewardManager.maybeRewardActiveNodes(state, NOW_MINUS_600, systemTransactions);
         verify(systemTransactions, never())
                 .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
@@ -241,7 +253,11 @@ class NodeRewardManagerTest {
         given(stakePeriodInfoManager.classifyLastStakePeriodCalculationTime(any(), any()))
                 .willReturn(StakePeriodInfoManager.LastStakePeriodCalculationsTime.PREVIOUS_PERIOD);
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()), stakePeriodInfoManager);
+                configProvider,
+                entityIdFactory,
+                exchangeRateManager,
+                new NodeMetrics(new NoOpMetrics()),
+                stakePeriodInfoManager);
         when(exchangeRateManager.getTinybarsFromTinycents(anyLong(), any())).thenReturn(5000L);
 
         nodeRewardManager.maybeRewardActiveNodes(state, NOW, systemTransactions);
@@ -259,7 +275,10 @@ class NodeRewardManagerTest {
         nodeRewardsRef.set(nodeRewards);
 
         stakePeriodInfoState = new FunctionWritableSingletonState<>(
-                STAKE_PERIOD_INFO_STATE_ID, STAKE_PERIOD_INFO_STATE_LABEL, stakePeriodInfoRef::get, stakePeriodInfoRef::set);
+                STAKE_PERIOD_INFO_STATE_ID,
+                STAKE_PERIOD_INFO_STATE_LABEL,
+                stakePeriodInfoRef::get,
+                stakePeriodInfoRef::set);
         stakePeriodInfoRef.set(StakePeriodInfo.newBuilder()
                 .lastStakePeriodCalculationTime(asTimestamp(NOW_MINUS_600))
                 .build());
@@ -295,8 +314,10 @@ class NodeRewardManagerTest {
 
         given(writableStates.<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID)).willReturn(nodeRewardsState);
         given(readableStates.<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID)).willReturn(nodeRewardsState);
-        given(writableStates.<StakePeriodInfo>getSingleton(STAKE_PERIOD_INFO_STATE_ID)).willReturn(stakePeriodInfoState);
-        given(readableStates.<StakePeriodInfo>getSingleton(STAKE_PERIOD_INFO_STATE_ID)).willReturn(stakePeriodInfoState);
+        given(writableStates.<StakePeriodInfo>getSingleton(STAKE_PERIOD_INFO_STATE_ID))
+                .willReturn(stakePeriodInfoState);
+        given(readableStates.<StakePeriodInfo>getSingleton(STAKE_PERIOD_INFO_STATE_ID))
+                .willReturn(stakePeriodInfoState);
         given(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
                         PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, stateRef::get, stateRef::set));
