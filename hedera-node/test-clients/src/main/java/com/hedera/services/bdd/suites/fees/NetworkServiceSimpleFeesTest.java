@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -36,15 +32,14 @@ public class NetworkServiceSimpleFeesTest {
     private static final double BASE_FEE_GET_VERSION_INFO = 0.0001;
     private static final double BASE_FEE_TRANSACTION_GET_RECORD = 0.0001;
 
-    @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
+    @HapiTest
     @DisplayName("USD base fee as expected for GetVersionInfo query")
     final Stream<DynamicTest> getVersionInfoBaseUSDFee() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate(BOB).balance(ONE_HUNDRED_HBARS),
                 getVersionInfo().signedBy(BOB).payingWith(BOB).via("versionInfo"),
-                handleAnyRepeatableQueryPayment(),
-                validateChargedUsd("versionInfo", BASE_FEE_GET_VERSION_INFO));
+                validateChargedUsdForQueries("versionInfo", BASE_FEE_GET_VERSION_INFO, 1.0));
     }
 
     @HapiTest
@@ -62,7 +57,6 @@ public class NetworkServiceSimpleFeesTest {
                         .payingWith(ALICE)
                         .via(createTxn),
                 getTxnRecord(createTxn).signedBy(BOB).payingWith(BOB).via(recordQuery),
-                sleepFor(1000),
-                validateChargedUsd(recordQuery, BASE_FEE_TRANSACTION_GET_RECORD));
+                validateChargedUsdForQueries(recordQuery, BASE_FEE_TRANSACTION_GET_RECORD, 1.0));
     }
 }
