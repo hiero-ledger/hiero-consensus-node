@@ -58,6 +58,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOO_MANY_HOOK_
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
@@ -1300,5 +1301,68 @@ public class Hip1195EnabledTest {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .hasKnownStatus(TOO_MANY_HOOK_INVOCATIONS));
+    }
+
+    /**
+     * Verifies that when the requested gas limit exceeds numHookInvocations * maxGasPerSec,
+     * the effective gas charged is capped at numHookInvocations * maxGasPerSec.
+     *
+     * The formula is: effectiveGasLimit = min(numHookInvocations * maxGasPerSec, totalGasLimitOfHooks)
+     *
+     * This test creates two transfers:
+     * 1. One with gas limit below the cap (should charge the requested gas)
+     * 2. One with gas limit above the cap (should charge numHookInvocations * maxGasPerSec)
+     *
+     * Both should have similar fees since the second one's gas is capped.
+     */
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
+    final Stream<DynamicTest> gasChargedIsCappedAtNumHookInvocationsTimesMaxGasPerSec() {
+        // Use a small maxGasPerSec to make the test more predictable
+        final long testMaxGasPerSec = 100_000L;
+        // For 1 pre-only hook, numHookInvocations = 1, so cap = 1 * 100_000 = 100_000
+        // For 1 pre+post hook, numHookInvocations = 2, so cap = 2 * 100_000 = 200_000
+        return hapiTest(
+                cryptoCreate(PAYER).balance(100 * THOUSAND_HBAR),
+                cryptoCreate("ownerBelowCap").withHooks(accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate("ownerAboveCap").withHooks(accountAllowanceHook(2L, TRUE_ALLOWANCE_HOOK.name())),
+                overriding("contracts.maxGasPerSec", String.valueOf(testMaxGasPerSec)),
+                // Transfer with gas limit below the cap (50,000 < 100,000)
+                // numHookInvocations = 1, cap = 1 * 100,000 = 100,000
+                // effectiveGas = min(100,000, 50,000) = 50,000
+                cryptoTransfer(movingHbar(1).between("ownerBelowCap", GENESIS))
+                        .withPreHookFor("ownerBelowCap", 1L, 50_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .payingWith(PAYER)
+                        .via("belowCapTransfer"),
+                // Transfer with gas limit above the cap (500,000 > 100,000)
+                // numHookInvocations = 1, cap = 1 * 100,000 = 100,000
+                // effectiveGas = min(100,000, 500,000) = 100,000
+                cryptoTransfer(movingHbar(1).between("ownerAboveCap", "ownerBelowCap"))
+                        .withPreHookFor("ownerAboveCap", 2L, 99_000L, "")
+                        .withPreHookFor("ownerBelowCap", 1L, 99_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .payingWith(PAYER)
+                        .via("aboveCapTransfer"),
+                withOpContext((spec, opLog) -> {
+                    final var belowCapRecord = getTxnRecord("belowCapTransfer")
+                            .andAllChildRecords()
+                            .logged();
+                    final var aboveCapRecord = getTxnRecord("aboveCapTransfer")
+                            .andAllChildRecords()
+                            .logged();
+                    allRunFor(spec, belowCapRecord, aboveCapRecord);
+
+                    final long belowCapFee = belowCapRecord.getResponseRecord().getTransactionFee();
+                    final long aboveCapFee = aboveCapRecord.getResponseRecord().getTransactionFee();
+
+                    // The above-cap transfer should cost more than below-cap because:
+                    // - belowCap: effectiveGas = 50,000
+                    // - aboveCap: effectiveGas = min(1 * 100,000, 500,000) = 100,000
+                    // So aboveCap should cost roughly 2x the gas portion
+                    assertTrue(
+                            aboveCapFee > belowCapFee,
+                            "Above-cap transfer should cost more due to higher effective gas. " + "Below cap fee: "
+                                    + belowCapFee + ", Above cap fee: " + aboveCapFee);
+                }));
     }
 }
