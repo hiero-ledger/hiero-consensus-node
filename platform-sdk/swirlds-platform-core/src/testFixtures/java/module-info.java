@@ -13,6 +13,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.concurrent;
+    requires transitive org.hiero.consensus.hashgraph.impl;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.model.test.fixtures;
     requires transitive org.hiero.consensus.model;

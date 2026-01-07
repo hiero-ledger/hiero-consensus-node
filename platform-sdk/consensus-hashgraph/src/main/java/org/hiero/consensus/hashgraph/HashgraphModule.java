@@ -96,4 +96,10 @@ public interface HashgraphModule {
      */
     @NonNull
     InputWire<ConsensusSnapshot> consensusSnapshotInputWire();
+
+    void startSquelching();
+
+    void stopSquelching();
+
+    void flush();
 }

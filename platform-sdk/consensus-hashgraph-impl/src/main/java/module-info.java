@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.hashgraph.impl {
     exports org.hiero.consensus.hashgraph.impl.consensus;
+    exports org.hiero.consensus.hashgraph.impl.linking;
+    exports org.hiero.consensus.hashgraph.impl.metrics;
+    exports org.hiero.consensus.hashgraph.impl;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
