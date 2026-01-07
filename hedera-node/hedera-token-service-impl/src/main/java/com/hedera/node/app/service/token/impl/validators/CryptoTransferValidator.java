@@ -14,12 +14,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TOKEN_LIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.hasHookExecutions;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -35,12 +37,15 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.HashSet;
@@ -63,6 +68,112 @@ public class CryptoTransferValidator {
     public CryptoTransferValidator(final EntityIdFactory entityIdFactory) {
         // For Dagger injection
         this.entityIdFactory = entityIdFactory;
+    }
+
+    /**
+     * Sums the gas limits offered by any EVM allowance hooks present on:
+     * HBAR account transfers (pre-tx and pre+post), Fungible token account transfers (pre-tx and pre+post),
+     * NFT transfers for sender and receiver (pre-tx and pre+post)
+     * Each increment uses {@code clampedAdd} to avoid overflow.
+     * @param op the crypto transfer transaction body
+     *
+     */
+    public static CryptoTransferHandler.HookInfo getHookInfo(final CryptoTransferTransactionBody op) {
+        var hookInfo = CryptoTransferHandler.HookInfo.NO_HOOKS;
+        for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+            hookInfo = merge(hookInfo, getTotalHookGasIfAny(aa));
+        }
+        for (final var ttl : op.tokenTransfers()) {
+            for (final var aa : ttl.transfers()) {
+                hookInfo = merge(hookInfo, getTotalHookGasIfAny(aa));
+            }
+            for (final var nft : ttl.nftTransfers()) {
+                hookInfo = merge(hookInfo, addNftHookGas(nft));
+            }
+        }
+        return hookInfo;
+    }
+
+    /**
+     * Adds gas from pre-tx and pre+post allowance hooks on an account transfer.
+     */
+    private static CryptoTransferHandler.HookInfo getTotalHookGasIfAny(@NonNull final AccountAmount aa) {
+        final var hasPreTxHook = aa.hasPreTxAllowanceHook();
+        final var hasPrePostTxHook = aa.hasPrePostTxAllowanceHook();
+        if (!hasPreTxHook && !hasPrePostTxHook) {
+            return CryptoTransferHandler.HookInfo.NO_HOOKS;
+        }
+        long gas = 0L;
+        int numHooks = 0;
+        if (hasPreTxHook) {
+            gas = clampedAdd(
+                    gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+            numHooks++;
+        }
+        if (hasPrePostTxHook) {
+            final long gasPerCall =
+                    aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit();
+            gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
+            numHooks += 2;
+        }
+        return new CryptoTransferHandler.HookInfo(numHooks, gas);
+    }
+
+    /**
+     * Adds gas from sender/receiver allowance hooks (pre-tx and pre+post) on an NFT transfer.
+     */
+    private static CryptoTransferHandler.HookInfo addNftHookGas(@NonNull final NftTransfer nft) {
+        final var hasSenderPre = nft.hasPreTxSenderAllowanceHook();
+        final var hasSenderPrePost = nft.hasPrePostTxSenderAllowanceHook();
+        final var hasReceiverPre = nft.hasPreTxReceiverAllowanceHook();
+        final var hasReceiverPrePost = nft.hasPrePostTxReceiverAllowanceHook();
+        if (!(hasSenderPre || hasSenderPrePost || hasReceiverPre || hasReceiverPrePost)) {
+            return CryptoTransferHandler.HookInfo.NO_HOOKS;
+        }
+        long gas = 0L;
+        int numHooks = 0;
+        if (hasSenderPre) {
+            gas = clampedAdd(
+                    gas,
+                    nft.preTxSenderAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+            numHooks++;
+        }
+        if (hasSenderPrePost) {
+            final long gasPerCall = nft.prePostTxSenderAllowanceHookOrThrow()
+                    .evmHookCallOrThrow()
+                    .gasLimit();
+            gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
+            numHooks += 2;
+        }
+        if (hasReceiverPre) {
+            gas = clampedAdd(
+                    gas,
+                    nft.preTxReceiverAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+            numHooks++;
+        }
+        if (hasReceiverPrePost) {
+            final long gasPerCall = nft.prePostTxReceiverAllowanceHookOrThrow()
+                    .evmHookCallOrThrow()
+                    .gasLimit();
+            gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
+            numHooks += 2;
+        }
+        return new CryptoTransferHandler.HookInfo(numHooks, gas);
+    }
+
+    /**
+     * Utility to merge two partial HookInfo results.
+     */
+    private static CryptoTransferHandler.HookInfo merge(final CryptoTransferHandler.HookInfo a, final CryptoTransferHandler.HookInfo b) {
+        if (a == CryptoTransferHandler.HookInfo.NO_HOOKS) {
+            return b;
+        } else if (b == CryptoTransferHandler.HookInfo.NO_HOOKS) {
+            return a;
+        } else {
+            return new CryptoTransferHandler.HookInfo(
+                    a.numHookInvocations() + b.numHookInvocations(),
+                    clampedAdd(a.totalGasLimitOfHooks(), b.totalGasLimitOfHooks()));
+        }
     }
 
     /**
@@ -92,19 +203,20 @@ public class CryptoTransferValidator {
      * All validations needed for the crypto transfer operation, that include state or config.
      *
      * @param op the crypto transfer operation
-     * @param ledgerConfig the ledger config
-     * @param accountsConfig the accounts config
-     * @param hooksConfig the hooks config
+     * @param config the config
      * @param category the transaction category
      * @param payer the payer account ID
      */
     public void validateSemantics(
             @NonNull final CryptoTransferTransactionBody op,
-            @NonNull final LedgerConfig ledgerConfig,
-            @NonNull final AccountsConfig accountsConfig,
-            @NonNull final HooksConfig hooksConfig,
+            @NonNull final Configuration config,
             final HandleContext.TransactionCategory category,
             @NonNull final AccountID payer) {
+        final var ledgerConfig = config.getConfigData(LedgerConfig.class);
+        final var accountsConfig = config.getConfigData(AccountsConfig.class);
+        final var hooksConfig = config.getConfigData(HooksConfig.class);
+        final var contractsConfig = config.getConfigData(ContractsConfig.class);
+
         final var transfers = op.transfersOrElse(TransferList.DEFAULT);
         // validate hooks are enabled if hooks are present in the transaction
         if (hasHookExecutions(op)) {
@@ -112,7 +224,7 @@ public class CryptoTransferValidator {
             validateTrue(
                     category.equals(HandleContext.TransactionCategory.USER),
                     HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER);
-            validateHookGasLimit(op, hooksConfig);
+            validateHookGasLimit(op, hooksConfig, contractsConfig);
         }
 
         // Validate that there aren't too many hbar transfers
@@ -180,19 +292,26 @@ public class CryptoTransferValidator {
                 TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
     }
 
-    private void validateHookGasLimit(final CryptoTransferTransactionBody op, final HooksConfig hooksConfig) {
+    private void validateHookGasLimit(final CryptoTransferTransactionBody op,
+                                      final HooksConfig hooksConfig,
+                                      final ContractsConfig contractsConfig) {
         final var gasLimit = hooksConfig.lambdaIntrinsicGasCost();
+        long totalGasLimit = 0L;
         for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+            totalGasLimit += getTotalHookGasIfAny(aa).totalGasLimitOfHooks();
             validateFungibleTransferHooks(aa, gasLimit);
         }
         for (final var tokenTransfer : op.tokenTransfers()) {
             for (final var aa : tokenTransfer.transfers()) {
+                totalGasLimit += getTotalHookGasIfAny(aa).totalGasLimitOfHooks();
                 validateFungibleTransferHooks(aa, gasLimit);
             }
             for (final var nftTransfer : tokenTransfer.nftTransfers()) {
+                totalGasLimit += addNftHookGas(nftTransfer).totalGasLimitOfHooks();
                 validateNftTransferHooks(nftTransfer, gasLimit);
             }
         }
+        validateTrue(totalGasLimit <= contractsConfig.maxGasPerSec(), MAX_GAS_LIMIT_EXCEEDED);
     }
 
     private void validateNftTransferHooks(final NftTransfer nftTransfer, final int gasLimit) {

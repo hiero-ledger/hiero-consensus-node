@@ -23,7 +23,7 @@ import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.fee.FeeObject;
-import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
+import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiBaseTransfer;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -691,7 +691,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                             txn,
                             numPayerKeys);
         }
-        final var hookInfo = CryptoTransferHandler.getHookInfo(
+        final var hookInfo = CryptoTransferValidator.getHookInfo(
                 toPbj(extractTransactionBody(txn)).cryptoTransferOrThrow());
         final int totalHookInvocations = hookInfo.numHookInvocations();
         final long gasLimitOfHooks = hookInfo.totalGasLimitOfHooks();
