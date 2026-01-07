@@ -28,7 +28,7 @@ message ChainOfTrustProof {
          * the concatenation of the ledger id and genesis hinTS verification key
          * that serve as witnesses for the SNARK prover algorithm.
          */
-        AggregatedNodeSignatures aggregated_node_signatures = 1 [deprecated = true];
+        AggregatedNodeSignatures aggregated_node_signatures = 1;
         /**
          * If known, a ZK-compressed SNARK proof proving the chain of trust from
          * the ledger id to this hinTS verification key.
@@ -53,4 +53,9 @@ message AggregatedNodeSignatures {
    * In ascending order, the ids of the nodes that contributed signatures.
    */
   repeated uint64 signing_node_ids = 2;
+  /**
+   * The hinTS key that this signature verifies under; a stream consumer should
+   * only use this key after first checking the chain of trust proof.
+   */
+  bytes verification_key = 3;
 }
