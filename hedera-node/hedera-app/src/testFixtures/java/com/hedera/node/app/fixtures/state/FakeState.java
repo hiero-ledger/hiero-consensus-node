@@ -354,4 +354,31 @@ public class FakeState implements MerkleNodeState {
     public void initializeState(@NonNull final StateMetadata<?, ?> md) {
         throw new UnsupportedOperationException();
     }
+
+    // --- New MerkleNodeState mutation APIs (no-op implementations for test fixture) ---
+    @Override
+    public void updateSingleton(int stateId, @NonNull Bytes value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void updateKv(int stateId, @NonNull Bytes key, @Nullable Bytes value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void removeKv(int stateId, @NonNull Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void queuePush(int stateId, @NonNull Bytes value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes queuePop(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
 }

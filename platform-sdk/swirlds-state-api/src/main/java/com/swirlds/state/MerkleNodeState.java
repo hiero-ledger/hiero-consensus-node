@@ -13,6 +13,12 @@ import org.hiero.base.crypto.Hash;
 /**
  * Represent a state backed up by the Merkle tree. It's a {@link State} implementation that is backed by a Merkle tree.
  * It provides methods to manage the service states in the merkle tree.
+ * This interface supports three level of state abstractions:
+ * <ul>
+ *     <li> codec-based State API, as used by execution </li>
+ *     <li> protobuf binary states API supporting notions of singletons, queues, and key-value pairs</li>
+ *     <li> pure binary API working with raw bytes </li>
+ * </ul>
  */
 public interface MerkleNodeState extends State {
 
@@ -31,6 +37,10 @@ public interface MerkleNodeState extends State {
     @NonNull
     @Override
     MerkleNodeState copy();
+
+    //
+    // The following block of methods is for the high-level codec-based State API operating named service states.
+    //
 
     /**
      * Initializes the defined service state.
@@ -75,21 +85,6 @@ public interface MerkleNodeState extends State {
     void removeServiceState(@NonNull String serviceName, int stateId);
 
     /**
-     * Get the merkle path of the singleton state by its ID.
-     * @param stateId The state ID of the singleton state.
-     * @return The merkle path of the singleton state
-     */
-    long singletonPath(int stateId);
-
-    /**
-     * Get the merkle path of the queue element by its state ID and value.
-     * @param stateId The state ID of the queue state.
-     * @param expectedValue The expected value of the queue element to retrieve the path for
-     * @return The merkle path of the queue element by its state ID and value.
-     */
-    long queueElementPath(int stateId, @NonNull Bytes expectedValue);
-
-    /**
      * Get the merkle path of the queue element
      * @param stateId The state ID of the queue state.
      * @param expectedValue The expected value of the queue element to retrieve the path for
@@ -100,15 +95,6 @@ public interface MerkleNodeState extends State {
             final int stateId, @NonNull final V expectedValue, @NonNull final Codec<V> valueCodec) {
         return queueElementPath(stateId, valueCodec.toBytes(expectedValue));
     }
-
-    /**
-     * Get the merkle path of the key-value pair in the state by its state ID and key.
-     * @param stateId The state ID of the key-value pair.
-     * @param key The key of the key-value pair.
-     * @return The merkle path of the key-value pair or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
-     * if the key is not found or the stateId is unknown.
-     */
-    long kvPath(int stateId, @NonNull Bytes key);
 
     /**
      * Get the merkle path of the key-value pair in the state by its state ID and key.
@@ -135,6 +121,35 @@ public interface MerkleNodeState extends State {
      * @return Merkle proof for the given path or null if the path is non-existent
      */
     MerkleProof getMerkleProof(long path);
+
+    //
+    // The following block of methods is for the mid-level API working with protobuf binary states: singletons, queues,
+    // and key-value pairs.
+    //
+
+    /**
+     * Get the merkle path of the singleton state by its ID.
+     * @param stateId The state ID of the singleton state.
+     * @return The merkle path of the singleton state
+     */
+    long singletonPath(int stateId);
+
+    /**
+     * Get the merkle path of the queue element by its state ID and value.
+     * @param stateId The state ID of the queue state.
+     * @param expectedValue The expected value of the queue element to retrieve the path for
+     * @return The merkle path of the queue element by its state ID and value.
+     */
+    long queueElementPath(int stateId, @NonNull Bytes expectedValue);
+
+    /**
+     * Get the merkle path of the key-value pair in the state by its state ID and key.
+     * @param stateId The state ID of the key-value pair.
+     * @param key The key of the key-value pair.
+     * @return The merkle path of the key-value pair or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
+     * if the key is not found or the stateId is unknown.
+     */
+    long kvPath(int stateId, @NonNull Bytes key);
 
     /**
      * Get a map value from the state
@@ -203,6 +218,55 @@ public interface MerkleNodeState extends State {
      * @throws IllegalArgumentException if the stateID is not valid or not a queue type
      */
     List<Bytes> queueAsList(final int stateId);
+
+    /**
+     * Update a singleton value for the given state ID using raw protobuf bytes of the value.
+     * Null values are not allowed.
+     *
+     * @param stateId the singleton state ID
+     * @param value the raw protobuf-encoded bytes of the singleton value (not wrapped)
+     */
+    void updateSingleton(int stateId, @NonNull Bytes value);
+
+    /**
+     * Update a key/value entry for the given map state ID using raw protobuf bytes of the key and value.
+     * The key must not be null. The value may be null, in which case the mapping is removed (same as {@link #removeKv(int, Bytes)}).
+     *
+     * @param stateId the map state ID
+     * @param key the raw protobuf-encoded key bytes (not wrapped), must not be null
+     * @param value the raw protobuf-encoded value bytes (not wrapped), may be null to indicate removal
+     */
+    void updateKv(int stateId, @NonNull Bytes key, @Nullable Bytes value);
+
+    /**
+     * Remove a key/value entry for the given map state ID.
+     *
+     * @param stateId the map state ID
+     * @param key the raw protobuf-encoded key bytes (not wrapped), must not be null
+     */
+    void removeKv(int stateId, @NonNull Bytes key);
+
+    /**
+     * Push an element to the queue for the given state ID using raw protobuf bytes of the element value.
+     *
+     * @param stateId the queue state ID
+     * @param value the raw protobuf-encoded element bytes (not wrapped), must not be null
+     */
+    void queuePush(int stateId, @NonNull Bytes value);
+
+    /**
+     * Pop an element from the queue for the given state ID.
+     * Returns null if the queue is empty.
+     *
+     * @param stateId the queue state ID
+     * @return the raw protobuf-encoded element bytes (not wrapped), or null if empty
+     */
+    @Nullable
+    Bytes queuePop(int stateId);
+
+    //
+    // The following block of methods is for the low-level API working with raw bytes key-value pairs.
+    //
 
     /**
      * Puts the key/value pair represented as bytes into the state. The key must not be null, but the value

@@ -890,7 +890,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
         @Test
         @DisplayName("getHashByPath for existing path")
-        void getHashByPath_existingPath() throws IOException {
+        void getHashByPath_existingPath() {
             // trigger hash calculation for the state
             Hash rootHash = virtualMapState.getHash();
 
@@ -1317,5 +1317,84 @@ public class VirtualMapStateTest extends MerkleTestBase {
         // After computing hash
         virtualMapState.getHash();
         assertTrue(virtualMapState.isHashed());
+    }
+
+    @Test
+    @DisplayName("updateSingleton writes raw bytes and singleton() returns them")
+    void testUpdateSingleton() {
+        // Given
+        setupSingletonCountry();
+        virtualMapState.initializeState(countryMetadata);
+
+        // When
+        virtualMapState.updateSingleton(COUNTRY_STATE_ID, ProtoBytes.PROTOBUF.toBytes(GHANA));
+
+        // Then
+        final Bytes value = virtualMapState.singleton(COUNTRY_STATE_ID);
+        assertThat(value).isEqualTo(ProtoBytes.PROTOBUF.toBytes(GHANA));
+        assertThat(virtualMapState.singletonPath(COUNTRY_STATE_ID)).isNotEqualTo(INVALID_PATH);
+    }
+
+    @Test
+    @DisplayName("updateKv inserts/updates and removeKv removes map entries using raw bytes")
+    void testUpdateAndRemoveKv() {
+        // Given
+        setupFruitVirtualMap();
+        virtualMapState.initializeState(fruitMetadata);
+
+        // Insert
+        virtualMapState.updateKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY), ProtoBytes.PROTOBUF.toBytes(APPLE));
+        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY)))
+                .isEqualTo(ProtoBytes.PROTOBUF.toBytes(APPLE));
+
+        // Update with null -> remove
+        virtualMapState.updateKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY), null);
+        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY))).isNull();
+
+        // Insert again and removeKv
+        virtualMapState.updateKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY), ProtoBytes.PROTOBUF.toBytes(BANANA));
+        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY)))
+                .isEqualTo(ProtoBytes.PROTOBUF.toBytes(BANANA));
+        virtualMapState.removeKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY));
+        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY))).isNull();
+    }
+
+    @Test
+    @DisplayName("queuePush adds elements and queuePop pops in FIFO order; null when empty")
+    void testQueuePushAndPop() {
+        // Given
+        setupSteamQueue();
+        virtualMapState.initializeState(steamMetadata);
+
+        // Initially empty
+        assertThat(virtualMapState.queueState(STEAM_STATE_ID).head()).isEqualTo(0L);
+        assertThat(virtualMapState.queueState(STEAM_STATE_ID).tail()).isEqualTo(0L);
+
+        // Push two elements
+        virtualMapState.queuePush(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(ART));
+        var stateAfterFirst = virtualMapState.queueState(STEAM_STATE_ID);
+        assertThat(stateAfterFirst.head()).isEqualTo(1L);
+        assertThat(stateAfterFirst.tail()).isEqualTo(2L);
+
+        virtualMapState.queuePush(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(BIOLOGY));
+        var stateAfterSecond = virtualMapState.queueState(STEAM_STATE_ID);
+        assertThat(stateAfterSecond.head()).isEqualTo(1L);
+        assertThat(stateAfterSecond.tail()).isEqualTo(3L);
+
+        // Pop in order
+        final Bytes first = virtualMapState.queuePop(STEAM_STATE_ID);
+        assertThat(first).isEqualTo(ProtoBytes.PROTOBUF.toBytes(ART));
+        var stateAfterPop1 = virtualMapState.queueState(STEAM_STATE_ID);
+        assertThat(stateAfterPop1.head()).isEqualTo(2L);
+        assertThat(stateAfterPop1.tail()).isEqualTo(3L);
+
+        final Bytes second = virtualMapState.queuePop(STEAM_STATE_ID);
+        assertThat(second).isEqualTo(ProtoBytes.PROTOBUF.toBytes(BIOLOGY));
+        var stateAfterPop2 = virtualMapState.queueState(STEAM_STATE_ID);
+        assertThat(stateAfterPop2.head()).isEqualTo(3L);
+        assertThat(stateAfterPop2.tail()).isEqualTo(3L);
+
+        // Empty now
+        assertThat(virtualMapState.queuePop(STEAM_STATE_ID)).isNull();
     }
 }

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
+import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
@@ -8,6 +11,8 @@ import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateItem.CODEC;
 import static com.swirlds.state.merkle.StateKeyUtils.kvKey;
 import static com.swirlds.state.merkle.StateKeyUtils.queueKey;
+import static com.swirlds.state.merkle.StateKeyUtils.queueStateKey;
+import static com.swirlds.state.merkle.StateKeyUtils.singletonKey;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateValue.extractStateIdFromStateValueOneOf;
 import static com.swirlds.state.merkle.disk.OnDiskQueueHelper.QUEUE_STATE_VALUE_CODEC;
@@ -21,6 +26,7 @@ import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.MerkleNode;
@@ -397,7 +403,7 @@ public class VirtualMapState implements MerkleNodeState {
      * Base class implementation for states based on MerkleTree
      */
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private abstract class MerkleStates implements ReadableStates {
+    private abstract static class MerkleStates implements ReadableStates {
 
         protected final Map<Integer, StateMetadata<?, ?>> stateMetadata;
         protected final Map<Integer, ReadableKVState<?, ?>> kvInstances;
@@ -1013,6 +1019,130 @@ public class VirtualMapState implements MerkleNodeState {
             }
         }
         return result;
+    }
+
+    /**
+     * Wrap raw value bytes into a StateValue oneof for the given stateId.
+     */
+    private static Bytes wrapValue(final int stateId, @NonNull final Bytes rawValue) {
+        // Build a protobuf StateValue message with a single length-delimited field number = stateId
+        final int tag = (stateId << TAG_FIELD_OFFSET) | WIRE_TYPE_DELIMITED.ordinal();
+        final int valueLength = (int) rawValue.length();
+        final int tagSize = sizeOfVarInt32(tag);
+        final int valueSize = sizeOfVarInt32(valueLength);
+        final int total = tagSize + valueSize + valueLength;
+        final byte[] buffer = new byte[total];
+        final BufferedData out = BufferedData.wrap(buffer);
+        out.writeVarInt(tag, false);
+        out.writeVarInt(valueLength, false);
+        final int offset = (int) out.position();
+        rawValue.writeTo(buffer, offset);
+        return Bytes.wrap(buffer);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void updateSingleton(final int stateId, @NonNull final Bytes value) {
+        requireNonNull(value, "value must not be null");
+        final Bytes key = singletonKey(stateId);
+        final Bytes wrapped = wrapValue(stateId, value);
+        virtualMap.putBytes(key, wrapped);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void updateKv(final int stateId, @NonNull final Bytes key, final Bytes value) {
+        requireNonNull(key, "key must not be null");
+        final Bytes stateKey = kvKey(stateId, key);
+        if (value == null) {
+            virtualMap.remove(stateKey);
+        } else {
+            final Bytes wrapped = wrapValue(stateId, value);
+            virtualMap.putBytes(stateKey, wrapped);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void removeKv(final int stateId, @NonNull final Bytes key) {
+        requireNonNull(key, "key must not be null");
+        virtualMap.remove(kvKey(stateId, key));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void queuePush(final int stateId, @NonNull final Bytes value) {
+        requireNonNull(value, "value must not be null");
+        final Bytes qStateKey = queueStateKey(stateId);
+        final Bytes existing = virtualMap.getBytes(qStateKey);
+        final QueueState qState;
+        if (existing == null) {
+            // initialize to 1-based empty queue
+            qState = new QueueState(1, 1);
+        } else {
+            try {
+                final Bytes unwrapped = StateValue.StateValueCodec.unwrap(existing);
+                qState = QueueStateCodec.INSTANCE.parse(unwrapped);
+            } catch (com.hedera.pbj.runtime.ParseException e) {
+                throw new IllegalStateException("Failed to parse existing queue state", e);
+            }
+        }
+
+        // store element at current tail
+        final Bytes elementKey = queueKey(stateId, (int) qState.tail());
+        final Bytes wrappedElement = wrapValue(stateId, value);
+        virtualMap.putBytes(elementKey, wrappedElement);
+
+        // increment tail and persist queue state
+        final QueueState updated = new QueueState(qState.head(), qState.tail() + 1);
+        final Bytes rawState = QueueStateCodec.INSTANCE.toBytes(updated);
+        final Bytes wrappedState = wrapValue(stateId, rawState);
+        virtualMap.putBytes(qStateKey, wrappedState);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Bytes queuePop(final int stateId) {
+        final Bytes qStateKey = queueStateKey(stateId);
+        final Bytes existing = virtualMap.getBytes(qStateKey);
+        if (existing == null) {
+            return null;
+        }
+        final QueueState qState;
+        try {
+            final Bytes unwrapped = StateValue.StateValueCodec.unwrap(existing);
+            qState = QueueStateCodec.INSTANCE.parse(unwrapped);
+        } catch (com.hedera.pbj.runtime.ParseException e) {
+            throw new IllegalStateException("Failed to parse existing queue state", e);
+        }
+
+        if (qState.head() >= qState.tail()) {
+            return null; // empty
+        }
+
+        final Bytes elementKey = queueKey(stateId, (int) qState.head());
+        final Bytes stored = virtualMap.getBytes(elementKey);
+        final Bytes value = stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+        // remove element (even if stored was null, remove is safe)
+        virtualMap.remove(elementKey);
+
+        // increment head
+        final QueueState updated = new QueueState(qState.head() + 1, qState.tail());
+        final Bytes rawState = QueueStateCodec.INSTANCE.toBytes(updated);
+        final Bytes wrappedState = wrapValue(stateId, rawState);
+        virtualMap.putBytes(qStateKey, wrappedState);
+
+        return value;
     }
 
     /**
