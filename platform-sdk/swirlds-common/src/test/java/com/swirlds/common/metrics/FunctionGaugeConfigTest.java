@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.function.Supplier;
+import org.hiero.consensus.metrics.FunctionGauge;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

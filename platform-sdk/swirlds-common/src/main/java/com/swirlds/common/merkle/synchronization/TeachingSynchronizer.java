@@ -13,9 +13,6 @@ import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.CustomReconnectRoot;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.net.SocketException;
@@ -28,6 +25,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * Performs synchronization in the role of the teacher.
@@ -75,7 +74,6 @@ public class TeachingSynchronizer {
     /**
      * Create a new teaching synchronizer.
      *
-     * @param configuration   the configuration
      * @param threadManager   responsible for managing thread lifecycles
      * @param in              the input stream
      * @param out             the output stream
@@ -86,7 +84,6 @@ public class TeachingSynchronizer {
      * @param reconnectConfig reconnect configuration from platform
      */
     public TeachingSynchronizer(
-            @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final MerkleDataInputStream in,
@@ -104,7 +101,7 @@ public class TeachingSynchronizer {
         if (root instanceof CustomReconnectRoot<?, ?> customReconnectRoot) {
             subtrees.add(new TeacherSubtree(root, customReconnectRoot.buildTeacherView(reconnectConfig)));
         } else {
-            subtrees.add(new TeacherSubtree(configuration, root));
+            subtrees.add(new TeacherSubtree(reconnectConfig, root));
         }
 
         this.breakConnection = breakConnection;

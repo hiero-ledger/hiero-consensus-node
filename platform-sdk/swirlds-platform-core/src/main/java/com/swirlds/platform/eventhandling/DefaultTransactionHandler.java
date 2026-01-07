@@ -23,7 +23,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
 import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -47,6 +46,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -366,7 +366,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             handlerMetrics.setPhase(CREATING_SIGNED_STATE);
             final SignedState signedState = new SignedState(
                     platformContext.getConfiguration(),
-                    CryptoStatic::verifySignature,
+                    ConsensusCryptoUtils::verifySignature,
                     immutableState,
                     "TransactionHandler.createSignedState()",
                     freezeRoundReceived,

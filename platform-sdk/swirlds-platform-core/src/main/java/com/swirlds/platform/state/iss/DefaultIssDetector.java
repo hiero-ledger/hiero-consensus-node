@@ -11,9 +11,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.payload.IssPayload;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.IssMetrics;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
@@ -31,6 +29,7 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
@@ -118,7 +117,6 @@ public class DefaultIssDetector implements IssDetector {
             final long ignoredRound,
             final long latestFreezeRound) {
         Objects.requireNonNull(platformContext);
-        final PathsConfig pathsConfig = platformContext.getConfiguration().getConfigData(PathsConfig.class);
 
         final ConsensusConfig consensusConfig =
                 platformContext.getConfiguration().getConfigData(ConsensusConfig.class);

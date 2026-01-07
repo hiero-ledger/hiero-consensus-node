@@ -7,33 +7,47 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.file.FileAppendTransactionBody;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.file.FileDeleteTransactionBody;
+import com.hedera.hapi.node.file.FileGetContentsQuery;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
+import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.file.ReadableFileStore;
+import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.calculator.FileAppendFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileCreateFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileDeleteFeeCalculator;
+import com.hedera.node.app.service.file.impl.calculator.FileGetContentsFeeCalculator;
+import com.hedera.node.app.service.file.impl.calculator.FileGetInfoFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileUpdateFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
 import org.hiero.hapi.support.fees.NodeFee;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -57,7 +71,8 @@ class FileServiceFeeCalculatorsTest {
                         new FileCreateFeeCalculator(),
                         new FileAppendFeeCalculator(),
                         new FileUpdateFeeCalculator(),
-                        new FileDeleteFeeCalculator()));
+                        new FileDeleteFeeCalculator()),
+                Set.of(new FileGetInfoFeeCalculator(), new FileGetContentsFeeCalculator()));
     }
 
     static Stream<TestCase> provideTestCases() {
@@ -147,6 +162,44 @@ class FileServiceFeeCalculatorsTest {
         assertThat(result.network).isEqualTo(testCase.expectedNetworkFee);
     }
 
+    @Test
+    void testGetInfoQueryCalculator() {
+        final var mockQueryContext = mock(QueryContext.class);
+        final var query = Query.newBuilder().build();
+        final var fileGetInfoFeeCalculator = new FileGetInfoFeeCalculator();
+        final var feeResult = new FeeResult();
+
+        fileGetInfoFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+
+        assertThat(feeResult.node).isEqualTo(0L);
+        assertThat(feeResult.network).isEqualTo(0L);
+        assertThat(feeResult.service).isEqualTo(6L);
+    }
+
+    @Test
+    void testGetContentQueryCalculator() {
+        final var mockQueryContext = mock(QueryContext.class);
+        final var mockFileStore = mock(ReadableFileStoreImpl.class);
+        when(mockFileStore.getFileLeaf(FileID.DEFAULT))
+                .thenReturn(File.newBuilder()
+                        .contents(Bytes.wrap(bytesWithLength(1234)))
+                        .build());
+        when(mockQueryContext.createStore(ReadableFileStore.class)).thenReturn(mockFileStore);
+
+        final var query = Query.newBuilder()
+                .fileGetContents(
+                        FileGetContentsQuery.newBuilder().fileID(FileID.DEFAULT).build())
+                .build();
+        final var fileGetContentsFeeCalculator = new FileGetContentsFeeCalculator();
+        final var feeResult = new FeeResult();
+
+        fileGetContentsFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+
+        assertThat(feeResult.node).isEqualTo(0L);
+        assertThat(feeResult.network).isEqualTo(0L);
+        assertThat(feeResult.service).isEqualTo(2347L);
+    }
+
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
@@ -158,7 +211,7 @@ class FileServiceFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
-                        makeExtraDef(Extra.BYTES, 110000))
+                        makeExtraDef(Extra.BYTES, 10))
                 .services(makeService(
                         "ScheduleService",
                         makeServiceFee(
@@ -176,7 +229,9 @@ class FileServiceFeeCalculatorsTest {
                                 499000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
                                 makeExtraIncluded(Extra.BYTES, 1000)),
-                        makeServiceFee(HederaFunctionality.FILE_DELETE, 69000000)))
+                        makeServiceFee(HederaFunctionality.FILE_DELETE, 69000000),
+                        makeServiceFee(HederaFunctionality.FILE_GET_INFO, 6),
+                        makeServiceFee(HederaFunctionality.FILE_GET_CONTENTS, 7, makeExtraIncluded(Extra.BYTES, 1000))))
                 .build();
     }
 
@@ -192,5 +247,11 @@ class FileServiceFeeCalculatorsTest {
         public @NonNull String toString() {
             return calculator.getClass().getSimpleName() + " with " + numSignatures + " signatures";
         }
+    }
+
+    private static byte[] bytesWithLength(int length) {
+        final var result = new byte[length];
+        Arrays.fill(result, (byte) 'a');
+        return result;
     }
 }

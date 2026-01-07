@@ -9,8 +9,6 @@ import java.time.Duration;
 /**
  * Contains configuration values for the platform schedulers.
  *
- * @param internalEventValidator               configuration for the internal event validator scheduler
- * @param eventDeduplicator                    configuration for the event deduplicator scheduler
  * @param eventSignatureValidator              configuration for the event signature validator scheduler
  * @param orphanBuffer                         configuration for the orphan buffer scheduler
  * @param consensusEngine                      configuration for the consensus engine scheduler
@@ -35,16 +33,11 @@ import java.time.Duration;
  * @param platformMonitor                      configuration for the platform monitor scheduler
  * @param transactionPool                      configuration for the transaction pool scheduler
  * @param gossip                               configuration for the gossip scheduler
- * @param eventHasher                          configuration for the event hasher scheduler
  * @param branchDetector                       configuration for the branch detector scheduler
  * @param branchReporter                       configuration for the branch reporter scheduler
  */
 @ConfigData("platformSchedulers")
 public record PlatformSchedulersConfig(
-        @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration internalEventValidator,
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5000) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration eventDeduplicator,
         @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration eventSignatureValidator,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
@@ -95,8 +88,6 @@ public record PlatformSchedulersConfig(
         @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration transactionPool,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration gossip,
-        @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration eventHasher,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration branchDetector,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
