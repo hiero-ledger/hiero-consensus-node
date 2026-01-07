@@ -19,6 +19,8 @@ import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.file.FileDeleteTransactionBody;
 import com.hedera.hapi.node.file.FileGetContentsQuery;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
+import com.hedera.hapi.node.file.SystemDeleteTransactionBody;
+import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -29,6 +31,8 @@ import com.hedera.node.app.service.file.impl.calculator.FileCreateFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileDeleteFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileGetContentsFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileGetInfoFeeCalculator;
+import com.hedera.node.app.service.file.impl.calculator.FileSystemDeleteFeeCalculator;
+import com.hedera.node.app.service.file.impl.calculator.FileSystemUndeleteFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileUpdateFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
@@ -71,7 +75,9 @@ class FileServiceFeeCalculatorsTest {
                         new FileCreateFeeCalculator(),
                         new FileAppendFeeCalculator(),
                         new FileUpdateFeeCalculator(),
-                        new FileDeleteFeeCalculator()),
+                        new FileDeleteFeeCalculator(),
+                        new FileSystemDeleteFeeCalculator(),
+                        new FileSystemUndeleteFeeCalculator()),
                 Set.of(new FileGetInfoFeeCalculator(), new FileGetContentsFeeCalculator()));
     }
 
@@ -135,7 +141,6 @@ class FileServiceFeeCalculatorsTest {
                         2100000L,
                         509000000L,
                         4200000L),
-                // ScheduleSignFeeCalculator case
                 new TestCase(
                         new FileAppendFeeCalculator(),
                         TransactionBody.newBuilder()
@@ -145,6 +150,26 @@ class FileServiceFeeCalculatorsTest {
                         1,
                         100000L,
                         499000000L,
+                        200000L),
+                new TestCase(
+                        new FileSystemDeleteFeeCalculator(),
+                        TransactionBody.newBuilder()
+                                .systemDelete(
+                                        SystemDeleteTransactionBody.newBuilder().build())
+                                .build(),
+                        1,
+                        100000L,
+                        50000000L,
+                        200000L),
+                new TestCase(
+                        new FileSystemUndeleteFeeCalculator(),
+                        TransactionBody.newBuilder()
+                                .systemUndelete(
+                                        SystemUndeleteTransactionBody.newBuilder().build())
+                                .build(),
+                        1,
+                        100000L,
+                        50000000L,
                         200000L));
     }
 
@@ -231,7 +256,9 @@ class FileServiceFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.BYTES, 1000)),
                         makeServiceFee(HederaFunctionality.FILE_DELETE, 69000000),
                         makeServiceFee(HederaFunctionality.FILE_GET_INFO, 6),
-                        makeServiceFee(HederaFunctionality.FILE_GET_CONTENTS, 7, makeExtraIncluded(Extra.BYTES, 1000))))
+                        makeServiceFee(HederaFunctionality.FILE_GET_CONTENTS, 7, makeExtraIncluded(Extra.BYTES, 1000)),
+                        makeServiceFee(HederaFunctionality.SYSTEM_DELETE, 50000000),
+                        makeServiceFee(HederaFunctionality.SYSTEM_UNDELETE, 50000000)))
                 .build();
     }
 
