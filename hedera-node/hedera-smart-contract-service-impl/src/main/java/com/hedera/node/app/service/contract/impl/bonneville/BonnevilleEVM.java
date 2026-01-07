@@ -10,6 +10,7 @@ import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeSi
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
@@ -38,6 +39,7 @@ import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
+import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -63,6 +65,7 @@ public class BonnevilleEVM extends HEVM {
 
     @Override
     public void runToHalt(@NotNull MessageFrame frame, @NotNull OperationTracer tracing) {
+        // Run the contract bytecodes
         new BEVM(this,frame,tracing,getOperationsUnsafe()).run();
     }
 
@@ -1594,7 +1597,7 @@ class BEVM {
     }
 
     private ExceptionalHaltReason _abstractCall(SB trace, String str,long stipend, Address contract, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
-        Account contractAddress = _frame.getWorldUpdater().get(contract);
+        Account contractAccount = _frame.getWorldUpdater().get(contract);
 
         var sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
             ? FrameUtils.hookOwnerAddress(_frame)
@@ -1610,7 +1613,7 @@ class BEVM {
         long gas = _gasCalc.callOperationBaseGasCost() + memCost;
         if( hasValue )
             gas += _gasCalc.callValueTransferGasCost();
-        if( (contractAddress == null || contractAddress.isEmpty()) && hasValue )
+        if( (contractAccount == null || contractAccount.isEmpty()) && hasValue )
             gas += _gasCalc.newAccountGasCost();
         // Check the cold account cost, but do not charge
         if( _gas < gas+_gasCalc.getColdAccountAccessCost() )
@@ -1640,7 +1643,7 @@ class BEVM {
         _frame.clearReturnData();
 
         // Not sure how this can be set
-        if( contractAddress!=null && contractAddress.hasDelegatedCode() )
+        if( contractAccount!=null && contractAccount.hasDelegatedCode() )
             throw new TODO();
 
         // If the call is sending more value than the account has or the
@@ -1650,17 +1653,22 @@ class BEVM {
             throw new TODO();
         Bytes src = _mem.asBytes(srcOff, srcLen);
 
-        // No contract, so child frame always returns success
-        if( contractAddress==null )
-            return push(1);
+        Code code = CodeV0.EMPTY_CODE;
+        // Pre-compiled system contracts have no code
+        HederaSystemContract hsys = _bevm._call.systemContractsRead(contract);
+        if( hsys == null ) {
+            // No account, so child frame always returns success
+            if( contractAccount==null )
+                return push(1);
 
-        // GetCode
-        Code code = _bevm.getCode(contractAddress.getCodeHash(), contractAddress.getCode());
-        if( !code.isValid() )
-            throw new TODO();
-        // No code, so child frame always returns success
-        if( code.getSize() == 0 )
-            return push(1);
+            // GetCode
+            code = _bevm.getCode(contractAccount.getCodeHash(), contractAccount.getCode());
+            if( !code.isValid() )
+                throw new TODO();
+            // No code, so child frame always returns success
+            if( code.getSize() == 0 )
+                return push(1);
+        }
 
         // gasAvailableForChildCall; this is the "all but 1/64th" computation
         long childGasStipend =  Math.min(_gas - (_gas>>6),stipend);
@@ -1690,19 +1698,23 @@ class BEVM {
         assert child.getState() == MessageFrame.State.NOT_STARTED;
         _tracing.traceContextEnter(child);
         msg.start(child, _tracing);
-        assert child.getState() == MessageFrame.State.CODE_EXECUTING;
 
-        // ----------------------------
-        // Recursively call
-        _bevm.runToHalt(child,_tracing);
-        // ----------------------------
+        if( hsys != null ) {
+            assert child.getState() == MessageFrame.State.COMPLETED_SUCCESS;
+        } else {
+            assert child.getState() == MessageFrame.State.CODE_EXECUTING;
+            // ----------------------------
+            // Recursively call
+            _bevm.runToHalt(child,_tracing);
+            // ----------------------------
+        }
 
         switch( child.getState() ) {
         case MessageFrame.State.CODE_SUSPENDED:    throw new TODO("Should not reach here");
         case MessageFrame.State.CODE_SUCCESS:      msg.codeSuccess(child, _tracing);  break; // Sets COMPLETED_SUCCESS
         case MessageFrame.State.EXCEPTIONAL_HALT:  throw new TODO(); // msg.exceptionalHalt(child); break;
         case MessageFrame.State.REVERT:            msg.revert(child);  break;
-        case MessageFrame.State.COMPLETED_SUCCESS: throw new TODO("cant find who sets this");
+        case MessageFrame.State.COMPLETED_SUCCESS: break; // Precompiled sys contracts hit here
         case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
         };
 

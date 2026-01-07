@@ -383,4 +383,8 @@ public class CustomMessageCallProcessor extends MessageCallProcessor implements 
             }
         }
     }
+
+    @Override public HederaSystemContract systemContractsRead(Address key) {
+        return systemContracts.get(key);
+    }
 }
