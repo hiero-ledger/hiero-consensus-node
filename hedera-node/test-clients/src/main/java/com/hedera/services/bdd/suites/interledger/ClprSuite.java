@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -48,9 +49,11 @@ import org.hiero.interledger.clpr.impl.client.ClprClientImpl;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TestTags.CLPR)
+@OrderedInIsolation
 @HapiTestLifecycle
 public class ClprSuite implements LifecycleTest {
     private static final Map<String, String> CLPR_OVERRIDES = Map.of("clpr.clprEnabled", "true");
@@ -65,6 +68,7 @@ public class ClprSuite implements LifecycleTest {
         testLifecycle.overrideInClass(CLPR_OVERRIDES);
     }
 
+    @Order(1)
     @DisplayName("Roster change upgrade refreshes CLPR ledger configuration")
     @HapiTest
     final Stream<DynamicTest> rosterChangeUpgradeRefreshesLedgerConfig() {
@@ -183,8 +187,13 @@ public class ClprSuite implements LifecycleTest {
     }
 
     @DisplayName("Update message queue metadata works")
+    @Order(2)
     @HapiTest
     final Stream<DynamicTest> handleMessageQueue() {
+        /*
+         * This test verify that `update` and `get` massage queue metadata endpoints are working.
+         * Since the transaction handler doesn't have any validations yet, it will simply store the metadata in to sate.
+         */
         AtomicReference<HederaNode> targetNode = new AtomicReference<>();
         AtomicReference<ClprMessageQueueMetadata> fetchResult = new AtomicReference<>();
         ClprMessageQueueMetadata localMessageQueueMetadata = ClprMessageQueueMetadata.newBuilder()
@@ -194,15 +203,13 @@ public class ClprSuite implements LifecycleTest {
                 .ledgerShortId(0)
                 .build();
         return hapiTest(
-                // set target node
+                // set target node to use with the CLPR client
                 doingContextual(spec -> {
-                    final var tNode = spec.getNetworkNodes().stream()
-                            .filter(node -> node.getAccountId().accountNum().equals(3L))
-                            .findFirst();
+                    final var tNode = spec.getNetworkNodes().getFirst();
                     assertThat(tNode).isNotNull();
-                    targetNode.set(tNode.get());
+                    targetNode.set(tNode);
                 }),
-                // try to update local message queue metadata
+                // send update local message queue metadata transaction
                 updateMessageQueueMetadata(targetNode, localMessageQueueMetadata),
                 // try to fetch local message queue metadata
                 sleepFor(5000),
@@ -215,8 +222,13 @@ public class ClprSuite implements LifecycleTest {
     }
 
     @DisplayName("Process message bundle works")
+    @Order(3)
     @HapiTest
     final Stream<DynamicTest> handleProcessMessageBundle() {
+        /*
+         * This test verify that `process` and `get` massages endpoints are working.
+         * Since the transaction handler doesn't have any validations yet, it will simply store the messages in to sate.
+         */
         AtomicReference<HederaNode> targetNode = new AtomicReference<>();
         AtomicReference<ClprMessageBundle> fetchResult = new AtomicReference<>();
         Bytes msgData = Bytes.wrap("Hello CLPR".getBytes());
@@ -226,14 +238,12 @@ public class ClprSuite implements LifecycleTest {
         return hapiTest(
                 // set target node
                 doingContextual(spec -> {
-                    final var tNode = spec.getNetworkNodes().stream()
-                            .filter(node -> node.getAccountId().accountNum().equals(3L))
-                            .findFirst();
+                    final var tNode = spec.getNetworkNodes().getFirst();
                     assertThat(tNode).isNotNull();
-                    targetNode.set(tNode.get());
+                    targetNode.set(tNode);
                 }),
 
-                // try to process message bundle
+                // send process message bundle transaction
                 processMessageBundle(targetNode, bundleToProcess),
 
                 // try to fetch message bundle
