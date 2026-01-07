@@ -5,6 +5,7 @@ import com.google.auto.service.AutoService;
 import com.swirlds.config.api.ConfigurationExtension;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 
 /**
  * Registers configuration types for the hashgraph module.

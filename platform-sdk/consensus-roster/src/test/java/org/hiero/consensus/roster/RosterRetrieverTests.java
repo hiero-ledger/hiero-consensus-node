@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.rostertests;
+package org.hiero.consensus.roster;
 
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
@@ -22,10 +22,6 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.stream.Stream;
-<<<<<<<< HEAD:platform-sdk/consensus-utility/src/test/java/org/hiero/consensus/rostertests/RosterRetrieverTests.java
-import org.hiero.consensus.roster.RosterRetriever;
-========
->>>>>>>> 22747-move-ring-buffer:platform-sdk/consensus-roster/src/test/java/org/hiero/consensus/roster/RosterRetrieverTests.java
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
