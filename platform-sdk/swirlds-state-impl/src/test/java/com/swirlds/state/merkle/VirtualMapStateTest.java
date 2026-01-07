@@ -43,7 +43,6 @@ import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.EnumSet;
@@ -1343,20 +1342,24 @@ public class VirtualMapStateTest extends MerkleTestBase {
         virtualMapState.initializeState(fruitMetadata);
 
         // Insert
-        virtualMapState.updateKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY), ProtoBytes.PROTOBUF.toBytes(APPLE));
+        virtualMapState.updateKv(
+                FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY), ProtoBytes.PROTOBUF.toBytes(APPLE));
         assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY)))
                 .isEqualTo(ProtoBytes.PROTOBUF.toBytes(APPLE));
 
         // Update with null -> remove
         virtualMapState.updateKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY), null);
-        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY))).isNull();
+        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY)))
+                .isNull();
 
         // Insert again and removeKv
-        virtualMapState.updateKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY), ProtoBytes.PROTOBUF.toBytes(BANANA));
+        virtualMapState.updateKv(
+                FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY), ProtoBytes.PROTOBUF.toBytes(BANANA));
         assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY)))
                 .isEqualTo(ProtoBytes.PROTOBUF.toBytes(BANANA));
         virtualMapState.removeKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY));
-        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY))).isNull();
+        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY)))
+                .isNull();
     }
 
     @Test

@@ -380,5 +380,4 @@ public class FakeState implements MerkleNodeState {
     public Bytes queuePop(int stateId) {
         throw new UnsupportedOperationException();
     }
-
 }
