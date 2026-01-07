@@ -49,9 +49,7 @@ class UtilServiceFeeCalculatorsTest {
     void setUp() {
         var testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(
-                testSchedule,
-                Set.of(new AtomicBatchFeeCalculator(), new UtilPrngFeeCalculator()),
-                Set.of());
+                testSchedule, Set.of(new AtomicBatchFeeCalculator(), new UtilPrngFeeCalculator()), Set.of());
     }
 
     static Stream<TestCase> provideTestCases() {
@@ -59,7 +57,8 @@ class UtilServiceFeeCalculatorsTest {
                 new TestCase(
                         new AtomicBatchFeeCalculator(),
                         TransactionBody.newBuilder()
-                                .atomicBatch(AtomicBatchTransactionBody.newBuilder().build())
+                                .atomicBatch(
+                                        AtomicBatchTransactionBody.newBuilder().build())
                                 .build(),
                         1,
                         100000L,

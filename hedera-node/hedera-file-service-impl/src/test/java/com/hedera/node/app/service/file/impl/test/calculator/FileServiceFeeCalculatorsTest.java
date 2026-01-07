@@ -164,8 +164,8 @@ class FileServiceFeeCalculatorsTest {
                 new TestCase(
                         new FileSystemUndeleteFeeCalculator(),
                         TransactionBody.newBuilder()
-                                .systemUndelete(
-                                        SystemUndeleteTransactionBody.newBuilder().build())
+                                .systemUndelete(SystemUndeleteTransactionBody.newBuilder()
+                                        .build())
                                 .build(),
                         1,
                         100000L,

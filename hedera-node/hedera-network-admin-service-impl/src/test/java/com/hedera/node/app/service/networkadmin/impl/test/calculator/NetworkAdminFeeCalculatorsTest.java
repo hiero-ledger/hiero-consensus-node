@@ -35,7 +35,8 @@ class NetworkAdminFeeCalculatorsTest {
         final var mockQueryContext = mock(QueryContext.class);
         final var feeResult = new FeeResult();
 
-        calculator.accumulateNodePayment(Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
+        calculator.accumulateNodePayment(
+                Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.node).isEqualTo(0L);
         assertThat(feeResult.network).isEqualTo(0L);
@@ -50,7 +51,8 @@ class NetworkAdminFeeCalculatorsTest {
         final var mockQueryContext = mock(QueryContext.class);
         final var feeResult = new FeeResult();
 
-        calculator.accumulateNodePayment(Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
+        calculator.accumulateNodePayment(
+                Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.node).isEqualTo(0L);
         assertThat(feeResult.network).isEqualTo(0L);
@@ -65,7 +67,8 @@ class NetworkAdminFeeCalculatorsTest {
         final var mockQueryContext = mock(QueryContext.class);
         final var feeResult = new FeeResult();
 
-        calculator.accumulateNodePayment(Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
+        calculator.accumulateNodePayment(
+                Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.node).isEqualTo(0L);
         assertThat(feeResult.network).isEqualTo(0L);
@@ -80,7 +83,8 @@ class NetworkAdminFeeCalculatorsTest {
         final var mockQueryContext = mock(QueryContext.class);
         final var feeResult = new FeeResult();
 
-        calculator.accumulateNodePayment(Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
+        calculator.accumulateNodePayment(
+                Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.node).isEqualTo(0L);
         assertThat(feeResult.network).isEqualTo(0L);
