@@ -1,0 +1,115 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.metrics.internal.core;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+import org.hiero.metrics.api.core.SettableMetric;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
+
+/**
+ * Abstract implementation of {@link SettableMetric} requiring {@link SettableMetric.Builder} for
+ * construction.
+ * <p>
+ * Holds a map of measurements for each combination of dynamic label values or a single measurement if no dynamic
+ * labels are defined. All measurements are created lazily using the provided measurement factory function only
+ * when requested for observation.
+ *
+ * @param <I> The type of the initializer used to create new measurements.
+ * @param <D> The type of the measurement associated with this metric.
+ * @param <S> The type of the {@link MeasurementSnapshot} associated with this metric.
+ */
+public abstract class AbstractSettableMetric<I, D, S extends MeasurementSnapshot> extends AbstractMetric<D, S>
+        implements SettableMetric<I, D> {
+
+    private final I defaultInitializer;
+    private final Function<I, D> measurementFactory;
+
+    private volatile D noLabelsMeasurement;
+    private final Map<LabelValues, MeasurementHolder<D, S>> measurements;
+
+    protected AbstractSettableMetric(SettableMetric.Builder<I, D, ?, ?> builder) {
+        super(builder);
+
+        measurementFactory = builder.getMeasurementFactory();
+        defaultInitializer = builder.getDefaultInitializer();
+
+        if (dynamicLabelNames().isEmpty()) {
+            measurements = null;
+        } else {
+            measurements = new ConcurrentHashMap<>();
+        }
+    }
+
+    protected abstract void reset(D measurement);
+
+    @Override
+    public final void reset() {
+        if (dynamicLabelNames().isEmpty()) {
+            if (noLabelsMeasurement != null) {
+                reset(noLabelsMeasurement);
+            }
+        } else {
+            measurements.values().stream().map(MeasurementHolder::measurement).forEach(this::reset);
+        }
+    }
+
+    @NonNull
+    @Override
+    public final D getOrCreateNotLabeled() {
+        if (measurements != null) {
+            throw new IllegalStateException("This metric has dynamic labels, so you must call getOrCreateLabeled()");
+        }
+        // lazy init of no labels measurement
+        D localRef = noLabelsMeasurement;
+        if (localRef == null) {
+            synchronized (this) {
+                localRef = noLabelsMeasurement;
+                if (localRef == null) {
+                    noLabelsMeasurement = localRef =
+                            createAndTrackMeasurementHolder(LabelValues.empty()).measurement();
+                }
+            }
+        }
+        return localRef;
+    }
+
+    @NonNull
+    @Override
+    public D getOrCreateLabeled(@NonNull String... namesAndValues) {
+        final LabelValues labelValues = createLabelValues(namesAndValues);
+        if (labelValues.size() == 0) {
+            return getOrCreateNotLabeled();
+        } else {
+            return measurements
+                    .computeIfAbsent(labelValues, this::createAndTrackMeasurementHolder)
+                    .measurement();
+        }
+    }
+
+    @NonNull
+    @Override
+    public D getOrCreateLabeled(@NonNull I initializer, @NonNull String... namesAndValues) {
+        if (measurements == null) {
+            throw new IllegalStateException(
+                    "This metric has no dynamic labels, so you must call getOrCreateNotLabeled()");
+        }
+        Objects.requireNonNull(initializer);
+        return measurements
+                .computeIfAbsent(
+                        createLabelValues(namesAndValues),
+                        labelValues -> createAndTrackMeasurementHolder(labelValues, initializer))
+                .measurement();
+    }
+
+    private MeasurementHolder<D, S> createAndTrackMeasurementHolder(LabelValues labelValues) {
+        return createAndTrackMeasurementHolder(labelValues, defaultInitializer);
+    }
+
+    private MeasurementHolder<D, S> createAndTrackMeasurementHolder(LabelValues labelValues, @NonNull I initializer) {
+        return createAndTrackMeasurementHolder(measurementFactory.apply(initializer), labelValues);
+    }
+}
