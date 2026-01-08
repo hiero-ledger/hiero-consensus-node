@@ -14,11 +14,6 @@ on:
         type: boolean
         default: true
         description: "Run Extended Test Suite"
-      enable-abbreviated-panel:
-        required: true
-        type: boolean
-        default: true
-        description: "Run Abbreviated JRS Panel"
       enable-hedera-node-jrs-panel:
         required: true
         type: boolean
@@ -85,7 +80,6 @@ jobs:
           echo "Commit SHA: ${{ inputs.commit_sha }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Branch Name: ${{ inputs.branch_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Extended Test Suite: ${{ inputs.enable-extended-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Enable Abbreviated Panel: ${{ inputs.enable-abbreviated-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Hedera Node JRS Panel: ${{ inputs.enable-hedera-node-jrs-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable SDK TCK Regression Panel: ${{ inputs.enable-sdk-tck-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Mirror Node Regression Panel: ${{ inputs.enable-mirror-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -118,7 +112,6 @@ jobs:
       mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       enable-extended-test-suite: ${{ inputs.enable-extended-test-suite }}
-      enable-abbreviated-panel: ${{ inputs.enable-abbreviated-panel }}
       enable-hedera-node-jrs-panel: ${{ inputs.enable-hedera-node-jrs-panel }}
       enable-sdk-tck-regression-panel: ${{ inputs.enable-sdk-tck-regression-panel }}
       enable-mirror-node-regression-panel: ${{ inputs.enable-mirror-node-regression-panel }}
