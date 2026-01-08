@@ -143,12 +143,27 @@ public class DefaultHashgraphModule implements HashgraphModule {
                 .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void startSquelching() {}
+    public void startSquelching() {
+        requireNonNull(consensusEngineWiring, "Not initialized").startSquelching();
+    }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void stopSquelching() {}
+    public void stopSquelching() {
+        requireNonNull(consensusEngineWiring, "Not initialized").stopSquelching();
+    }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void flush() {}
+    public void flush() {
+        requireNonNull(consensusEngineWiring, "Not initialized").flush();
+    }
 }

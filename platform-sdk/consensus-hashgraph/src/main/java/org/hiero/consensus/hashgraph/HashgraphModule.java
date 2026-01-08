@@ -97,9 +97,19 @@ public interface HashgraphModule {
     @NonNull
     InputWire<ConsensusSnapshot> consensusSnapshotInputWire();
 
+    /**
+     * Begin squelching input. While squelching is active, no new tasks will be added on any input wires.
+     * This is useful during reconnects to flush the system of events.
+     */
     void startSquelching();
 
+    /**
+     * Stop squelching input. New tasks will once again be added on input wires.
+     */
     void stopSquelching();
 
+    /**
+     * Flushes all tasks currently enqueue in input wires in the order of data flow.
+     */
     void flush();
 }
