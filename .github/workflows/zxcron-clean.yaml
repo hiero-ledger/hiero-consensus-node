@@ -11,7 +11,7 @@ on:
 
 jobs:
   performance-tests-start:
-    runs-on: hiero-citr-linux-small
+    runs-on: hl-cn-citr-lin-sm
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
