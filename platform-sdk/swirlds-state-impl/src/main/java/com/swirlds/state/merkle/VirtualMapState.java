@@ -11,6 +11,7 @@ import static com.swirlds.state.merkle.StateKeyUtils.queueKey;
 import static com.swirlds.state.merkle.StateKeyUtils.queueStateKey;
 import static com.swirlds.state.merkle.StateKeyUtils.singletonKey;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
+import static com.swirlds.state.merkle.StateUtils.unwrap;
 import static com.swirlds.state.merkle.StateUtils.wrapValue;
 import static com.swirlds.state.merkle.StateValue.extractStateIdFromStateValueOneOf;
 import static com.swirlds.state.merkle.disk.OnDiskQueueHelper.QUEUE_STATE_VALUE_CODEC;
@@ -775,7 +776,7 @@ public class VirtualMapState implements MerkleNodeState {
             if (leafRecord == null) {
                 continue;
             }
-            Bytes actualValue = StateValue.StateValueCodec.unwrap(leafRecord.valueBytes());
+            Bytes actualValue = unwrap(leafRecord.valueBytes());
             if (actualValue.equals(expectedValue)) {
                 return leafRecord.path();
             }
@@ -918,7 +919,7 @@ public class VirtualMapState implements MerkleNodeState {
     public Bytes getKv(final int stateId, @NonNull final Bytes key) {
         final Bytes stateKey = kvKey(stateId, key);
         final Bytes stored = virtualMap.getBytes(stateKey);
-        return stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+        return stored == null ? null : unwrap(stored);
     }
 
     /**
@@ -929,7 +930,7 @@ public class VirtualMapState implements MerkleNodeState {
         try {
             final Bytes stateKey = getStateKeyForSingleton(singletonId);
             final Bytes stored = virtualMap.getBytes(stateKey);
-            return stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+            return stored == null ? null : unwrap(stored);
         } catch (ArrayIndexOutOfBoundsException | IllegalArgumentException e) {
             // Invalid state IDs (negative or too large) may cause index errors
             return null;
@@ -948,7 +949,7 @@ public class VirtualMapState implements MerkleNodeState {
             return null;
         }
         try {
-            final Bytes unwrapped = StateValue.StateValueCodec.unwrap(queueStateBytes);
+            final Bytes unwrapped = unwrap(queueStateBytes);
             return QueueStateCodec.INSTANCE.parse(unwrapped);
         } catch (ParseException e) {
             throw new IllegalStateException("Failed to parse queue state for stateID: " + stateID, e);
@@ -967,7 +968,7 @@ public class VirtualMapState implements MerkleNodeState {
         }
         final Bytes elementKey = queueKey(stateId, (int) state.head());
         final Bytes stored = virtualMap.getBytes(elementKey);
-        return stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+        return stored == null ? null : unwrap(stored);
     }
 
     /**
@@ -983,7 +984,7 @@ public class VirtualMapState implements MerkleNodeState {
         // Tail points to the next position to write, so tail-1 is the last element
         final Bytes elementKey = queueKey(stateId, (int) (state.tail() - 1));
         final Bytes stored = virtualMap.getBytes(elementKey);
-        return stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+        return stored == null ? null : unwrap(stored);
     }
 
     /**
@@ -1002,7 +1003,7 @@ public class VirtualMapState implements MerkleNodeState {
         }
         final Bytes elementKey = queueKey(stateID, index);
         final Bytes stored = virtualMap.getBytes(elementKey);
-        return stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+        return stored == null ? null : unwrap(stored);
     }
 
     /**
@@ -1015,7 +1016,7 @@ public class VirtualMapState implements MerkleNodeState {
         for (long i = state.head(); i < state.tail(); i++) {
             final Bytes elementKey = queueKey(stateID, (int) i);
             final Bytes stored = virtualMap.getBytes(elementKey);
-            final Bytes element = stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+            final Bytes element = stored == null ? null : unwrap(stored);
             if (element != null) {
                 result.add(element);
             }
@@ -1072,7 +1073,7 @@ public class VirtualMapState implements MerkleNodeState {
             qState = new QueueState(1, 1);
         } else {
             try {
-                final Bytes unwrapped = StateValue.StateValueCodec.unwrap(existing);
+                final Bytes unwrapped = unwrap(existing);
                 qState = QueueStateCodec.INSTANCE.parse(unwrapped);
             } catch (com.hedera.pbj.runtime.ParseException e) {
                 throw new IllegalStateException("Failed to parse existing queue state", e);
@@ -1103,7 +1104,7 @@ public class VirtualMapState implements MerkleNodeState {
         }
         final QueueState qState;
         try {
-            final Bytes unwrapped = StateValue.StateValueCodec.unwrap(existing);
+            final Bytes unwrapped = unwrap(existing);
             qState = QueueStateCodec.INSTANCE.parse(unwrapped);
         } catch (com.hedera.pbj.runtime.ParseException e) {
             throw new IllegalStateException("Failed to parse existing queue state", e);
@@ -1115,7 +1116,7 @@ public class VirtualMapState implements MerkleNodeState {
 
         final Bytes elementKey = queueKey(stateId, (int) qState.head());
         final Bytes stored = virtualMap.getBytes(elementKey);
-        final Bytes value = stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+        final Bytes value = stored == null ? null : unwrap(stored);
         // remove element (even if stored was null, remove is safe)
         virtualMap.remove(elementKey);
 
