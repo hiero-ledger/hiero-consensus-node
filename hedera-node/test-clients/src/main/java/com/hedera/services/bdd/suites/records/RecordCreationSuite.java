@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
@@ -64,12 +65,15 @@ public class RecordCreationSuite {
                 "nodes.preserveMinNodeRewardBalance", "false"));
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    @LeakyHapiTest(
+            requirement = SYSTEM_ACCOUNT_BALANCES,
+            overrides = {"nodes.feeCollectionAccountEnabled"})
     final Stream<DynamicTest> submittingNodeStillPaidIfServiceFeesOmitted() {
         final String comfortingMemo = THIS_IS_OK_IT_S_FINE_IT_S_WHATEVER;
         final AtomicReference<FeeObject> feeObs = new AtomicReference<>();
 
         return hapiTest(
+                overriding("nodes.feeCollectionAccountEnabled", "false"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, TO_ACCOUNT, ONE_HBAR)).payingWith(GENESIS),
                 cryptoCreate(PAYER),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
@@ -154,12 +158,15 @@ public class RecordCreationSuite {
                         .logged()));
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    @LeakyHapiTest(
+            requirement = SYSTEM_ACCOUNT_BALANCES,
+            overrides = {"nodes.feeCollectionAccountEnabled"})
     final Stream<DynamicTest> submittingNodeChargedNetworkFeeForIgnoringPayerUnwillingness() {
         final String comfortingMemo = THIS_IS_OK_IT_S_FINE_IT_S_WHATEVER;
         final AtomicReference<FeeObject> feeObs = new AtomicReference<>();
 
         return hapiTest(
+                overriding("nodes.feeCollectionAccountEnabled", "false"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, TO_ACCOUNT, ONE_HBAR)).payingWith(GENESIS),
                 cryptoCreate(PAYER),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
