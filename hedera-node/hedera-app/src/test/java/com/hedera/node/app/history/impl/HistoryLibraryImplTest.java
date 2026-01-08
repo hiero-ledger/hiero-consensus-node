@@ -4,6 +4,7 @@ package com.hedera.node.app.history.impl;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -150,5 +151,10 @@ class HistoryLibraryImplTest {
         assertNotNull(signature);
 
         assertDoesNotThrow(() -> subject.verifyAggregateSignature(message, publicKeys, signature));
+    }
+
+    @Test
+    void wrapsLibraryBridgeIsNotReady() {
+        assertFalse(subject.wrapsProverReady());
     }
 }

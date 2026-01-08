@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -11,7 +11,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -38,6 +37,7 @@ import java.util.stream.IntStream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -137,8 +137,9 @@ final class ReconnectTest {
                     final ReconnectStateTeacher sender = buildSender(
                             new DummyConnection(
                                     platformContext, pairedStreams.getTeacherInput(), pairedStreams.getTeacherOutput()),
+                            signedState,
                             reconnectMetrics);
-                    sender.execute(signedState);
+                    sender.execute();
                 } catch (final IOException ex) {
                     ex.printStackTrace();
                 }
@@ -156,7 +157,8 @@ final class ReconnectTest {
     }
 
     private ReconnectStateTeacher buildSender(
-            final SocketConnection connection, final ReconnectMetrics reconnectMetrics) throws IOException {
+            final SocketConnection connection, final SignedState signedState, final ReconnectMetrics reconnectMetrics)
+            throws IOException {
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
@@ -173,6 +175,7 @@ final class ReconnectTest {
                 selfId,
                 otherId,
                 lastRoundReceived,
+                signedState,
                 reconnectMetrics);
     }
 

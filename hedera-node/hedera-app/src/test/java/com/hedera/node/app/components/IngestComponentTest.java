@@ -29,6 +29,7 @@ import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
@@ -51,7 +52,6 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
@@ -61,6 +61,7 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
@@ -133,6 +134,9 @@ class IngestComponentTest {
                 DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), DEFAULT_CONFIG);
+        final var state = new FakeState();
+        final var networkInfo = mock(NetworkInfo.class);
+        final var selfNodeAccountIdManagerImpl = new SelfNodeAccountIdManagerImpl(configProvider, networkInfo, state);
         app = DaggerHederaInjectionComponent.builder()
                 .appContext(appContext)
                 .configProviderImpl(configProvider)
@@ -157,7 +161,8 @@ class IngestComponentTest {
                 .hintsService(hintsService)
                 .historyService(historyService)
                 .initialStateHash(new InitialStateHash(completedFuture(Bytes.EMPTY), 0))
-                .networkInfo(mock(NetworkInfo.class))
+                .networkInfo(networkInfo)
+                .selfNodeAccountIdManager(selfNodeAccountIdManagerImpl)
                 .startupNetworks(startupNetworks)
                 .throttleFactory(throttleFactory)
                 .blockHashSigner(blockHashSigner)
@@ -167,7 +172,6 @@ class IngestComponentTest {
                 .consensusServiceImpl(new ConsensusServiceImpl())
                 .build();
 
-        final var state = new FakeState();
         state.addService(RecordCacheService.NAME, Map.of(TRANSACTION_RECEIPTS_STATE_ID, new ArrayDeque<String>()));
         app.workingStateAccessor().setState(state);
     }

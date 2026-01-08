@@ -11,7 +11,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
@@ -30,6 +29,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.roster.RosterStateId;
 
 /**
@@ -72,7 +72,7 @@ public final class SignedStateFileReader {
 
         final SignedState newSignedState = new SignedState(
                 conf,
-                CryptoStatic::verifySignature,
+                ConsensusCryptoUtils::verifySignature,
                 merkleNodeState,
                 "SignedStateFileReader.readState()",
                 false,

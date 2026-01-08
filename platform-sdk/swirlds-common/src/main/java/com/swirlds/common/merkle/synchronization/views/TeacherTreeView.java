@@ -7,10 +7,10 @@ import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
 import java.io.IOException;
 import java.util.Queue;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A "view" into a merkle tree (or subtree) used to perform a reconnect operation. This view is used to access
@@ -100,17 +100,4 @@ public interface TeacherTreeView<T>
      * @return if the node is the root of a tree with a custom view
      */
     boolean isCustomReconnectRoot(T node);
-
-    /**
-     * It is possible to create a teacher view that is not immediately ready for use, and later becomes ready for use
-     * after miscellaneous background operations complete. This method blocks until that background work is completed,
-     * after which the view is ready to be used during a reconnect.
-     *
-     * @throws InterruptedException
-     * 		if the thread is interrupted
-     */
-    default void waitUntilReady() throws InterruptedException {
-        // By default, a view is considered "ready" after constructed.
-        // If that is not the case for a view implementation, override this method.
-    }
 }

@@ -2,8 +2,12 @@
 package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
+import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -12,13 +16,10 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.utility.Threshold;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.consensus.AncestorSearch;
 import com.swirlds.platform.consensus.CandidateWitness;
-import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.ConsensusRounds;
 import com.swirlds.platform.consensus.ConsensusSorter;
 import com.swirlds.platform.consensus.ConsensusUtils;
@@ -29,7 +30,6 @@ import com.swirlds.platform.consensus.RoundElections;
 import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusMetrics;
-import com.swirlds.platform.util.MarkerFileWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -44,7 +44,9 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.utility.CommonUtils;
+import org.hiero.base.utility.Threshold;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -188,8 +190,6 @@ public class ConsensusImpl implements Consensus {
      * round for events
      */
     private InitJudges initJudges = null;
-    /** The marker file writer */
-    private final MarkerFileWriter markerFileWriter;
     /** The rate limited logger for rounds without a super majority of weight on judges */
     private final RateLimitedLogger noSuperMajorityLogger;
     /** The rate limited logger for rounds with no judge */
@@ -205,17 +205,18 @@ public class ConsensusImpl implements Consensus {
     /**
      * Constructs an empty object (no events) to keep track of elections and calculate consensus.
      *
-     * @param platformContext  the platform context containing configuration
+     * @param configuration the configuration
+     * @param time the time source
      * @param consensusMetrics metrics related to consensus
-     * @param roster      the global address book, which never changes
+     * @param roster the global address book, which never changes
      */
     public ConsensusImpl(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Time time,
             @NonNull final ConsensusMetrics consensusMetrics,
             @NonNull final Roster roster) {
-        this.config = platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
-        this.time = platformContext.getTime();
-        this.markerFileWriter = new MarkerFileWriter(platformContext);
+        this.config = requireNonNull(configuration).getConfigData(ConsensusConfig.class);
+        this.time = time;
         this.consensusMetrics = consensusMetrics;
 
         // until we implement roster changes, we will just use the use this roster
@@ -225,9 +226,9 @@ public class ConsensusImpl implements Consensus {
 
         this.rounds = new ConsensusRounds(config, roster);
 
-        this.noSuperMajorityLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
-        this.noJudgeLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
-        this.coinRoundLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
+        this.noSuperMajorityLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
+        this.noJudgeLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
+        this.coinRoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
     }
 
     /**
@@ -244,7 +245,7 @@ public class ConsensusImpl implements Consensus {
         initJudges = new InitJudges(snapshot.round(), judgeHashes);
         rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
-        lastConsensusTime = CommonUtils.fromPbjTimestamp(snapshot.consensusTimestamp());
+        lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
     }
 
     /** Reset this instance to a state of a newly created instance */
@@ -322,7 +323,7 @@ public class ConsensusImpl implements Consensus {
             }
             return rounds;
         } catch (final Exception e) {
-            markerFileWriter.writeMarkerFile(CONSENSUS_EXCEPTION_MARKER_FILE);
+            logger.error(EXCEPTION.getMarker(), "Exception occurred while trying to add event", e);
             throw e;
         }
     }
@@ -548,7 +549,6 @@ public class ConsensusImpl implements Consensus {
                         candidateWitness,
                         "coin-" + (countingVote.isSupermajority() ? "counting" : "sig"),
                         diff);
-                markerFileWriter.writeMarkerFile(COIN_ROUND_MARKER_FILE);
                 coinRoundLogger.warn(
                         LogMarker.ERROR.getMarker(),
                         "Coin round {}, voting witness: {}",
@@ -767,7 +767,7 @@ public class ConsensusImpl implements Consensus {
                         decidedRoundNumber,
                         rounds.getMinimumJudgeInfoList(),
                         numConsensus,
-                        CommonUtils.toPbjTimestamp(lastConsensusTime),
+                        toPbjTimestamp(lastConsensusTime),
                         judgeIds),
                 pcesMode,
                 time.now());
@@ -785,11 +785,9 @@ public class ConsensusImpl implements Consensus {
                 .sum();
         consensusMetrics.judgeWeights(judgeWeights);
         if (judges.isEmpty()) {
-            markerFileWriter.writeMarkerFile(NO_JUDGES_MARKER_FILE);
             noJudgeLogger.error(LogMarker.ERROR.getMarker(), "no judges in round = {}", decidedRoundNumber);
         } else {
             if (!Threshold.SUPER_MAJORITY.isSatisfiedBy(judgeWeights, rosterTotalWeight)) {
-                markerFileWriter.writeMarkerFile(NO_SUPER_MAJORITY_MARKER_FILE);
                 noSuperMajorityLogger.error(
                         LogMarker.ERROR.getMarker(),
                         "less than a super majority of weight on judges.  round = {}, judgesWeight = {}, percentage = {}",

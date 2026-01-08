@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.utility;
 
-import static com.swirlds.common.units.DataUnit.UNIT_BYTES;
+import static com.swirlds.base.units.DataUnit.UNIT_BYTES;
 
 import java.awt.Dialog;
 import java.awt.GraphicsEnvironment;
