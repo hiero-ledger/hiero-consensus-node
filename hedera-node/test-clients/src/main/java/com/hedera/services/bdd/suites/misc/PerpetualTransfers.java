@@ -8,7 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
-import static java.util.concurrent.TimeUnit.HOURS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(ADHOC)
 public class PerpetualTransfers {
     private final AtomicLong duration = new AtomicLong(24);
-    private final AtomicReference<TimeUnit> unit = new AtomicReference<>(HOURS);
+    private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
     private final AtomicInteger maxOpsPerSec = new AtomicInteger(1);
 
     @HapiTest
