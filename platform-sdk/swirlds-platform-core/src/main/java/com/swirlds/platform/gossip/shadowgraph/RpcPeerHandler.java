@@ -114,6 +114,11 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     private final FallenBehindMonitor fallenBehindMonitor;
 
     /**
+     * Should all incoming events be ignored due to platoform being unhealthy
+     */
+    private boolean lastIgnoreIncomingEvents;
+
+    /**
      * Create new state class for an RPC peer
      *
      * @param sharedShadowgraphSynchronizer shared logic reference for actions which have to work against global state
@@ -126,7 +131,8 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      * @param time                          platform time
      * @param intakeEventCounter            used for tracking events in the intake pipeline per peer
      * @param eventHandler                  events that are received are passed here
-     * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen behind
+     * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen
+     *                                      behind
      */
     public RpcPeerHandler(
             @NonNull final RpcShadowgraphSynchronizer sharedShadowgraphSynchronizer,
@@ -166,6 +172,9 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     // dispatch thread
     public boolean checkForPeriodicActions(final boolean wantToExit, final boolean ignoreIncomingEvents) {
+
+        this.lastIgnoreIncomingEvents = ignoreIncomingEvents;
+
         if (!isSyncCooldownComplete()) {
             this.syncMetrics.doNotSyncCooldown();
             return !wantToExit;
@@ -328,6 +337,11 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     public void receiveBroadcastEvent(final GossipEvent gossipEvent) {
         // we don't use handleIncomingSyncEvent, as we don't want to block sync till this event is resolved
         // so no marking it in intakeEventCounter
+
+        if (lastIgnoreIncomingEvents) {
+            // we need to ignore broadcast events if system is unhealthy
+            return;
+        }
 
         // this method won't be called if we have fallen behind, as reconnect protocol will take over, preempting rpc
         // protocol, so nobody will broadcast events to us anymore
