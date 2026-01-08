@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import com.swirlds.state.MerkleProof;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
