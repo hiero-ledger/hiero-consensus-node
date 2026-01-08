@@ -50,4 +50,4 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "3s") @NodeProperty Duration pipelineOperationTimeout,
         @ConfigProperty(defaultValue = "100") @Min(0) @NetworkProperty int streamingRequestPaddingBytes,
         @ConfigProperty(defaultValue = "5") @Min(0) @NetworkProperty int streamingRequestItemPaddingBytes,
-        @ConfigProperty(defaultValue = "10s") @NodeProperty Duration blockNodeStatusTimeout) {}
+        @ConfigProperty(defaultValue = "1s") @NodeProperty Duration blockNodeStatusTimeout) {}

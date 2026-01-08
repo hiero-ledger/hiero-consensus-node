@@ -963,26 +963,6 @@ public class BlockNodeSuite {
         return validateHappyPath(10);
     }
 
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE"
-                        })
-            })
-    @Order(100)
-    final Stream<DynamicTest> forcedFailureTest() {
-        return hapiTest(sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                byNodeId(0), Instant::now, Duration.ofSeconds(5), Duration.ofSeconds(5), "forcing failure of test")));
-    }
-
     private Stream<DynamicTest> validateHappyPath(final int blocksToWait) {
         return hapiTest(
                 waitUntilNextBlocks(blocksToWait).withBackgroundTraffic(true),
