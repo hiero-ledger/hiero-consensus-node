@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.node.app.fees.SimpleFeesMirrorNodeAnotherTest.makeMirrorNodeCalculator;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
@@ -24,6 +26,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.ShardID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenType;
+import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
@@ -138,92 +141,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/*
-
-Here's how calculating fees works.  Every service has a fee calculator class which implements the ServiceFeeCalculator interface.
-
-There is a SimpleFeeCalculator interface with one implementation.  It needs a loaded fee schedule and a list of calculators
-for each service you want to calculate with. From this interface you can call calculateTxFee(body,feeContext).
-This will return a FeeResult object in USD, which you can convert to hbar using the FeeUtils.feeResultToFees() method
-and the current exchange rate.
-
-
-
-Questions:
-
-Where is the best place to put this?
-
-How do we properly import the service impls? ConsensusServiceImpl seems to be exported already but
-others like CryptoServiceImpl are not. And some impls need a bunch of parameters to init. Instead
-let's have static lists of fee calculators on each service impl.
-
-How do I call this main method from within gradle?  For now I'll make it be a unit test.
-
-
-The FeeContext is going to be a challenge. Some calculators need the fee context, not just for the
-number of sigs but also for the readable store so they can get, for example, the topic a message
-is being submitted to so it can determine if there are custom fees applied.
-
-
- */
-
 @ExtendWith(MockitoExtension.class)
 public class SimpleFeesMirrorNodeTest {
-
-    //    @Test
-    //    public void doTest() throws IOException, ParseException {
-    //        System.out.println("calculating a fee for a create topic transaction");
-    //
-    //        // load up the fee schedule from JSON file
-    //        var input = SimpleFeesMirrorNodeTest.class.getClassLoader().getResourceAsStream("test-schedule.json");
-    //        var bytes = input.readAllBytes();
-    //        final FeeSchedule feeSchedule = FeeSchedule.JSON.parse(Bytes.wrap(bytes));
-    //
-    //        // check the schedule is valid
-    //        if (!isValid(feeSchedule)) {
-    //            throw new Error("invalid fee schedule");
-    //        }
-    //
-    //
-    //        // create a simple fee calculator
-    ////        SimpleFeeCalculator calc = new SimpleFeesCalculatorProvider().make(feeSchedule);
-    //
-    //        // build an example transaction
-    ////        final var op = ConsensusCreateTopicTransactionBody.newBuilder().build();
-    ////        final var txnBody = TransactionBody.newBuilder().consensusCreateTopic(op).build();
-    ////        final var txn = Transaction.newBuilder().body(txnBody).build();
-    ////        final var numSigs =  txn.sigMap().sigPair().size();
-    //        final long topicEntityNum = 1L;
-    //        final TopicID topicId =
-    //                TopicID.newBuilder().topicNum(topicEntityNum).build();
-    //
-    //        final var op = ConsensusSubmitMessageTransactionBody.newBuilder()
-    //                .topicID(topicId)
-    //                .message(Bytes.wrap("foo"))
-    //                .build();
-    //        final var txnBody =
-    //                TransactionBody.newBuilder().consensusSubmitMessage(op).build();
-    //
-    //
-    //        System.out.println("making the executor");
-    //        final var test = new TransactionExecutorsTest();
-    //        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101");
-    //        // Construct a full implementation of the consensus node State API with all genesis accounts and files
-    //        final var state = test.genesisState(overrides);
-    ////            final MerkleNodeState state = test.genesisState(overrides);
-    //        System.out.println("made the genesis state");
-    //
-    //        // Get a standalone executor based on this state, with an override to allow slightly longer memos
-    //        final var executor = TRANSACTION_EXECUTORS.newExecutor(
-    //                TransactionExecutors.Properties.newBuilder()
-    //                        .state(state)
-    //                        .appProperties(overrides)
-    //                        .build(),
-    //                new AppEntityIdFactory(DEFAULT_CONFIG));
-    //        System.out.println("out to execute " + txnBody);
-    //        final var output = executor.execute(txnBody, Instant.EPOCH);
-    //        System.out.println("got the output " + output);
-    //    }
 
     private static final long GAS = 400_000L;
     private static final long EXPECTED_LUCKY_NUMBER = 42L;
@@ -317,34 +236,22 @@ public class SimpleFeesMirrorNodeTest {
     void streamingSimpleFees() throws IOException {
         // set the overrides
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
-        // bring up the full state
-        final var state = genesisState(overrides);
+
+        final State state = FakeGenesisState.make(overrides);
+
         // config props
         final var properties = TransactionExecutors.Properties.newBuilder()
                 .state(state)
                 .appProperties(overrides)
                 .build();
-        // make an entity id factory
-        final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
-        // load a new executor component
-        final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(
-                properties.state(),
-                properties.appProperties(),
-                properties.customTracerBinding(),
-                properties.customOps(),
-                entityIdFactory);
-        // init
-        executor.stateNetworkInfo().initFrom(properties.state());
-        executor.initializer().initialize(properties.state(), StreamMode.BOTH);
+        final SimpleFeesMirrorNodeAnotherTest.FeeCalculator calc = makeMirrorNodeCalculator(state, properties);
 
-        // grab the fee calculator
-        final var calc = executor.feeManager().getSimpleFeeCalculator();
 
         final String records_dir = "../../temp/";
 
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
             paths.filter(Files::isRegularFile).forEach(file -> {
-                System.out.println("reading file " + file);
+//                System.out.println("reading file " + file);
                 if (!file.toString().endsWith("rcd")) {
                     System.out.println("skipping");
                     return;
@@ -352,45 +259,48 @@ public class SimpleFeesMirrorNodeTest {
                 try (final var fin = new FileInputStream(file.toFile())) {
                     final var recordFileVersion =
                             ByteBuffer.wrap(fin.readNBytes(4)).getInt();
-                    System.out.println("read version " + recordFileVersion);
+//                    System.out.println("read version " + recordFileVersion);
                     final var recordStreamFile = RecordStreamFile.parseFrom(fin);
                     recordStreamFile.getRecordStreamItemsList().stream().forEach(item -> {
                         try {
-                            TransactionBody body = parseTransactionBody(item);
+//                            final var txn = item.getTransaction();
+                            final var signedTxnBytes = item.getTransaction().getSignedTransactionBytes();
+                            final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
+//                            final Transaction txn = Transaction.newBuilder().signedTransactionBytes(signedTxn.getBodyBytes())
+                            final var body = TransactionBody.PROTOBUF.parse(
+                                    Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
+                            final Transaction txn = Transaction.newBuilder().body(body).build();
                             if (shouldSkip(body.data().kind())) {
                                 return;
                             }
-                            System.out.println("TXN: memo " + body.memo());
-                            System.out.println("TXN: fee " + body.transactionFee());
-                            if (body.data().kind() == TransactionBody.DataOneOfType.TOKEN_BURN) {
-                                System.out.println(
-                                        "burn amount " + body.tokenBurnOrThrow().amount());
-                                System.out.println("serial numbers "
-                                        + body.tokenBurnOrThrow().serialNumbers());
-                            }
-                            System.out.println("TXN: id " + body.transactionID());
-                            System.out.println("calculating simple fees for transaction " + body);
-                            final FeeContext feeContext = null;
-                            final var result = calc.calculateTxFee(
-                                    body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
-                            System.out.println("result is " + result);
-                            System.out.println("TXN: data case " + body.data().kind());
+//                            System.out.println("TXN: memo " + body.memo());
+//                            System.out.println("TXN: fee " + body.transactionFee());
+//                            System.out.println("TXN: id " + body.transactionID());
+//                            System.out.println("calculating simple fees for transaction " + body);
+                            final var result = calc.calculate(txn, ServiceFeeCalculator.EstimationMode.Intrinsic);
+//                            System.out.println("result is " + result);
                             // max fee in tiny bar //
-                            System.out.println("original      is : " + body.transactionFee());
-                            System.out.println("simple        is : " + result.total());
+//                            System.out.println("original      is : " + body.transactionFee());
                             final var record = item.getRecord();
-
+                            final var txnFee = record.getTransactionFee();
                             // actual fee charged (in tiny bar)?
-                            System.out.println("record trans fee : " + record.getTransactionFee());
+                            var fract = ((double)result.total())/(double)(txnFee*12);
+                            if(Math.abs(1 - fract) > 0.05) {
+                                System.out.println("TXN: data case " + body.data().kind());
+                                System.out.println("simple        is : " + result.total());
+                                System.out.println("record trans fee : " + (txnFee*12));
+                                System.out.println("fract = " + fract);
+                            }
                             // rec fee * 12 to get cents
                             // 845911
-                            System.out.println(
-                                    "status is " + record.getReceipt().getStatus());
-                            System.out.println(
-                                    "exchange rate is " + record.getReceipt().getExchangeRate());
+//                            System.out.println(
+//                                    "status is " + record.getReceipt().getStatus());
+//                            System.out.println(
+//                                    "exchange rate is " + record.getReceipt().getExchangeRate());
 
                         } catch (Exception e) {
                             System.out.println("exception " + e);
+                            e.printStackTrace();
                         }
                     });
                 } catch (FileNotFoundException e) {
@@ -407,9 +317,9 @@ public class SimpleFeesMirrorNodeTest {
         if (kind == TransactionBody.DataOneOfType.CONSENSUS_SUBMIT_MESSAGE) {
             return true;
         }
-        if (kind == TransactionBody.DataOneOfType.CRYPTO_TRANSFER) {
-            return true;
-        }
+//        if (kind == TransactionBody.DataOneOfType.CRYPTO_TRANSFER) {
+//            return true;
+//        }
 
         // fee calculator not implemented yet
         // coming in PR: https://github.com/hiero-ledger/hiero-consensus-node/pull/22584
@@ -444,403 +354,30 @@ public class SimpleFeesMirrorNodeTest {
         return false;
     }
 
-    private TransactionBody parseTransactionBody(RecordStreamItem item)
-            throws InvalidProtocolBufferException, ParseException {
-        final var signedTxn = SignedTransaction.parseFrom(item.getTransaction().getSignedTransactionBytes());
-        final var body = TransactionBody.PROTOBUF.parse(
-                Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
-        return body;
-    }
-
     @Test
     void doIt() {
         // set the overrides
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
-        // bring up the full state
-        final var state = genesisState(overrides);
+        final State state = FakeGenesisState.make(overrides);
         // config props
         final var properties = TransactionExecutors.Properties.newBuilder()
                 .state(state)
                 .appProperties(overrides)
                 .build();
-        // make an entity id factory
-        final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
-        // load a new executor component
-        final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(
-                properties.state(),
-                properties.appProperties(),
-                properties.customTracerBinding(),
-                properties.customOps(),
-                entityIdFactory);
-        // init
-        executor.stateNetworkInfo().initFrom(properties.state());
-        executor.initializer().initialize(properties.state(), StreamMode.BOTH);
 
-        final var calc = executor.feeManager().getSimpleFeeCalculator();
+        // make the calculator
+        final SimpleFeesMirrorNodeAnotherTest.FeeCalculator calc = makeMirrorNodeCalculator(state, properties);
+
         System.out.println("got the calculator " + calc);
         final var body = TransactionBody.newBuilder()
                 .tokenCreation(TokenCreateTransactionBody.newBuilder()
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .build())
                 .build();
-        final FeeContext feeContext = null;
-        final var result = calc.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+        final Transaction txn = Transaction.newBuilder().body(body).build();
+        final var result = calc.calculate(txn, ServiceFeeCalculator.EstimationMode.Intrinsic);
         System.out.println("result is " + result);
         assertThat(result.service).isEqualTo(9999000000L);
     }
 
-    @Test
-    void propertiesBuilderRequiresNonNullState() {
-        assertThrows(IllegalStateException.class, () -> TransactionExecutors.Properties.newBuilder()
-                .build());
-    }
-
-    @Test
-    void propertiesBuilderBulkOptionsAsExpected() {
-        final var customOps = Set.of(new CustomBlockhashOperation());
-        final var appProperties = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101");
-        final var properties = TransactionExecutors.Properties.newBuilder()
-                .customOps(customOps)
-                .appProperties(appProperties)
-                .customTracerBinding(tracerBinding)
-                .state(state)
-                .build();
-
-        assertThat(properties.customOps()).isEqualTo(customOps);
-        assertThat(properties.appProperties()).isEqualTo(appProperties);
-        assertThat(properties.customTracerBinding()).isEqualTo(tracerBinding);
-    }
-
-    private TransactionBody contractCallMultipurposePickFunction() {
-        final var callData = PICK_FUNCTION.encodeCallWithArgs();
-        return newBodyBuilder()
-                .contractCall(ContractCallTransactionBody.newBuilder()
-                        .contractID(EXPECTED_CONTRACT_ID)
-                        .functionParameters(Bytes.wrap(callData.array()))
-                        .gas(GAS)
-                        .build())
-                .build();
-    }
-
-    private TransactionBody contractCallGetLastBlockHashFunction() {
-        final var callData = GET_LAST_BLOCKHASH_FUNCTION.encodeCallWithArgs();
-        return newBodyBuilder()
-                .contractCall(ContractCallTransactionBody.newBuilder()
-                        .contractID(EXPECTED_CONTRACT_ID)
-                        .functionParameters(Bytes.wrap(callData.array()))
-                        .gas(GAS)
-                        .build())
-                .build();
-    }
-
-    private TransactionBody createContract() {
-        final var maxLifetime =
-                DEFAULT_CONFIG.getConfigData(EntitiesConfig.class).maxLifetime();
-        final var shard = DEFAULT_CONFIG.getConfigData(HederaConfig.class).shard();
-        final var realm = DEFAULT_CONFIG.getConfigData(HederaConfig.class).realm();
-
-        return newBodyBuilder()
-                .contractCreateInstance(ContractCreateTransactionBody.newBuilder()
-                        .fileID(EXPECTED_INITCODE_ID)
-                        .autoRenewPeriod(new Duration(maxLifetime))
-                        .gas(GAS)
-                        .shardID(new ShardID(shard))
-                        .realmID(new RealmID(shard, realm))
-                        .build())
-                .build();
-    }
-
-    private TransactionBody uploadMultipurposeInitcode() {
-        final var maxLifetime =
-                DEFAULT_CONFIG.getConfigData(EntitiesConfig.class).maxLifetime();
-        return newBodyBuilder()
-                .fileCreate(FileCreateTransactionBody.newBuilder()
-                        .contents(resourceAsBytes("initcode/Multipurpose.bin"))
-                        .keys(IMMUTABILITY_SENTINEL_KEY.keyListOrThrow())
-                        .expirationTime(new Timestamp(maxLifetime, 0))
-                        .build())
-                .build();
-    }
-
-    private TransactionBody uploadEmitBlockTimestampInitcode() {
-        final var maxLifetime =
-                DEFAULT_CONFIG.getConfigData(EntitiesConfig.class).maxLifetime();
-        return newBodyBuilder()
-                .fileCreate(FileCreateTransactionBody.newBuilder()
-                        .contents(resourceAsBytes("initcode/EmitBlockTimestamp.bin"))
-                        .keys(IMMUTABILITY_SENTINEL_KEY.keyListOrThrow())
-                        .expirationTime(new Timestamp(maxLifetime, 0))
-                        .build())
-                .build();
-    }
-
-    private TransactionBody.Builder newBodyBuilder() {
-        final var minValidDuration =
-                DEFAULT_CONFIG.getConfigData(HederaConfig.class).transactionMinValidDuration();
-        return TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder()
-                        .transactionValidStart(new Timestamp(0, 0))
-                        .accountID(TREASURY_ID)
-                        .build())
-                .memo(
-                        "This memo is 101 characters long, which with default settings would die with the status MEMO_TOO_LONG")
-                .nodeAccountID(NODE_ACCOUNT_ID)
-                .transactionValidDuration(new Duration(minValidDuration));
-    }
-
-    public MerkleNodeState genesisState(@NonNull final Map<String, String> overrides) {
-        final var state = new FakeState();
-        final var configBuilder = HederaTestConfigBuilder.create();
-        overrides.forEach(configBuilder::withValue);
-        final var config = configBuilder.getOrCreateConfig();
-        final var servicesRegistry = new FakeServicesRegistry();
-        final var appContext = new AppContextImpl(
-                InstantSource.system(),
-                signatureVerifier,
-                UNAVAILABLE_GOSSIP,
-                () -> config,
-                () -> DEFAULT_NODE_INFO,
-                () -> NO_OP_METRICS,
-                new AppThrottleFactory(
-                        () -> config, () -> state, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
-                () -> UNIVERSAL_NOOP_FEE_CHARGING,
-                new AppEntityIdFactory(config));
-        registerServices(appContext, servicesRegistry);
-        final var migrator = new FakeServiceMigrator();
-        final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
-        migrator.doMigrations(
-                state,
-                servicesRegistry,
-                null,
-                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion(),
-                new ConfigProviderImpl().getConfiguration(),
-                config,
-                startupNetworks,
-                storeMetricsService,
-                configProvider);
-        // Create a node
-        final var nodeWritableStates = state.getWritableStates(AddressBookService.NAME);
-        final var nodes = nodeWritableStates.<EntityNumber, Node>get(NODES_STATE_ID);
-        nodes.put(
-                new EntityNumber(0),
-                Node.newBuilder()
-                        .accountId(appContext.idFactory().newAccountId(3L))
-                        .build());
-        ((CommittableWritableStates) nodeWritableStates).commit();
-        final var writableStates = state.getWritableStates(FileService.NAME);
-        final var readableStates = state.getReadableStates(AddressBookService.NAME);
-        final var entityIdStore = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
-        entityIdStore.adjustEntityCount(EntityType.NODE, 1);
-        final var nodeStore = new ReadableNodeStoreImpl(readableStates, entityIdStore);
-        final var files = writableStates.<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
-        System.out.println("setting up te genesis content providers " + genesisContentProviders(nodeStore, config));
-        genesisContentProviders(nodeStore, config).forEach((fileNum, provider) -> {
-            final var fileId = createFileID(fileNum, config);
-            files.put(
-                    fileId,
-                    File.newBuilder()
-                            .fileId(fileId)
-                            .keys(KeyList.DEFAULT)
-                            .contents(provider.apply(config))
-                            .build());
-        });
-        final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-        final var accountsConfig = config.getConfigData(AccountsConfig.class);
-        final var systemKey = Key.newBuilder()
-                .ed25519(config.getConfigData(BootstrapConfig.class).genesisPublicKey())
-                .build();
-        final var accounts =
-                state.getWritableStates(TokenService.NAME).<AccountID, Account>get(V0490TokenSchema.ACCOUNTS_STATE_ID);
-        // Create the system accounts
-        for (int i = 1, n = ledgerConfig.numSystemAccounts(); i <= n; i++) {
-            final var accountId = AccountID.newBuilder().accountNum(i).build();
-            accounts.put(
-                    accountId,
-                    Account.newBuilder()
-                            .accountId(accountId)
-                            .key(systemKey)
-                            .expirationSecond(Long.MAX_VALUE)
-                            .tinybarBalance(
-                                    (long) i == accountsConfig.treasury() ? ledgerConfig.totalTinyBarFloat() : 0L)
-                            .build());
-        }
-        for (final long num : List.of(800L, 801L)) {
-            final var accountId = AccountID.newBuilder().accountNum(num).build();
-            accounts.put(
-                    accountId,
-                    Account.newBuilder()
-                            .accountId(accountId)
-                            .key(systemKey)
-                            .expirationSecond(Long.MAX_VALUE)
-                            .tinybarBalance(0L)
-                            .build());
-        }
-        ((CommittableWritableStates) writableStates).commit();
-        return state;
-    }
-
-    private Map<Long, Function<Configuration, Bytes>> genesisContentProviders(
-            @NonNull final ReadableNodeStore nodeStore, @NonNull final Configuration config) {
-        final var genesisSchema = new V0490FileSchema();
-        final var filesConfig = config.getConfigData(FilesConfig.class);
-        return Map.of(
-                filesConfig.addressBook(), ignore -> genesisSchema.nodeStoreAddressBook(nodeStore),
-                filesConfig.nodeDetails(), ignore -> genesisSchema.nodeStoreNodeDetails(nodeStore),
-                filesConfig.feeSchedules(), genesisSchema::genesisFeeSchedules,
-                filesConfig.simpleFeesSchedules(), genesisSchema::genesisSimpleFeesSchedules,
-                filesConfig.exchangeRates(), genesisSchema::genesisExchangeRates,
-                filesConfig.networkProperties(), genesisSchema::genesisNetworkProperties,
-                filesConfig.hapiPermissions(), genesisSchema::genesisHapiPermissions,
-                filesConfig.throttleDefinitions(), genesisSchema::genesisThrottleDefinitions);
-    }
-
-    private void registerServices(
-            @NonNull final AppContext appContext, @NonNull final ServicesRegistry servicesRegistry) {
-        // Register all service schema RuntimeConstructable factories before platform init
-        Set.of(
-                        new EntityIdServiceImpl(),
-                        new ConsensusServiceImpl(),
-                        new ContractServiceImpl(appContext, NO_OP_METRICS),
-                        new FileServiceImpl(),
-                        new FreezeServiceImpl(),
-                        new ScheduleServiceImpl(appContext),
-                        new TokenServiceImpl(appContext),
-                        new UtilServiceImpl(appContext, (signedTxn, config) -> null),
-                        new RecordCacheService(),
-                        new BlockRecordService(),
-                        new BlockStreamService(),
-                        new FeeService(),
-                        new CongestionThrottleService(),
-                        new NetworkServiceImpl(),
-                        new AddressBookServiceImpl())
-                .forEach(servicesRegistry::register);
-    }
-
-    private static NetworkInfo fakeNetworkInfo() {
-        final AccountID someAccount = idFactory.newAccountId(12345);
-        final var addressBook = new AddressBook(StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(
-                                RandomAddressBookBuilder.create(new Random())
-                                        .withSize(1)
-                                        .withRealKeysEnabled(true)
-                                        .build()
-                                        .iterator(),
-                                0),
-                        false)
-                .map(address ->
-                        address.copySetMemo("0.0." + (address.getNodeId().id() + 3)))
-                .toList());
-        return new NetworkInfo() {
-            @NonNull
-            @Override
-            public Bytes ledgerId() {
-                throw new UnsupportedOperationException("Not implemented");
-            }
-
-            @NonNull
-            @Override
-            public NodeInfo selfNodeInfo() {
-                return new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        getCertBytes(randomX509Certificate()),
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        true,
-                        null);
-            }
-
-            @NonNull
-            @Override
-            public List<NodeInfo> addressBook() {
-                return List.of(new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        getCertBytes(randomX509Certificate()),
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false,
-                        null));
-            }
-
-            @Override
-            public NodeInfo nodeInfo(final long nodeId) {
-                return new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        Bytes.EMPTY,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false,
-                        null);
-            }
-
-            @Override
-            public boolean containsNode(final long nodeId) {
-                return addressBook.contains(NodeId.of(nodeId));
-            }
-
-            @Override
-            public void updateFrom(final State state) {
-                throw new UnsupportedOperationException("Not implemented");
-            }
-        };
-    }
-
-    private Bytes resourceAsBytes(@NonNull final String loc) {
-        try {
-            try (final var in = com.hedera.node.app.workflows.standalone.TransactionExecutorsTest.class
-                    .getClassLoader()
-                    .getResourceAsStream(loc)) {
-                final var bytes = requireNonNull(in).readAllBytes();
-                return Bytes.wrap(bytes);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    public static X509Certificate randomX509Certificate() {
-        try {
-            final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG", "SUN");
-
-            final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
-            rsaKeyGen.initialize(3072, secureRandom);
-            final KeyPair rsaKeyPair1 = rsaKeyGen.generateKeyPair();
-
-            final String name = "CN=Bob";
-            return CryptoStatic.generateCertificate(
-                    name, rsaKeyPair1, name, rsaKeyPair1, secureRandom, SigningSchema.RSA.getSigningAlgorithm());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static Bytes getCertBytes(X509Certificate certificate) {
-        try {
-            return Bytes.wrap(certificate.getEncoded());
-        } catch (CertificateEncodingException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private class CustomBlockhashOperation extends AbstractOperation {
-        private static final OperationResult ONLY_RESULT = new Operation.OperationResult(0L, null);
-        private static final Bytes32 FAKE_BLOCK_HASH = Bytes32.fromHexString("0x1234567890");
-
-        protected CustomBlockhashOperation() {
-            super(64, "BLOCKHASH", 1, 1, gasCalculator);
-        }
-
-        @Override
-        public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
-            // This stack item has the requested block number, ignore it
-            frame.popStackItem();
-            frame.pushStackItem(FAKE_BLOCK_HASH);
-            return ONLY_RESULT;
-        }
-    }
 }

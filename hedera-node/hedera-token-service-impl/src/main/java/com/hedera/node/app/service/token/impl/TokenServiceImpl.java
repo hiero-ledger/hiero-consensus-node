@@ -61,6 +61,7 @@ public class TokenServiceImpl implements TokenService {
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
         return getServiceFeeCalculators();
     }
+
     public static Set<ServiceFeeCalculator> getServiceFeeCalculators() {
         return Set.of(
                 new CryptoApproveAllowanceFeeCalculator(),

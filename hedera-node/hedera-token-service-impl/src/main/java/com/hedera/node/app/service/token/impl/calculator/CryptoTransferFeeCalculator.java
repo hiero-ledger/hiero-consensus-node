@@ -61,27 +61,29 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeSchedule feeSchedule,
             EstimationMode mode) {
 
-        final ReadableTokenStore tokenStore = feeContext.readableStore(ReadableTokenStore.class);
         final var op = txnBody.cryptoTransferOrThrow();
         final long numAccounts = countUniqueAccounts(op);
         final long numHooks = countHooks(op);
-        final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
 
-        final Extra transferType = determineTransferType(tokenCounts);
-        if (transferType != null) {
-            feeResult.addServiceFee(1, serviceDef.baseFee());
-            addExtraFeeWithIncludedCount(feeResult, transferType, feeSchedule, serviceDef, 1);
-        }
-
         addExtraFeeWithIncludedCount(feeResult, HOOK_EXECUTION, feeSchedule, serviceDef, numHooks);
-        // Note: HOOK_UPDATES is only for CryptoCreate/Update and ContractCreate/Update, not transfers
-        addExtraFeeWithIncludedCount(feeResult, ACCOUNTS, feeSchedule, serviceDef, numAccounts);
-        final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
-        addExtraFeeWithIncludedCount(feeResult, FUNGIBLE_TOKENS, feeSchedule, serviceDef, totalFungible);
-        final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
-        addExtraFeeWithIncludedCount(feeResult, NON_FUNGIBLE_TOKENS, feeSchedule, serviceDef, totalNft);
+        if(mode == EstimationMode.Stateful ) {
+            final ReadableTokenStore tokenStore = feeContext.readableStore(ReadableTokenStore.class);
+            final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
+            final Extra transferType = determineTransferType(tokenCounts);
+            if (transferType != null) {
+                feeResult.addServiceFee(1, serviceDef.baseFee());
+                addExtraFeeWithIncludedCount(feeResult, transferType, feeSchedule, serviceDef, 1);
+            }
+
+            // Note: HOOK_UPDATES is only for CryptoCreate/Update and ContractCreate/Update, not transfers
+            addExtraFeeWithIncludedCount(feeResult, ACCOUNTS, feeSchedule, serviceDef, numAccounts);
+            final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
+            addExtraFeeWithIncludedCount(feeResult, FUNGIBLE_TOKENS, feeSchedule, serviceDef, totalFungible);
+            final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
+            addExtraFeeWithIncludedCount(feeResult, NON_FUNGIBLE_TOKENS, feeSchedule, serviceDef, totalNft);
+        }
     }
 
     /** Returns the CRYPTO_TRANSFER_BASE_* extra for base fee, or null for HBAR-only transfers. */

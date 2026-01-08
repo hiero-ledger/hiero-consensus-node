@@ -120,12 +120,12 @@ public class SimpleFeesMirrorNodeAnotherTest {
     //        assertThrows(NullPointerException.class, () -> calc.calculate(txn,
     // ServiceFeeCalculator.EstimationMode.Stateful));
     //    }
-    private FeeCalculator makeMirrorNodeCalculator(State state, TransactionExecutors.Properties properties) {
+    public static FeeCalculator makeMirrorNodeCalculator(State state, TransactionExecutors.Properties properties) {
         return new TestFeeCalcImpl(state, properties);
     }
 
     @ExtendWith(MockitoExtension.class)
-    class TestFeeCalcImpl implements FeeCalculator {
+    public static class TestFeeCalcImpl implements FeeCalculator {
         @Mock
         private FeeContextImpl feeContext;
 

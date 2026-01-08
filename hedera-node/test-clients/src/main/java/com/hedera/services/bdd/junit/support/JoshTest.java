@@ -1,11 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hederahashgraph.api.proto.java.SignedTransaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
+import org.junit.jupiter.api.Test;
 
 public class JoshTest {
     @Test
@@ -18,15 +18,18 @@ public class JoshTest {
                 // pull out the record stream items
                 .flatMap(recordWithSidecars -> recordWithSidecars.recordFile().getRecordStreamItemsList().stream())
                 .forEach(item -> {
-            System.out.println("record " + item);
-            System.out.println("OUT: memo = " + item.getRecord().getMemo());
-            System.out.println("OUT: transaction fee " + item.getRecord().getTransactionFee());
-            System.out.println("OUT: transaction " + item.getTransaction().getSignedTransactionBytes());
-            final var receipt = item.getRecord().getReceipt();
-            System.out.println("OUT: status " + receipt.getStatus());
-            System.out.println("OUT: exchange rate " + receipt.getExchangeRate());
+                    System.out.println("record " + item);
+                    System.out.println("OUT: memo = " + item.getRecord().getMemo());
+                    System.out.println(
+                            "OUT: transaction fee " + item.getRecord().getTransactionFee());
+                    System.out.println(
+                            "OUT: transaction " + item.getTransaction().getSignedTransactionBytes());
+                    final var receipt = item.getRecord().getReceipt();
+                    System.out.println("OUT: status " + receipt.getStatus());
+                    System.out.println("OUT: exchange rate " + receipt.getExchangeRate());
                     try {
-                        final var signedTxn = SignedTransaction.parseFrom(item.getTransaction().getSignedTransactionBytes());
+                        final var signedTxn = SignedTransaction.parseFrom(
+                                item.getTransaction().getSignedTransactionBytes());
                         System.out.println("the real transaction is" + signedTxn);
                         var transactionBody = TransactionBody.parseFrom(signedTxn.getBodyBytes());
                         System.out.println("TXN:transaction body is " + transactionBody);
