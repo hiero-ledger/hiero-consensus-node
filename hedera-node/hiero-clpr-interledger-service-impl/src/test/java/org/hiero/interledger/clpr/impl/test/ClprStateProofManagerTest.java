@@ -12,12 +12,14 @@ import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata;
 import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
@@ -35,7 +37,9 @@ class ClprStateProofManagerTest extends ClprTestBase {
     @BeforeEach
     void setUp() {
         setupBase();
-        testState = buildMerkleStateWithConfigurations(configurationMap);
+        testState = buildMerkleStateWithConfigurations(
+                configurationMap,
+                ClprLocalLedgerMetadata.newBuilder().ledgerId(localClprLedgerId).build());
         snapshotProvider = new BlockProvenStateAccessor();
         snapshotProvider.update(testState);
         // Create dev mode config for testing
@@ -47,12 +51,21 @@ class ClprStateProofManagerTest extends ClprTestBase {
             ledgerConfigStateMetadata() {
         return new com.swirlds.state.lifecycle.StateMetadata<>(
                 ClprService.NAME,
-                com.swirlds.state.lifecycle.StateDefinition.onDisk(
+                StateDefinition.onDisk(
                         V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID,
                         V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_KEY,
                         ClprLedgerId.PROTOBUF,
                         ClprLedgerConfiguration.PROTOBUF,
                         50_000L));
+    }
+
+    private com.swirlds.state.lifecycle.StateMetadata<Void, ClprLocalLedgerMetadata> ledgerMetadataStateMetadata() {
+        return new com.swirlds.state.lifecycle.StateMetadata<>(
+                ClprService.NAME,
+                StateDefinition.singleton(
+                        V0700ClprSchema.CLPR_LEDGER_METADATA_STATE_ID,
+                        V0700ClprSchema.CLPR_LEDGER_METADATA_STATE_KEY,
+                        ClprLocalLedgerMetadata.PROTOBUF));
     }
 
     @Test
@@ -74,6 +87,21 @@ class ClprStateProofManagerTest extends ClprTestBase {
     }
 
     @Test
+    void getLocalLedgerIdUsesMetadataWhenPresent() {
+        final var metadata =
+                ClprLocalLedgerMetadata.newBuilder().ledgerId(localClprLedgerId).build();
+        final var state =
+                buildMerkleStateWithConfigurations(java.util.Map.of(remoteClprLedgerId, remoteClprConfig), metadata);
+        final var accessor = new BlockProvenStateAccessor();
+        accessor.update(state);
+        final var managerWithMetadata = new ClprStateProofManager(accessor, devModeConfig);
+
+        final var ledgerId = managerWithMetadata.getLocalLedgerId();
+        assertNotNull(ledgerId);
+        assertEquals(localClprLedgerId, ledgerId);
+    }
+
+    @Test
     void getLedgerConfigurationReturnsConfigWhenFound() {
         final var proof = manager.getLedgerConfiguration(remoteClprLedgerId);
         assertNotNull(proof);
@@ -85,6 +113,13 @@ class ClprStateProofManagerTest extends ClprTestBase {
         final BlockProvenSnapshotProvider emptyProvider = () -> java.util.Optional.empty();
         final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig);
         assertNull(emptyManager.getLedgerConfiguration(remoteClprLedgerId));
+    }
+
+    @Test
+    void getLedgerConfigurationResolvesBlankLedgerIdToLocal() {
+        final var proof = manager.getLedgerConfiguration(ClprLedgerId.DEFAULT);
+        assertNotNull(proof);
+        assertEquals(localClprConfig, ClprStateProofUtils.extractConfiguration(proof));
     }
 
     @Test
@@ -124,12 +159,24 @@ class ClprStateProofManagerTest extends ClprTestBase {
 
     private VirtualMapState buildMerkleStateWithConfigurations(
             final java.util.Map<ClprLedgerId, ClprLedgerConfiguration> configurations) {
+        return buildMerkleStateWithConfigurations(configurations, null);
+    }
+
+    private VirtualMapState buildMerkleStateWithConfigurations(
+            final java.util.Map<ClprLedgerId, ClprLedgerConfiguration> configurations,
+            final ClprLocalLedgerMetadata metadata) {
         final var state = VirtualMapStateTestUtils.createTestState();
         state.initializeState(ledgerConfigStateMetadata());
+        state.initializeState(ledgerMetadataStateMetadata());
         final var writableStates = state.getWritableStates(ClprService.NAME);
         final var writableConfigurations = writableStates.<ClprLedgerId, ClprLedgerConfiguration>get(
                 V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
         configurations.forEach(writableConfigurations::put);
+        if (metadata != null) {
+            final var writableMetadata =
+                    writableStates.<ClprLocalLedgerMetadata>getSingleton(V0700ClprSchema.CLPR_LEDGER_METADATA_STATE_ID);
+            writableMetadata.put(metadata);
+        }
         if (writableStates instanceof CommittableWritableStates committableStates) {
             committableStates.commit();
         }

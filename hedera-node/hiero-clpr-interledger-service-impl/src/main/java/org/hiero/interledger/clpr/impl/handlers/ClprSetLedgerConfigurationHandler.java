@@ -55,6 +55,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         if (!stateProofManager.clprEnabled()) {
             throw new PreCheckException(ResponseCodeEnum.NOT_SUPPORTED);
         }
+        final var localLedgerId = getLocalLedgerIdOrThrow();
         requireNonNull(context);
         // TODO: Determine what throttles apply to this transaction.
         //  Number of state proofs per second?
@@ -80,6 +81,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             throws PreCheckException {
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
         validateTruePreCheck(clprConfig.clprEnabled(), ResponseCodeEnum.NOT_SUPPORTED);
+        final var localLedgerId = getLocalLedgerIdOrThrow();
         final var configTxnBdy = txn.clprSetLedgerConfiguration();
         validateTruePreCheck(configTxnBdy != null, ResponseCodeEnum.INVALID_TRANSACTION_BODY);
 
@@ -96,6 +98,9 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         // TODO: Check that certificates are non-empty and valid for each endpoint.
 
         final var existingConfig = stateProofManager.readLedgerConfiguration(ledgerId);
+        // Guard: prevent remote/user submissions from overwriting the local ledger configuration.
+        validateFalsePreCheck(
+                localLedgerId.equals(ledgerId) && existingConfig != null, ResponseCodeEnum.INVALID_TRANSACTION);
         if (existingConfig != null) {
             final var existingConfigTime = existingConfig.timestampOrThrow();
             final var newConfigTime = ledgerConfig.timestampOrThrow();
@@ -115,9 +120,15 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         }
 
         // In production mode, we need to ensure that the local ledger ID is known before accepting new configurations.
+        // This is enforced above; if we reached here, the local ledger ID is present and non-empty.
+    }
+
+    private @NonNull org.hiero.hapi.interledger.state.clpr.ClprLedgerId getLocalLedgerIdOrThrow()
+            throws PreCheckException {
         final var localLedgerId = stateProofManager.getLocalLedgerId();
         validateTruePreCheck(localLedgerId != null, ResponseCodeEnum.WAITING_FOR_LEDGER_ID);
         validateTruePreCheck(localLedgerId.ledgerId() != Bytes.EMPTY, ResponseCodeEnum.WAITING_FOR_LEDGER_ID);
+        return localLedgerId;
     }
 
     @Override

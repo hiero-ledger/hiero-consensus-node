@@ -103,6 +103,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
         given(creatorInfo.nodeId()).willReturn(1L);
         given(selfNodeInfo.nodeId()).willReturn(0L);
+        given(stateProofManager.clprEnabled()).willReturn(true);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(ClprConfig.class)).willReturn(new ClprConfig(true, 5000, true, true));
         given(preHandleContext.isUserTransaction()).willReturn(true);
@@ -150,6 +151,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(stateProofManager.isDevModeEnabled()).willReturn(true);
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
                 .willReturn(true);
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(null);
         given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(null);
         given(preHandleContext.body()).willReturn(txn);
@@ -164,7 +166,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
 
         assertThatCode(() -> subject.preHandle(preHandleContext))
                 .isInstanceOf(PreCheckException.class)
-                .hasMessageContaining(ResponseCodeEnum.INVALID_TRANSACTION.name());
+                .hasMessageContaining(ResponseCodeEnum.WAITING_FOR_LEDGER_ID.name());
     }
 
     @Test
@@ -174,7 +176,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
 
         assertThatCode(() -> subject.preHandle(preHandleContext))
                 .isInstanceOf(PreCheckException.class)
-                .hasMessageContaining(ResponseCodeEnum.INVALID_TRANSACTION.name());
+                .hasMessageContaining(ResponseCodeEnum.WAITING_FOR_LEDGER_ID.name());
     }
 
     @Test
@@ -217,7 +219,9 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
         given(preHandleContext.body()).willReturn(txn);
 
-        assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
+        assertThatCode(() -> subject.preHandle(preHandleContext))
+                .isInstanceOf(PreCheckException.class)
+                .hasMessageContaining(ResponseCodeEnum.INVALID_TRANSACTION.name());
     }
 
     @Test
@@ -415,6 +419,32 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var configCaptor = ArgumentCaptor.forClass(ClprLedgerConfiguration.class);
         verify(writableConfigStoreMock).put(configCaptor.capture());
         assertThat(configCaptor.getValue().ledgerId()).isEqualTo(localClprConfig.ledgerId());
+    }
+
+    @Test
+    @DisplayName("Pure checks should reject user-sourced updates targeting the local ledgerId")
+    void pureChecksRejectsRemoteAttemptToUpdateLocalLedgerConfig() {
+        // Purpose: Document the intended guard in pureChecks: user/remote submissions must not replace the local
+        // ledger configuration. This is where the handler already has state and can compare against local metadata.
+        final var fresherLocalConfig = localClprConfig
+                .copyBuilder()
+                .timestamp(Timestamp.newBuilder()
+                        .seconds(localClprConfig.timestampOrThrow().seconds() + 10)
+                        .build())
+                .build();
+        final var txn = newTxnBuilder().withClprLedgerConfig(fresherLocalConfig).build();
+
+        given(pureChecksContext.body()).willReturn(txn);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(ClprConfig.class)).willReturn(new ClprConfig(true, 5000, true, false));
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
+        given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
+                .willReturn(true);
+
+        assertThatCode(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .hasMessageContaining(ResponseCodeEnum.INVALID_TRANSACTION.name());
     }
 
     private TxnBuilder newTxnBuilder() {

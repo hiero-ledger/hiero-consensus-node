@@ -52,12 +52,16 @@ class ClprServiceTest {
                 1L, serviceEndpoint(80),
                 2L, serviceEndpoint(81),
                 3L, serviceEndpoint(82));
+        final var accountIdsById = java.util.Map.of(
+                1L, AccountID.newBuilder().accountNum(1001L).build(),
+                2L, AccountID.newBuilder().accountNum(1002L).build(),
+                3L, AccountID.newBuilder().accountNum(1003L).build());
         final var ledgerId = Bytes.wrap("ledger-A");
         final var payer = AccountID.newBuilder().accountNum(3L).build();
         final var consensus = Instant.ofEpochSecond(1_234_567L, 890);
 
         final var txnWithEndpoints = ClprService.buildLedgerConfigurationUpdateTransactionBody(
-                roster, payer, ledgerId, consensus, true, endpointsById::get);
+                roster, payer, ledgerId, consensus, true, endpointsById::get, accountIdsById::get);
         final var configWithEndpoints = extractConfig(txnWithEndpoints);
         assertThat(configWithEndpoints.endpoints())
                 .extracting(ep -> ep.endpoint().port())
@@ -65,9 +69,12 @@ class ClprServiceTest {
         assertThat(configWithEndpoints.endpoints())
                 .extracting(ClprEndpoint::signingCertificate)
                 .containsExactly(Bytes.wrap("c1"), Bytes.wrap("c2"), Bytes.wrap("c3"));
+        assertThat(configWithEndpoints.endpoints())
+                .extracting(ep -> ep.nodeAccountIdOrElse(AccountID.DEFAULT).accountNum())
+                .containsExactly(1001L, 1002L, 1003L);
 
         final var txnWithoutEndpoints = ClprService.buildLedgerConfigurationUpdateTransactionBody(
-                roster, payer, ledgerId, consensus, false, endpointsById::get);
+                roster, payer, ledgerId, consensus, false, endpointsById::get, accountIdsById::get);
         final var configWithoutEndpoints = extractConfig(txnWithoutEndpoints);
         assertThat(configWithoutEndpoints.endpoints())
                 .extracting(ep -> ep.endpoint() == null ? null : ep.endpoint().port())
@@ -75,6 +82,9 @@ class ClprServiceTest {
         assertThat(configWithoutEndpoints.endpoints())
                 .extracting(ClprEndpoint::signingCertificate)
                 .containsExactly(Bytes.wrap("c1"), Bytes.wrap("c2"), Bytes.wrap("c3"));
+        assertThat(configWithoutEndpoints.endpoints())
+                .extracting(ep -> ep.nodeAccountIdOrElse(AccountID.DEFAULT).accountNum())
+                .containsExactly(1001L, 1002L, 1003L);
     }
 
     private static ClprLedgerConfiguration extractConfig(final com.hedera.hapi.node.transaction.TransactionBody txn) {

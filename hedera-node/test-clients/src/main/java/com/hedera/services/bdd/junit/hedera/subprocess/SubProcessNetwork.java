@@ -573,12 +573,36 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         configTxt = configTxtForLocal(
                 networkName, nodes, baseInternalGossipPort, baseExternalGossipPort, latestCandidateWeights());
         nodes.get(insertionPoint).initWorkingDir(configTxt, currentGrpcServiceEndpoints());
-        if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
-            executePostInitWorkingDirActions(node);
-        }
+        ensureApplicationPropertyOverridesForNode(nodeId);
+        executePostInitWorkingDirActions(node);
         if (refreshOverrides) {
             refreshOverrideNetworks(ReassignPorts.NO);
         }
+    }
+
+    private void ensureApplicationPropertyOverridesForNode(final long nodeId) {
+        if (applicationPropertyOverrides.containsKey(nodeId)) {
+            return;
+        }
+        final var node0Overrides = applicationPropertyOverrides.get(0L);
+        if (node0Overrides != null) {
+            applicationPropertyOverrides.put(nodeId, node0Overrides);
+            return;
+        }
+        if (!applicationPropertyOverrides.isEmpty()) {
+            applicationPropertyOverrides.put(
+                    nodeId, applicationPropertyOverrides.values().iterator().next());
+            return;
+        }
+        if (bootstrapOverrides == null || bootstrapOverrides.isEmpty()) {
+            return;
+        }
+        final List<String> flattened = new ArrayList<>(bootstrapOverrides.size() * 2);
+        bootstrapOverrides.forEach((key, value) -> {
+            flattened.add(key);
+            flattened.add(value);
+        });
+        applicationPropertyOverrides.put(nodeId, List.copyOf(flattened));
     }
 
     /**
@@ -738,6 +762,41 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 targetNodeId);
     }
 
+    public enum PortType {
+        GRPC,
+        NODE_OPERATOR,
+        INTERNAL_GOSSIP,
+        EXTERNAL_GOSSIP,
+        PROMETHEUS,
+        DEBUG
+    }
+
+    public int portForNodeId(@NonNull final PortType portType, final long nodeId) {
+        requireNonNull(portType);
+        final int offset = Math.toIntExact(nodeId);
+        return switch (portType) {
+            case GRPC -> baseGrpcPort + offset * 2;
+            case NODE_OPERATOR -> baseNodeOperatorPort + offset;
+            case INTERNAL_GOSSIP -> baseInternalGossipPort + offset * 2;
+            case EXTERNAL_GOSSIP -> baseExternalGossipPort + offset * 2;
+            case PROMETHEUS -> basePrometheusPort + offset;
+            case DEBUG -> baseDebugPort + offset;
+        };
+    }
+
+    /**
+     * Returns the gossip endpoints that can be automatically managed by this {@link SubProcessNetwork}
+     * for the given node id.
+     *
+     * @param nodeId the node id to allocate ports for
+     * @return the gossip endpoints
+     */
+    public List<ServiceEndpoint> gossipEndpointsForNodeId(final long nodeId) {
+        return List.of(
+                endpointFor(portForNodeId(PortType.INTERNAL_GOSSIP, nodeId)),
+                endpointFor(portForNodeId(PortType.EXTERNAL_GOSSIP, nodeId)));
+    }
+
     /**
      * Returns the gossip endpoints that can be automatically managed by this {@link SubProcessNetwork}
      * for the given node id.
@@ -745,10 +804,18 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @return the gossip endpoints
      */
     public List<ServiceEndpoint> gossipEndpointsForNextNodeId() {
-        final var nextNodeId = maxNodeId + 1;
-        return List.of(
-                endpointFor(baseInternalGossipPort + (int) nextNodeId * 2),
-                endpointFor(baseExternalGossipPort + (int) nextNodeId * 2));
+        return gossipEndpointsForNodeId(maxNodeId + 1);
+    }
+
+    /**
+     * Returns the gRPC endpoint that can be automatically managed by this {@link SubProcessNetwork}
+     * for the given node id.
+     *
+     * @param nodeId the node id to allocate ports for
+     * @return the gRPC endpoint
+     */
+    public ServiceEndpoint grpcEndpointForNodeId(final long nodeId) {
+        return endpointFor(portForNodeId(PortType.GRPC, nodeId));
     }
 
     /**
@@ -758,8 +825,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @return the gRPC endpoint
      */
     public ServiceEndpoint grpcEndpointForNextNodeId() {
-        final var nextNodeId = maxNodeId + 1;
-        return endpointFor(baseGrpcPort + (int) nextNodeId * 2);
+        return grpcEndpointForNodeId(maxNodeId + 1);
     }
 
     private static Optional<Path> latestNumberedDirectory(@NonNull final Path root) {
@@ -1009,10 +1075,11 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     private void reinitializePorts() {
         final var effectiveSize = (int) (maxNodeId + 1);
+        final var reservedSize = Math.max(effectiveSize, MAX_NODES_PER_NETWORK);
         final var firstGrpcPort = nodes().getFirst().getGrpcPort();
-        final var totalPortsUsed = effectiveSize * PORTS_PER_NODE;
+        final var totalPortsUsed = reservedSize * PORTS_PER_NODE;
         final var newFirstGrpcPort = firstGrpcPort + totalPortsUsed;
-        initializeNextPortsForNetwork(effectiveSize, newFirstGrpcPort);
+        initializeNextPortsForNetwork(reservedSize, newFirstGrpcPort);
         setBasePortsFromNextPorts();
     }
 
@@ -1033,16 +1100,18 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     private static synchronized void initializeNextPortsForNetwork(final int size) {
+        final int reservedSize = Math.max(size, MAX_NODES_PER_NETWORK);
         final int configuredPort = Integer.getInteger("hapi.spec.initial.port", -1);
-        final int firstGrpcPort =
-                configuredPort > 0 ? configuredPort : randomPortAfter(FIRST_CANDIDATE_PORT, size * PORTS_PER_NODE);
-        initializeNextPortsForNetwork(size, firstGrpcPort);
+        final int firstGrpcPort = configuredPort > 0
+                ? configuredPort
+                : randomPortAfter(FIRST_CANDIDATE_PORT, reservedSize * PORTS_PER_NODE);
+        initializeNextPortsForNetwork(reservedSize, firstGrpcPort);
     }
 
     /**
      * Initializes the next ports for the network with the given size and first gRPC port.
      *
-     * Layout for size=N:
+     * Layout for reserved size=N:
      *   - grpcPort:            firstGrpcPort + 2*i
      *   - nodeOperatorPort:    firstGrpcPort + 2*N + i
      *   - gossipPort:          firstGrpcPort + 3*N + 2*i
@@ -1054,12 +1123,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @param firstGrpcPort the first gRPC port
      */
     public static synchronized void initializeNextPortsForNetwork(final int size, final int firstGrpcPort) {
+        final int reservedSize = Math.max(size, MAX_NODES_PER_NETWORK);
         nextGrpcPort = firstGrpcPort;
-        nextNodeOperatorPort = nextGrpcPort + 2 * size;
-        nextInternalGossipPort = nextNodeOperatorPort + size;
+        nextNodeOperatorPort = nextGrpcPort + 2 * reservedSize;
+        nextInternalGossipPort = nextNodeOperatorPort + reservedSize;
         nextExternalGossipPort = nextInternalGossipPort + 1;
-        nextPrometheusPort = nextInternalGossipPort + 2 * size;
-        nextDebugPort = nextPrometheusPort + size;
+        nextPrometheusPort = nextInternalGossipPort + 2 * reservedSize;
+        nextDebugPort = nextPrometheusPort + reservedSize;
         nextPortsInitialized = true;
     }
 

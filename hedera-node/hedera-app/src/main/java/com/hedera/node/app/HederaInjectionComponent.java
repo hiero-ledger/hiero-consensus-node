@@ -76,7 +76,7 @@ import java.util.function.Supplier;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
-import org.hiero.interledger.clpr.impl.ClprEndpoint;
+import org.hiero.interledger.clpr.impl.ClprEndpointClient;
 import org.hiero.interledger.clpr.impl.ClprModule;
 
 /**
@@ -166,7 +166,7 @@ public interface HederaInjectionComponent {
 
     SelfNodeAccountIdManager selfNodeAccountIdManager();
 
-    ClprEndpoint clprEndpoint();
+    ClprEndpointClient clprEndpoint();
 
     @Component.Builder
     interface Builder {

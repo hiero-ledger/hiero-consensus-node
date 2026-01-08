@@ -68,6 +68,10 @@ message ClprEndpoint {
      * The signing certificate for the endpoint.
      */
     bytes signing_certificate = 2;
+    /**
+     * The node account id associated with this endpoint.
+     */
+    proto.AccountID node_account_id = 3;
 }
 
 /**

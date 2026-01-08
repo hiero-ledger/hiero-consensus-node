@@ -4,6 +4,7 @@ package org.hiero.interledger.clpr.impl.test;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
@@ -180,6 +181,7 @@ class ClprStateProofUtilsTest extends ClprTestBase {
                         .port(50211)
                         .build())
                 .signingCertificate(Bytes.wrap("cert-1-data".getBytes()))
+                .nodeAccountId(AccountID.newBuilder().accountNum(1001L).build())
                 .build();
 
         final var endpoint2 = ClprEndpoint.newBuilder()
@@ -188,6 +190,7 @@ class ClprStateProofUtilsTest extends ClprTestBase {
                         .port(50212)
                         .build())
                 .signingCertificate(Bytes.wrap("cert-2-data".getBytes()))
+                .nodeAccountId(AccountID.newBuilder().accountNum(1002L).build())
                 .build();
 
         final var originalConfig = ClprLedgerConfiguration.newBuilder()
@@ -228,6 +231,9 @@ class ClprStateProofUtilsTest extends ClprTestBase {
                 extractedEndpoint1.endpoint().ipAddressV4());
         assertEquals(endpoint1.endpoint().port(), extractedEndpoint1.endpoint().port());
         assertEquals(endpoint1.signingCertificate(), extractedEndpoint1.signingCertificate());
+        assertEquals(
+                endpoint1.nodeAccountIdOrElse(AccountID.DEFAULT),
+                extractedEndpoint1.nodeAccountIdOrElse(AccountID.DEFAULT));
 
         // Verify second endpoint
         final var extractedEndpoint2 = extractedConfig.endpoints().get(1);
@@ -236,5 +242,8 @@ class ClprStateProofUtilsTest extends ClprTestBase {
                 extractedEndpoint2.endpoint().ipAddressV4());
         assertEquals(endpoint2.endpoint().port(), extractedEndpoint2.endpoint().port());
         assertEquals(endpoint2.signingCertificate(), extractedEndpoint2.signingCertificate());
+        assertEquals(
+                endpoint2.nodeAccountIdOrElse(AccountID.DEFAULT),
+                extractedEndpoint2.nodeAccountIdOrElse(AccountID.DEFAULT));
     }
 }

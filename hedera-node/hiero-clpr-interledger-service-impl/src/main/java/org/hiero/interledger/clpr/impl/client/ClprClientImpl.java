@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl.client;
 
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -43,9 +44,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationQuery;
 import org.hiero.hapi.interledger.clpr.ClprServiceInterface;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
-import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
-import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.client.ClprClient;
 
 /**
@@ -112,30 +111,25 @@ public class ClprClientImpl implements ClprClient {
     }
 
     @Override
-    public ClprLedgerConfiguration getConfiguration() {
-        // create query payload with header and missing ledger id
+    public StateProof getConfiguration() {
         final var queryBody = ClprGetLedgerConfigurationQuery.newBuilder()
                 .header(QueryHeader.newBuilder().build())
                 .build();
-        // create query transaction
         final var queryTxn =
                 Query.newBuilder().getClprLedgerConfiguration(queryBody).build();
-        // send query to remote CLPR Endpoint
         final var response = clprServiceClient.getLedgerConfiguration(queryTxn);
         if (response.hasClprLedgerConfiguration()) {
-            // unwrap response and extract configuration from state proof
             final var stateProof =
                     Objects.requireNonNull(response.clprLedgerConfiguration()).ledgerConfigurationProof();
-            if (stateProof != null && ClprStateProofUtils.validateStateProof(stateProof)) {
-                return ClprStateProofUtils.extractConfiguration(stateProof);
+            if (stateProof != null) {
+                return stateProof;
             }
         }
         return null;
     }
 
     @Override
-    public @Nullable ClprLedgerConfiguration getConfiguration(@NonNull final ClprLedgerId ledgerId) {
-        // create query payload with header and specified ledger id
+    public @Nullable StateProof getConfiguration(@NonNull final ClprLedgerId ledgerId) {
         final var queryBody = ClprGetLedgerConfigurationQuery.newBuilder()
                 .header(QueryHeader.newBuilder().build())
                 .ledgerId(ledgerId)
@@ -145,11 +139,10 @@ public class ClprClientImpl implements ClprClient {
                 Query.newBuilder().getClprLedgerConfiguration(queryBody).build();
         final var response = clprServiceClient.getLedgerConfiguration(queryTxn);
         if (response.hasClprLedgerConfiguration()) {
-            // extract configuration from state proof
             final var stateProof =
                     Objects.requireNonNull(response.clprLedgerConfiguration()).ledgerConfigurationProof();
-            if (stateProof != null && ClprStateProofUtils.validateStateProof(stateProof)) {
-                return org.hiero.interledger.clpr.ClprStateProofUtils.extractConfiguration(stateProof);
+            if (stateProof != null) {
+                return stateProof;
             }
         }
         return null;
@@ -165,16 +158,13 @@ public class ClprClientImpl implements ClprClient {
     public @NonNull ResponseCodeEnum setConfiguration(
             @NonNull final AccountID payerAccountId,
             @NonNull final AccountID nodeAccountId,
-            @NonNull final ClprLedgerConfiguration clprLedgerConfiguration) {
+            @NonNull final StateProof ledgerConfigurationProof) {
+        Objects.requireNonNull(ledgerConfigurationProof);
         try {
-            var stateProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(clprLedgerConfiguration);
-            if (stateProof == null || stateProof.paths().isEmpty()) {
-                stateProof = devModeStateProof(clprLedgerConfiguration);
-            }
             final var txnBody = TransactionBody.newBuilder()
                     .transactionID(newTransactionId(payerAccountId))
                     .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
-                            .ledgerConfigurationProof(stateProof)
+                            .ledgerConfigurationProof(ledgerConfigurationProof)
                             .build())
                     .transactionFee(1L)
                     .transactionValidDuration(com.hedera.hapi.node.base.Duration.newBuilder()
@@ -194,44 +184,9 @@ public class ClprClientImpl implements ClprClient {
             final var response = clprServiceClient.setLedgerConfiguration(transaction);
             return response.nodeTransactionPrecheckCode();
         } catch (final Exception e) {
-            log.error(
-                    "CLPR client failed to submit configuration for payer {} and ledger {}",
-                    payerAccountId,
-                    clprLedgerConfiguration.ledgerIdOrElse(org.hiero.hapi.interledger.state.clpr.ClprLedgerId.DEFAULT),
-                    e);
+            log.error("CLPR client failed to submit configuration for payer {}", payerAccountId, e);
             return ResponseCodeEnum.FAIL_INVALID;
         }
-    }
-
-    private com.hedera.hapi.block.stream.StateProof devModeStateProof(
-            @NonNull final ClprLedgerConfiguration configuration) {
-        final var stateItemBytes =
-                org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(configuration);
-        final var leaf = com.hedera.hapi.node.state.blockstream.MerkleLeaf.newBuilder()
-                .stateItem(stateItemBytes)
-                .build();
-        final var pathBuilder = new com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder();
-        pathBuilder.setLeaf(leaf).setNextPathIndex(-1);
-        final var rootHash = pathBuilder.getRootHash();
-
-        final var proofLeaf = com.hedera.hapi.node.state.blockstream.MerkleLeaf.newBuilder()
-                .stateItem(stateItemBytes)
-                .build();
-
-        final var merklePath = com.hedera.hapi.block.stream.MerklePath.newBuilder()
-                .leaf(proofLeaf)
-                .siblings(java.util.List.of())
-                .nextPathIndex(-1)
-                .build();
-
-        final var signedProof = com.hedera.hapi.block.stream.TssSignedBlockProof.newBuilder()
-                .blockSignature(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(rootHash))
-                .build();
-
-        return com.hedera.hapi.block.stream.StateProof.newBuilder()
-                .paths(java.util.List.of(merklePath))
-                .signedBlockProof(signedProof)
-                .build();
     }
 
     @Override
