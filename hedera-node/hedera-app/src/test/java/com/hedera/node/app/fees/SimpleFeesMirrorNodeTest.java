@@ -2,186 +2,36 @@
 package com.hedera.node.app.fees;
 
 import static com.hedera.node.app.fees.SimpleFeesMirrorNodeAnotherTest.makeMirrorNodeCalculator;
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
-import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
-import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.util.FileUtilities.createFileID;
-import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
-import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.Duration;
-import com.hedera.hapi.node.base.FileID;
-import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.RealmID;
-import com.hedera.hapi.node.base.ServiceEndpoint;
-import com.hedera.hapi.node.base.ShardID;
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.Transaction;
-import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.contract.ContractCallTransactionBody;
-import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
-import com.hedera.hapi.node.file.FileCreateTransactionBody;
-import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.file.File;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
-import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.blocks.BlockStreamService;
-import com.hedera.node.app.config.BootstrapConfigProviderImpl;
-import com.hedera.node.app.config.ConfigProviderImpl;
-import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
-import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
-import com.hedera.node.app.fixtures.state.FakeState;
-import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.info.NodeInfoImpl;
-import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
-import com.hedera.node.app.records.BlockRecordService;
-import com.hedera.node.app.service.addressbook.AddressBookService;
-import com.hedera.node.app.service.addressbook.ReadableNodeStore;
-import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
-import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
-import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
-import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
-import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.service.entityid.EntityIdService;
-import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
-import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
-import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
-import com.hedera.node.app.service.file.FileService;
-import com.hedera.node.app.service.file.impl.FileServiceImpl;
-import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
-import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
-import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
-import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
-import com.hedera.node.app.service.token.TokenService;
-import com.hedera.node.app.service.token.impl.TokenServiceImpl;
-import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.service.util.impl.UtilServiceImpl;
-import com.hedera.node.app.services.AppContextImpl;
-import com.hedera.node.app.services.ServicesRegistry;
-import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.spi.info.NetworkInfo;
-import com.hedera.node.app.spi.info.NodeInfo;
-import com.hedera.node.app.spi.migrate.StartupNetworks;
-import com.hedera.node.app.spi.signatures.SignatureVerifier;
-import com.hedera.node.app.state.recordcache.RecordCacheService;
-import com.hedera.node.app.throttle.AppThrottleFactory;
-import com.hedera.node.app.throttle.CongestionThrottleService;
-import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
-import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.BootstrapConfig;
-import com.hedera.node.config.data.EntitiesConfig;
-import com.hedera.node.config.data.FilesConfig;
-import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.VersionConfig;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.node.config.types.StreamMode;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.SignedTransaction;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.CommittableWritableStates;
-import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.SecureRandom;
-import java.security.cert.CertificateEncodingException;
-import java.security.cert.X509Certificate;
-import java.time.InstantSource;
-import java.util.List;
 import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.Spliterators;
-import java.util.function.Function;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-import org.apache.tuweni.bytes.Bytes32;
-import org.hiero.consensus.crypto.SigningSchema;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hyperledger.besu.evm.EVM;
-import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.operation.AbstractOperation;
-import org.hyperledger.besu.evm.operation.Operation;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class SimpleFeesMirrorNodeTest {
-
-    private static final long GAS = 400_000L;
-    private static final long EXPECTED_LUCKY_NUMBER = 42L;
-    private static final EntityIdFactory idFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
-    private static final AccountID TREASURY_ID = idFactory.newAccountId(2);
-    private static final AccountID NODE_ACCOUNT_ID = idFactory.newAccountId(3);
-    private static final FileID EXPECTED_INITCODE_ID = idFactory.newFileId(1001);
-    private static final ContractID EXPECTED_CONTRACT_ID = idFactory.newContractId(1002);
-    private static final com.esaulpaugh.headlong.abi.Function PICK_FUNCTION =
-            new com.esaulpaugh.headlong.abi.Function("pick()", "(uint32)");
-    private static final com.esaulpaugh.headlong.abi.Function GET_LAST_BLOCKHASH_FUNCTION =
-            new com.esaulpaugh.headlong.abi.Function("getLastBlockHash()", "(bytes32)");
-    private static final String EXPECTED_TRACE_START =
-            "{\"pc\":0,\"op\":96,\"gas\":\"0x5c838\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
-    private static final NodeInfo DEFAULT_NODE_INFO =
-            new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true, null);
-
-    public static final Metrics NO_OP_METRICS = new NoOpMetrics();
-
-    @Mock
-    private SignatureVerifier signatureVerifier;
-
-    @Mock
-    private StartupNetworks startupNetworks;
-
-    @Mock
-    private TransactionExecutors.TracerBinding tracerBinding;
-
-    @Mock
-    private GasCalculator gasCalculator;
-
-    @Mock
-    private State state;
-
-    @Mock
-    private ConfigProviderImpl configProvider;
-
-    @Mock
-    private StoreMetricsServiceImpl storeMetricsService;
 
     @Test
     void basicStreaming() throws IOException {
