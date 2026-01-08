@@ -167,7 +167,7 @@ jobs:
 
       - name: Upload HAPI Test (Misc) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-network-log-capture && steps.gradle-hapi-misc.conclusion == 'failure' && !cancelled() }}
+        if: ${{ inputs.enable-network-log-capture && steps.gradle-hapi-misc.conclusion == 'failure' }}
         with:
           name: HAPI Test (Misc) Network Logs
           path: |
@@ -178,7 +178,7 @@ jobs:
 
       - name: Upload HAPI Test (Misc) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ steps.gradle-hapi-misc.conclusion == 'failure' && !cancelled() }}
+        if: ${{ steps.gradle-hapi-misc.conclusion == 'failure' }}
         with:
           name: HAPI Test (Misc) Failure Artifacts
           path: |
@@ -230,7 +230,7 @@ jobs:
 
       - name: Upload HAPI Test (Misc Records) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-network-log-capture && steps.gradle-hapi-misc-records.conclusion == 'failure' && !cancelled() }}
+        if: ${{ inputs.enable-network-log-capture && steps.gradle-hapi-misc-records.conclusion == 'failure' }}
         with:
           name: HAPI Test (Misc Records) Network Logs
           path: |
@@ -241,7 +241,7 @@ jobs:
 
       - name: Upload HAPI Test (Misc Records) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ steps.gradle-hapi-misc-records.conclusion == 'failure' && !cancelled() }}
+        if: ${{ steps.gradle-hapi-misc-records.conclusion == 'failure' }}
         with:
           name: HAPI Test (Misc Records) Failure Artifacts
           path: |
