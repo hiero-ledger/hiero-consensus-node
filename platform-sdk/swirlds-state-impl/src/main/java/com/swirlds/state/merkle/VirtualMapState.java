@@ -1038,7 +1038,7 @@ public class VirtualMapState implements MerkleNodeState {
      * {@inheritDoc}
      */
     @Override
-    public void updateKv(final int stateId, @NonNull final Bytes key, final Bytes value) {
+    public void updateKv(final int stateId, @NonNull final Bytes key, @Nullable final Bytes value) {
         requireNonNull(key, "key must not be null");
         final Bytes stateKey = kvKey(stateId, key);
         if (value == null) {

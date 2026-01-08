@@ -13,7 +13,7 @@ import org.hiero.base.crypto.Hash;
 /**
  * Represent a state backed up by the Merkle tree. It's a {@link State} implementation that is backed by a Merkle tree.
  * It provides methods to manage the service states in the merkle tree.
- * This interface supports three level of state abstractions:
+ * This interface supports two level of state abstractions:
  * <ul>
  *     <li> codec-based State API, as used by execution </li>
  *     <li> protobuf binary states API supporting notions of singletons, queues, and key-value pairs</li>
@@ -87,7 +87,7 @@ public interface MerkleNodeState extends State {
      * Get the merkle path of the queue element
      * @param stateId The state ID of the queue state.
      * @param expectedValue The expected value of the queue element to retrieve the path for
-     * @return The merkle path of the queue element
+     * @return The merkle path of the queue element or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
      * @param <V> The type of the value of the queue element
      */
     default <V> long queueElementPath(
