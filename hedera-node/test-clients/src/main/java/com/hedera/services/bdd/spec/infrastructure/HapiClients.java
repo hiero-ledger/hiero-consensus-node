@@ -29,8 +29,8 @@ import io.grpc.netty.NettyChannelBuilder;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -91,7 +92,6 @@ public class HapiClients {
      */
     private static final int MAX_DESIRED_CHANNELS_PER_NODE = 50;
 
-    private static final long MINIMUM_REBUILD_INTERVAL_MS = 30_000L;
     private static final AtomicReference<Instant> LAST_CHANNEL_REBUILD_TIME = new AtomicReference<>();
 
     private static ManagedChannel createNettyChannel(
@@ -139,14 +139,21 @@ public class HapiClients {
 
     private void ensureNodeOperatorChannelStubsInPool(@NonNull final HederaNode node) {
         requireNonNull(node);
-        final var channelUri = uri(node.getHost(), node.getGrpcNodeOperatorPort());
+        final var channelUri = formatUri(node.getHost(), node.getGrpcNodeOperatorPort());
         final var existingPool = channelPools.computeIfAbsent(channelUri, COPY_ON_WRITE_LIST_SUPPLIER);
         if (existingPool.size() < MAX_DESIRED_CHANNELS_PER_NODE) {
             final var channel = createNettyChannel(false, node.getHost(), node.getGrpcNodeOperatorPort(), -1);
             requireNonNull(channel, "FATAL: Cannot continue without additional Netty channel");
             final long shard = node.getAccountId().shardNum();
             final long realm = node.getAccountId().realmNum();
-            existingPool.add(ChannelStubs.from(channel, new NodeConnectInfo(node.hapiSpecInfo(shard, realm)), false));
+            final var nodeOperatorInfo = String.format(
+                    "%s:%d:%d.%d.%d",
+                    node.getHost(),
+                    node.getGrpcNodeOperatorPort(),
+                    shard,
+                    realm,
+                    node.getAccountId().accountNumOrThrow());
+            existingPool.add(ChannelStubs.from(channel, new NodeConnectInfo(nodeOperatorInfo), false));
         }
         stubSequences.putIfAbsent(channelUri, new AtomicInteger());
     }
@@ -169,12 +176,12 @@ public class HapiClients {
         stubIds = nodes.stream()
                 .collect(Collectors.toMap(
                         n -> pbjToProto(n.getAccountId(), com.hedera.hapi.node.base.AccountID.class, AccountID.class),
-                        n -> uri(n.getHost(), n.getGrpcPort())));
+                        n -> formatUri(n.getHost(), n.getGrpcPort())));
         tlsStubIds = Collections.emptyMap();
         nodeOperatorStubIds = nodes.stream()
                 .collect(Collectors.toMap(
                         n -> pbjToProto(n.getAccountId(), com.hedera.hapi.node.base.AccountID.class, AccountID.class),
-                        n -> uri(n.getHost(), n.getGrpcNodeOperatorPort())));
+                        n -> formatUri(n.getHost(), n.getGrpcNodeOperatorPort())));
         nodes.forEach(node -> {
             ensureChannelStubsInPool(new NodeConnectInfo(node.hapiSpecInfo()), false);
             ensureChannelStubsInPool(new NodeConnectInfo(node.hapiSpecInfo()), true);
@@ -182,7 +189,14 @@ public class HapiClients {
         });
     }
 
-    private String uri(String host, int port) {
+    /**
+     * Formats a host/port pair into a URI string.
+     *
+     * @param host the host name
+     * @param port the port number
+     * @return the formatted URI
+     */
+    private static String formatUri(final String host, final int port) {
         return String.format("%s:%d", host, port);
     }
 
@@ -376,6 +390,13 @@ public class HapiClients {
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
+    public org.hiero.hapi.interledger.clpr.protoc.ClprServiceGrpc.ClprServiceBlockingStub getClprSvcStub(
+            AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
+                .clprSvcStubs()
+                .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
+    }
+
     private String stubId(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
         if (useTls) {
             return tlsStubIds.get(nodeId);
@@ -408,25 +429,49 @@ public class HapiClients {
         return helper.toString();
     }
 
-    public static synchronized void rebuildChannels() {
-        final var maybeLastRebuildTime = LAST_CHANNEL_REBUILD_TIME.get();
-        if (maybeLastRebuildTime != null) {
-            final var msSinceLastRebuild = System.currentTimeMillis() - maybeLastRebuildTime.toEpochMilli();
-            if (msSinceLastRebuild < MINIMUM_REBUILD_INTERVAL_MS) {
+    /**
+     * Rebuilds channel pools for the given nodes, without affecting other networks.
+     *
+     * @param nodes the nodes whose channels should be refreshed
+     */
+    public static synchronized void rebuildChannelsForNodes(@NonNull final List<HederaNode> nodes) {
+        requireNonNull(nodes);
+        if (nodes.isEmpty()) {
+            return;
+        }
+        final var uris = nodes.stream()
+                .flatMap(node -> Stream.of(
+                        formatUri(node.getHost(), node.getGrpcPort()),
+                        node.getGrpcNodeOperatorPort() > 0
+                                ? formatUri(node.getHost(), node.getGrpcNodeOperatorPort())
+                                : null))
+                .filter(uri -> uri != null)
+                .collect(Collectors.toSet());
+        rebuildChannelsForUris(uris);
+        LAST_CHANNEL_REBUILD_TIME.set(Instant.now());
+        log.info("Finished rebuilding channels at {}", LAST_CHANNEL_REBUILD_TIME.get());
+    }
+
+    /**
+     * Rebuilds channel pools for the given URIs.
+     *
+     * @param uris channel URIs to rebuild
+     */
+    private static void rebuildChannelsForUris(@NonNull final Collection<String> uris) {
+        if (uris.isEmpty()) {
+            return;
+        }
+        log.info("Shutting down managed channels for {}", uris);
+        uris.forEach(uri -> {
+            final var closedChannels = channelPools.get(uri);
+            if (closedChannels == null || closedChannels.isEmpty()) {
                 return;
             }
-        }
-        log.info("Shutting down all managed channels");
-        shutdownChannels();
-        final var allUris = new ArrayList<>(channelPools.keySet());
-        allUris.forEach(uri -> {
-            final var closedChannels = channelPools.get(uri);
+            closedChannels.forEach(ChannelStubs::shutdown);
             final var reopenedChannels = rebuiltChannelsLike(closedChannels);
             log.info("Reopened {} channels for {}", reopenedChannels.size(), uri);
             channelPools.put(uri, reopenedChannels);
         });
-        LAST_CHANNEL_REBUILD_TIME.set(Instant.now());
-        log.info("Finished rebuilding channels at {}", LAST_CHANNEL_REBUILD_TIME.get());
     }
 
     private static List<ChannelStubs> rebuiltChannelsLike(@NonNull final List<ChannelStubs> channelStubs) {

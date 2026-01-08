@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.hedera.utils;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.info.DiskStartupNetworks.ARCHIVE;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static java.util.Objects.requireNonNull;
 
@@ -14,6 +15,7 @@ import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
@@ -22,20 +24,28 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
+import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.consensus.roster.RosterUtils;
 
 public class WorkingDirUtils {
     private static final Key CLASSIC_ADMIN_KEY = Key.newBuilder()
@@ -46,6 +56,7 @@ public class WorkingDirUtils {
     private static final String KEYS_FOLDER = "keys";
     private static final String CONFIG_FOLDER = "config";
     private static final String LOG4J2_XML = "log4j2.xml";
+    private static final String SETTINGS_TXT = "settings.txt";
     private static final String PROJECT_BOOTSTRAP_ASSETS_LOC = "hedera-node/configuration/dev";
     private static final String TEST_CLIENTS_BOOTSTRAP_ASSETS_LOC = "../configuration/dev";
     private static final X509Certificate SIG_CERT;
@@ -80,6 +91,8 @@ public class WorkingDirUtils {
     private static final List<String> WORKING_DIR_DATA_FOLDERS = List.of(KEYS_FOLDER, CONFIG_FOLDER, UPGRADE_DIR);
 
     private static final String LOG4J2_DATE_FORMAT = "%d{yyyy-MM-dd HH:mm:ss.SSS}";
+    private static final Pattern LOAD_KEYS_FROM_PFX_PATTERN =
+            Pattern.compile("^(\\s*loadKeysFromPfxFiles\\s*,\\s*)(\\S+)(.*)$");
 
     private WorkingDirUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -108,9 +121,13 @@ public class WorkingDirUtils {
      * @param configTxt the contents of the <i>config.txt</i> file
      */
     public static void recreateWorkingDir(
-            @NonNull final Path workingDir, @NonNull final String configTxt, final long nodeId) {
+            @NonNull final Path workingDir,
+            @NonNull final String configTxt,
+            final long nodeId,
+            @NonNull final Map<Long, ServiceEndpoint> serviceEndpoints) {
         requireNonNull(workingDir);
         requireNonNull(configTxt);
+        requireNonNull(serviceEndpoints);
 
         // Clean up any existing directory structure
         rm(workingDir);
@@ -122,14 +139,20 @@ public class WorkingDirUtils {
                 workingDir.resolve(DATA_DIR).resolve(UPGRADE_DIR).resolve(CURRENT_DIR));
         // Write the address book (config.txt) and genesis network (genesis-network.json) files
         writeStringUnchecked(workingDir.resolve(CONFIG_TXT), configTxt);
-        final var network = networkFrom(configTxt, OnlyRoster.NO);
+        final var network = networkFrom(configTxt, OnlyRoster.NO, serviceEndpoints);
         writeStringUnchecked(
                 workingDir.resolve(DATA_DIR).resolve(CONFIG_FOLDER).resolve(GENESIS_NETWORK_JSON),
                 Network.JSON.toJSON(network));
         // Copy the bootstrap assets into the working directory
         copyBootstrapAssets(bootstrapAssetsLoc(), workingDir);
+        syncPreGeneratedGossipKeys(workingDir, nodeId);
         // Update the log4j2.xml file with the correct output directory
         updateLog4j2XmlOutputDir(workingDir, nodeId);
+    }
+
+    public static void recreateWorkingDir(
+            @NonNull final Path workingDir, @NonNull final String configTxt, final long nodeId) {
+        recreateWorkingDir(workingDir, configTxt, nodeId, Map.of());
     }
 
     /**
@@ -313,11 +336,162 @@ public class WorkingDirUtils {
         }
     }
 
+    /**
+     * Writes bytes to a file, throwing an unchecked exception if an {@link IOException} occurs.
+     *
+     * @param path the path to write
+     * @param content the bytes to write
+     */
+    private static void writeBytesUnchecked(@NonNull final Path path, @NonNull final byte[] content) {
+        try {
+            Files.write(path, content, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void writeBytesIfMissingOrMatch(
+            @NonNull final Path path, @NonNull final byte[] content, @NonNull final String description) {
+        if (Files.exists(path)) {
+            try {
+                if (!Arrays.equals(Files.readAllBytes(path), content)) {
+                    throw new IllegalStateException("Mismatched " + description + " at " + path);
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return;
+        }
+        writeBytesUnchecked(path, content);
+    }
+
     private static void createDirectoriesUnchecked(@NonNull final Path path) {
         try {
             Files.createDirectories(path);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Ensures pre-generated gossip keys are available for the roster implied by the working directory.
+     * Uses the candidate roster when present; otherwise falls back to the current or archived {@code config.txt}.
+     *
+     * @param workingDir the working directory
+     * @param nodeId the local node id
+     * @throws IllegalStateException if the roster is missing or key material cannot be satisfied
+     */
+    public static void syncPreGeneratedGossipKeys(@NonNull final Path workingDir, final long nodeId) {
+        final var nodeIds = nodeIdsForGossipKeys(workingDir);
+        if (nodeIds == null || nodeIds.isEmpty()) {
+            throw new IllegalStateException("Unable to determine roster node IDs for " + workingDir);
+        }
+        if (!nodeIds.contains(nodeId)) {
+            throw new IllegalStateException(
+                    "Local node id " + nodeId + " is not present in roster node IDs " + nodeIds + " for " + workingDir);
+        }
+        final var preGeneratedKeys = AddressBookUtils.preGeneratedGossipKeysForNodeIds(nodeIds);
+        writePreGeneratedGossipKeys(workingDir.resolve(DATA_DIR).resolve(KEYS_FOLDER), nodeId, preGeneratedKeys);
+        setLoadKeysFromPfxFiles(workingDir, true);
+    }
+
+    private static @Nullable Set<Long> nodeIdsForGossipKeys(@NonNull final Path workingDir) {
+        final var candidateRosterNodeIds = nodeIdsFromCandidateRoster(workingDir);
+        if (candidateRosterNodeIds != null) {
+            return candidateRosterNodeIds;
+        }
+        return nodeIdsFromConfig(workingDir);
+    }
+
+    private static @Nullable Set<Long> nodeIdsFromCandidateRoster(@NonNull final Path workingDir) {
+        final var candidateRosterPath = workingDir.resolve(CANDIDATE_ROSTER_JSON);
+        if (!Files.exists(candidateRosterPath)) {
+            return null;
+        }
+        try (final var fin = Files.newInputStream(candidateRosterPath)) {
+            final var network = Network.JSON.parse(new ReadableStreamingData(fin));
+            return network.nodeMetadata().stream()
+                    .map(NodeMetadata::rosterEntryOrThrow)
+                    .map(RosterEntry::nodeId)
+                    .collect(Collectors.toSet());
+        } catch (IOException | com.hedera.pbj.runtime.ParseException e) {
+            throw new IllegalStateException("Failed to parse candidate roster at " + candidateRosterPath, e);
+        }
+    }
+
+    private static @Nullable Set<Long> nodeIdsFromConfig(@NonNull final Path workingDir) {
+        Path configPath = workingDir.resolve(CONFIG_TXT);
+        if (!Files.exists(configPath)) {
+            configPath = workingDir.resolve(ARCHIVE).resolve(CONFIG_TXT);
+        }
+        if (!Files.exists(configPath)) {
+            return null;
+        }
+        final var configTxt = readStringUnchecked(configPath);
+        final AddressBook synthBook;
+        try {
+            synthBook = com.swirlds.platform.system.address.AddressBookUtils.parseAddressBookText(configTxt);
+        } catch (ParseException e) {
+            throw new IllegalArgumentException(e);
+        }
+        return IntStream.range(0, synthBook.getSize())
+                .mapToObj(i -> synthBook.getNodeId(i).id())
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Writes pre-generated signing keys and certificates into the given keys directory.
+     *
+     * @param keysDir the keys directory for the node
+     * @param nodeId the local node id
+     * @param keyMaterialByNode the pre-generated key material for all nodes
+     */
+    private static void writePreGeneratedGossipKeys(
+            @NonNull final Path keysDir,
+            final long nodeId,
+            @NonNull final Map<Long, AddressBookUtils.GossipKeyMaterial> keyMaterialByNode) {
+        requireNonNull(keysDir);
+        requireNonNull(keyMaterialByNode);
+        createDirectoriesUnchecked(keysDir);
+        for (final var entry : keyMaterialByNode.entrySet()) {
+            final var nodeName = RosterUtils.formatNodeName(entry.getKey());
+            final var certPath = keysDir.resolve(String.format("s-public-%s.pem", nodeName));
+            writeBytesIfMissingOrMatch(certPath, entry.getValue().sigCertPem(), "public signing certificate");
+            if (entry.getKey() == nodeId) {
+                final var privateKeyPath = keysDir.resolve(String.format("s-private-%s.pem", nodeName));
+                writeBytesIfMissingOrMatch(privateKeyPath, entry.getValue().sigPrivateKeyPem(), "private signing key");
+            }
+        }
+    }
+
+    /**
+     * Updates {@code settings.txt} to control whether PEM keys should be loaded from disk.
+     *
+     * @param workingDir the working directory
+     * @param enabled whether to load PEM keys from disk
+     */
+    private static void setLoadKeysFromPfxFiles(@NonNull final Path workingDir, final boolean enabled) {
+        final var settingsPath = workingDir.resolve(SETTINGS_TXT);
+        final var settings = readStringUnchecked(settingsPath);
+        final var lines = settings.split("\\R", -1);
+        boolean found = false;
+        boolean changed = false;
+        for (int i = 0; i < lines.length; i++) {
+            final var matcher = LOAD_KEYS_FROM_PFX_PATTERN.matcher(lines[i]);
+            if (matcher.matches()) {
+                found = true;
+                if (!matcher.group(2).equals(Boolean.toString(enabled))) {
+                    lines[i] = matcher.group(1) + enabled + matcher.group(3);
+                    changed = true;
+                }
+                break;
+            }
+        }
+        if (!found) {
+            throw new IllegalStateException("Missing loadKeysFromPfxFiles setting at " + settingsPath);
+        }
+        if (changed) {
+            writeStringUnchecked(settingsPath, String.join(System.lineSeparator(), lines));
         }
     }
 
@@ -342,15 +516,54 @@ public class WorkingDirUtils {
     }
 
     /**
-     * Copy a file from the source path to the target path, throwing an unchecked exception if an
-     * {@link IOException} occurs.
+     * Copy a file from the source path to the target path, creating parent directories as needed
+     * and throwing an unchecked exception if an {@link IOException} occurs.
      *
      * @param source the source path
      * @param target the target path
      */
     public static void copyUnchecked(@NonNull final Path source, @NonNull final Path target) {
+        copyUnchecked(source, target, new CopyOption[] {});
+    }
+
+    /**
+     * Copy a file from the source path to the target path, creating parent directories as needed
+     * and throwing an unchecked exception if an {@link IOException} occurs.
+     *
+     * @param source the source path
+     * @param target the target path
+     * @param options the copy options to use
+     */
+    public static void copyUnchecked(
+            @NonNull final Path source, @NonNull final Path target, @NonNull final CopyOption... options) {
         try {
-            Files.copy(source, target);
+            final var parent = target.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.copy(source, target, options);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Copy a directory tree from the source path to the target path, replacing files when present.
+     *
+     * @param source the source directory
+     * @param target the target directory
+     */
+    public static void copyDirectoryUnchecked(@NonNull final Path source, @NonNull final Path target) {
+        try (final var paths = Files.walk(source)) {
+            paths.forEach(path -> {
+                final var relative = source.relativize(path);
+                final var destination = target.resolve(relative);
+                if (Files.isDirectory(path)) {
+                    createDirectoriesUnchecked(destination);
+                } else {
+                    copyUnchecked(path, destination, StandardCopyOption.REPLACE_EXISTING);
+                }
+            });
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -386,9 +599,13 @@ public class WorkingDirUtils {
      * @param onlyRoster if true, only the roster entries will be set in the network
      * @return the network
      */
-    public static Network networkFrom(@NonNull final String configTxt, @NonNull final OnlyRoster onlyRoster) {
+    public static Network networkFrom(
+            @NonNull final String configTxt,
+            @NonNull final OnlyRoster onlyRoster,
+            @NonNull final Map<Long, ServiceEndpoint> serviceEndpoints) {
         requireNonNull(configTxt);
         requireNonNull(onlyRoster);
+        requireNonNull(serviceEndpoints);
         final var certs = AddressBookUtils.certsFor(configTxt);
         final var nodeMetadata = Arrays.stream(configTxt.split("\n"))
                 .filter(line -> line.contains("address, "))
@@ -403,12 +620,14 @@ public class WorkingDirUtils {
                             .rosterEntry(new RosterEntry(nodeId, weight, cert, gossipEndpoints));
                     final var nodeAccount = toPbj(HapiPropertySource.asAccount(parts[9]));
                     if (onlyRoster == OnlyRoster.NO) {
+                        final ServiceEndpoint serviceEndpoint =
+                                serviceEndpoints.getOrDefault(nodeId, endpointFrom(parts[5], parts[6]));
                         metadata.node(new Node(
                                 nodeId,
                                 nodeAccount,
                                 "node" + (nodeId + 1),
                                 gossipEndpoints,
-                                List.of(endpointFrom(parts[5], parts[6])),
+                                List.of(serviceEndpoint),
                                 cert,
                                 // The gRPC certificate hash is irrelevant for PR checks
                                 Bytes.EMPTY,
@@ -422,6 +641,10 @@ public class WorkingDirUtils {
                 })
                 .toList();
         return Network.newBuilder().nodeMetadata(nodeMetadata).build();
+    }
+
+    public static Network networkFrom(@NonNull final String configTxt, @NonNull final OnlyRoster onlyRoster) {
+        return networkFrom(configTxt, onlyRoster, Map.of());
     }
 
     private static ServiceEndpoint endpointFrom(@NonNull final String hostLiteral, @NonNull final String portLiteral) {
