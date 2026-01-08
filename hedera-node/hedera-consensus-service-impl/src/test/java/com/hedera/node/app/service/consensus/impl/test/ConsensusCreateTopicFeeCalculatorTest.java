@@ -12,6 +12,7 @@ import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusCreateTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
@@ -54,7 +55,8 @@ public class ConsensusCreateTopicFeeCalculatorTest {
             final var op = ConsensusCreateTopicTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusCreateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result =
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
             assertThat(result).isNotNull();
             Assertions.assertThat(result.node).isEqualTo(100000L);

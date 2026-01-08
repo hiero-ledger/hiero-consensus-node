@@ -1,4 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
+
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
+import static com.hedera.node.app.util.FileUtilities.createFileID;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
@@ -64,32 +71,29 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
-import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.util.FileUtilities.createFileID;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class FakeGenesisState {
     private static final EntityIdFactory idFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
+
     @Mock
     private SignatureVerifier signatureVerifier;
+
     @Mock
     private StartupNetworks startupNetworks;
+
     @Mock
     private StoreMetricsServiceImpl storeMetricsService;
+
     @Mock
     private ConfigProviderImpl configProvider;
 
@@ -232,5 +236,4 @@ public class FakeGenesisState {
                 filesConfig.hapiPermissions(), genesisSchema::genesisHapiPermissions,
                 filesConfig.throttleDefinitions(), genesisSchema::genesisThrottleDefinitions);
     }
-
 }

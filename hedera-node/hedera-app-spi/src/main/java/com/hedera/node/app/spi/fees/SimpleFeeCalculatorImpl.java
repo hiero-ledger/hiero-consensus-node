@@ -71,13 +71,17 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Calculates fees for CryptoDelete transactions per HIP-1261.
      * CryptoDelete uses only SIGNATURES extra for the service fee.
      *
-     * @param txnBody the transaction body
+     * @param txnBody    the transaction body
      * @param feeContext the fee context containing signature count
+     * @param mode
      * @return the calculated fee result
      */
     @NonNull
     @Override
-    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
+    public FeeResult calculateTxFee(
+            @NonNull final TransactionBody txnBody,
+            @Nullable final FeeContext feeContext,
+            ServiceFeeCalculator.EstimationMode mode) {
         // Extract primitive counts (no allocations)
         final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
         final var result = new FeeResult();
@@ -91,7 +95,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
-        serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
+        serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule, mode);
         return result;
     }
 
@@ -129,16 +133,20 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     /**
      * Default implementation for query fee calculation.
      *
-     * @param query The query to calculate fees for
+     * @param query        The query to calculate fees for
      * @param queryContext the query context
+     * @param mode
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
     @Override
-    public long calculateQueryFee(@NonNull final Query query, @NonNull final QueryContext queryContext) {
+    public long calculateQueryFee(
+            @NonNull final Query query,
+            @NonNull final QueryContext queryContext,
+            ServiceFeeCalculator.EstimationMode mode) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
-        queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
+        queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule, mode);
         return result.total();
     }
 }

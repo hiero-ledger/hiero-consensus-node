@@ -21,6 +21,7 @@ import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
@@ -85,7 +86,8 @@ class CryptoTransferFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result =
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
             // Then: node=100000, network=900000 (100000*9), service=0 (base)
             // ACCOUNTS extra: 2 accounts, includedCount=2, so 0 extra charge
@@ -135,7 +137,8 @@ class CryptoTransferFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result =
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
             // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee, reduced by 1M to account for node+network)
             // + 0 for FUNGIBLE_TOKENS (1 token with includedCount=1)
@@ -205,7 +208,8 @@ class CryptoTransferFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result =
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
             // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee)
             // + 1000000 * 1 (2 unique fungible tokens, first included in base, second charged)
@@ -271,7 +275,8 @@ class CryptoTransferFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result =
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
             // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee)
             // + 0 (1 fungible token, includedCount=1)
@@ -293,7 +298,8 @@ class CryptoTransferFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result =
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
             // Then: Only base fee (0 accounts within includedCount=2)
             assertThat(result.service).isEqualTo(0L);
@@ -342,7 +348,8 @@ class CryptoTransferFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result =
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
             // Then: service=19000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES fee)
             // + 0 (1 FUNGIBLE_TOKEN, includedCount=1, so first token is free)
@@ -396,7 +403,8 @@ class CryptoTransferFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result =
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
             // Then: 19000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, custom fee takes precedence)
             // + 0 (1 standard fungible, included) + 1000000 (1 custom fee token, includedCount=0)
@@ -436,7 +444,8 @@ class CryptoTransferFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result =
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
             // Then:
             // - HOOK_EXECUTION: 2 hooks × 50M = 100,000,000 tinycents
@@ -499,7 +508,8 @@ class CryptoTransferFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result =
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
             // Then:
             // - CRYPTO_TRANSFER_BASE_FUNGIBLE: 9,000,000 tinycents
@@ -536,7 +546,8 @@ class CryptoTransferFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result =
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
             // Then:
             // - HOOK_EXECUTION: 1 hook × 50M = 50,000,000 tinycents

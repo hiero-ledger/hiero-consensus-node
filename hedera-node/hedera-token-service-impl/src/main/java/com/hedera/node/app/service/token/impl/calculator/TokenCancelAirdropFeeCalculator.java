@@ -18,7 +18,8 @@ public class TokenCancelAirdropFeeCalculator implements ServiceFeeCalculator {
             @NonNull final TransactionBody txnBody,
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
+            @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule,
+            EstimationMode mode) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_CANCEL_AIRDROP);
         feeResult.addServiceFee(1, serviceDef.baseFee());
     }

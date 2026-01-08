@@ -1,4 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
+
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
+import static com.hedera.node.app.util.FileUtilities.createFileID;
+import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
+import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.base.AccountID;
@@ -22,6 +34,7 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
@@ -57,6 +70,7 @@ import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
@@ -76,6 +90,7 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.SignedTransaction;
@@ -88,24 +103,6 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.tuweni.bytes.Bytes32;
-import org.hiero.consensus.crypto.SigningSchema;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hyperledger.besu.evm.EVM;
-import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.operation.AbstractOperation;
-import org.hyperledger.besu.evm.operation.Operation;
-import org.junit.jupiter.api.Test;
-
-import com.hedera.hapi.node.transaction.TransactionBody;
-
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -127,17 +124,19 @@ import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
-import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.util.FileUtilities.createFileID;
-import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
-import static java.util.Objects.requireNonNull;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.apache.tuweni.bytes.Bytes32;
+import org.hiero.consensus.crypto.SigningSchema;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hyperledger.besu.evm.EVM;
+import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.operation.AbstractOperation;
+import org.hyperledger.besu.evm.operation.Operation;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 /*
 
@@ -171,60 +170,60 @@ is being submitted to so it can determine if there are custom fees applied.
 @ExtendWith(MockitoExtension.class)
 public class SimpleFeesMirrorNodeTest {
 
-//    @Test
-//    public void doTest() throws IOException, ParseException {
-//        System.out.println("calculating a fee for a create topic transaction");
-//
-//        // load up the fee schedule from JSON file
-//        var input = SimpleFeesMirrorNodeTest.class.getClassLoader().getResourceAsStream("test-schedule.json");
-//        var bytes = input.readAllBytes();
-//        final FeeSchedule feeSchedule = FeeSchedule.JSON.parse(Bytes.wrap(bytes));
-//
-//        // check the schedule is valid
-//        if (!isValid(feeSchedule)) {
-//            throw new Error("invalid fee schedule");
-//        }
-//
-//
-//        // create a simple fee calculator
-////        SimpleFeeCalculator calc = new SimpleFeesCalculatorProvider().make(feeSchedule);
-//
-//        // build an example transaction
-////        final var op = ConsensusCreateTopicTransactionBody.newBuilder().build();
-////        final var txnBody = TransactionBody.newBuilder().consensusCreateTopic(op).build();
-////        final var txn = Transaction.newBuilder().body(txnBody).build();
-////        final var numSigs =  txn.sigMap().sigPair().size();
-//        final long topicEntityNum = 1L;
-//        final TopicID topicId =
-//                TopicID.newBuilder().topicNum(topicEntityNum).build();
-//
-//        final var op = ConsensusSubmitMessageTransactionBody.newBuilder()
-//                .topicID(topicId)
-//                .message(Bytes.wrap("foo"))
-//                .build();
-//        final var txnBody =
-//                TransactionBody.newBuilder().consensusSubmitMessage(op).build();
-//
-//
-//        System.out.println("making the executor");
-//        final var test = new TransactionExecutorsTest();
-//        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101");
-//        // Construct a full implementation of the consensus node State API with all genesis accounts and files
-//        final var state = test.genesisState(overrides);
-////            final MerkleNodeState state = test.genesisState(overrides);
-//        System.out.println("made the genesis state");
-//
-//        // Get a standalone executor based on this state, with an override to allow slightly longer memos
-//        final var executor = TRANSACTION_EXECUTORS.newExecutor(
-//                TransactionExecutors.Properties.newBuilder()
-//                        .state(state)
-//                        .appProperties(overrides)
-//                        .build(),
-//                new AppEntityIdFactory(DEFAULT_CONFIG));
-//        System.out.println("out to execute " + txnBody);
-//        final var output = executor.execute(txnBody, Instant.EPOCH);
-//        System.out.println("got the output " + output);
-//    }
+    //    @Test
+    //    public void doTest() throws IOException, ParseException {
+    //        System.out.println("calculating a fee for a create topic transaction");
+    //
+    //        // load up the fee schedule from JSON file
+    //        var input = SimpleFeesMirrorNodeTest.class.getClassLoader().getResourceAsStream("test-schedule.json");
+    //        var bytes = input.readAllBytes();
+    //        final FeeSchedule feeSchedule = FeeSchedule.JSON.parse(Bytes.wrap(bytes));
+    //
+    //        // check the schedule is valid
+    //        if (!isValid(feeSchedule)) {
+    //            throw new Error("invalid fee schedule");
+    //        }
+    //
+    //
+    //        // create a simple fee calculator
+    ////        SimpleFeeCalculator calc = new SimpleFeesCalculatorProvider().make(feeSchedule);
+    //
+    //        // build an example transaction
+    ////        final var op = ConsensusCreateTopicTransactionBody.newBuilder().build();
+    ////        final var txnBody = TransactionBody.newBuilder().consensusCreateTopic(op).build();
+    ////        final var txn = Transaction.newBuilder().body(txnBody).build();
+    ////        final var numSigs =  txn.sigMap().sigPair().size();
+    //        final long topicEntityNum = 1L;
+    //        final TopicID topicId =
+    //                TopicID.newBuilder().topicNum(topicEntityNum).build();
+    //
+    //        final var op = ConsensusSubmitMessageTransactionBody.newBuilder()
+    //                .topicID(topicId)
+    //                .message(Bytes.wrap("foo"))
+    //                .build();
+    //        final var txnBody =
+    //                TransactionBody.newBuilder().consensusSubmitMessage(op).build();
+    //
+    //
+    //        System.out.println("making the executor");
+    //        final var test = new TransactionExecutorsTest();
+    //        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101");
+    //        // Construct a full implementation of the consensus node State API with all genesis accounts and files
+    //        final var state = test.genesisState(overrides);
+    ////            final MerkleNodeState state = test.genesisState(overrides);
+    //        System.out.println("made the genesis state");
+    //
+    //        // Get a standalone executor based on this state, with an override to allow slightly longer memos
+    //        final var executor = TRANSACTION_EXECUTORS.newExecutor(
+    //                TransactionExecutors.Properties.newBuilder()
+    //                        .state(state)
+    //                        .appProperties(overrides)
+    //                        .build(),
+    //                new AppEntityIdFactory(DEFAULT_CONFIG));
+    //        System.out.println("out to execute " + txnBody);
+    //        final var output = executor.execute(txnBody, Instant.EPOCH);
+    //        System.out.println("got the output " + output);
+    //    }
 
     private static final long GAS = 400_000L;
     private static final long EXPECTED_LUCKY_NUMBER = 42L;
@@ -265,21 +264,23 @@ public class SimpleFeesMirrorNodeTest {
     @Mock
     private StoreMetricsServiceImpl storeMetricsService;
 
-    @Test void basicStreaming() throws IOException {
+    @Test
+    void basicStreaming() throws IOException {
         final String record_path = "../../temp/2025-09-10T03_02_14.342128000Z.rcd";
-//        final String sidecar_path = "sidecar";
-//        byte[] bytes = Files.readAllBytes(Path.of(record_path));
+        //        final String sidecar_path = "sidecar";
+        //        byte[] bytes = Files.readAllBytes(Path.of(record_path));
 
         try (final var fin = new FileInputStream(record_path)) {
             final var recordFileVersion = ByteBuffer.wrap(fin.readNBytes(4)).getInt();
             final var recordStreamFile = com.hedera.services.stream.proto.RecordStreamFile.parseFrom(fin);
             System.out.println("File version is " + recordFileVersion);
             System.out.println("stream file is " + recordStreamFile);
-//            recordStreamFile.getRecordStreamItemsList().stream().flatMap()
+            //            recordStreamFile.getRecordStreamItemsList().stream().flatMap()
             recordStreamFile.getRecordStreamItemsList().stream()
-//                    .flatMap(recordStreamItem -> recordStreamItem.getRecord())
+                    //                    .flatMap(recordStreamItem -> recordStreamItem.getRecord())
                     // pull out the record stream items
-//                    .flatMap(recordWithSidecars -> recordWithSidecars.recordFile().getRecordStreamItemsList().stream())
+                    //                    .flatMap(recordWithSidecars ->
+                    // recordWithSidecars.recordFile().getRecordStreamItemsList().stream())
                     .forEach(item -> {
                         System.out.println("record " + item);
                         process_record(item);
@@ -296,9 +297,11 @@ public class SimpleFeesMirrorNodeTest {
         System.out.println("OUT: status " + receipt.getStatus());
         System.out.println("OUT: exchange rate " + receipt.getExchangeRate());
         try {
-            final var signedTxn = SignedTransaction.parseFrom(item.getTransaction().getSignedTransactionBytes());
+            final var signedTxn =
+                    SignedTransaction.parseFrom(item.getTransaction().getSignedTransactionBytes());
             System.out.println("the real transaction is" + signedTxn);
-            com.hederahashgraph.api.proto.java.TransactionBody transactionBody = com.hederahashgraph.api.proto.java.TransactionBody.parseFrom(signedTxn.getBodyBytes());
+            com.hederahashgraph.api.proto.java.TransactionBody transactionBody =
+                    com.hederahashgraph.api.proto.java.TransactionBody.parseFrom(signedTxn.getBodyBytes());
             System.out.println("TXN:transaction body is " + transactionBody);
             System.out.println("TXN: memo " + transactionBody.getMemo());
             System.out.println("TXN: fee " + transactionBody.getTransactionFee());
@@ -310,21 +313,23 @@ public class SimpleFeesMirrorNodeTest {
         }
     }
 
-    @Test void streamingSimpleFees() throws IOException {
+    @Test
+    void streamingSimpleFees() throws IOException {
         // set the overrides
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101","fees.simpleFeesEnabled","true");
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
         // bring up the full state
         final var state = genesisState(overrides);
         // config props
-        final var properties =  TransactionExecutors.Properties.newBuilder()
+        final var properties = TransactionExecutors.Properties.newBuilder()
                 .state(state)
                 .appProperties(overrides)
                 .build();
         // make an entity id factory
         final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
         // load a new executor component
-        final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(properties.state()
-                ,properties.appProperties(),
+        final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(
+                properties.state(),
+                properties.appProperties(),
                 properties.customTracerBinding(),
                 properties.customOps(),
                 entityIdFactory);
@@ -335,109 +340,135 @@ public class SimpleFeesMirrorNodeTest {
         // grab the fee calculator
         final var calc = executor.feeManager().getSimpleFeeCalculator();
 
-
         final String records_dir = "../../temp/";
 
-
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
-            paths
-                    .filter(Files::isRegularFile)
-                    .forEach(file -> {
-                        System.out.println("reading file " + file);
-                        if(!file.toString().endsWith("rcd")) {
-                            System.out.println("skipping");
-                            return;
-                        }
-                        try (final var fin = new FileInputStream(file.toFile())) {
-                            final var recordFileVersion = ByteBuffer.wrap(fin.readNBytes(4)).getInt();
-                            System.out.println("read version " + recordFileVersion);
-                            final var recordStreamFile = RecordStreamFile.parseFrom(fin);
-                            recordStreamFile.getRecordStreamItemsList().stream()
-                                    .forEach(item -> {
-                                        try {
-                                            TransactionBody body = parseTransactionBody(item);
-                                            if(shouldSkip(body.data().kind())) {
-                                                return;
-                                            }
-                                            System.out.println("TXN: memo " + body.memo());
-                                            System.out.println("TXN: fee " + body.transactionFee());
-                                            if(body.data().kind() == TransactionBody.DataOneOfType.TOKEN_BURN) {
-                                                System.out.println("burn amount " + body.tokenBurnOrThrow().amount());
-                                                System.out.println("serial numbers " + body.tokenBurnOrThrow().serialNumbers());
-                                            }
-                                            System.out.println("TXN: id " + body.transactionID());
-                                            System.out.println("calculating simple fees for transaction " + body);
-                                            final FeeContext feeContext = null;
-                                            final var result = calc.calculateTxFee(body,feeContext);
-                                            System.out.println("result is " + result);
-                                            System.out.println("TXN: data case " + body.data().kind());
-                                            // max fee in tiny bar //
-                                            System.out.println("original      is : " + body.transactionFee());
-                                            System.out.println("simple        is : " + result.total());
-                                            final var record = item.getRecord();
+            paths.filter(Files::isRegularFile).forEach(file -> {
+                System.out.println("reading file " + file);
+                if (!file.toString().endsWith("rcd")) {
+                    System.out.println("skipping");
+                    return;
+                }
+                try (final var fin = new FileInputStream(file.toFile())) {
+                    final var recordFileVersion =
+                            ByteBuffer.wrap(fin.readNBytes(4)).getInt();
+                    System.out.println("read version " + recordFileVersion);
+                    final var recordStreamFile = RecordStreamFile.parseFrom(fin);
+                    recordStreamFile.getRecordStreamItemsList().stream().forEach(item -> {
+                        try {
+                            TransactionBody body = parseTransactionBody(item);
+                            if (shouldSkip(body.data().kind())) {
+                                return;
+                            }
+                            System.out.println("TXN: memo " + body.memo());
+                            System.out.println("TXN: fee " + body.transactionFee());
+                            if (body.data().kind() == TransactionBody.DataOneOfType.TOKEN_BURN) {
+                                System.out.println(
+                                        "burn amount " + body.tokenBurnOrThrow().amount());
+                                System.out.println("serial numbers "
+                                        + body.tokenBurnOrThrow().serialNumbers());
+                            }
+                            System.out.println("TXN: id " + body.transactionID());
+                            System.out.println("calculating simple fees for transaction " + body);
+                            final FeeContext feeContext = null;
+                            final var result = calc.calculateTxFee(
+                                    body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                            System.out.println("result is " + result);
+                            System.out.println("TXN: data case " + body.data().kind());
+                            // max fee in tiny bar //
+                            System.out.println("original      is : " + body.transactionFee());
+                            System.out.println("simple        is : " + result.total());
+                            final var record = item.getRecord();
 
-                                            // actual fee charged (in tiny bar)?
-                                            System.out.println("record trans fee : " + record.getTransactionFee());
-                                            // rec fee * 12 to get cents
-                                            // 845911
-                                            System.out.println("status is " + record.getReceipt().getStatus());
-                                            System.out.println("exchange rate is " + record.getReceipt().getExchangeRate());
+                            // actual fee charged (in tiny bar)?
+                            System.out.println("record trans fee : " + record.getTransactionFee());
+                            // rec fee * 12 to get cents
+                            // 845911
+                            System.out.println(
+                                    "status is " + record.getReceipt().getStatus());
+                            System.out.println(
+                                    "exchange rate is " + record.getReceipt().getExchangeRate());
 
-                                        } catch (Exception e) {
-                                            System.out.println("exception " + e);
-                                        }
-                                    });
-                        } catch (FileNotFoundException e) {
-                            throw new RuntimeException(e);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
+                        } catch (Exception e) {
+                            System.out.println("exception " + e);
                         }
                     });
+                } catch (FileNotFoundException e) {
+                    throw new RuntimeException(e);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
     }
 
     private boolean shouldSkip(TransactionBody.DataOneOfType kind) {
         // requires readable store
-        if(kind == TransactionBody.DataOneOfType.CONSENSUS_SUBMIT_MESSAGE) {  return true;  }
-        if(kind == TransactionBody.DataOneOfType.CRYPTO_TRANSFER) {  return true;  }
+        if (kind == TransactionBody.DataOneOfType.CONSENSUS_SUBMIT_MESSAGE) {
+            return true;
+        }
+        if (kind == TransactionBody.DataOneOfType.CRYPTO_TRANSFER) {
+            return true;
+        }
 
         // fee calculator not implemented yet
         // coming in PR: https://github.com/hiero-ledger/hiero-consensus-node/pull/22584
-        if(kind == TransactionBody.DataOneOfType.TOKEN_AIRDROP) {  return true;  }
-        if(kind == TransactionBody.DataOneOfType.TOKEN_ASSOCIATE) { return true; }
-        if(kind == TransactionBody.DataOneOfType.TOKEN_DISSOCIATE) { return true; }
-        if(kind == TransactionBody.DataOneOfType.TOKEN_UPDATE) { return true; }
-        if(kind == TransactionBody.DataOneOfType.TOKEN_UPDATE_NFTS) { return true; }
-        if(kind == TransactionBody.DataOneOfType.TOKEN_WIPE) { return true; }
-        if(kind == TransactionBody.DataOneOfType.TOKEN_REJECT) { return true; }
-        if(kind == TransactionBody.DataOneOfType.TOKEN_GRANT_KYC) { return true; }
-        if(kind == TransactionBody.DataOneOfType.TOKEN_FEE_SCHEDULE_UPDATE) { return true; }
+        if (kind == TransactionBody.DataOneOfType.TOKEN_AIRDROP) {
+            return true;
+        }
+        if (kind == TransactionBody.DataOneOfType.TOKEN_ASSOCIATE) {
+            return true;
+        }
+        if (kind == TransactionBody.DataOneOfType.TOKEN_DISSOCIATE) {
+            return true;
+        }
+        if (kind == TransactionBody.DataOneOfType.TOKEN_UPDATE) {
+            return true;
+        }
+        if (kind == TransactionBody.DataOneOfType.TOKEN_UPDATE_NFTS) {
+            return true;
+        }
+        if (kind == TransactionBody.DataOneOfType.TOKEN_WIPE) {
+            return true;
+        }
+        if (kind == TransactionBody.DataOneOfType.TOKEN_REJECT) {
+            return true;
+        }
+        if (kind == TransactionBody.DataOneOfType.TOKEN_GRANT_KYC) {
+            return true;
+        }
+        if (kind == TransactionBody.DataOneOfType.TOKEN_FEE_SCHEDULE_UPDATE) {
+            return true;
+        }
 
         return false;
     }
 
-    private TransactionBody parseTransactionBody(RecordStreamItem item) throws InvalidProtocolBufferException, ParseException {
+    private TransactionBody parseTransactionBody(RecordStreamItem item)
+            throws InvalidProtocolBufferException, ParseException {
         final var signedTxn = SignedTransaction.parseFrom(item.getTransaction().getSignedTransactionBytes());
-        final var body =  TransactionBody.PROTOBUF.parse(Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
+        final var body = TransactionBody.PROTOBUF.parse(
+                Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
         return body;
     }
 
     @Test
     void doIt() {
         // set the overrides
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101","fees.simpleFeesEnabled","true");
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
         // bring up the full state
         final var state = genesisState(overrides);
         // config props
-        final var properties =  TransactionExecutors.Properties.newBuilder()
+        final var properties = TransactionExecutors.Properties.newBuilder()
                 .state(state)
                 .appProperties(overrides)
                 .build();
         // make an entity id factory
         final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
         // load a new executor component
-        final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(properties.state()
-                ,properties.appProperties(),
+        final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(
+                properties.state(),
+                properties.appProperties(),
                 properties.customTracerBinding(),
                 properties.customOps(),
                 entityIdFactory);
@@ -446,18 +477,17 @@ public class SimpleFeesMirrorNodeTest {
         executor.initializer().initialize(properties.state(), StreamMode.BOTH);
 
         final var calc = executor.feeManager().getSimpleFeeCalculator();
-        System.out.println("got the calculator " +calc);
+        System.out.println("got the calculator " + calc);
         final var body = TransactionBody.newBuilder()
                 .tokenCreation(TokenCreateTransactionBody.newBuilder()
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .build())
                 .build();
         final FeeContext feeContext = null;
-        final var result = calc.calculateTxFee(body,feeContext);
+        final var result = calc.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
         System.out.println("result is " + result);
         assertThat(result.service).isEqualTo(9999000000L);
     }
-
 
     @Test
     void propertiesBuilderRequiresNonNullState() {
@@ -762,7 +792,9 @@ public class SimpleFeesMirrorNodeTest {
 
     private Bytes resourceAsBytes(@NonNull final String loc) {
         try {
-            try (final var in = com.hedera.node.app.workflows.standalone.TransactionExecutorsTest.class.getClassLoader().getResourceAsStream(loc)) {
+            try (final var in = com.hedera.node.app.workflows.standalone.TransactionExecutorsTest.class
+                    .getClassLoader()
+                    .getResourceAsStream(loc)) {
                 final var bytes = requireNonNull(in).readAllBytes();
                 return Bytes.wrap(bytes);
             }
@@ -812,4 +844,3 @@ public class SimpleFeesMirrorNodeTest {
         }
     }
 }
-

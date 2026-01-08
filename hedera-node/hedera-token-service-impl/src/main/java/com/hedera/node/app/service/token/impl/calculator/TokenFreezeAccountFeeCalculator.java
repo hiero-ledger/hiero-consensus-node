@@ -20,7 +20,8 @@ public class TokenFreezeAccountFeeCalculator implements ServiceFeeCalculator {
             @NonNull final TransactionBody txnBody,
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
+            @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule,
+            EstimationMode mode) {
         final var op = txnBody.tokenFreezeOrThrow();
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_FREEZE_ACCOUNT);
         feeResult.addServiceFee(1, serviceDef.baseFee());

@@ -28,9 +28,11 @@ import org.hiero.hapi.support.fees.Extra;
 public interface SimpleFeeCalculator {
 
     @NonNull
-    FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull FeeContext feeContext);
+    FeeResult calculateTxFee(
+            @NonNull TransactionBody txnBody, @NonNull FeeContext feeContext, ServiceFeeCalculator.EstimationMode mode);
 
-    long calculateQueryFee(@NonNull Query query, @NonNull QueryContext queryContext);
+    long calculateQueryFee(
+            @NonNull Query query, @NonNull QueryContext queryContext, ServiceFeeCalculator.EstimationMode mode);
 
     long getExtraFee(Extra extra);
 }

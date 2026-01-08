@@ -21,7 +21,8 @@ public class CryptoDeleteAllowanceFeeCalculator implements ServiceFeeCalculator 
             @NonNull final TransactionBody txnBody,
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
+            @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule,
+            EstimationMode mode) {
         final var op = txnBody.cryptoDeleteAllowanceOrThrow();
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_DELETE_ALLOWANCE);

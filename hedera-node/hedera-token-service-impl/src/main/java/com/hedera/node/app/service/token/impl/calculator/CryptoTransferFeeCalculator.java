@@ -58,7 +58,8 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
             @NonNull final TransactionBody txnBody,
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final FeeSchedule feeSchedule) {
+            @NonNull final FeeSchedule feeSchedule,
+            EstimationMode mode) {
 
         final ReadableTokenStore tokenStore = feeContext.readableStore(ReadableTokenStore.class);
         final var op = txnBody.cryptoTransferOrThrow();

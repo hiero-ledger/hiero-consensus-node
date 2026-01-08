@@ -30,6 +30,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -237,7 +238,10 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             long queryFees = 0;
                             if (shouldUseSimpleFees(context)) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(context.query(), context);
+                                        .calculateQueryFee(
+                                                context.query(),
+                                                context,
+                                                ServiceFeeCalculator.EstimationMode.Intrinsic);
                                 queryFees = tinycentsToTinybars(
                                         queryFeeTinyCents,
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
@@ -297,7 +301,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     long queryFees = 0;
                     if (shouldUseSimpleFees(context)) {
                         final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                .calculateQueryFee(context.query(), context);
+                                .calculateQueryFee(
+                                        context.query(), context, ServiceFeeCalculator.EstimationMode.Intrinsic);
                         queryFees = tinycentsToTinybars(
                                 queryFeeTinyCents,
                                 fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));

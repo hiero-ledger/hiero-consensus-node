@@ -42,6 +42,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -571,7 +572,8 @@ class QueryCheckerTest extends AppTestBase {
         when(feeManager.getSimpleFeeCalculator()).thenReturn(simpleFeeCalculator);
         when(feeManager.getExchangeRateManager()).thenReturn(exchangeRateManager);
         when(exchangeRateManager.activeRate(any())).thenReturn(activeRate);
-        when(simpleFeeCalculator.calculateTxFee(any(), any())).thenReturn(transferFeeResult);
+        when(simpleFeeCalculator.calculateTxFee(any(), any(), ServiceFeeCalculator.EstimationMode.Intrinsic))
+                .thenReturn(transferFeeResult);
 
         // Spy QueryChecker to mock feeResultToFees
         QueryChecker spyChecker = org.mockito.Mockito.spy(checker);
@@ -583,7 +585,7 @@ class QueryCheckerTest extends AppTestBase {
         // Assert
         assertThat(result).isEqualTo(expectedFee);
         verify(feeManager).getSimpleFeeCalculator();
-        verify(simpleFeeCalculator).calculateTxFee(any(), any());
+        verify(simpleFeeCalculator).calculateTxFee(any(), any(), ServiceFeeCalculator.EstimationMode.Intrinsic);
     }
 
     private TransactionInfo createPaymentInfo(final AccountID payerID, final AccountAmount... transfers) {

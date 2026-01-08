@@ -22,7 +22,8 @@ public class FileUpdateFeeCalculator implements ServiceFeeCalculator {
             @NonNull final TransactionBody txnBody,
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final FeeSchedule feeSchedule) {
+            @NonNull final FeeSchedule feeSchedule,
+            EstimationMode mode) {
         final var op = txnBody.fileUpdateOrThrow();
         long keyCount = 0L;
         if (op.hasKeys()) {

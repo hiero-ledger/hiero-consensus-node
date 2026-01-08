@@ -23,7 +23,8 @@ public class ScheduleCreateFeeCalculator implements ServiceFeeCalculator {
             @NonNull final TransactionBody txnBody,
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final FeeSchedule feeSchedule) {
+            @NonNull final FeeSchedule feeSchedule,
+            EstimationMode mode) {
         final var op = txnBody.scheduleCreateOrThrow();
         final var adminKey = op.adminKey();
         final long keys = adminKey != null ? countKeys(adminKey) : 0;

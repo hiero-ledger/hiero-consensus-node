@@ -24,6 +24,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -222,7 +223,8 @@ public class QueryChecker {
                 dispatcher);
         if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                    .calculateTxFee(transactionInfo.txBody(), feeContext);
+                    .calculateTxFee(
+                            transactionInfo.txBody(), feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
             final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
             return fees.totalFee();
         }

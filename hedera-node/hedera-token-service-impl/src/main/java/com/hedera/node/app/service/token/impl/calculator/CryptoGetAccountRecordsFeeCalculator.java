@@ -6,6 +6,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -22,7 +23,8 @@ public class CryptoGetAccountRecordsFeeCalculator implements QueryFeeCalculator 
             @NonNull final Query query,
             @Nullable final QueryContext queryContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final FeeSchedule feeSchedule) {
+            @NonNull final FeeSchedule feeSchedule,
+            ServiceFeeCalculator.EstimationMode mode) {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_GET_ACCOUNT_RECORDS);
         feeResult.addServiceFee(1, serviceDef.baseFee());

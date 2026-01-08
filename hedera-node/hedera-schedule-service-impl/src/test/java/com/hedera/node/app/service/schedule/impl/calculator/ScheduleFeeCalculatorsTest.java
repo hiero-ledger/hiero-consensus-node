@@ -201,7 +201,8 @@ class ScheduleFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
+        final var result =
+                feeCalculator.calculateTxFee(testCase.body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
         assertThat(result).isNotNull();
         assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
@@ -216,7 +217,12 @@ class ScheduleFeeCalculatorsTest {
         final var queryFeeCalculator = new ScheduleGetInfoFeeCalculator();
         final var feeResult = new FeeResult();
 
-        queryFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+        queryFeeCalculator.accumulateNodePayment(
+                query,
+                mockQueryContext,
+                feeResult,
+                createTestFeeSchedule(),
+                ServiceFeeCalculator.EstimationMode.Intrinsic);
 
         assertThat(feeResult.node).isEqualTo(0L);
         assertThat(feeResult.network).isEqualTo(0L);

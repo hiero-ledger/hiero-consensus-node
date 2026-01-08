@@ -104,6 +104,4 @@ public interface FeeContext {
     default long tinybarsFromTinycents(final long amount) {
         return tinycentsToTinybars(amount, fromPbj(activeRate()));
     }
-
-    default boolean isStatefulEstimationMode() { return false; }
 }

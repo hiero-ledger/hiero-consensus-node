@@ -39,6 +39,7 @@ import com.hedera.node.app.service.token.impl.calculator.TokenPauseFeeCalculator
 import com.hedera.node.app.service.token.impl.calculator.TokenUnfreezeAccountFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenUnpauseFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -104,7 +105,8 @@ public class TokenServiceFeeCalculatorTests {
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        final var result =
+                feeCalculator.calculateTxFee(body, calculatorState, ServiceFeeCalculator.EstimationMode.Intrinsic);
         assertNotNull(result);
         assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
     }
@@ -115,7 +117,8 @@ public class TokenServiceFeeCalculatorTests {
         final var txBody2 = TransactionBody.newBuilder()
                 .tokenCreation(TokenCreateTransactionBody.newBuilder().tokenType(TokenType.NON_FUNGIBLE_UNIQUE))
                 .build();
-        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
+        final var result =
+                feeCalculator.calculateTxFee(txBody2, calculatorState, ServiceFeeCalculator.EstimationMode.Intrinsic);
 
         assertNotNull(result);
         assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
@@ -131,7 +134,8 @@ public class TokenServiceFeeCalculatorTests {
                         .amount(10)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        final var result =
+                feeCalculator.calculateTxFee(body, calculatorState, ServiceFeeCalculator.EstimationMode.Intrinsic);
         assertNotNull(result);
         assertEquals(TOKEN_MINT_BASE_FEE, result.total());
     }
@@ -146,7 +150,8 @@ public class TokenServiceFeeCalculatorTests {
                         .metadata(List.of(Bytes.wrap("Bart Simpson")))
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
+        final var result =
+                feeCalculator.calculateTxFee(txBody2, calculatorState, ServiceFeeCalculator.EstimationMode.Intrinsic);
         assertNotNull(result);
         assertEquals(TOKEN_MINT_BASE_FEE + UNIQUE_TOKEN_FEE, result.total());
     }
@@ -159,7 +164,8 @@ public class TokenServiceFeeCalculatorTests {
                         .token(commonToken)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        final var result =
+                feeCalculator.calculateTxFee(body, calculatorState, ServiceFeeCalculator.EstimationMode.Intrinsic);
         assertNotNull(result);
         assertEquals(TOKEN_FREEZE_BASE_FEE, result.total());
     }
@@ -172,7 +178,8 @@ public class TokenServiceFeeCalculatorTests {
                         .token(commonToken)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        final var result =
+                feeCalculator.calculateTxFee(body, calculatorState, ServiceFeeCalculator.EstimationMode.Intrinsic);
         assertNotNull(result);
         assertEquals(TOKEN_UNFREEZE_BASE_FEE, result.total());
     }
@@ -184,7 +191,8 @@ public class TokenServiceFeeCalculatorTests {
                 .tokenPause(
                         TokenPauseTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        final var result =
+                feeCalculator.calculateTxFee(body, calculatorState, ServiceFeeCalculator.EstimationMode.Intrinsic);
         assertNotNull(result);
         assertEquals(TOKEN_PAUSE_BASE_FEE, result.total());
     }
@@ -196,7 +204,8 @@ public class TokenServiceFeeCalculatorTests {
                 .tokenUnpause(
                         TokenUnpauseTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        final var result =
+                feeCalculator.calculateTxFee(body, calculatorState, ServiceFeeCalculator.EstimationMode.Intrinsic);
         assertNotNull(result);
         assertEquals(TOKEN_UNPAUSE_BASE_FEE, result.total());
     }
@@ -207,7 +216,8 @@ public class TokenServiceFeeCalculatorTests {
         final var body = TransactionBody.newBuilder()
                 .tokenBurn(TokenBurnTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        final var result =
+                feeCalculator.calculateTxFee(body, calculatorState, ServiceFeeCalculator.EstimationMode.Intrinsic);
         assertNotNull(result);
         assertEquals(TOKEN_BURN_BASE_FEE, result.total());
     }
@@ -218,7 +228,8 @@ public class TokenServiceFeeCalculatorTests {
         final var body = TransactionBody.newBuilder()
                 .tokenBurn(TokenBurnTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        final var result =
+                feeCalculator.calculateTxFee(body, calculatorState, ServiceFeeCalculator.EstimationMode.Intrinsic);
         assertNotNull(result);
         assertEquals(TOKEN_BURN_BASE_FEE, result.total());
     }
@@ -229,7 +240,8 @@ public class TokenServiceFeeCalculatorTests {
         final var deleteBody =
                 TokenDeleteTransactionBody.newBuilder().token(tokenId).build();
         final var body = TransactionBody.newBuilder().tokenDeletion(deleteBody).build();
-        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        final var result =
+                feeCalculator.calculateTxFee(body, calculatorState, ServiceFeeCalculator.EstimationMode.Intrinsic);
         assertNotNull(result);
         assertEquals(TOKEN_DELETE_BASE_FEE, result.total());
     }
