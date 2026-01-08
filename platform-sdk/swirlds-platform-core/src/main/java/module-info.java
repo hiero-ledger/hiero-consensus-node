@@ -107,33 +107,33 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.event.intake;
+    requires transitive org.hiero.consensus.hashgraph.impl;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
+    requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
-    requires org.hiero.consensus.hashgraph.impl;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
     requires java.annotation;
+    requires java.desktop;
     requires java.management;
     requires java.scripting;
     requires jdk.management;
     requires jdk.net;
-    requires java.desktop;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
-    requires info.picocli;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.swirlds.platform.config.PlatformConfigurationExtension;

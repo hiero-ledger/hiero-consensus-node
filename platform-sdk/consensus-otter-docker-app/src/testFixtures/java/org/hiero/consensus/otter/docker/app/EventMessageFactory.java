@@ -48,9 +48,7 @@ public final class EventMessageFactory {
     public static EventMessage fromConsensusRound(@NonNull final ConsensusRound round) {
         final ProtoConsensusRound protoRound = ProtobufConverter.fromPlatform(round);
 
-        return EventMessage.newBuilder()
-                .setConsensusRound(protoRound)
-                .build();
+        return EventMessage.newBuilder().setConsensusRound(protoRound).build();
     }
 
     /**

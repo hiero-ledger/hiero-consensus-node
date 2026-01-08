@@ -231,10 +231,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
      * @param consensusSnapshot the new consensus snapshot
      */
     public void consensusSnapshotOverride(@NonNull final ConsensusSnapshot consensusSnapshot) {
-        components
-                .hashgraphModule()
-                .consensusSnapshotInputWire()
-                .inject(consensusSnapshot);
+        components.hashgraphModule().consensusSnapshotInputWire().inject(consensusSnapshot);
         if (callbacks.snapshotOverrideConsumer() != null) {
             callbacks.snapshotOverrideConsumer().accept(consensusSnapshot);
         }

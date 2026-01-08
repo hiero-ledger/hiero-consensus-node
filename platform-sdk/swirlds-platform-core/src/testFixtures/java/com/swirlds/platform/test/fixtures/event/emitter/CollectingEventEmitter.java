@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.emitter;
 
-import org.hiero.consensus.hashgraph.impl.EventImpl;
 import java.util.LinkedList;
 import java.util.List;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /**
  * This event emitter wraps another event emitter. It emits the exact same events as the inner emitter,

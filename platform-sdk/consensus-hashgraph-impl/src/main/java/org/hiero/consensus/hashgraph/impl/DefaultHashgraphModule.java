@@ -16,7 +16,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
-import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.config.HashgraphWiringConfig;
 import org.hiero.consensus.hashgraph.impl.metrics.EventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;

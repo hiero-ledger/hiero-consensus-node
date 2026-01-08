@@ -70,7 +70,8 @@ public class SingleNodeConsensusResultContinuousAssert
                 return switch (state) {
                     case ACTIVE -> {
                         final List<ConsensusRound> includingLast = Stream.concat(
-                                Stream.ofNullable(lastRound), Stream.of(round)).toList();
+                                        Stream.ofNullable(lastRound), Stream.of(round))
+                                .toList();
                         ConsensusRoundValidator.validate(includingLast);
                         lastRound = round;
                         yield CONTINUE;

@@ -2,11 +2,11 @@
 package com.swirlds.platform.test.fixtures.sync;
 
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 

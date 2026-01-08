@@ -16,8 +16,6 @@ import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
-import org.hiero.consensus.hashgraph.impl.ConsensusEngine;
-import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
@@ -155,13 +153,14 @@ public class PlatformWiring {
                 .solderTo(components.eventIntakeModule().nonValidatedEventsInputWire(), INJECT);
 
         if (callbacks.staleEventConsumer() != null) {
-            final OutputWire<PlatformEvent> staleEvent = components.hashgraphModule().staleEventOutputWire();
+            final OutputWire<PlatformEvent> staleEvent =
+                    components.hashgraphModule().staleEventOutputWire();
             staleEvent.solderTo("staleEventCallback", "stale events", callbacks.staleEventConsumer());
         }
 
         // an output wire that filters out only pre-consensus events from the consensus engine
-        final OutputWire<PlatformEvent> consEngineAddedEvents = components
-                .hashgraphModule().preconsensusEventOutputWire();
+        final OutputWire<PlatformEvent> consEngineAddedEvents =
+                components.hashgraphModule().preconsensusEventOutputWire();
         // pre-handle gets pre-consensus events from the consensus engine
         // the consensus engine ensures that all pre-consensus events either reach consensus of become stale
         consEngineAddedEvents.solderTo(components
@@ -222,8 +221,8 @@ public class PlatformWiring {
                 .eventOutput()
                 .solderTo(components.eventIntakeModule().unhashedEventsInputWire());
 
-        final OutputWire<ConsensusRound> consensusRoundOutputWire = components
-                .hashgraphModule().consensusRoundOutputWire();
+        final OutputWire<ConsensusRound> consensusRoundOutputWire =
+                components.hashgraphModule().consensusRoundOutputWire();
 
         components
                 .pcesReplayerWiring()
@@ -370,8 +369,7 @@ public class PlatformWiring {
         components
                 .platformMonitorWiring()
                 .getOutputWire()
-                .solderTo(
-                        components.hashgraphModule().platformStatusInputWire(), INJECT);
+                .solderTo(components.hashgraphModule().platformStatusInputWire(), INJECT);
         components
                 .platformMonitorWiring()
                 .getOutputWire()
@@ -420,8 +418,7 @@ public class PlatformWiring {
             components
                     .hashgraphModule()
                     .consensusRoundOutputWire()
-                    .solderForMonitoring(consensusRound ->
-                            pipelineTracker.recordRounds("consensus", consensusRound));
+                    .solderForMonitoring(consensusRound -> pipelineTracker.recordRounds("consensus", consensusRound));
         }
     }
 

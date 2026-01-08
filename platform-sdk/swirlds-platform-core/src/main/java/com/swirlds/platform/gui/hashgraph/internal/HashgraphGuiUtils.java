@@ -3,8 +3,8 @@ package com.swirlds.platform.gui.hashgraph.internal;
 
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants;
 import com.swirlds.platform.gui.hashgraph.HashgraphPictureOptions;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
 import java.awt.Color;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /**
  * Various static utils for the {@link com.swirlds.platform.gui.hashgraph.HashgraphGui}

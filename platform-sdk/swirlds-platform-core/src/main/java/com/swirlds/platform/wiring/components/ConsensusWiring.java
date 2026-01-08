@@ -6,13 +6,13 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
-import org.hiero.consensus.hashgraph.impl.ConsensusEngine;
-import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.hiero.consensus.hashgraph.impl.ConsensusEngine;
+import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**

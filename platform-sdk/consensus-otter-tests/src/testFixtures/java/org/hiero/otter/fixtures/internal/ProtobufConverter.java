@@ -9,11 +9,9 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.MarkerManager;
 import org.hiero.consensus.crypto.PbjStreamHasher;
-import org.hiero.otter.fixtures.container.proto.ProtoConsensusRound;
 
 public class ProtobufConverter {
     private ProtobufConverter() {}

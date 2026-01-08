@@ -127,7 +127,6 @@ public class ConsensusModuleBuilder {
         return eventIntakeModule;
     }
 
-
     /**
      * Create an instance of the {@link HashgraphModule} using {@link ServiceLoader}.
      *
@@ -155,8 +154,7 @@ public class ConsensusModuleBuilder {
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
         final Roster roster = new Roster(List.of(rosterEntry));
         final HashgraphModule hashgraphModule = createHashgraphModule();
-        hashgraphModule.initialize(
-                model, configuration, metrics, time, roster, selfId, instant -> false);
+        hashgraphModule.initialize(model, configuration, metrics, time, roster, selfId, instant -> false);
         return hashgraphModule;
     }
 }

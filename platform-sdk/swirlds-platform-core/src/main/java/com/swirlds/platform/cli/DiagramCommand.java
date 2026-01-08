@@ -116,8 +116,8 @@ public final class DiagramCommand extends AbstractCommand {
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
 
-        final PlatformComponents platformComponents =
-                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
+        final PlatformComponents platformComponents = PlatformComponents.create(
+                platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
 
         PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, ApplicationCallbacks.EMPTY);
 

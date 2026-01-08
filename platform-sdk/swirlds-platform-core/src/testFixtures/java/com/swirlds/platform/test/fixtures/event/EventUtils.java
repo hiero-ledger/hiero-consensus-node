@@ -4,7 +4,6 @@ package com.swirlds.platform.test.fixtures.event;
 import static java.lang.Integer.max;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -19,6 +18,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 

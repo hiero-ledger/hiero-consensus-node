@@ -11,7 +11,6 @@ import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
-import static java.util.Objects.hash;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.pces.PcesUtilities.getDatabaseDirectory;
@@ -567,8 +566,8 @@ public final class PlatformBuilder {
         initializeEventCreatorModule();
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
 
-        final PlatformComponents platformComponentWiring =
-                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
+        final PlatformComponents platformComponentWiring = PlatformComponents.create(
+                platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
 
         PlatformWiring.wire(platformContext, execution, platformComponentWiring, callbacks);
         PlatformWiring.wireMetrics(platformComponentWiring, pipelineTracker);
