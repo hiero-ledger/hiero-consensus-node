@@ -475,6 +475,11 @@ public class TxnFactory {
         return builder -> {};
     }
 
+    public Consumer<ClprSetLedgerConfigurationTransactionBody.Builder>
+            defaultDefClprSetLedgerConfigurationTransactionBody() {
+        return builder -> {};
+    }
+
     private ShardID shardID() {
         return ShardID.newBuilder().setShardNum(setup.shard()).build();
     }
