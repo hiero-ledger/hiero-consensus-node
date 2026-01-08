@@ -87,7 +87,7 @@ public interface MerkleNodeState extends State {
      * Get the merkle path of the queue element
      * @param stateId The state ID of the queue state.
      * @param expectedValue The expected value of the queue element to retrieve the path for
-     * @return The merkle path of the queue element or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
+     * @return The merkle path of the queue element or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH} if stateId is unknown or element is not found.
      * @param <V> The type of the value of the queue element
      */
     default <V> long queueElementPath(
@@ -129,7 +129,7 @@ public interface MerkleNodeState extends State {
     /**
      * Get the merkle path of the singleton state by its ID.
      * @param stateId The state ID of the singleton state.
-     * @return The merkle path of the singleton state
+     * @return The merkle path of the singleton state or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH} if the stateId is unknown.
      */
     long singletonPath(int stateId);
 
@@ -137,7 +137,8 @@ public interface MerkleNodeState extends State {
      * Get the merkle path of the queue element by its state ID and value.
      * @param stateId The state ID of the queue state.
      * @param expectedValue The expected value of the queue element to retrieve the path for
-     * @return The merkle path of the queue element by its state ID and value.
+     * @return The merkle path of the queue element by its state ID and value or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
+     * if the stateId is unknown.
      */
     long queueElementPath(int stateId, @NonNull Bytes expectedValue);
 
