@@ -267,6 +267,38 @@ public class FeesChargingUtils {
                 false, true, true);
     }
 
+    public static double expectedCryptoTransferHBARAndFTFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens) {
+
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                true, true, false);
+    }
+
+    public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens) {
+
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                true, false, true);
+    }
+
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
             long sigs,
             long uniqueHooksExecuted,
