@@ -17,8 +17,6 @@ import com.swirlds.common.merkle.synchronization.task.TeacherPushReceiveTask;
 import com.swirlds.common.merkle.synchronization.task.TeacherPushSendTask;
 import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A teaching tree view for a standard in memory merkle tree.
@@ -48,11 +47,11 @@ public class TeacherPushMerkleTreeView implements TeacherTreeView<NodeToSend> {
     /**
      * Create a view for a standard merkle tree.
      *
-     * @param configuration the configuration
-     * @param root          the root of the tree
+     * @param reconnectConfig the reconnect configuration
+     * @param root            the root of the tree
      */
-    public TeacherPushMerkleTreeView(@NonNull final Configuration configuration, final MerkleNode root) {
-        this.reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
+    public TeacherPushMerkleTreeView(@NonNull final ReconnectConfig reconnectConfig, final MerkleNode root) {
+        this.reconnectConfig = reconnectConfig;
         maxAckDelayMilliseconds = (int) reconnectConfig.maxAckDelay().toMillis();
 
         this.root = new NodeToSend(root, maxAckDelayMilliseconds);

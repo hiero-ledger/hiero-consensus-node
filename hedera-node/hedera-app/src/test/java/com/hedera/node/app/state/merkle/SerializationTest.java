@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.swirlds.state.test.fixtures.merkle.MerkleStateRoot.MINIMUM_SUPPORTED_VERSION;
+import static com.swirlds.virtualmap.VirtualMap.ClassVersion.NO_VIRTUAL_ROOT_NODE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -12,7 +12,6 @@ import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -41,6 +40,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Set;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -148,7 +148,7 @@ class SerializationTest extends MerkleTestBase {
                 new HashMap<>(),
                 migrationStateChanges,
                 startupNetworks);
-        loadedTree.getRoot().migrate(MINIMUM_SUPPORTED_VERSION);
+        loadedTree.getRoot().migrate(NO_VIRTUAL_ROOT_NODE);
     }
 
     private StateLifecycleManager createStateLifecycleManager(Schema schemaV1) {

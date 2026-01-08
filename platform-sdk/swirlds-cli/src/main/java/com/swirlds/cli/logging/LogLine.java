@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.logging;
 
+import static com.swirlds.base.units.TimeUnit.UNIT_MILLISECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_SECONDS;
 import static com.swirlds.cli.logging.HtmlGenerator.BLACKLIST_LABEL;
 import static com.swirlds.cli.logging.HtmlGenerator.CLASS_NAME_COLUMN_LABEL;
 import static com.swirlds.cli.logging.HtmlGenerator.ELAPSED_TIME_COLUMN_LABEL;
@@ -17,12 +19,10 @@ import static com.swirlds.cli.logging.HtmlGenerator.WHITELIST_LABEL;
 import static com.swirlds.cli.logging.LogProcessingUtils.escapeString;
 import static com.swirlds.cli.logging.LogProcessingUtils.getLogLevelColor;
 import static com.swirlds.cli.logging.LogProcessingUtils.parseTimestamp;
-import static com.swirlds.common.units.TimeUnit.UNIT_MILLISECONDS;
-import static com.swirlds.common.units.TimeUnit.UNIT_SECONDS;
 
-import com.swirlds.common.formatting.TextEffect;
-import com.swirlds.common.formatting.UnitFormat;
-import com.swirlds.common.formatting.UnitFormatter;
+import com.swirlds.base.formatting.TextEffect;
+import com.swirlds.base.formatting.UnitFormat;
+import com.swirlds.base.formatting.UnitFormatter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;

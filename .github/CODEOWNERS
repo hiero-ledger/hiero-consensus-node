@@ -71,8 +71,6 @@
 /platform-sdk/swirlds-common/                       @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-component-framework/          @hiero-ledger/hiero-consensus-node-consensus-codeowners
 /platform-sdk/swirlds-config-*/                     @hiero-ledger/hiero-consensus-node-foundation-codeowners
-/platform-sdk/swirlds-fchashmap/                    @hiero-ledger/hiero-consensus-node-foundation-codeowners
-/platform-sdk/swirlds-fcqueue/                      @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-logging/                      @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-logging-*/                    @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-merkle/                       @hiero-ledger/hiero-consensus-node-foundation-codeowners
