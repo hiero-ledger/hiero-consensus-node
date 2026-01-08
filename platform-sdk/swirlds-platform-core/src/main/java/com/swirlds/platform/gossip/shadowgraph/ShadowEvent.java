@@ -3,7 +3,7 @@ package com.swirlds.platform.gossip.shadowgraph;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.hashgraph.impl.LinkedEvent;
+import org.hiero.consensus.model.event.LinkedEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**

@@ -63,8 +63,6 @@ import java.util.Objects;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.hashgraph.impl.ConsensusEngine;
-import org.hiero.consensus.hashgraph.impl.DefaultConsensusEngine;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
@@ -98,7 +96,6 @@ public class PlatformComponentBuilder {
     private EventSignatureValidator eventSignatureValidator;
     private StateGarbageCollector stateGarbageCollector;
     private OrphanBuffer orphanBuffer;
-    private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
@@ -294,43 +291,6 @@ public class PlatformComponentBuilder {
         this.orphanBuffer = Objects.requireNonNull(orphanBuffer);
 
         return this;
-    }
-
-    /**
-     * Provide a consensus engine in place of the platform's default consensus engine.
-     *
-     * @param consensusEngine the consensus engine to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withConsensusEngine(@NonNull final ConsensusEngine consensusEngine) {
-        throwIfAlreadyUsed();
-        if (this.consensusEngine != null) {
-            throw new IllegalStateException("Consensus engine has already been set");
-        }
-        this.consensusEngine = Objects.requireNonNull(consensusEngine);
-        return this;
-    }
-
-    /**
-     * Build the consensus engine if it has not yet been built. If one has been provided via
-     * {@link #withConsensusEngine(ConsensusEngine)}, that engine will be used. If this method is called more than once,
-     * only the first call will build the consensus engine. Otherwise, the default engine will be created and returned.
-     *
-     * @return the consensus engine
-     */
-    @NonNull
-    public ConsensusEngine buildConsensusEngine() {
-        if (consensusEngine == null) {
-            consensusEngine = new DefaultConsensusEngine(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    blocks.rosterHistory().getCurrentRoster(),
-                    blocks.selfId(),
-                    blocks.freezeChecker());
-        }
-        return consensusEngine;
     }
 
     /**
