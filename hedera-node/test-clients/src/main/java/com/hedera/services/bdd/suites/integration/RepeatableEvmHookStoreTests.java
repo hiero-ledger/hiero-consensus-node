@@ -6,11 +6,6 @@ import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HO
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
-import static com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler.NONZERO_INTO_NONZERO_GAS_COST;
-import static com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler.NONZERO_INTO_ZERO_GAS_COST;
-import static com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler.NOOP_NONZERO_INTO_NONZERO_GAS_COST;
-import static com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler.ZERO_INTO_NONZERO_GAS_COST;
-import static com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler.ZERO_INTO_ZERO_GAS_COST;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
@@ -26,7 +21,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedFee;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -269,35 +264,31 @@ public class RepeatableEvmHookStoreTests {
                         .signedBy(CIVILIAN_PAYER)
                         .putSlot(A, Bytes.EMPTY)
                         .via("zeroIntoZero"),
-                sourcing(() -> validateChargedFee("zeroIntoZero", ZERO_INTO_ZERO_GAS_COST * tinybarGasPrice.get())),
+                sourcing(() -> validateChargedUsd("zeroIntoZero", 0.005)),
                 accountEvmHookStore(CIVILIAN_PAYER, 1L)
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)
                         .putSlot(A, F)
                         .via("nonZeroIntoZero"),
-                sourcing(() ->
-                        validateChargedFee("nonZeroIntoZero", NONZERO_INTO_ZERO_GAS_COST * tinybarGasPrice.get())),
+                sourcing(() -> validateChargedUsd("nonZeroIntoZero", 0.005)),
                 accountEvmHookStore(CIVILIAN_PAYER, 1L)
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)
                         .putSlot(A, E)
                         .via("nonZeroIntoNonZero"),
-                sourcing(() -> validateChargedFee(
-                        "nonZeroIntoNonZero", NONZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())),
+                sourcing(() -> validateChargedUsd("nonZeroIntoNonZero", 0.005)),
                 accountEvmHookStore(CIVILIAN_PAYER, 1L)
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)
                         .putSlot(A, E)
                         .via("noopNonZeroIntoNonZero"),
-                sourcing(() -> validateChargedFee(
-                        "noopNonZeroIntoNonZero", NOOP_NONZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())),
+                sourcing(() -> validateChargedUsd("noopNonZeroIntoNonZero", 0.005)),
                 accountEvmHookStore(CIVILIAN_PAYER, 1L)
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)
                         .putSlot(A, Bytes.EMPTY)
                         .via("zeroIntoNonZero"),
-                sourcing(() ->
-                        validateChargedFee("zeroIntoNonZero", ZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())));
+                sourcing(() -> validateChargedUsd("zeroIntoNonZero", 0.005)));
     }
 
     @Order(11)
@@ -314,35 +305,31 @@ public class RepeatableEvmHookStoreTests {
                         .signedBy(CIVILIAN_PAYER)
                         .putMappingEntryWithKey(Bytes.EMPTY, A, Bytes.EMPTY)
                         .via("zeroIntoZero"),
-                sourcing(() -> validateChargedFee("zeroIntoZero", ZERO_INTO_ZERO_GAS_COST * tinybarGasPrice.get())),
+                sourcing(() -> validateChargedUsd("zeroIntoZero", 0.005)),
                 accountEvmHookStore(CIVILIAN_PAYER, 1L)
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)
                         .putMappingEntryWithKey(Bytes.EMPTY, A, F)
                         .via("nonZeroIntoZero"),
-                sourcing(() ->
-                        validateChargedFee("nonZeroIntoZero", NONZERO_INTO_ZERO_GAS_COST * tinybarGasPrice.get())),
+                sourcing(() -> validateChargedUsd("nonZeroIntoZero", 0.005)),
                 accountEvmHookStore(CIVILIAN_PAYER, 1L)
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)
                         .putMappingEntryWithKey(Bytes.EMPTY, A, E)
                         .via("nonZeroIntoNonZero"),
-                sourcing(() -> validateChargedFee(
-                        "nonZeroIntoNonZero", NONZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())),
+                sourcing(() -> validateChargedUsd("nonZeroIntoNonZero", 0.005)),
                 accountEvmHookStore(CIVILIAN_PAYER, 1L)
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)
                         .putMappingEntryWithKey(Bytes.EMPTY, A, E)
                         .via("noopNonZeroIntoNonZero"),
-                sourcing(() -> validateChargedFee(
-                        "noopNonZeroIntoNonZero", NOOP_NONZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())),
+                sourcing(() -> validateChargedUsd("noopNonZeroIntoNonZero", 0.005)),
                 accountEvmHookStore(CIVILIAN_PAYER, 1L)
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)
                         .putMappingEntryWithKey(Bytes.EMPTY, A, Bytes.EMPTY)
                         .via("zeroIntoNonZero"),
-                sourcing(() ->
-                        validateChargedFee("zeroIntoNonZero", ZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())));
+                sourcing(() -> validateChargedUsd("zeroIntoNonZero", 0.005)));
     }
 
     @Order(12)
