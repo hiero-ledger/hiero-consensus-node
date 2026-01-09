@@ -15,9 +15,15 @@ import com.hedera.services.bdd.spec.utilops.UtilOp;
  */
 public class AddNodeOp extends UtilOp {
     private final long nodeId;
+    private final boolean refreshOverrides;
 
     public AddNodeOp(final long nodeId) {
+        this(nodeId, true);
+    }
+
+    public AddNodeOp(final long nodeId, final boolean refreshOverrides) {
         this.nodeId = nodeId;
+        this.refreshOverrides = refreshOverrides;
     }
 
     @Override
@@ -41,7 +47,11 @@ public class AddNodeOp extends UtilOp {
             SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
         }
 
-        subProcessNetwork.addNode(nodeId);
+        if (refreshOverrides) {
+            subProcessNetwork.addNode(nodeId);
+        } else {
+            subProcessNetwork.addNodeWithoutOverrides(nodeId);
+        }
         return false;
     }
 }

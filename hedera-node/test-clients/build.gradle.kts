@@ -92,6 +92,8 @@ val prCheckTags =
             // MATS task → explicitly REQUIRE MATS
             put("$task$matsSuffix", "($tags)&MATS")
         }
+        put("hapiTestClpr", "CLPR")
+        put("hapiTestMultiNetwork", "MULTINETWORK")
     }
 
 val remoteCheckTags =
@@ -121,6 +123,8 @@ val prCheckStartPorts =
         put("hapiTestMisc", "26800")
         put("hapiTestBlockNodeCommunication", "27000")
         put("hapiTestMiscRecords", "27200")
+        put("hapiTestClpr", "27400")
+        put("hapiTestMultiNetwork", "27600")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -133,7 +137,7 @@ val prCheckPropOverrides =
         put("hapiTestAdhoc", "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true")
         put(
             "hapiTestCrypto",
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s",
         )
         put("hapiTestSmartContract", "tss.historyEnabled=false")
         put(
@@ -147,6 +151,11 @@ val prCheckPropOverrides =
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         )
         put("hapiTestSimpleFees", "fees.simpleFeesEnabled=true")
+        put(
+            "hapiTestClpr",
+            "clpr.clprEnabled=true,clpr.devModeEnabled=true,clpr.connectionFrequency=100",
+        )
+        put("hapiTestMultiNetwork", "clpr.clprEnabled=false")
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -194,7 +203,12 @@ tasks {
 
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            // the following line adds access to pregenerated keys in `src/test/resources`.
+            .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -210,7 +224,49 @@ tasks.register<Test>("testSubprocess") {
             // cases
             else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
+            else if (ciTagExpression.contains("CLPR")) "(CLPR)"
+            else if (ciTagExpression.contains("MULTINETWORK")) "(MULTINETWORK)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
+        )
+    }
+
+    val commandLineIncludePatterns =
+        try {
+            @Suppress("UNCHECKED_CAST")
+            filter::class.java.getMethod("getCommandLineIncludePatterns").invoke(filter)
+                as Set<String>
+        } catch (_: Exception) {
+            emptySet()
+        }
+    val filterPatterns = filter.includePatterns + commandLineIncludePatterns
+    val taskArgs = gradle.startParameter.taskRequests.flatMap { it.args }
+    fun containsClprPattern(value: String?) = value?.contains("CLPR", ignoreCase = true) == true
+    val testFiltersClpr = filterPatterns.any(::containsClprPattern)
+    val testsArgWithEquals =
+        taskArgs
+            .filter { it.startsWith("--tests=") }
+            .map { it.substringAfter("=") }
+            .any(::containsClprPattern)
+    val testsArgWithSeparatePattern =
+        taskArgs.withIndex().any { (index, arg) ->
+            arg == "--tests" && containsClprPattern(taskArgs.getOrNull(index + 1))
+        }
+    val testSingleProperty =
+        taskArgs
+            .filter { it.startsWith("-Dtest.single=") }
+            .map { it.substringAfter("=") }
+            .any(::containsClprPattern)
+    val commandLineRequestsClpr =
+        testsArgWithEquals || testsArgWithSeparatePattern || testSingleProperty
+    val shouldEnableClpr =
+        ciTagExpression.contains("CLPR") || testFiltersClpr || commandLineRequestsClpr
+    if (shouldEnableClpr) {
+        systemProperty("clpr.clprEnabled", "true")
+        systemProperty("clpr.devModeEnabled", "true")
+        systemProperty("clpr.publicizeNetworkAddresses", "true")
+        systemProperty(
+            "clpr.connectionFrequency",
+            System.getProperty("clpr.connectionFrequency", "5000"),
         )
     }
 

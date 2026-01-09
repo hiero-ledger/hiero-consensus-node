@@ -14,9 +14,15 @@ import java.util.Objects;
  */
 public class RemoveNodeOp extends UtilOp {
     private final NodeSelector selector;
+    private final boolean refreshOverrides;
 
     public RemoveNodeOp(@NonNull final NodeSelector selector) {
+        this(selector, true);
+    }
+
+    public RemoveNodeOp(@NonNull final NodeSelector selector, final boolean refreshOverrides) {
         this.selector = Objects.requireNonNull(selector);
+        this.refreshOverrides = refreshOverrides;
     }
 
     @Override
@@ -24,7 +30,11 @@ public class RemoveNodeOp extends UtilOp {
         if (!(spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork)) {
             throw new IllegalStateException("Can only remove nodes from a SubProcessNetwork");
         }
-        subProcessNetwork.removeNode(selector);
+        if (refreshOverrides) {
+            subProcessNetwork.removeNode(selector);
+        } else {
+            subProcessNetwork.removeNodeWithoutOverrides(selector);
+        }
         return false;
     }
 }

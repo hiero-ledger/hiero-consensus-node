@@ -94,6 +94,7 @@ public class EmbeddedNetwork extends AbstractNetwork {
                                         0,
                                         0,
                                         0,
+                                        0,
                                         workingDirFor(0, workingDir),
                                         getConfigShard(),
                                         getConfigRealm())))
@@ -217,7 +218,7 @@ public class EmbeddedNetwork extends AbstractNetwork {
     private void startVia(
             @NonNull final Consumer<EmbeddedHedera> start, @NonNull final Map<String, String> bootstrapOverrides) {
         // Initialize the working directory
-        embeddedNode.initWorkingDir(configTxt);
+        embeddedNode.initWorkingDir(configTxt, grpcServiceEndpoints());
         if (!bootstrapOverrides.isEmpty()) {
             updateBootstrapProperties(embeddedNode.getExternalPath(APPLICATION_PROPERTIES), bootstrapOverrides);
         }
@@ -228,6 +229,12 @@ public class EmbeddedNetwork extends AbstractNetwork {
             case CONCURRENT -> new ConcurrentEmbeddedHedera(embeddedNode);
         };
         start.accept(embeddedHedera);
+    }
+
+    private Map<Long, com.hedera.hapi.node.base.ServiceEndpoint> grpcServiceEndpoints() {
+        return Map.of(
+                embeddedNode.getNodeId(),
+                HapiPropertySource.asServiceEndpoint(embeddedNode.getHost() + ":" + embeddedNode.getGrpcPort()));
     }
 
     @Override
