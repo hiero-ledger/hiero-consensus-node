@@ -3,8 +3,8 @@ package com.swirlds.platform.gossip.permits;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.metrics.api.IntegerGauge;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -30,12 +30,12 @@ public class SyncPermitMetrics {
     /**
      * Constructor.
      *
-     * @param platformContext the platform context
+     * @param metrics metrics for the system
      */
-    public SyncPermitMetrics(@NonNull final PlatformContext platformContext) {
-        permitsAvailable = platformContext.getMetrics().getOrCreate(PERMITS_AVAILABLE_CONFIG);
-        revokedPermits = platformContext.getMetrics().getOrCreate(REVOKED_PERMITS_CONFIG);
-        utilizedPermits = platformContext.getMetrics().getOrCreate(UTILIZED_PERMITS_CONFIG);
+    public SyncPermitMetrics(@NonNull final Metrics metrics) {
+        permitsAvailable = metrics.getOrCreate(PERMITS_AVAILABLE_CONFIG);
+        revokedPermits = metrics.getOrCreate(REVOKED_PERMITS_CONFIG);
+        utilizedPermits = metrics.getOrCreate(UTILIZED_PERMITS_CONFIG);
     }
 
     /**
