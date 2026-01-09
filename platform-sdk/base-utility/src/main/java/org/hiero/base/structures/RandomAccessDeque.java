@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.base;
+package org.hiero.base.structures;
 
 import java.util.Arrays;
 import java.util.Collections;

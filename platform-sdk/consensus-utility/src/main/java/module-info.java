@@ -8,7 +8,6 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.event;
     exports org.hiero.consensus.exceptions;
     exports org.hiero.consensus.orphan;
-    exports org.hiero.consensus.structures;
     exports org.hiero.consensus.transaction;
     exports org.hiero.consensus.round;
 

@@ -8,6 +8,7 @@ module org.hiero.base.utility {
     exports org.hiero.base.io.streams;
     exports org.hiero.base.iterator;
     exports org.hiero.base.utility;
+    exports org.hiero.base.structures;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;

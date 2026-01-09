@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.structures;
+package org.hiero.base.structures;
 
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.RandomAccessDeque;
 
 /**
  * Stores a sequence of elements ordered by their index. The index for an element never changes, even when elements are
