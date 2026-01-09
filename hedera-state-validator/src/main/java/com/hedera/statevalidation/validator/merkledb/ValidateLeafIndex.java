@@ -47,14 +47,14 @@ public class ValidateLeafIndex {
             return;
         }
 
-        log.debug(vds.getHashStoreDisk().getFilesSizeStatistics());
+        log.debug(vds.getHashChunkStore().getFilesSizeStatistics());
 
         long firstLeafPath = vds.getFirstLeafPath();
         long lastLeafPath = vds.getLastLeafPath();
 
         var leafNodeIndex = vds.getPathToDiskLocationLeafNodes();
         var objectKeyToPath = vds.getKeyToPath();
-        var leafStore = new MemoryIndexDiskKeyValueStoreAccessor(vds.getPathToKeyValue());
+        var leafStore = new MemoryIndexDiskKeyValueStoreAccessor(vds.getKeyValueStore());
         var leafDfc = leafStore.getFileCollection();
 
         assertEquals(lastLeafPath, leafNodeIndex.size() - 1);

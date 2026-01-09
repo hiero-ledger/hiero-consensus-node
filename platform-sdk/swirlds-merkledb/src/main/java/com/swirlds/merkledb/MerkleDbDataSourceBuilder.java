@@ -120,13 +120,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder, Self
         try {
             final Path dataSourceDir = newDataSourceDir(label);
             return new MerkleDbDataSource(
-                    dataSourceDir,
-                    configuration,
-                    label,
-                    initialCapacity,
-                    hashesRamToDiskThreshold,
-                    compactionEnabled,
-                    offlineUse);
+                    dataSourceDir, configuration, label, initialCapacity, compactionEnabled, offlineUse);
         } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
         }
