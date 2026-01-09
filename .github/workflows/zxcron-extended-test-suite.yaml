@@ -208,9 +208,9 @@ jobs:
 
             COMMIT_COUNT=$(echo "$COMMIT_LIST" | wc -l)
             COMMIT_LIST_STR=""
-            if [[ -z "${COMMIT_LIST}" ]]; then
+            if [[ -z "${COMMIT_LIST//[[:space:]]/}" ]]; then
               # should never get here.
-              echo "::error file=zxcron-extended-test-suite.yaml,line=210::No commits associated with this release; exiting."
+              echo "::error file=zxcron-extended-test-suite.yaml,line=213::No commits associated with this release; exiting."
               exit 1
             elif [[ $COMMIT_COUNT -gt 15 ]]; then
               COMMIT_LIST_STR="Please refer to the workflow summary for the full list of associated commits."
