@@ -142,7 +142,6 @@ open module com.hedera.node.test.clients {
     requires org.junit.jupiter.api;
     requires org.junit.platform.commons;
     requires org.junit.platform.launcher;
-    requires org.mockito.junit.jupiter;
     requires org.opentest4j;
     requires org.testcontainers;
     requires org.yaml.snakeyaml;
