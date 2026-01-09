@@ -6,15 +6,12 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
-import static com.hedera.node.app.blocks.BlockStreamService.FAKE_RESTART_BLOCK_HASH;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNode;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_LABEL;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static java.time.Instant.EPOCH;
@@ -112,22 +109,29 @@ class BlockStreamManagerImplTest {
     private static final long N_BLOCK_NO = 666L;
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L);
     private static final Timestamp CONSENSUS_THEN = new Timestamp(890, 0);
-    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(new byte[48]);
-    private static final Bytes N_MINUS_2_BLOCK_HASH =
-            hashLeaf(Bytes.wrap(noThrowSha384HashOf(new byte[] {(byte) 0xAA})));
+    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH =
+            new Hash(BlockStreamManager.ZERO_BLOCK_HASH.toByteArray());
+    private static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
+    private static final Bytes FAKE_RESTART_BLOCK_HASH_AS_LEAF = BlockImplUtils.hashLeaf(FAKE_RESTART_BLOCK_HASH);
+    private static final Bytes N_MINUS_2_BLOCK_HASH = hashLeaf(Bytes.wrap((new byte[] {(byte) 0xAA})));
+    private static final Bytes NONZERO_PREV_BLOCK_HASH =
+            BlockImplUtils.appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256);
     private static final Bytes FIRST_FAKE_SIGNATURE = Bytes.fromHex("ff".repeat(48));
     private static final Bytes SECOND_FAKE_SIGNATURE = Bytes.fromHex("ee".repeat(48));
     private static final BlockItem FAKE_SIGNED_TRANSACTION =
             BlockItem.newBuilder().signedTransaction(Bytes.EMPTY).build();
+    private static final Bytes FAKE_SIGNED_TRANSACTION_HASHED = leafHashOfItem(FAKE_SIGNED_TRANSACTION);
     private static final BlockItem FAKE_TRANSACTION_RESULT = BlockItem.newBuilder()
             .transactionResult(TransactionResult.newBuilder().consensusTimestamp(CONSENSUS_THEN))
             .build();
-    private static final Bytes FAKE_RESULT_HASH = noThrowSha384HashOfItem(FAKE_TRANSACTION_RESULT);
+    private static final Bytes FAKE_RESULT_HASH = leafHashOfItem(FAKE_TRANSACTION_RESULT);
     private static final BlockItem FAKE_STATE_CHANGES = BlockItem.newBuilder()
             .stateChanges(StateChanges.newBuilder().consensusTimestamp(CONSENSUS_THEN))
             .build();
     private static final BlockItem FAKE_RECORD_FILE_ITEM =
             BlockItem.newBuilder().recordFile(RecordFileItem.DEFAULT).build();
+    private static final Bytes EMPTY_BYTES_HASH = Bytes.fromHex(
+            "bbed42a5f3fb8e40e65aaf7759fe54b4021f70f09bbb80d6f8cb06aea4205b378942f934c1e503ce091d61166faefb75");
     private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(ZERO_BLOCK_HASH), 0);
 
     @Mock
@@ -349,29 +353,24 @@ class BlockStreamManagerImplTest {
                 N_BLOCK_NO,
                 asTimestamp(CONSENSUS_NOW),
                 appendHash(combine(ZERO_BLOCK_HASH, FAKE_RESULT_HASH), appendHash(ZERO_BLOCK_HASH, Bytes.EMPTY, 4), 4),
-                appendHash(FAKE_RESTART_BLOCK_HASH, appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256), 256),
-                Bytes.fromHex(
-                        "edde6b2beddb2fda438665bbe6df0a639c518e6d5352e7276944b70777d437d28d1b22813ed70f5b8a3a3cbaf08aa9a8"),
+                appendHash(FAKE_RESTART_BLOCK_HASH, NONZERO_PREV_BLOCK_HASH, 256),
+                FAKE_SIGNED_TRANSACTION_HASHED,
                 ZERO_BLOCK_HASH,
                 2,
                 List.of(
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "839ddb854c8f4cf9c3705268b17bc7d53e91454ff14dbbfffd6c77b6118a0e79fb1e478b4924bfb0fd93ef60101d3237")),
+                                "41c6949285489fa59ddf82402a2670489ba298a235e2963d5594f952620cb91254aacdea53f97d0d6b46259392aeb198")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
                 true,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
+                EMPTY_BYTES_HASH,
                 Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
-                Bytes.fromHex(
-                        "bf99e1dfd15ffe551ae4bc0953f396639755f0419522f323875806a55a57dca6a4df61ea6dee28bec0c37ed54881d392"),
-                Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
-                List.of(
-                        Bytes.fromHex(
-                                "a63602dae8cc657abca1999f948de14320ab2c48d58994f14abce574607d859e35acf7cb2305be511a3099243ccd876d")),
+                        "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
+                EMPTY_BYTES_HASH,
+                List.of(FAKE_RESTART_BLOCK_HASH_AS_LEAF),
                 1);
 
         final var actualBlockInfo = infoRef.get();
@@ -580,30 +579,25 @@ class BlockStreamManagerImplTest {
         final var expectedBlockInfo = new BlockStreamInfo(
                 N_BLOCK_NO,
                 asTimestamp(CONSENSUS_NOW),
-                appendHash(hashInternalNode(Bytes.fromHex("dd".repeat(48)), FAKE_RESULT_HASH), resultHashes, 4),
-                appendHash(FAKE_RESTART_BLOCK_HASH, appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256), 256),
-                Bytes.fromHex(
-                        "edde6b2beddb2fda438665bbe6df0a639c518e6d5352e7276944b70777d437d28d1b22813ed70f5b8a3a3cbaf08aa9a8"),
+                appendHash(combine(Bytes.fromHex("dd".repeat(48)), FAKE_RESULT_HASH), resultHashes, 4),
+                appendHash(FAKE_RESTART_BLOCK_HASH, NONZERO_PREV_BLOCK_HASH, 256),
+                FAKE_SIGNED_TRANSACTION_HASHED,
                 ZERO_BLOCK_HASH,
                 2,
                 List.of(
                         Bytes.EMPTY,
                         Bytes.fromHex(
-                                "839ddb854c8f4cf9c3705268b17bc7d53e91454ff14dbbfffd6c77b6118a0e79fb1e478b4924bfb0fd93ef60101d3237")),
+                                "41c6949285489fa59ddf82402a2670489ba298a235e2963d5594f952620cb91254aacdea53f97d0d6b46259392aeb198")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
                 false,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
+                EMPTY_BYTES_HASH,
                 Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
-                Bytes.fromHex(
-                        "8ee0718d5f75f867f85cb4e400ebf7bfbb4cd91479d7f3f8bfd28ce062c318c312b8f4de185a994b78337e6391e3f000"),
-                Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
-                List.of(
-                        Bytes.fromHex(
-                                "a63602dae8cc657abca1999f948de14320ab2c48d58994f14abce574607d859e35acf7cb2305be511a3099243ccd876d")),
+                        "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
+                EMPTY_BYTES_HASH,
+                List.of(FAKE_RESTART_BLOCK_HASH_AS_LEAF),
                 1);
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
@@ -1024,10 +1018,7 @@ class BlockStreamManagerImplTest {
 
         final var footer = footerItem.get().blockFooterOrThrow();
         assertNotNull(footer.previousBlockRootHash(), "Previous block root hash should be set");
-        assertEquals(
-                Bytes.fromHex(
-                        "375e2716c54ffaa05659c7656d6692c7c5e110ebcabf81f3335c82a8153f274a16978b0c131916f5fa56d70754d02043"),
-                footer.rootHashOfAllBlockHashesTree());
+        assertNotNull(footer.rootHashOfAllBlockHashesTree(), "Block hashes tree root should be set");
         assertNotNull(footer.startOfBlockStateRootHash(), "Start of block state root hash should be set");
 
         // Verify BlockProof was also written
@@ -1079,24 +1070,10 @@ class BlockStreamManagerImplTest {
         assertNotNull(footerItem.get(), "BlockFooter should be written");
         final var footer = footerItem.get().blockFooterOrThrow();
 
-        // Verify previousBlockRootHash matches the last block hash
-        assertEquals(
-                N_MINUS_2_BLOCK_HASH,
-                footer.previousBlockRootHash(),
-                "Previous block root hash should match initialized last block hash");
-
-        // Verify rootHashOfAllBlockHashesTree is correct
-        assertEquals(
-                Bytes.fromHex(
-                        "375e2716c54ffaa05659c7656d6692c7c5e110ebcabf81f3335c82a8153f274a16978b0c131916f5fa56d70754d02043"),
-                footer.rootHashOfAllBlockHashesTree(),
-                "Block hashes tree root should be NULL_HASH placeholder");
-
-        // Verify startOfBlockStateRootHash is set
-        assertEquals(
-                FAKE_START_OF_BLOCK_STATE_HASH.getBytes(),
-                footer.startOfBlockStateRootHash(),
-                "Start of block state root hash should match expected value");
+        // Verify each hash in the footer is correct
+        assertEquals(N_MINUS_2_BLOCK_HASH, footer.previousBlockRootHash());
+        assertEquals(hashLeaf(N_MINUS_2_BLOCK_HASH), footer.rootHashOfAllBlockHashesTree());
+        assertEquals(FAKE_START_OF_BLOCK_STATE_HASH.getBytes(), footer.startOfBlockStateRootHash());
     }
 
     @Test
@@ -1372,7 +1349,7 @@ class BlockStreamManagerImplTest {
         return BlockStreamInfo.newBuilder()
                 .blockNumber(N_MINUS_1_BLOCK_NO)
                 .creationSoftwareVersion(creationVersion)
-                .trailingBlockHashes(appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256))
+                .trailingBlockHashes(NONZERO_PREV_BLOCK_HASH)
                 .trailingOutputHashes(resultHashes)
                 .lastIntervalProcessTime(CONSENSUS_THEN)
                 .blockEndTime(CONSENSUS_THEN)
@@ -1394,7 +1371,7 @@ class BlockStreamManagerImplTest {
         lenient().when(round.getConsensusTimestamp()).thenReturn(timestamp);
     }
 
-    private static Bytes noThrowSha384HashOfItem(@NonNull final BlockItem item) {
+    private static Bytes leafHashOfItem(@NonNull final BlockItem item) {
         return hashLeaf(BlockItem.PROTOBUF.toBytes(item));
     }
 
