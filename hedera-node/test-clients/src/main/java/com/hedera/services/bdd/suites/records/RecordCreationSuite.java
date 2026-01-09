@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_H
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
-import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includingDeduction;
@@ -92,19 +91,20 @@ public class RecordCreationSuite {
                         .hasKnownStatus(INSUFFICIENT_TX_FEE)
                         .logged()),
                 sourcing(() -> getAccountBalance(TO_ACCOUNT)
-                        .hasTinyBars(approxChangeFromSnapshot(BEFORE, +feeObs.get().nodeFee(),5))
+                        .hasTinyBars(
+                                approxChangeFromSnapshot(BEFORE, +feeObs.get().nodeFee(), 5))
                         .logged()),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_FUNDING)
                         .hasTinyBars(approxChangeFromSnapshot(
-                                FUNDING_BEFORE, (long) (+feeObs.get().networkFee() * 0.8 + 1),5))
+                                FUNDING_BEFORE, (long) (+feeObs.get().networkFee() * 0.8 + 1), 5))
                         .logged()),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_STAKING_REWARDS)
                         .hasTinyBars(approxChangeFromSnapshot(
-                                STAKING_REWARD1, (long) (+feeObs.get().networkFee() * 0.1),5))
+                                STAKING_REWARD1, (long) (+feeObs.get().networkFee() * 0.1), 5))
                         .logged()),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_NODE_REWARD)
                         .hasTinyBars(approxChangeFromSnapshot(
-                                NODE_REWARD1, (long) (+feeObs.get().networkFee() * 0.1),5))
+                                NODE_REWARD1, (long) (+feeObs.get().networkFee() * 0.1), 5))
                         .logged()),
                 sourcing(() -> getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
@@ -186,18 +186,19 @@ public class RecordCreationSuite {
                         .payingWith(GENESIS)),
                 sleepFor(SLEEP_MS),
                 sourcing(() -> getAccountBalance(TO_ACCOUNT)
-                        .hasTinyBars(approxChangeFromSnapshot(BEFORE, -feeObs.get().networkFee(),5))),
+                        .hasTinyBars(
+                                approxChangeFromSnapshot(BEFORE, -feeObs.get().networkFee(), 5))),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_FUNDING)
                         .hasTinyBars(approxChangeFromSnapshot(
-                                FUNDING_BEFORE, (long) (+feeObs.get().networkFee() * 0.8 + 1),5))
+                                FUNDING_BEFORE, (long) (+feeObs.get().networkFee() * 0.8 + 1), 5))
                         .logged()),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_STAKING_REWARDS)
                         .hasTinyBars(approxChangeFromSnapshot(
-                                STAKING_REWARD1, (long) (+feeObs.get().networkFee() * 0.1),5))
+                                STAKING_REWARD1, (long) (+feeObs.get().networkFee() * 0.1), 5))
                         .logged()),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_NODE_REWARD)
                         .hasTinyBars(approxChangeFromSnapshot(
-                                NODE_REWARD1, (long) (+feeObs.get().networkFee() * 0.1),5))
+                                NODE_REWARD1, (long) (+feeObs.get().networkFee() * 0.1), 5))
                         .logged()),
                 sourcing(() -> getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
