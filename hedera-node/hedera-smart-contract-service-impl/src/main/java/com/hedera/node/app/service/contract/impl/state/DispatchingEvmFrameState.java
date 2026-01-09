@@ -522,7 +522,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             if (account.smartContract()) {
                 return new ProxyEvmContract(account.accountId(), this, codeFactory);
             } else {
-                return new ProxyEvmAccount(account.accountId(), this, codeFactory);
+                return new ProxyEvmAccount(account, this);
             }
         }
         final var token = nativeOperations.getToken(entityIdFactory().newTokenId(number));
