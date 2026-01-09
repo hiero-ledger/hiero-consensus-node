@@ -598,7 +598,9 @@ public class AutoAccountCreationSuite {
                 cryptoTransfer(
                                 moving(100, A_TOKEN).between(TOKEN_TREASURY, CIVILIAN),
                                 moving(100, B_TOKEN).between(TOKEN_TREASURY, CIVILIAN))
-                        .via("transferAToSponsor"),
+                        .via("transferAToSponsor")
+                        .signedBy(TOKEN_TREASURY)
+                        .payingWith(TOKEN_TREASURY),
                 getAccountInfo(TOKEN_TREASURY)
                         .hasToken(relationshipWith(B_TOKEN).balance(900)),
                 getAccountInfo(TOKEN_TREASURY)
@@ -1107,6 +1109,7 @@ public class AutoAccountCreationSuite {
                                 tinyBarsFromToWithAlias(SPONSOR, VALID_ALIAS, ONE_HUNDRED_HBARS),
                                 tinyBarsFromToWithAlias(CIVILIAN, VALID_ALIAS, ONE_HBAR))
                         .via(TRANSFER_TXN)
+                        .signedBy(PAYER)
                         .payingWith(PAYER),
                 getReceipt(TRANSFER_TXN).andAnyChildReceipts().hasChildAutoAccountCreations(1),
                 getTxnRecord(TRANSFER_TXN).andAllChildRecords().logged(),
