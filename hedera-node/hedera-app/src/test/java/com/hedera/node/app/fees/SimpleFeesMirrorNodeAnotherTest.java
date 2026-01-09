@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
@@ -56,7 +57,14 @@ public class SimpleFeesMirrorNodeAnotherTest {
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .build())
                 .build();
-        final Transaction txn = Transaction.newBuilder().body(body).build();
+
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(body)
+                .build();
+
+        final Transaction txn = Transaction.newBuilder()
+                .signedTransactionBytes(signedTx)
+                .build();
 
         final FeeResult result = calc.calculate(txn, Intrinsic);
         assertThat(result.service).isEqualTo(9999000000L);
@@ -246,7 +254,12 @@ public class SimpleFeesMirrorNodeAnotherTest {
                         .message(Bytes.wrap("some message"))
                         .build())
                 .build();
-        final Transaction txn = Transaction.newBuilder().body(body).build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(body)
+                .build();
+
+        final Transaction txn = Transaction.newBuilder()
+                .signedTransactionBytes(signedTx).build();
 
         final FeeResult result = calc.calculate(txn, Intrinsic);
         assertThat(result.service).isEqualTo(0L);
