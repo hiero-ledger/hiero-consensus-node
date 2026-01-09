@@ -109,7 +109,6 @@ class PlatformWiringTests {
                 .withEventSignatureValidator(mock(EventSignatureValidator.class))
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
                 .withOrphanBuffer(mock(OrphanBuffer.class))
-                .withConsensusEngine(mock(ConsensusEngine.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))
                 .withTransactionPrehandler(mock(TransactionPrehandler.class))
