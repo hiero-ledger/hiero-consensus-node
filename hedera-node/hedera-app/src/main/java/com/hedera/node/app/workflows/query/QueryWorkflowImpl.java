@@ -31,6 +31,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -241,7 +242,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                         .calculateQueryFee(
                                                 context.query(),
                                                 context,
-                                                ServiceFeeCalculator.EstimationMode.Intrinsic);
+                                                EstimationMode.Stateful);
                                 queryFees = tinycentsToTinybars(
                                         queryFeeTinyCents.total(),
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
@@ -302,7 +303,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     if (shouldUseSimpleFees(context)) {
                         final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
                                 .calculateQueryFee(
-                                        context.query(), context, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                                        context.query(), context, EstimationMode.Stateful);
                         queryFees = tinycentsToTinybars(
                                 queryFeeTinyCents.total(),
                                 fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
