@@ -577,7 +577,7 @@ public class AutoAccountCreationSuite {
         // The expected (network + service) fee for two token transfers to a receiver
         // with no auto-creation; note it is approximate because the fee will vary slightly
         // with the size of the sig map, depending on the lengths of the public key prefixes required
-        final long approxTransferFee = 1162008L;
+        final long approxTransferFee = 1212008L;
 
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
@@ -1099,7 +1099,7 @@ public class AutoAccountCreationSuite {
     @HapiTest
     final Stream<DynamicTest> autoAccountCreationsHappyPath() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
+        final long transferFee = 190000L;
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
                 cryptoCreate(CIVILIAN).balance(10 * ONE_HBAR),
@@ -1109,7 +1109,7 @@ public class AutoAccountCreationSuite {
                                 tinyBarsFromToWithAlias(SPONSOR, VALID_ALIAS, ONE_HUNDRED_HBARS),
                                 tinyBarsFromToWithAlias(CIVILIAN, VALID_ALIAS, ONE_HBAR))
                         .via(TRANSFER_TXN)
-                        .signedBy(PAYER)
+                        .signedBy(PAYER, SPONSOR, CIVILIAN)
                         .payingWith(PAYER),
                 getReceipt(TRANSFER_TXN).andAnyChildReceipts().hasChildAutoAccountCreations(1),
                 getTxnRecord(TRANSFER_TXN).andAllChildRecords().logged(),
