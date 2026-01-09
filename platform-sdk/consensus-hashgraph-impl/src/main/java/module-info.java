@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
+
 module org.hiero.consensus.hashgraph.impl {
     exports org.hiero.consensus.hashgraph.impl.consensus;
     exports org.hiero.consensus.hashgraph.impl.linking;
@@ -23,6 +26,6 @@ module org.hiero.consensus.hashgraph.impl {
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;
 
-    provides org.hiero.consensus.hashgraph.HashgraphModule with
-            org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
+    provides HashgraphModule with
+            DefaultHashgraphModule;
 }
