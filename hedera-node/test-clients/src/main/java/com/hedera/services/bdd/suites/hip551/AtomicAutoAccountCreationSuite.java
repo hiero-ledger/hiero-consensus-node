@@ -504,7 +504,7 @@ class AtomicAutoAccountCreationSuite {
         // The expected (network + service) fee for two token transfers to a receiver
         // with no auto-creation; note it is approximate because the fee will vary slightly
         // with the size of the sig map, depending on the lengths of the public key prefixes required
-        final long approxTransferFee = 1162100L;
+        final long approxTransferFee = 1218136L;
 
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
@@ -908,7 +908,7 @@ class AtomicAutoAccountCreationSuite {
     @HapiTest
     final Stream<DynamicTest> autoAccountCreationsHappyPath() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
+        final long transferFee = 191045L;
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
                 cryptoCreate(CIVILIAN).balance(10 * ONE_HBAR),
