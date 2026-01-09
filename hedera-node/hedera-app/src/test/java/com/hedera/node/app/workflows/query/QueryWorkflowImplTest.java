@@ -62,6 +62,7 @@ import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -1151,7 +1152,7 @@ class QueryWorkflowImplTest extends AppTestBase {
 
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
             given(simpleFeeCalculator
-                            .calculateQueryFee(query, queryContext, ServiceFeeCalculator.EstimationMode.Intrinsic)
+                            .calculateQueryFee(query, queryContext, EstimationMode.Stateful)
                             .total())
                     .willReturn(100000L);
 
@@ -1163,7 +1164,7 @@ class QueryWorkflowImplTest extends AppTestBase {
 
             // Then: Should use simple fee calculator
             verify(simpleFeeCalculator)
-                    .calculateQueryFee(eq(query), any(), ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    .calculateQueryFee(eq(query), any(), EstimationMode.Stateful);
         }
 
         @Test
