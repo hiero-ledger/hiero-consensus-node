@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import static com.hedera.node.app.fees.SimpleFeesMirrorNodeAnotherTest.makeStandaloneFeeCalculator;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.Transaction;
-import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
@@ -30,8 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-public class SimpleFeesMirrorNodeTest {
+public class SimpleFeesRecordStreamTest {
 
     @Test
     void basicStreaming() throws IOException {
@@ -94,7 +88,7 @@ public class SimpleFeesMirrorNodeTest {
                 .state(state)
                 .appProperties(overrides)
                 .build();
-        final SimpleFeesMirrorNodeAnotherTest.StandaloneFeeCalculator calc = makeStandaloneFeeCalculator(state, properties);
+        final StandaloneFeeCalculator calc = new StandaloneFeeCalculatorImpl(state, properties);
 
 
         final String records_dir = "../../temp/";
@@ -203,31 +197,4 @@ public class SimpleFeesMirrorNodeTest {
 
         return false;
     }
-
-    @Test
-    void doIt() {
-        // set the overrides
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
-        final State state = FakeGenesisState.make(overrides);
-        // config props
-        final var properties = TransactionExecutors.Properties.newBuilder()
-                .state(state)
-                .appProperties(overrides)
-                .build();
-
-        // make the calculator
-        final SimpleFeesMirrorNodeAnotherTest.StandaloneFeeCalculator calc = makeStandaloneFeeCalculator(state, properties);
-
-        System.out.println("got the calculator " + calc);
-        final var body = TransactionBody.newBuilder()
-                .tokenCreation(TokenCreateTransactionBody.newBuilder()
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .build())
-                .build();
-        final Transaction txn = Transaction.newBuilder().body(body).build();
-        final var result = calc.calculate(txn, ServiceFeeCalculator.EstimationMode.Intrinsic);
-        System.out.println("result is " + result);
-        assertThat(result.service).isEqualTo(9999000000L);
-    }
-
 }

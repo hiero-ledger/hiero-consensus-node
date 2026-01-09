@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode.Intrinsic;
-import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.base.Transaction;
@@ -13,11 +13,8 @@ import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
-import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 
@@ -27,19 +24,11 @@ import java.util.Map;
 
 import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-public class SimpleFeesMirrorNodeAnotherTest {
-
-    public interface StandaloneFeeCalculator {
-        FeeResult calculate(Transaction transaction, ServiceFeeCalculator.EstimationMode mode);
-    }
+public class SimpleFeesMirrorNodeAPITest {
 
     @Test
-    public void testTokenCreateIntrinsic() {
+    public void testTokenCreateIntrinsic() throws ParseException {
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
         // bring up the full state
         final State state = FakeGenesisState.make(overrides);
@@ -49,7 +38,7 @@ public class SimpleFeesMirrorNodeAnotherTest {
                 .build();
 
         // make the calculator
-        final StandaloneFeeCalculator calc = makeStandaloneFeeCalculator(state, properties);
+        final StandaloneFeeCalculator calc = new StandaloneFeeCalculatorImpl(state, properties);
 
         // make an example transaction
         final var body = TransactionBody.newBuilder()
@@ -59,11 +48,11 @@ public class SimpleFeesMirrorNodeAnotherTest {
                 .build();
 
         final var signedTx = SignedTransaction.newBuilder()
-                .bodyBytes(body)
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
                 .build();
 
         final Transaction txn = Transaction.newBuilder()
-                .signedTransactionBytes(signedTx)
+                .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
                 .build();
 
         final FeeResult result = calc.calculate(txn, Intrinsic);
@@ -230,7 +219,7 @@ public class SimpleFeesMirrorNodeAnotherTest {
     }
 
     @Test
-    public void testSubmitMessageIntrinsicPasses() {
+    public void testSubmitMessageIntrinsicPasses() throws ParseException {
         // configure overrides
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
         // bring up the full state
@@ -242,7 +231,7 @@ public class SimpleFeesMirrorNodeAnotherTest {
                 .build();
 
         // make the calculator
-        final StandaloneFeeCalculator calc = makeStandaloneFeeCalculator(state, properties);
+        final StandaloneFeeCalculator calc = new StandaloneFeeCalculatorImpl(state, properties);
 
         // make an example transaction
         final long topicEntityNum = 1L;
@@ -254,83 +243,62 @@ public class SimpleFeesMirrorNodeAnotherTest {
                         .message(Bytes.wrap("some message"))
                         .build())
                 .build();
+        final var sigMap = SignatureMap.newBuilder().build();
         final var signedTx = SignedTransaction.newBuilder()
-                .bodyBytes(body)
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .sigMap(sigMap)
                 .build();
 
         final Transaction txn = Transaction.newBuilder()
-                .signedTransactionBytes(signedTx).build();
+                .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx)).build();
 
         final FeeResult result = calc.calculate(txn, Intrinsic);
         assertThat(result.service).isEqualTo(0L);
         System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
-    //    @Test
-    //    public void testSubmitMessageStatefulFails() {
-    //        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes",
-    // "101","fees.simpleFeesEnabled","true");
-    //        // bring up the full state
-    //        final State state = FakeGenesisState.make(overrides);
-    //
-    //        final var properties =  TransactionExecutors.Properties.newBuilder()
-    //                .state(state)
-    //                .appProperties(overrides)
-    //                .build();
-    //
-    //        // make the calculator
-    //        final FeeCalculator calc =  makeMirrorNodeCalculator(state,properties);
-    //
-    //        // make an example transaction
-    //        final long topicEntityNum = 1L;
-    //        final TopicID topicId =
-    //                TopicID.newBuilder().topicNum(topicEntityNum).build();
-    //
-    //        final var body = TransactionBody.newBuilder()
-    //                .consensusSubmitMessage(ConsensusSubmitMessageTransactionBody.newBuilder()
-    //                        .topicID(topicId)
-    //                        .message(Bytes.wrap("some message"))
-    //                        .build())
-    //                .build();
-    //        final Transaction txn = Transaction.newBuilder().body(body).build();
-    //
-    //        assertThrows(NullPointerException.class, () -> calc.calculate(txn,
-    // ServiceFeeCalculator.EstimationMode.Stateful));
-    //    }
-    public static StandaloneFeeCalculator makeStandaloneFeeCalculator(State state, TransactionExecutors.Properties properties) {
-        return new TestFeeCalcImpl(state, properties);
-    }
+    @Test
+    public void testSignedTransaction() throws ParseException {
+        // configure overrides
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
+        // bring up the full state
+        final State state = FakeGenesisState.make(overrides);
 
-    @ExtendWith(MockitoExtension.class)
-    public static class TestFeeCalcImpl implements StandaloneFeeCalculator {
-        @Mock
-        private FeeContextImpl feeContext;
+        final var properties = TransactionExecutors.Properties.newBuilder()
+                .state(state)
+                .appProperties(overrides)
+                .build();
 
-        private final SimpleFeeCalculator calc;
+        // make the calculator
+        final StandaloneFeeCalculator calc = new StandaloneFeeCalculatorImpl(state, properties);
 
-        public TestFeeCalcImpl(State state, TransactionExecutors.Properties properties) {
-            MockitoAnnotations.openMocks(this);
-            //            when(feeContext.numTxnSignatures()).thenReturn(5);
-            // make an entity id factory
-            final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
-            // load a new executor component
-            final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(
-                    properties.state(),
-                    properties.appProperties(),
-                    properties.customTracerBinding(),
-                    properties.customOps(),
-                    entityIdFactory);
-            // init
-            executor.stateNetworkInfo().initFrom(properties.state());
-            executor.initializer().initialize(properties.state(), StreamMode.BOTH);
+        // make an example transaction
+        final long topicEntityNum = 1L;
+        final TopicID topicId = TopicID.newBuilder().topicNum(topicEntityNum).build();
 
-            this.calc = executor.feeManager().getSimpleFeeCalculator();
-        }
+        final var body = TransactionBody.newBuilder()
+                .consensusSubmitMessage(ConsensusSubmitMessageTransactionBody.newBuilder()
+                        .topicID(topicId)
+                        .message(Bytes.wrap("some message"))
+                        .build())
+                .build();
+        final SignaturePair pair = SignaturePair.newBuilder()
+                .pubKeyPrefix(Bytes.wrap("prefix"))
+                .ed25519(Bytes.wrap("signature"))
+                .build();
+        final var sigMap = SignatureMap.newBuilder()
+                .sigPair(pair)
+                .build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .sigMap(sigMap)
+                .build();
 
-        @Override
-        public FeeResult calculate(Transaction transaction, ServiceFeeCalculator.EstimationMode mode) {
-            var body = transaction.bodyOrThrow();
-            return calc.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
-        }
+        final Transaction txn = Transaction.newBuilder()
+                .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx)).build();
+
+        final FeeResult result = calc.calculate(txn, Intrinsic);
+        assertThat(result.service).isEqualTo(0L);
+        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 }
