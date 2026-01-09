@@ -4,6 +4,7 @@ package com.hedera.node.app.fees;
 import static com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode.Intrinsic;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenType;
@@ -12,6 +13,8 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
+import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
@@ -271,7 +274,27 @@ public class SimpleFeesMirrorNodeAPITest {
         final var TINY_CENTS = 100_000_000L;
         assertThat(result.total()).isEqualTo(1 * TINY_CENTS); //0.01 USD
     }
+    @Test
+    public void testCreateTopicWithCustomFees() throws ParseException {
+        final StandaloneFeeCalculator calc = setupCalculator();
+        final var customFees = List.of(FixedCustomFee.newBuilder()
+                .fixedFee(FixedFee.newBuilder().amount(1).build())
+                .feeCollectorAccountId(AccountID.DEFAULT)
+                .build());
 
+        final var body = TransactionBody.newBuilder()
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.newBuilder()
+                        .memo("sometopicname")
+                        .customFees(customFees)
+                        .build()
+                ).build();
+        final Transaction txn = Transaction.newBuilder().body(body).build();
+        //0.01000
+        final FeeResult result = calc.calculate(txn, Intrinsic);
+        final var TINY_CENTS = 100_000_000L;
+        assertThat(result.total()).isEqualTo(200 * TINY_CENTS); //2.00 USD
+        System.out.println("JSON is \n" + feeResultToJson(result));
+    }
     @Test
     public void testSubmitMessage() throws ParseException {
         final StandaloneFeeCalculator calc = setupCalculator();
@@ -288,8 +311,8 @@ public class SimpleFeesMirrorNodeAPITest {
         final Transaction txn = Transaction.newBuilder().body(body).build();
         final FeeResult result = calc.calculate(txn, Intrinsic);
         assertThat(result.service).isEqualTo(0L);
+        assertThat(result.total()).isEqualTo(1_000_000L); // add in the node + network fee
     }
-
     @Test
     public void testSignedTransaction() throws ParseException {
         final StandaloneFeeCalculator calc = setupCalculator();
