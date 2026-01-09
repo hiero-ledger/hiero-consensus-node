@@ -3,16 +3,12 @@ package com.hedera.node.app;
 
 import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
@@ -69,27 +65,6 @@ final class ServicesMainTest {
             assertThatThrownBy(() -> ServicesMain.main(args)).isInstanceOf(ConfigurationException.class);
             systemExitUtilsMockedStatic.verify(() -> SystemExitUtils.exitSystem(NODE_ADDRESS_MISMATCH));
         }
-    }
-
-    @Test
-    void delegatesSoftwareVersion() {
-        ServicesMain.initGlobal(hedera, metrics);
-        final var mockVersion = SemanticVersion.DEFAULT;
-        given(hedera.getSemanticVersion()).willReturn(mockVersion);
-        assertSame(mockVersion, subject.getSemanticVersion());
-    }
-
-    @Test
-    void noopsAsExpected() {
-        ServicesMain.initGlobal(hedera, metrics);
-        assertDoesNotThrow(subject::run);
-    }
-
-    @Test
-    void createsNewStateRoot() {
-        ServicesMain.initGlobal(hedera, metrics);
-        given(hedera.newStateRoot()).willReturn(state);
-        assertSame(state, subject.newStateRoot());
     }
 
     private void withBadCommandLineArgs() {
