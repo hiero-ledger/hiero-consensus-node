@@ -88,13 +88,8 @@ public class VirtualTestBase {
     protected static final long LEFT_LEFT_PATH = 3;
     protected static final long LEFT_RIGHT_PATH = 4;
     protected static final long RIGHT_LEFT_PATH = 5;
+    protected static final long RIGHT_RIGHT_PATH = 6;
 
-    private VirtualHashRecord rootInternal;
-    private VirtualHashRecord leftInternal;
-    private VirtualHashRecord rightInternal;
-    private VirtualHashRecord leftLeftInternal;
-    private VirtualHashRecord leftRightInternal;
-    private VirtualHashRecord rightLeftInternal;
     private VirtualLeafBytes<TestValue> lastALeaf;
     private VirtualLeafBytes<TestValue> lastBLeaf;
     private VirtualLeafBytes<TestValue> lastCLeaf;
@@ -114,43 +109,6 @@ public class VirtualTestBase {
         registry.registerConstructable(new ClassConstructorPair(TestInternal.class, TestInternal::new));
         registry.registerConstructable(new ClassConstructorPair(TestLeaf.class, TestLeaf::new));
         registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-    }
-
-    protected VirtualHashRecord rootInternal() {
-        rootInternal = rootInternal == null ? new VirtualHashRecord(ROOT_PATH, hash(ROOT_PATH)) : copy(rootInternal);
-        return rootInternal;
-    }
-
-    protected VirtualHashRecord leftInternal() {
-        leftInternal = leftInternal == null ? new VirtualHashRecord(LEFT_PATH, hash(LEFT_PATH)) : copy(leftInternal);
-        return leftInternal;
-    }
-
-    protected VirtualHashRecord rightInternal() {
-        rightInternal =
-                rightInternal == null ? new VirtualHashRecord(RIGHT_PATH, hash(RIGHT_PATH)) : copy(rightInternal);
-        return rightInternal;
-    }
-
-    protected VirtualHashRecord leftLeftInternal() {
-        leftLeftInternal = leftLeftInternal == null
-                ? new VirtualHashRecord(LEFT_LEFT_PATH, hash(LEFT_LEFT_PATH))
-                : copy(leftLeftInternal);
-        return leftLeftInternal;
-    }
-
-    protected VirtualHashRecord leftRightInternal() {
-        leftRightInternal = leftRightInternal == null
-                ? new VirtualHashRecord(LEFT_RIGHT_PATH, hash(LEFT_RIGHT_PATH))
-                : copy(leftRightInternal);
-        return leftRightInternal;
-    }
-
-    protected VirtualHashRecord rightLeftInternal() {
-        rightLeftInternal = rightLeftInternal == null
-                ? new VirtualHashRecord(RIGHT_LEFT_PATH, hash(RIGHT_LEFT_PATH))
-                : copy(rightLeftInternal);
-        return rightLeftInternal;
     }
 
     protected VirtualLeafBytes<TestValue> leaf(long path, long key, long value) {
@@ -257,10 +215,6 @@ public class VirtualTestBase {
 
     private VirtualLeafBytes<TestValue> copyWithPath(VirtualLeafBytes<TestValue> leaf, TestValue value, long path) {
         return new VirtualLeafBytes<>(path, leaf.keyBytes(), value, TestValueCodec.INSTANCE);
-    }
-
-    private VirtualHashRecord copy(VirtualHashRecord rec) {
-        return new VirtualHashRecord(rec.path(), rec.hash());
     }
 
     public static final class TestInternal extends PartialBinaryMerkleInternal implements MerkleInternal {

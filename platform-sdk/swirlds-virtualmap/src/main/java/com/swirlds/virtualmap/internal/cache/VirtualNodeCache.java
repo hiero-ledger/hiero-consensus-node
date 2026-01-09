@@ -924,45 +924,9 @@ public final class VirtualNodeCache implements FastCopyable {
     // until the cache is sealed. The query APIs can be called from any thread.
     // --------------------------------------------------------------------------------------------
 
-    /**
-     * For testing purposes only. Equivalent to putHash(node.getPath(), node.getHash())
-     * @param node the node to get path and hash from
-     */
-    public void putHash(final VirtualHashRecord node) {
-        requireNonNull(node);
-        putHash(node.path(), node.hash());
-    }
-
-    /**
-     * Stores a {@link Hash} into this version of the cache for a given path. This can be called
-     * during {@code handleTransaction}, or during hashing, but must not be called once the
-     * instance has been sealed (after hashing).
-     * <p>
-     * This method may be called concurrently from multiple threads, but <strong>MUST NOT</strong>
-     * be called concurrently for the same path! It is NOT fully threadsafe!
-     *
-     * @param path
-     * 		Node path
-     * @param hash
-     * 		Node hash. Null values are accepted, although observed in tests only. In real scenarios
-     * 	    this method is only called by VirtualHasher (via VirtualMap), and it never puts
-     * 	    null hashes to the cache
-     * @throws MutabilityException
-     * 		if the instance has been sealed
-     */
-    public void putHash(final long path, @NonNull final Hash hash) {
-        throwIfInternalsImmutable();
-        // Hashes can be put to the cache only when a copy is being hashed. The next copy, if
-        // any, must have been already hashed by this moment
-        throwIfNextMutable();
-        assert path > 0;
-        assert hash != null;
-        updateHashAtPath(hash, path);
-    }
-
     public void putHashChunk(@NonNull final VirtualHashChunk chunk) {
+        requireNonNull(chunk);
         throwIfInternalsImmutable();
-        assert chunk != null;
         updateHashChunk(chunk);
     }
 
@@ -983,7 +947,9 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     /**
-     * Looks for an internal node record in this cache instance, and all older ones, based on the
+     * For testing purposes only.
+     *
+     * <p>Looks for an internal node record in this cache instance, and all older ones, based on the
      * given {@code path}. If the record exists, it is returned. If the nodes was deleted,
      * {@link #DELETED_LEAF_RECORD} is returned. If there is no mutation record at all, null is returned,
      * indicating a cache miss, and that the caller should consult on-disk storage.
@@ -998,7 +964,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * @throws ReferenceCountException
      * 		if the cache has already been released
      */
-    public Hash lookupHashByPath(final long path) {
+    Hash lookupHashByPath(final long path) {
         assert path > 0;
 
         // The only way to be released is to be in a condition where the data source has
@@ -1206,19 +1172,6 @@ public final class VirtualNodeCache implements FastCopyable {
             estimatedLeafPathsSizeInBytes.addAndGet(sizeDelta);
             return mutation;
         });
-    }
-
-    private void updateHashAtPath(final Hash hash, final long path) {
-        final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
-        final Mutation<Long, VirtualHashChunk> m = idToDirtyHashChunkIndex.get(hashChunkId);
-        if ((m != null) && (m.version == fastCopyVersion.get())) {
-            m.value.setHashAtPath(path, hash);
-            return;
-        }
-        final VirtualHashChunk chunk = preloadHashChunk(path);
-        assert chunk.getChunkId() == hashChunkId;
-        chunk.setHashAtPath(path, hash);
-        updateHashChunk(chunk);
     }
 
     public VirtualHashChunk preloadHashChunk(final long path) {

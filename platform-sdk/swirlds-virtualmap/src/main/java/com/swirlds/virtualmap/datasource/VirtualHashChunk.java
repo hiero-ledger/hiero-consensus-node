@@ -305,6 +305,24 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         return Math.max(prevRankPathChunkId, maxPathChunkId);
     }
 
+    /**
+     * Returns if this chunk contains a hash for the given path.
+     *
+     * <p>Note that chunks may store hashes at different paths. For example, if a chunk is
+     * at the root path, its height is 3, and a request to store a hash for path 5 is issued,
+     * the hash will actually be stored at path 11. For such a chunk, this method returns true
+     * for path 11, but false for path 5.
+     */
+    public boolean containsPath(final long path) {
+        return containsPath(path, this.path, height);
+    }
+
+    public static boolean containsPath(final long path, final long chunkPath, final int chunkHeight) {
+        final int chunkSize = getChunkSize(chunkHeight);
+        final long firstPathAtLastLevel = Path.getLeftGrandChildPath(chunkPath, chunkHeight);
+        return (path >= firstPathAtLastLevel) && (path <= firstPathAtLastLevel + chunkSize);
+    }
+
     public long getPath(final int pathIndex) {
         return getPathInChunk(pathIndex, path, height);
     }
