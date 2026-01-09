@@ -43,6 +43,15 @@
   ],
   "services": [
     {
+      "name": "Contract",
+      "schedule": [
+        {
+          "name": "HookStore",
+          "baseFee": 49000000
+        }
+      ]
+    },
+    {
       "name": "Crypto",
       "schedule": [
         {
