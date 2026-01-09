@@ -387,7 +387,7 @@ class OnDiskTest extends MerkleTestBase {
                 .numberPendingAirdrops(55)
                 .numberHooksInUse(56)
                 .firstHookId(57)
-                .numberLambdaStorageSlots(59)
+                .numberEvmHookStorageSlots(59)
                 .build();
         kvWs.put(kvOriginalKey, kvOriginalValue);
         kvWs.commit();

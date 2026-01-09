@@ -5,13 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.hooks.LambdaMappingEntries;
-import com.hedera.hapi.node.hooks.LambdaMappingEntry;
-import com.hedera.hapi.node.hooks.LambdaSStoreTransactionBody;
-import com.hedera.hapi.node.hooks.LambdaStorageSlot;
-import com.hedera.hapi.node.hooks.LambdaStorageUpdate;
+import com.hedera.hapi.node.hooks.EvmHookMappingEntries;
+import com.hedera.hapi.node.hooks.EvmHookMappingEntry;
+import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
+import com.hedera.hapi.node.hooks.EvmHookStorageUpdate;
+import com.hedera.hapi.node.hooks.HookStoreTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler;
+import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -23,7 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-public class LambdaSStoreHandlerTest {
+public class HookStoreHandlerTest {
     @Mock
     private FeeContext feeContext;
 
@@ -36,27 +36,27 @@ public class LambdaSStoreHandlerTest {
     @Test
     void returnsFixedCostOnUnexpectedException() {
         // Invalid hook id, will throw
-        final var op = LambdaSStoreTransactionBody.newBuilder()
+        final var op = HookStoreTransactionBody.newBuilder()
                 .storageUpdates(List.of(
-                        LambdaStorageUpdate.newBuilder()
-                                .storageSlot(LambdaStorageSlot.DEFAULT)
+                        EvmHookStorageUpdate.newBuilder()
+                                .storageSlot(EvmHookStorageSlot.DEFAULT)
                                 .build(),
-                        LambdaStorageUpdate.newBuilder()
-                                .mappingEntries(LambdaMappingEntries.newBuilder()
-                                        .entries(List.of(LambdaMappingEntry.DEFAULT, LambdaMappingEntry.DEFAULT))
+                        EvmHookStorageUpdate.newBuilder()
+                                .mappingEntries(EvmHookMappingEntries.newBuilder()
+                                        .entries(List.of(EvmHookMappingEntry.DEFAULT, EvmHookMappingEntry.DEFAULT))
                                         .build())
                                 .build()))
                 .build();
-        final var tx = TransactionBody.newBuilder().lambdaSstore(op).build();
+        final var tx = TransactionBody.newBuilder().hookStore(op).build();
         given(feeContext.body()).willReturn(tx);
         given(feeContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
         given(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).willReturn(feeCalculator);
-        given(feeCalculator.addGas(3 * LambdaSStoreHandler.NONZERO_INTO_NONZERO_GAS_COST))
+        given(feeCalculator.addGas(3 * HookStoreHandler.NONZERO_INTO_NONZERO_GAS_COST))
                 .willReturn(feeCalculator);
         final var fees = new Fees(1, 2, 3);
         given(feeCalculator.calculate()).willReturn(fees);
 
-        final var subject = new LambdaSStoreHandler();
+        final var subject = new HookStoreHandler();
 
         assertSame(fees, subject.calculateFees(feeContext));
     }

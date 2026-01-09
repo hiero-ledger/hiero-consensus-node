@@ -10,7 +10,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_LIVE_H
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
-import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
@@ -94,7 +94,7 @@ import org.apache.logging.log4j.Logger;
 public final class IngestChecker {
     private static final Logger logger = LogManager.getLogger(IngestChecker.class);
     private static final Set<HederaFunctionality> FEATURE_FLAGGED_TRANSACTIONS = EnumSet.of(
-            LAMBDA_S_STORE,
+            HOOK_STORE,
             CRYPTO_CREATE,
             CONTRACT_CREATE,
             CRYPTO_UPDATE,
@@ -390,7 +390,7 @@ public final class IngestChecker {
         if (FEATURE_FLAGGED_TRANSACTIONS.contains(function)) {
             if (!hooksConfig.hooksEnabled()) {
                 switch (function) {
-                    case LAMBDA_S_STORE -> throw new PreCheckException(HOOKS_NOT_ENABLED);
+                    case HOOK_STORE -> throw new PreCheckException(HOOKS_NOT_ENABLED);
                     case CRYPTO_CREATE ->
                         validateTruePreCheck(
                                 txInfo.txBody()
