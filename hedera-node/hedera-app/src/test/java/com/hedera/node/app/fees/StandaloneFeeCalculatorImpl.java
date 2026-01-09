@@ -14,7 +14,7 @@ import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.node.config.types.StreamMode;
@@ -51,8 +51,7 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
     }
 
     @Override
-    public FeeResult calculate(Transaction transaction, ServiceFeeCalculator.EstimationMode mode)
-            throws ParseException {
+    public FeeResult calculate(Transaction transaction, EstimationMode mode) throws ParseException {
         final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(
                 BufferedData.wrap(transaction.signedTransactionBytes().toByteArray()));
         if (signedTransaction.hasSigMap()) {
@@ -62,12 +61,11 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
             feeContext.setNumTxnSignatures(0);
         }
         if (transaction.hasBody()) {
-            return calc.calculateTxFee(
-                    transaction.bodyOrThrow(), feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+            return calc.calculateTxFee(transaction.bodyOrThrow(), feeContext, EstimationMode.Intrinsic);
         }
         final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(
                 BufferedData.wrap(signedTransaction.bodyBytes().toByteArray()));
-        return calc.calculateTxFee(transactionBody, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+        return calc.calculateTxFee(transactionBody, feeContext, EstimationMode.Intrinsic);
     }
 
     private class TestFeeContextImpl implements FeeContext {
