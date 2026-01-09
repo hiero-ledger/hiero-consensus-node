@@ -1930,4 +1930,9 @@ enum ResponseCodeEnum {
      * Any attempt to transfer to a fee collection account is not permitted.
      */
     TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED = 527;
+
+    /**
+     * The number of hook invocations exceeds the maximum allowed per transaction.
+     */
+    TOO_MANY_HOOK_INVOCATIONS = 528;
 }
