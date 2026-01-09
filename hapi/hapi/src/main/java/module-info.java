@@ -114,6 +114,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.services.auxiliary.hints.legacy;
     exports com.hedera.hapi.services.auxiliary.history.legacy;
     exports com.hedera.hapi.node.state.token.legacy;
+    exports com.hedera.hapi.node.tss;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;

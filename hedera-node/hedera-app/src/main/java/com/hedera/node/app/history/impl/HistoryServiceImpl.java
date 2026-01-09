@@ -67,6 +67,11 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     @Override
+    public Bytes historyProofVerificationKey() {
+        return Bytes.wrap(component.library().wrapsVerificationKey());
+    }
+
+    @Override
     public void reconcile(
             @NonNull final ActiveRosters activeRosters,
             @Nullable final Bytes metadata,

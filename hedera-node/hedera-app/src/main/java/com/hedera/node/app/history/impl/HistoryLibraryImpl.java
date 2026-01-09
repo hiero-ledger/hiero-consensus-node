@@ -5,6 +5,7 @@ import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPh
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R1;
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R2;
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R3;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
@@ -12,6 +13,8 @@ import com.hedera.cryptography.wraps.Proof;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.node.app.history.HistoryLibrary;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.SplittableRandom;
 
@@ -21,6 +24,11 @@ import java.util.SplittableRandom;
 public class HistoryLibraryImpl implements HistoryLibrary {
     public static final SplittableRandom RANDOM = new SplittableRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
+
+    @Override
+    public byte[] wrapsVerificationKey() {
+        return "(FUTURE) Use real proof verification key when library exposes it".getBytes(UTF_8);
+    }
 
     @Override
     public SigningAndVerifyingSchnorrKeys newSchnorrKeyPair() {

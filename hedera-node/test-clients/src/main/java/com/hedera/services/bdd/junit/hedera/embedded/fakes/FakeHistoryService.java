@@ -84,4 +84,9 @@ public class FakeHistoryService implements HistoryService {
     public void onFinished(@NonNull WritableHistoryStore historyStore, @NonNull HistoryProofConstruction construction) {
         delegate.onFinished(historyStore, construction);
     }
+
+    @Override
+    public Bytes historyProofVerificationKey() {
+        return delegate.historyProofVerificationKey();
+    }
 }

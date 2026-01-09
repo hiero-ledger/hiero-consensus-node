@@ -1848,6 +1848,11 @@ enum HederaFunctionality {
      * (Internal-only) Dispatch a hook action.
      */
     HookDispatch = 110;
+
+    /**
+     * (Internal-only) Publish a new ledger id and chain-of-trust key.
+     */
+    LedgerIdPublication = 111;
 }
 
 /**

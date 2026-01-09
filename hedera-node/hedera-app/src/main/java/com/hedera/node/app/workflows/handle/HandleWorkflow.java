@@ -29,6 +29,7 @@ import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -42,6 +43,7 @@ import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
+import com.hedera.node.app.history.schemas.V059HistorySchema;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -295,10 +297,11 @@ public class HandleWorkflow {
             }
         }
 
+        final var setLedgerId = new AtomicBoolean(false);
         // If only producing a record stream, no reason to do any TSS work (since it is
         // output exclusively in a block stream)
         if (streamMode != RECORDS) {
-            configureTssCallbacks(state);
+            configureTssCallbacks(state, setLedgerId);
             try {
                 reconcileTssState(state, round.getConsensusTimestamp());
             } catch (Exception e) {
@@ -322,6 +325,18 @@ public class HandleWorkflow {
                     nodeRewardManager.maybeRewardActiveNodes(state, lastUsedConsTime.plusNanos(4), systemTransactions);
         } catch (Exception e) {
             logger.error("{} Failed to reward active nodes", ALERT_MESSAGE, e);
+        }
+        if (setLedgerId.get()) {
+            try {
+                final var ledgerId = requireNonNull(state.getReadableStates(HistoryService.NAME)
+                                .<ProtoBytes>getSingleton(V059HistorySchema.LEDGER_ID_STATE_ID)
+                                .get())
+                        .value();
+                systemTransactions.externalizeLedgerId(state, lastUsedConsTime.plusNanos(6), ledgerId, Bytes.wrap(historyService.getServiceName()));
+                transactionsDispatched = true;
+            } catch (Exception e) {
+                logger.error("{} Failed to externalize ledger id", ALERT_MESSAGE, e);
+            }
         }
         try {
             final int receiptEntriesBatchSize = configProvider
@@ -916,8 +931,9 @@ public class HandleWorkflow {
      * Configure the TSS callbacks for the given state.
      *
      * @param state the latest state
+     * @param setLedgerId the flag to set the ledger id
      */
-    private void configureTssCallbacks(@NonNull final State state) {
+    private void configureTssCallbacks(@NonNull final State state, @NonNull final AtomicBoolean setLedgerId) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
             hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
@@ -949,6 +965,7 @@ public class HandleWorkflow {
                         final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
                         historyStore.setLedgerId(ledgerId);
                         logger.info("Set ledger id to '{}'", ledgerId);
+                        setLedgerId.set(true);
                         return;
                     }
                     // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time

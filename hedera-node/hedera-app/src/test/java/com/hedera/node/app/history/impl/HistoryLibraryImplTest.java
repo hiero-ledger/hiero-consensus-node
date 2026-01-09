@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,6 +30,11 @@ class HistoryLibraryImplTest {
     private HistoryLibrary library;
 
     private final HistoryLibraryImpl subject = new HistoryLibraryImpl();
+
+    @Test
+    void wrapsVerificationKeyIsTbd() {
+        assertArrayEquals("(FUTURE) Use real proof verification key when library exposes it".getBytes(UTF_8), subject.wrapsVerificationKey());
+    }
 
     @Test
     void computeHashBuildsCanonicalAddressBookAndWrapsResult() {

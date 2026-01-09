@@ -28,7 +28,7 @@ public interface HistoryLibrary {
     /**
      * A placeholder metadata for the genesis WRAPS proof.
      */
-    byte[] GENESIS_WRAPS_METADATA = new byte[1280];
+    byte[] GENESIS_WRAPS_METADATA = new byte[1288];
 
     /**
      * An address book for use in the history library.
@@ -125,6 +125,11 @@ public interface HistoryLibrary {
                 .toArray(byte[][]::new);
         return Bytes.wrap(library.hashAddressBook(new AddressBook(targetWeights, proofKeysArray, sortedNodeIds)));
     }
+
+    /**
+     * The verification key for WRAPS proofs.
+     */
+    byte[] wrapsVerificationKey();
 
     /**
      * Returns a new Schnorr key pair.

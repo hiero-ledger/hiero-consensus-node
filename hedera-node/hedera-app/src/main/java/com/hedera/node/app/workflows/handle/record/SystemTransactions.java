@@ -42,6 +42,7 @@ import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -129,7 +130,6 @@ public class SystemTransactions {
     private static final int DEFAULT_GENESIS_WEIGHT = 500;
     private static final long FIRST_RESERVED_SYSTEM_CONTRACT = 350L;
     private static final long LAST_RESERVED_SYSTEM_CONTRACT = 399L;
-    private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
     private static final long FIRST_MISC_ACCOUNT_NUM = 900L;
     private static final List<ServiceEndpoint> UNKNOWN_HAPI_ENDPOINT =
@@ -473,6 +473,30 @@ public class SystemTransactions {
                         .transfers(transfers)
                         .build())
                 .build());
+    }
+
+    /**
+     * Externalizes the ledger id and associated verification key for recursive chain-of-trust proofs.
+     *
+     * @param state the current state
+     * @param now the consensus time for the synthetic transaction
+     * @param ledgerId the new ledger id
+     * @param historyProofVerificationKey the verification key for the new ledger id
+     */
+    public void externalizeLedgerId(
+            @NonNull final State state,
+            @NonNull final Instant now,
+            @NonNull final Bytes ledgerId,
+            @NonNull final Bytes historyProofVerificationKey) {
+        requireNonNull(ledgerId);
+        requireNonNull(historyProofVerificationKey);
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+        systemContext.dispatchAdmin(b -> b.memo("Ledger id")
+                .ledgerIdPublication(LedgerIdPublicationTransactionBody.newBuilder()
+                        .ledgerId(ledgerId)
+                        .historyProofVerificationKey(historyProofVerificationKey)
+                        .build()));
     }
 
     /**
