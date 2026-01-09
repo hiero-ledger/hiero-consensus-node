@@ -11,6 +11,7 @@ import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -59,7 +60,7 @@ class CryptoUpdateFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
 
             // Then: Only base fee + network/node fees, no key extras
             assertThat(result).isNotNull();
@@ -83,7 +84,7 @@ class CryptoUpdateFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
 
             // Then: Base fee + 0 extra keys (includedCount=1 in config, so 1 key is free)
             // Node = 100000 + 1000000 (1 extra signature) = 1100000
@@ -116,7 +117,7 @@ class CryptoUpdateFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
 
             // Then: Base fee (1.2M) + 2 extra keys beyond includedCount=1 (2 * 100M = 200M)
             // service = 1200000 + 200000000 = 201200000
@@ -153,7 +154,7 @@ class CryptoUpdateFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
 
             // Then: Base fee + 2 extra keys (3 total, 1 included)
             // service = 1200000 + 200000000 = 201200000
@@ -206,7 +207,7 @@ class CryptoUpdateFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
 
             // Then: Base fee (1.2M) + overage for 4 extra keys (4 * 100000000 = 400000000)
             assertThat(result.service).isEqualTo(401200000L);
@@ -252,7 +253,7 @@ class CryptoUpdateFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
 
             // Then: Only base fee, no overage
             assertThat(result.service).isEqualTo(1200000L);
@@ -276,7 +277,7 @@ class CryptoUpdateFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
 
             // Then: Base fee (1.2M) + 2 hooks (20M) = 21.2M
             assertThat(result.service).isEqualTo(21200000L);
@@ -298,7 +299,7 @@ class CryptoUpdateFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
 
             // Then: Base fee (1.2M) + 2 hook deletions (20M) = 21.2M
             assertThat(result.service).isEqualTo(21200000L);
@@ -322,7 +323,7 @@ class CryptoUpdateFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
 
             // Then: Base fee (1.2M) + 1 creation + 1 deletion (20M) = 21.2M
             assertThat(result.service).isEqualTo(21200000L);
