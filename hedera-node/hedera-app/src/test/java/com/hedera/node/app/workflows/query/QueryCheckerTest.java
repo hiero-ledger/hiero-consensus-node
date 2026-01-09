@@ -43,6 +43,7 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -572,7 +573,7 @@ class QueryCheckerTest extends AppTestBase {
         when(feeManager.getSimpleFeeCalculator()).thenReturn(simpleFeeCalculator);
         when(feeManager.getExchangeRateManager()).thenReturn(exchangeRateManager);
         when(exchangeRateManager.activeRate(any())).thenReturn(activeRate);
-        when(simpleFeeCalculator.calculateTxFee(any(), any(), ServiceFeeCalculator.EstimationMode.Intrinsic))
+        when(simpleFeeCalculator.calculateTxFee(any(), any(), EstimationMode.Stateful))
                 .thenReturn(transferFeeResult);
 
         // Spy QueryChecker to mock feeResultToFees
@@ -585,7 +586,7 @@ class QueryCheckerTest extends AppTestBase {
         // Assert
         assertThat(result).isEqualTo(expectedFee);
         verify(feeManager).getSimpleFeeCalculator();
-        verify(simpleFeeCalculator).calculateTxFee(any(), any(), ServiceFeeCalculator.EstimationMode.Intrinsic);
+        verify(simpleFeeCalculator).calculateTxFee(any(), any(), EstimationMode.Stateful);
     }
 
     private TransactionInfo createPaymentInfo(final AccountID payerID, final AccountAmount... transfers) {

@@ -10,7 +10,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -119,7 +119,7 @@ public class TransactionDispatcher {
             final var handler = getHandler(feeContext.body());
             if (shouldUseSimpleFees(feeContext)) {
                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                        .calculateTxFee(feeContext.body(), feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                        .calculateTxFee(feeContext.body(), feeContext, EstimationMode.Stateful);
                 return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
             }
             return handler.calculateFees(feeContext);
