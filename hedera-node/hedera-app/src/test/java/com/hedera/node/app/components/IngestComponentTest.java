@@ -30,6 +30,7 @@ import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
+import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
@@ -170,6 +171,7 @@ class IngestComponentTest {
                 .historyService(historyService)
                 .tokenServiceImpl(new TokenServiceImpl(appContext))
                 .consensusServiceImpl(new ConsensusServiceImpl())
+                .addressBookService(new AddressBookServiceImpl())
                 .build();
 
         state.addService(RecordCacheService.NAME, Map.of(TRANSACTION_RECEIPTS_STATE_ID, new ArrayDeque<String>()));

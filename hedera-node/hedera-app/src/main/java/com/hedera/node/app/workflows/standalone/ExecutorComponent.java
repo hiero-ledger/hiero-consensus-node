@@ -8,6 +8,7 @@ import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -77,6 +78,9 @@ public interface ExecutorComponent {
 
         @BindsInstance
         Builder historyService(HistoryService historyService);
+
+        @BindsInstance
+        Builder addressBookService(AddressBookServiceImpl addressBookService);
 
         @BindsInstance
         Builder configProviderImpl(ConfigProviderImpl configProvider);
