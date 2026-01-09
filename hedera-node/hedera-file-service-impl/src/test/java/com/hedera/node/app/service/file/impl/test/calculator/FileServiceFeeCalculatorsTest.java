@@ -32,6 +32,7 @@ import com.hedera.node.app.service.file.impl.calculator.FileGetInfoFeeCalculator
 import com.hedera.node.app.service.file.impl.calculator.FileUpdateFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -154,8 +155,7 @@ class FileServiceFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result =
-                feeCalculator.calculateTxFee(testCase.body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext, EstimationMode.Intrinsic);
 
         assertThat(result).isNotNull();
         assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
@@ -171,11 +171,7 @@ class FileServiceFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         fileGetInfoFeeCalculator.accumulateNodePayment(
-                query,
-                mockQueryContext,
-                feeResult,
-                createTestFeeSchedule(),
-                ServiceFeeCalculator.EstimationMode.Intrinsic);
+                query, mockQueryContext, feeResult, createTestFeeSchedule(), EstimationMode.Intrinsic);
 
         assertThat(feeResult.node).isEqualTo(0L);
         assertThat(feeResult.network).isEqualTo(0L);
@@ -200,11 +196,7 @@ class FileServiceFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         fileGetContentsFeeCalculator.accumulateNodePayment(
-                query,
-                mockQueryContext,
-                feeResult,
-                createTestFeeSchedule(),
-                ServiceFeeCalculator.EstimationMode.Intrinsic);
+                query, mockQueryContext, feeResult, createTestFeeSchedule(), EstimationMode.Intrinsic);
 
         assertThat(feeResult.node).isEqualTo(0L);
         assertThat(feeResult.network).isEqualTo(0L);

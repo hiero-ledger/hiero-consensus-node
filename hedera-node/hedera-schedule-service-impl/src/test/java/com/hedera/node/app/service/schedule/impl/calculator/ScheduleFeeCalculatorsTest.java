@@ -22,6 +22,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -201,8 +202,7 @@ class ScheduleFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result =
-                feeCalculator.calculateTxFee(testCase.body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext, EstimationMode.Intrinsic);
 
         assertThat(result).isNotNull();
         assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
@@ -218,11 +218,7 @@ class ScheduleFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         queryFeeCalculator.accumulateNodePayment(
-                query,
-                mockQueryContext,
-                feeResult,
-                createTestFeeSchedule(),
-                ServiceFeeCalculator.EstimationMode.Intrinsic);
+                query, mockQueryContext, feeResult, createTestFeeSchedule(), EstimationMode.Intrinsic);
 
         assertThat(feeResult.node).isEqualTo(0L);
         assertThat(feeResult.network).isEqualTo(0L);

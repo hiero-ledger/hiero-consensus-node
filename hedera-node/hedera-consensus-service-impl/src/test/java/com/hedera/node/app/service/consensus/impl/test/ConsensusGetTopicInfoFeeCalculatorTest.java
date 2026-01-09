@@ -11,7 +11,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusGetTopicInfoQuery;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusGetTopicInfoFeeCalculator;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import java.util.List;
@@ -47,8 +47,7 @@ public class ConsensusGetTopicInfoFeeCalculatorTest {
     void calculateFee() {
         final var op = ConsensusGetTopicInfoQuery.newBuilder().build();
         final var query = Query.newBuilder().consensusGetTopicInfo(op).build();
-        final var result =
-                feeCalculator.calculateQueryFee(query, queryContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+        final var result = feeCalculator.calculateQueryFee(query, queryContext, EstimationMode.Intrinsic);
 
         assertThat(result).isEqualTo(GET_INFO_BASE_FEE);
     }
