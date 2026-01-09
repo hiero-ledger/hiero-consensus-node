@@ -19,7 +19,11 @@ import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+
 import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,7 +33,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 public class SimpleFeesMirrorNodeAnotherTest {
 
-    public interface FeeCalculator {
+    public interface StandaloneFeeCalculator {
         FeeResult calculate(Transaction transaction, ServiceFeeCalculator.EstimationMode mode);
     }
 
@@ -44,7 +48,7 @@ public class SimpleFeesMirrorNodeAnotherTest {
                 .build();
 
         // make the calculator
-        final FeeCalculator calc = makeMirrorNodeCalculator(state, properties);
+        final StandaloneFeeCalculator calc = makeStandaloneFeeCalculator(state, properties);
 
         // make an example transaction
         final var body = TransactionBody.newBuilder()
@@ -56,6 +60,165 @@ public class SimpleFeesMirrorNodeAnotherTest {
 
         final FeeResult result = calc.calculate(txn, Intrinsic);
         assertThat(result.service).isEqualTo(9999000000L);
+        System.out.println("JSON is \n" + feeResultToJson(result));
+    }
+
+    class JsonBuilder {
+        private final List<String> output;
+        private int inset;
+
+        public JsonBuilder() {
+            this.output = new ArrayList<>();
+            this.inset = 0;
+        }
+        private void indent() {
+            this.inset += 1;
+        }
+
+
+        private String tab() {
+            var out = new StringBuilder();
+            out.append("  ".repeat(Math.max(0, this.inset)));
+            return out.toString();
+        }
+
+        @Override
+        public String toString() {
+            var out = new StringBuilder();
+            for(var line : this.output) {
+                out.append(line+"\n");
+            }
+            return out.toString();
+        }
+
+
+        private void outdent() {
+            this.inset -= 1;
+        }
+
+        public void openObject() {
+            this.output.add(this.tab()+"{");
+            this.indent();
+        }
+        public void closeObject() {
+            this.outdent();
+            this.output.add(this.tab()+"}");
+        }
+        public void keyValue(String key, String value) {
+            this.output.add(this.tab()+"\""+key+"\": \""+value+"\"");
+        }
+        public void keyValue(String key, long value) {
+            this.output.add(this.tab()+"\""+key+"\":"+value);
+        }
+
+        public void openKeyObject(String key) {
+            this.output.add(this.tab()+"\""+key+"\": {");
+            this.indent();
+        }
+        public void openKeyArray(String key) {
+            this.output.add(this.tab()+"\""+key+"\": [");
+            this.indent();
+        }
+        public void closeKeyObject() {
+            this.outdent();
+            this.output.add(this.tab()+"}");
+        }
+        public void closeKeyArray() {
+            this.outdent();
+            this.output.add(this.tab()+"]");
+        }
+
+    }
+    private String feeResultToJson(FeeResult result) {
+        System.out.println("result is " + result);
+        JsonBuilder json = new JsonBuilder();
+        json.openObject();
+
+
+        json.openKeyObject("node");
+        json.openKeyArray("extras");
+        for(FeeResult.FeeDetail detail : result.nodeDetails) {
+            json.keyValue("name",detail.name);
+            json.keyValue("count",detail.count);
+            json.keyValue("fee",detail.fee);
+        }
+        json.closeKeyArray();
+        json.keyValue("subtotal",result.node);
+        json.closeKeyObject();
+
+
+        json.openKeyObject("network");
+        json.openKeyArray("extras");
+        for(FeeResult.FeeDetail detail : result.networkDetails) {
+            json.keyValue("name",detail.name);
+            json.keyValue("count",detail.count);
+            json.keyValue("fee",detail.fee);
+        }
+        json.closeKeyArray();
+        json.keyValue("subtotal",result.network);
+        json.closeKeyObject();
+
+
+        json.openKeyObject("service");
+        json.keyValue("baseFee",result.service);
+        json.openKeyArray("extras");
+        for(FeeResult.FeeDetail detail : result.serviceDetails) {
+            json.keyValue("name",detail.name);
+            json.keyValue("count",detail.count);
+            json.keyValue("fee",detail.fee);
+        }
+        json.closeKeyArray();
+        json.closeKeyObject();
+
+
+        json.keyValue("total",result.total());
+        json.closeObject();
+        return json.toString();
+        /*
+        {
+  "network": {
+    "multiplier": 9,
+    "subtotal": 900000
+  },
+  "node": {
+    "baseFee": 100000,
+    "extras": [
+      {
+        "charged": 0,
+        "count": 150,
+        "fee_per_unit": 10000,
+        "included": 1024,
+        "name": "Bytes",
+        "subtotal": 0
+      },
+      {
+        "charged": 1,
+        "count": 2,
+        "fee_per_unit": 100000,
+        "included": 1,
+        "name": "Signatures",
+        "subtotal": 0
+      }
+    ]
+  },
+  "notes": [],
+  "service": {
+    "baseFee": 499000000,
+    "extras": [
+      {
+        "charged": 0,
+        "count": 1,
+        "fee_per_unit": 10000000,
+        "included": 1,
+        "name": "Keys",
+        "subtotal": 0
+      }
+    ]
+  },
+  "total": 500000000
+}
+
+         */
     }
 
     @Test
@@ -71,7 +234,7 @@ public class SimpleFeesMirrorNodeAnotherTest {
                 .build();
 
         // make the calculator
-        final FeeCalculator calc = makeMirrorNodeCalculator(state, properties);
+        final StandaloneFeeCalculator calc = makeStandaloneFeeCalculator(state, properties);
 
         // make an example transaction
         final long topicEntityNum = 1L;
@@ -87,6 +250,7 @@ public class SimpleFeesMirrorNodeAnotherTest {
 
         final FeeResult result = calc.calculate(txn, Intrinsic);
         assertThat(result.service).isEqualTo(0L);
+        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
     //    @Test
@@ -120,12 +284,12 @@ public class SimpleFeesMirrorNodeAnotherTest {
     //        assertThrows(NullPointerException.class, () -> calc.calculate(txn,
     // ServiceFeeCalculator.EstimationMode.Stateful));
     //    }
-    public static FeeCalculator makeMirrorNodeCalculator(State state, TransactionExecutors.Properties properties) {
+    public static StandaloneFeeCalculator makeStandaloneFeeCalculator(State state, TransactionExecutors.Properties properties) {
         return new TestFeeCalcImpl(state, properties);
     }
 
     @ExtendWith(MockitoExtension.class)
-    public static class TestFeeCalcImpl implements FeeCalculator {
+    public static class TestFeeCalcImpl implements StandaloneFeeCalculator {
         @Mock
         private FeeContextImpl feeContext;
 

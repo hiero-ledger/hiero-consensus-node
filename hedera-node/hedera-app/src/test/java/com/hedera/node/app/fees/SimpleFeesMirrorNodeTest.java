@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import static com.hedera.node.app.fees.SimpleFeesMirrorNodeAnotherTest.makeMirrorNodeCalculator;
+import static com.hedera.node.app.fees.SimpleFeesMirrorNodeAnotherTest.makeStandaloneFeeCalculator;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -94,7 +94,7 @@ public class SimpleFeesMirrorNodeTest {
                 .state(state)
                 .appProperties(overrides)
                 .build();
-        final SimpleFeesMirrorNodeAnotherTest.FeeCalculator calc = makeMirrorNodeCalculator(state, properties);
+        final SimpleFeesMirrorNodeAnotherTest.StandaloneFeeCalculator calc = makeStandaloneFeeCalculator(state, properties);
 
 
         final String records_dir = "../../temp/";
@@ -216,7 +216,7 @@ public class SimpleFeesMirrorNodeTest {
                 .build();
 
         // make the calculator
-        final SimpleFeesMirrorNodeAnotherTest.FeeCalculator calc = makeMirrorNodeCalculator(state, properties);
+        final SimpleFeesMirrorNodeAnotherTest.StandaloneFeeCalculator calc = makeStandaloneFeeCalculator(state, properties);
 
         System.out.println("got the calculator " + calc);
         final var body = TransactionBody.newBuilder()

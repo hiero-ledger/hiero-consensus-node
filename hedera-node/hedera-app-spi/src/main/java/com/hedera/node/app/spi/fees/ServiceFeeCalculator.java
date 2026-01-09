@@ -76,7 +76,7 @@ public interface ServiceFeeCalculator {
                 long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
                 if (amount > included) {
                     final long overage = amount - included;
-                    result.addServiceFee(overage, extraFee);
+                    result.addServiceFee(overage, extraFee, ref.name().name());
                 }
             }
         }

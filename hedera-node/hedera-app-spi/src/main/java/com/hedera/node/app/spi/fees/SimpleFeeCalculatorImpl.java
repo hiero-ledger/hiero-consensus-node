@@ -62,7 +62,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                 final long overage = used - ref.includedCount();
                 final long unitFee = getExtraFee(ref.name());
 
-                result.addNodeFee(overage, unitFee);
+                result.addNodeFee(overage, unitFee, ref.name().name());
             }
         }
     }
@@ -87,7 +87,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
 
         // Add node base and extras
-        result.addNodeFee(1, feeSchedule.node().baseFee());
+        result.addNodeFee(1, feeSchedule.node().baseFee(),"base");
         addNodeExtras(result, feeSchedule.node().extras(), signatures);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
@@ -140,13 +140,13 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @throws UnsupportedOperationException always
      */
     @Override
-    public long calculateQueryFee(
+    public FeeResult calculateQueryFee(
             @NonNull final Query query,
             @NonNull final QueryContext queryContext,
             ServiceFeeCalculator.EstimationMode mode) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
         queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule, mode);
-        return result.total();
+        return result;
     }
 }

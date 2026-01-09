@@ -243,7 +243,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                                 context,
                                                 ServiceFeeCalculator.EstimationMode.Intrinsic);
                                 queryFees = tinycentsToTinybars(
-                                        queryFeeTinyCents,
+                                        queryFeeTinyCents.total(),
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                             } else {
                                 queryFees = handler.computeFees(context).totalFee();
@@ -304,7 +304,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                 .calculateQueryFee(
                                         context.query(), context, ServiceFeeCalculator.EstimationMode.Intrinsic);
                         queryFees = tinycentsToTinybars(
-                                queryFeeTinyCents,
+                                queryFeeTinyCents.total(),
                                 fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                     } else {
                         queryFees = handler.computeFees(context).totalFee();

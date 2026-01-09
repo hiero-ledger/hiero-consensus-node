@@ -17,14 +17,21 @@ public class FeeResult {
     /** The network component in tinycents. */
     public long network = 0;
     /** Details about the fee, broken down by label. */
-    public List<FeeDetail> details = new ArrayList<>();
+    public List<FeeDetail> nodeDetails = new ArrayList<>();
+    public List<FeeDetail> networkDetails = new ArrayList<>();
+    public List<FeeDetail> serviceDetails = new ArrayList<>();
 
     /** Add a service fee with details.
      * @param count the number of units for this fee.
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
     public void addServiceFee(long count, long cost) {
-        details.add(new FeeDetail(count, cost));
+        serviceDetails.add(new FeeDetail(count, cost));
+        service = clampedAdd(service, count * cost);
+    }
+
+    public void addServiceFee(long count, long cost, String name) {
+        serviceDetails.add(new FeeDetail(count, cost, name));
         service = clampedAdd(service, count * cost);
     }
 
@@ -33,7 +40,11 @@ public class FeeResult {
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
     public void addNodeFee(long count, long cost) {
-        details.add(new FeeDetail(count, cost));
+        nodeDetails.add(new FeeDetail(count, cost));
+        node = clampedAdd(node, count * cost);
+    }
+    public void addNodeFee(long count, long cost, String name) {
+        nodeDetails.add(new FeeDetail(count, cost, name));
         node = clampedAdd(node, count * cost);
     }
 
@@ -41,7 +52,7 @@ public class FeeResult {
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
     public void addNetworkFee(long cost) {
-        details.add(new FeeDetail(1, cost));
+        networkDetails.add(new FeeDetail(1, cost));
         network = clampedAdd(network, cost);
     }
 
@@ -54,21 +65,32 @@ public class FeeResult {
     public static class FeeDetail {
         public long count;
         public long fee;
+        public String name;
 
         public FeeDetail(long count, long fee) {
             this.count = count;
             this.fee = fee;
+            this.name = "unnamed";
+        }
+        public FeeDetail(long count, long fee, String name) {
+            this.count = count;
+            this.fee = fee;
+            this.name = name;
         }
 
         @Override
         public String toString() {
-            return "FeeDetail{" + this.count + ", " + this.fee + "}";
+            return "FeeDetail{" + this.name + ", " + this.count + ", " + this.fee + "}";
         }
     }
 
     @Override
     public String toString() {
-        return "FeeResult{" + "fee=" + this.total() + ", details=" + details + '}';
+        return "FeeResult{" + "fee=" + this.total()
+                + ", nodeDetails=" + nodeDetails
+                + ", networkDetails=" + networkDetails
+                + ", serviceDetails=" + serviceDetails
+                + '}';
     }
 
     private static long clampedAdd(final long a, final long b) {

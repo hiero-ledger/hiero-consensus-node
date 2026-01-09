@@ -31,7 +31,8 @@ public interface SimpleFeeCalculator {
     FeeResult calculateTxFee(
             @NonNull TransactionBody txnBody, @NonNull FeeContext feeContext, ServiceFeeCalculator.EstimationMode mode);
 
-    long calculateQueryFee(
+    @NonNull
+    FeeResult calculateQueryFee(
             @NonNull Query query, @NonNull QueryContext queryContext, ServiceFeeCalculator.EstimationMode mode);
 
     long getExtraFee(Extra extra);

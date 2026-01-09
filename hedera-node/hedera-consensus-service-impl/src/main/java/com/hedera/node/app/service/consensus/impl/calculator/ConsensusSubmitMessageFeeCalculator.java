@@ -26,7 +26,7 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
             EstimationMode mode) {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.addServiceFee(1, serviceDef.baseFee(), "base");
 
         final var op = txnBody.consensusSubmitMessageOrThrow();
 
