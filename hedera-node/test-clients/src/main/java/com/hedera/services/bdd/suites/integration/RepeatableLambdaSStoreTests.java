@@ -20,8 +20,12 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewHook;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -29,6 +33,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedFee;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
@@ -40,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
@@ -48,10 +54,12 @@ import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
+import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.ContractService;
+import com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema;
 import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStoreImpl;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -63,6 +71,7 @@ import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -72,6 +81,7 @@ import com.hedera.services.bdd.spec.utilops.embedded.MutateStatesStoreOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewKVStateOp;
 import com.swirlds.base.utility.Pair;
+import com.swirlds.state.spi.ReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +89,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
@@ -112,6 +125,7 @@ public class RepeatableLambdaSStoreTests {
             LambdaMappingEntry.newBuilder().preimage(ZERO).value(A).build();
     private static final LambdaMappingEntry F_E_ENTRY =
             LambdaMappingEntry.newBuilder().key(F).value(E).build();
+    private static final Logger log = LogManager.getLogger(RepeatableLambdaSStoreTests.class);
 
     @Account
     static SpecAccount HOOK_OWNER;
@@ -401,6 +415,46 @@ public class RepeatableLambdaSStoreTests {
                         ENTITY_COUNTS_STATE_ID,
                         (EntityCounts entityCounts) ->
                                 assertEquals(currentNumStorageSlots.get() + 1, entityCounts.numLambdaStorageSlots())));
+    }
+
+    @Order(14)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> hookZeroIntoEmptySlotSStore(
+            @Contract(contract = "StorageLinkedListHook", creationGas = 5_000_000) SpecContract contract) {
+        final AtomicLong totalHookStorageSlots = new AtomicLong();
+        final Supplier<HapiSpecOperation> assertZeroStorageCounts = () -> blockingOrder(
+                viewAccount("owner", account -> assertEquals(0, account.numberLambdaStorageSlots())),
+                doingContextual(spec -> viewHook(
+                        HookId.newBuilder()
+                                .entityId(HookEntityId.newBuilder()
+                                        .accountId(toPbj(spec.registry().getAccountID("owner"))))
+                                .hookId(42L)
+                                .build(),
+                        hookState -> assertEquals(0, hookState.numStorageSlots()))));
+        return hapiTest(
+                contract.getInfo(),
+                // Create an account with a hook that puts a zero into an empty slot when invoked with calldata 0x01
+                cryptoCreate("owner").withHooks(accountAllowanceHook(42L, contract.name())),
+                // Take a snapshot of total hook storage slots before---Map.size() works since this is a FakeState
+                doingContextual(spec -> totalHookStorageSlots.set(spec.repeatableEmbeddedHederaOrThrow()
+                        .state()
+                        .getReadableStates(ContractService.NAME)
+                        .get(V065ContractSchema.LAMBDA_STORAGE_STATE_ID)
+                        .size())),
+                sourcing(assertZeroStorageCounts),
+                cryptoTransfer(movingHbar(1).between("owner", FUNDING))
+                        // The StorageLinkedListHook.allow() method puts a zero into an empty slot on
+                        // calldata 0x01, then returns true
+                        .withPreHookFor("owner", 42L, 250_000L, ByteString.copyFrom(new byte[] {0x01})),
+                sourcing(assertZeroStorageCounts),
+                // Confirm the underlying hook storage slots didn't change either
+                doingContextual(spec -> {
+                    final ReadableKVState<LambdaSlotKey, SlotValue> hookStorage = spec.repeatableEmbeddedHederaOrThrow()
+                            .state()
+                            .getReadableStates(ContractService.NAME)
+                            .get(V065ContractSchema.LAMBDA_STORAGE_STATE_ID);
+                    assertEquals(totalHookStorageSlots.get(), hookStorage.size());
+                }));
     }
 
     @Order(99)
