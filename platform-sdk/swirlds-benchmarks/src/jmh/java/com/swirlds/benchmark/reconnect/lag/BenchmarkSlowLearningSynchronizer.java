@@ -5,13 +5,12 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
+import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
-import com.swirlds.metrics.api.Metrics;
-import edu.umd.cs.findbugs.annotations.NonNull;
+import com.swirlds.virtualmap.VirtualMap;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -29,29 +28,28 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
 
     /**
      * Create a new learning synchronizer with simulated latency.
-     * @param metrics a Metrics instance for ReconnectMapStats
      */
     public BenchmarkSlowLearningSynchronizer(
             final MerkleDataInputStream in,
             final MerkleDataOutputStream out,
-            final MerkleNode root,
+            final VirtualMap newRoot,
+            final LearnerTreeView<?> view,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
             final Runnable breakConnection,
-            final ReconnectConfig reconnectConfig,
-            @NonNull final Metrics metrics) {
+            final ReconnectConfig reconnectConfig) {
         super(
                 getStaticThreadManager(),
                 in,
                 out,
-                root,
+                newRoot,
+                view,
                 breakConnection,
                 TestMerkleCryptoFactory.getInstance(),
-                reconnectConfig,
-                metrics);
+                reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;

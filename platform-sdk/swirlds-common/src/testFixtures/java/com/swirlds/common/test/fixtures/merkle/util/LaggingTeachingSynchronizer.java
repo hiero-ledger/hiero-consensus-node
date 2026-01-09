@@ -6,10 +6,10 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
+import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -27,11 +27,11 @@ public class LaggingTeachingSynchronizer extends TeachingSynchronizer {
     public LaggingTeachingSynchronizer(
             final MerkleDataInputStream in,
             final MerkleDataOutputStream out,
-            final MerkleNode root,
+            final TeacherTreeView<?> view,
             final int latencyMilliseconds,
             final Runnable breakConnection,
             final ReconnectConfig reconnectConfig) {
-        super(Time.getCurrent(), getStaticThreadManager(), in, out, root, breakConnection, reconnectConfig);
+        super(Time.getCurrent(), getStaticThreadManager(), in, out, view, breakConnection, reconnectConfig);
         this.latencyMilliseconds = latencyMilliseconds;
     }
 

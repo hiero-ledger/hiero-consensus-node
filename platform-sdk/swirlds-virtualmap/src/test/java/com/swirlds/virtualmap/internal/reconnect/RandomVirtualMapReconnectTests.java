@@ -6,8 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.common.test.fixtures.set.RandomAccessHashSet;
 import com.swirlds.common.test.fixtures.set.RandomAccessSet;
@@ -229,16 +227,12 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             }
         }
 
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final VirtualMap copy = teacherMap.copy(); // ensure teacherMap is immutable
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+        teacherMap.reserve();
+        learnerMap.reserve();
 
         // reconnect happening
-        final DummyMerkleInternal afterSyncLearnerTree =
-                MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
-
-        final DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
-        final VirtualMap afterMap = node.getChild(3);
+        final VirtualMap afterMap = MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
 
         for (final String key : removedKeys) {
             try {
@@ -257,9 +251,9 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             copiesQueue.remove().release();
         }
 
-        afterSyncLearnerTree.release();
+        afterMap.release();
+        teacherMap.release();
+        learnerMap.release();
         copy.release();
-        teacherTree.release();
-        learnerTree.release();
     }
 }

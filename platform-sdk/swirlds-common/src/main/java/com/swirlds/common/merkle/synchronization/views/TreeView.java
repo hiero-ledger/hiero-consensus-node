@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.views;
 
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 
 /**
@@ -43,15 +42,6 @@ public interface TreeView<T> extends AutoCloseable {
      * @return the class ID of the node
      */
     long getClassId(T node);
-
-    /**
-     * Convert a root of a custom tree from abstract T form into a merkle node object.
-     *
-     * @param node
-     * 		the node in question, guaranteed to only be called on the roots of trees that define custom reconnect views
-     * @return the merkle node object
-     */
-    MerkleNode getMerkleRoot(T node);
 
     /**
      * Called when reconnect has been completed and this view is no longer required to exist.

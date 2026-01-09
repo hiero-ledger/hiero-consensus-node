@@ -9,6 +9,10 @@ import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
+import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
+import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
+import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
@@ -19,6 +23,8 @@ import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.SocketException;
@@ -63,7 +69,7 @@ public class ReconnectStateLearner {
      * @param connection
      * 		the connection to use for the reconnect
      * @param currentState
-     * 		the most recent state from the learner
+     * 		the most recent state from the learner; must be a VirtualMapState
      * @param reconnectSocketTimeout
      * 		the amount of time that should be used for the socket timeout
      * @param statistics
@@ -183,6 +189,10 @@ public class ReconnectStateLearner {
      */
     @NonNull
     private ReservedSignedState reconnect() throws InterruptedException {
+        if (!(currentState instanceof VirtualMapState virtualMapState)) {
+            throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
+        }
+
         statistics.incrementReceiverStartTimes();
 
         final MerkleDataInputStream in = new MerkleDataInputStream(connection.getDis());
@@ -194,18 +204,33 @@ public class ReconnectStateLearner {
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
 
+        final VirtualMap reconnectRoot = virtualMapState.getRoot().newReconnectRoot();
+        final ReconnectMapStats mapStats = new ReconnectMapMetrics(platformContext.getMetrics(), null, null);
+        // The learner view will be closed by LearningSynchronizer
+        final LearnerTreeView<?> learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager,
                 in,
                 out,
-                currentState.getRoot(),
+                reconnectRoot,
+                learnerView,
                 connection::disconnect,
                 platformContext.getMerkleCryptography(),
-                reconnectConfig,
-                platformContext.getMetrics());
-        synchronizer.synchronize();
+                reconnectConfig);
+        try {
+            synchronizer.synchronize();
+            logger.info(RECONNECT.getMarker(), () -> mapStats.format());
+        } catch (final InterruptedException e) {
+            logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
+            Thread.currentThread().interrupt();
+            reconnectRoot.release();
+            throw e;
+        } catch (final Exception e) {
+            reconnectRoot.release();
+            throw new MerkleSynchronizationException(e);
+        }
 
-        final MerkleNodeState receivedState = stateLifecycleManager.createStateFrom(synchronizer.getRoot());
+        final MerkleNodeState receivedState = stateLifecycleManager.createStateFrom(reconnectRoot);
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),
                 ConsensusCryptoUtils::verifySignature,
