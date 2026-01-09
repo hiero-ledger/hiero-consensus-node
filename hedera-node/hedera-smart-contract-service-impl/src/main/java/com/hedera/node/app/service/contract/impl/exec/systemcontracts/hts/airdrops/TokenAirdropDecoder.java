@@ -123,7 +123,7 @@ public class TokenAirdropDecoder {
     }
 
     private void checkForSystemAccount(@NonNull final AccountID account) {
-        if (account.hasAccountNum()) { // account can hold and alias instead of accountNum
+        if (account.hasAccountNum()) { // account can hold an alias instead of accountNum
             validateFalse(account.accountNumOrThrow() <= LAST_RESERVED_SYSTEM_ACCOUNT, INVALID_RECEIVING_NODE_ACCOUNT);
         }
     }

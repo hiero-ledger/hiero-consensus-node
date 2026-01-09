@@ -117,7 +117,7 @@ public class TransferEventLoggingUtils {
         List<AccountChange> senders = new ArrayList<>();
         List<AccountChange> receivers = new ArrayList<>();
 
-        // 1. Separate accounts by sign
+        // 1. Separate accounts by sign, negative are senders, positive are receivers of the transfer
         for (AccountAmount account : adjusts) {
             if (account.amount() < 0) {
                 senders.add(new AccountChange(account.accountIDOrThrow(), Math.abs(account.amount())));
