@@ -69,7 +69,8 @@ public class BlockStreamRecoveryWorkflow {
             throw new RuntimeException(e);
         }
 
-        final SignedState signedState = deserializedSignedState.reservedSignedState().get();
+        final SignedState signedState =
+                deserializedSignedState.reservedSignedState().get();
         // need to create copy of the loaded state to make it mutable
         final HashedReservedSignedState hashedSignedState =
                 copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
