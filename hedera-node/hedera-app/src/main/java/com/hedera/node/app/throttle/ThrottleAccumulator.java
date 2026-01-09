@@ -899,7 +899,8 @@ public class ThrottleAccumulator {
                         bucket.name(),
                         bucket.throttleGroups().stream()
                                 .map(this::hapiGroupFromPbj)
-                                .toList());
+                                .toList(),
+                        bucket.highVolume());
                 var mapping = utilThrottleBucket.asThrottleMapping(capacitySplitSource.getAsInt());
                 var throttle = mapping.getLeft();
                 var reqs = mapping.getRight();
