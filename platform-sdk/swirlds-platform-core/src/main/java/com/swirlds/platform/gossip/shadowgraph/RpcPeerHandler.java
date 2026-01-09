@@ -18,6 +18,7 @@ import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -113,6 +114,11 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     private final FallenBehindMonitor fallenBehindMonitor;
 
     /**
+     * Should all incoming events be ignored due to platoform being unhealthy
+     */
+    private boolean lastIgnoreIncomingEvents;
+
+    /**
      * Create new state class for an RPC peer
      *
      * @param sharedShadowgraphSynchronizer shared logic reference for actions which have to work against global state
@@ -125,7 +131,8 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      * @param time                          platform time
      * @param intakeEventCounter            used for tracking events in the intake pipeline per peer
      * @param eventHandler                  events that are received are passed here
-     * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen behind
+     * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen
+     *                                      behind
      */
     public RpcPeerHandler(
             @NonNull final RpcShadowgraphSynchronizer sharedShadowgraphSynchronizer,
@@ -165,6 +172,9 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     // dispatch thread
     public boolean checkForPeriodicActions(final boolean wantToExit, final boolean ignoreIncomingEvents) {
+
+        this.lastIgnoreIncomingEvents = ignoreIncomingEvents;
+
         if (!isSyncCooldownComplete()) {
             this.syncMetrics.doNotSyncCooldown();
             return !wantToExit;
@@ -214,6 +224,26 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     public void cleanup() {
         clearInternalState();
         state.peerStillSendingEvents = false;
+        this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OUTSIDE_OF_RPC);
+        // mark sync as never happened, it will stop broadcast from happening
+        state.lastSyncFinishedTime = Instant.MIN;
+    }
+
+    /**
+     * Send event to remote node outside of normal sync logic (most probably due to broadcast)
+     *
+     * @param gossipEvent event to be sent
+     */
+    // platform thread
+    public void broadcastEvent(@NonNull final GossipEvent gossipEvent) {
+        // don't spam remote side if it is going to reconnect
+        // or if we haven't completed even a first sync, as it might be a recovery phase for either for us
+
+        // be careful - this is unsynchronized access to non-volatile variables; given it is only a hint, we don't
+        // really care if it is immediately visible with updates
+        if (!state.peerIsBehind && state.lastSyncFinishedTime != Instant.MIN) {
+            sender.sendBroadcastEvent(gossipEvent);
+        }
     }
 
     // HANDLE INCOMING MESSAGES - all done on dispatch thread
@@ -301,6 +331,23 @@ public class RpcPeerHandler implements GossipRpcReceiver {
             this.syncMetrics.reportSyncPhase(peerId, SyncPhase.SENDING_EVENTS);
         }
         state.peerStillSendingEvents = false;
+    }
+
+    @Override
+    public void receiveBroadcastEvent(final GossipEvent gossipEvent) {
+        // we don't use handleIncomingSyncEvent, as we don't want to block sync till this event is resolved
+        // so no marking it in intakeEventCounter
+
+        if (lastIgnoreIncomingEvents) {
+            // we need to ignore broadcast events if system is unhealthy
+            return;
+        }
+
+        // this method won't be called if we have fallen behind, as reconnect protocol will take over, preempting rpc
+        // protocol, so nobody will broadcast events to us anymore
+        this.syncMetrics.broadcastEventReceived();
+        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+        eventHandler.accept(platformEvent);
     }
 
     // UTILITY METHODS

@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Base class for synchronization protocols using tipset exchange
@@ -67,6 +68,14 @@ public abstract class AbstractSyncProtocol<T extends AbstractShadowgraphSynchron
      */
     public void adjustTotalPermits(final int permitsDifference) {
         permitProvider.adjustTotalPermits(permitsDifference);
+    }
+
+    /**
+     * Handle new event fully processed by event intake
+     * @param platformEvent event to be processed
+     */
+    public void addEvent(@NonNull PlatformEvent platformEvent) {
+        // no-op
     }
 
     /**

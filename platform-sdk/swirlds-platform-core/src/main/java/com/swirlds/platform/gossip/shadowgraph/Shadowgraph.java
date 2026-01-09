@@ -335,7 +335,7 @@ public class Shadowgraph implements Clearable {
         this.eventWindow = eventWindow;
 
         // Remove reservations for events that can and should be expired, and
-        // keep track of the oldest threshold that can be expired
+        // keep track of the oldest th reshold that can be expired
         long oldestReservedIndicator = pruneReservationList();
 
         if (oldestReservedIndicator == NO_RESERVATION) {
