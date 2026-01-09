@@ -1075,7 +1075,11 @@ public class VirtualMapState implements MerkleNodeState {
     public Bytes popQueue(final int stateId) {
         final Bytes qStateKey = queueStateKey(stateId);
         final QueueState qState = getQueueState(stateId);
-        if (qState == null) return null; // empty
+        if (qState == null) return null; // queue not found
+
+        if (qState.head() == qState.tail()) { // queue is empty
+            return null;
+        }
 
         final Bytes elementKey = queueKey(stateId, (int) qState.head());
         final Bytes stored = virtualMap.getBytes(elementKey);
