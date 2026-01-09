@@ -32,10 +32,6 @@ public final class ConsensusServiceImpl implements ConsensusService {
 
     @Override
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
-        return getServiceFeeCalculators();
-    }
-
-    public static Set<ServiceFeeCalculator> getServiceFeeCalculators() {
         return Set.of(
                 new ConsensusCreateTopicFeeCalculator(),
                 new ConsensusDeleteTopicFeeCalculator(),
@@ -45,10 +41,6 @@ public final class ConsensusServiceImpl implements ConsensusService {
 
     @Override
     public Set<QueryFeeCalculator> queryFeeCalculators() {
-        return getQueryFeeCalculators();
-    }
-
-    public static Set<QueryFeeCalculator> getQueryFeeCalculators() {
         return Set.of(new ConsensusGetTopicInfoFeeCalculator());
     }
 }
