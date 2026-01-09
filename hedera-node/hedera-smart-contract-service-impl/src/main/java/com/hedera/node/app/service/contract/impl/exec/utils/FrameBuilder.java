@@ -214,8 +214,9 @@ public class FrameBuilder {
             // Hedera account for contract is present, get the byte code
             final var accountCode = account.getCode();
 
-            // TODO(Pectra): skip delegation processing for hooks! (i.e. if account is a proxy hook)
-            if (CodeDelegationHelper.hasCodeDelegation(accountCode)) {
+            final var eligibleForCodeDelegation =
+                    account.isRegularAccount() || account.isTokenFacade() || account.isScheduleTxnFacade();
+            if (CodeDelegationHelper.hasCodeDelegation(accountCode) && eligibleForCodeDelegation) {
                 // Resolve the target account of the delegation and use its code
                 final var targetAddress =
                         Address.wrap(accountCode.slice(CodeDelegationHelper.CODE_DELEGATION_PREFIX.size()));
@@ -248,7 +249,7 @@ public class FrameBuilder {
             code = CodeV0.EMPTY_CODE;
         }
 
-        // TODO(Pectra): will we support access lists? If so, add EIP-7702 accessListWarmUpAddresses (see besu impl)
+        // TODO(AccessLists): Add EIP-7702 addresses to access list (see `accessListWarmUpAddresses` in besu)
         return builder.type(MessageFrame.Type.MESSAGE_CALL)
                 .address(to)
                 .contract(to)
@@ -282,8 +283,6 @@ public class FrameBuilder {
 
     private boolean emptyCodePossiblyAllowed(
             final boolean contractMustBePresent, @NonNull final HederaEvmTransaction transaction) {
-        // TODO(Pectra): re-evaluate if this condition is still correct
-
         // Empty code is allowed if the transaction is an Ethereum transaction or has a value or the contract does not
         // have to be present via config
         return transaction.isEthereumTransaction() || transaction.hasValue() || !contractMustBePresent;
