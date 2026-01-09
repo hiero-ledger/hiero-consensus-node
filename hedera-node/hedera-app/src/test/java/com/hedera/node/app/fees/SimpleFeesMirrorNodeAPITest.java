@@ -58,7 +58,7 @@ public class SimpleFeesMirrorNodeAPITest {
 
         final FeeResult result = calc.calculate(txn, Intrinsic);
         assertThat(result.service).isEqualTo(9999000000L);
-        System.out.println("JSON is \n" + feeResultToJson(result));
+//        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
     class JsonBuilder {
@@ -258,7 +258,6 @@ public class SimpleFeesMirrorNodeAPITest {
         assertThat(result.service).isEqualTo(0L);
 //        System.out.println("JSON is \n" + feeResultToJson(result));
     }
-
     @Test
     public void testCreateTopic() throws ParseException {
         final StandaloneFeeCalculator calc = setupCalculator();
@@ -269,7 +268,6 @@ public class SimpleFeesMirrorNodeAPITest {
         final Transaction txn = Transaction.newBuilder().body(body).build();
         //0.01000
         final FeeResult result = calc.calculate(txn, Intrinsic);
-        System.out.println("fee is " + result);
         final var TINY_CENTS = 100_000_000L;
         assertThat(result.total()).isEqualTo(1 * TINY_CENTS); //0.01 USD
     }
@@ -294,18 +292,7 @@ public class SimpleFeesMirrorNodeAPITest {
 
     @Test
     public void testSignedTransaction() throws ParseException {
-        // configure overrides
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
-        // bring up the full state
-        final State state = FakeGenesisState.make(overrides);
-
-        final var properties = TransactionExecutors.Properties.newBuilder()
-                .state(state)
-                .appProperties(overrides)
-                .build();
-
-        // make the calculator
-        final StandaloneFeeCalculator calc = new StandaloneFeeCalculatorImpl(state, properties);
+        final StandaloneFeeCalculator calc = setupCalculator();
 
         // make an example transaction
         final long topicEntityNum = 1L;
@@ -334,6 +321,6 @@ public class SimpleFeesMirrorNodeAPITest {
 
         final FeeResult result = calc.calculate(txn, Intrinsic);
         assertThat(result.service).isEqualTo(0L);
-        System.out.println("JSON is \n" + feeResultToJson(result));
+//        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 }

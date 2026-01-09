@@ -114,7 +114,6 @@ public class FakeGenesisState {
         overrides.forEach(configBuilder::withValue);
         final var config = configBuilder.getOrCreateConfig();
         final var servicesRegistry = new FakeServicesRegistry();
-        System.out.println("doing sig verifier " + signatureVerifier + " yo");
         final var appContext = new AppContextImpl(
                 InstantSource.system(),
                 signatureVerifier,
@@ -154,7 +153,6 @@ public class FakeGenesisState {
         entityIdStore.adjustEntityCount(EntityType.NODE, 1);
         final var nodeStore = new ReadableNodeStoreImpl(readableStates, entityIdStore);
         final var files = writableStates.<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
-        System.out.println("setting up te genesis content providers " + genesisContentProviders(nodeStore, config));
         genesisContentProviders(nodeStore, config).forEach((fileNum, provider) -> {
             final var fileId = createFileID(fileNum, config);
             files.put(
