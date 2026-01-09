@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl.client;
 
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -41,10 +42,16 @@ import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationQuery;
+import org.hiero.hapi.interledger.clpr.ClprGetMessageQueueMetadataQuery;
+import org.hiero.hapi.interledger.clpr.ClprGetMessagesQuery;
+import org.hiero.hapi.interledger.clpr.ClprProcessMessageBundleTransactionBody;
 import org.hiero.hapi.interledger.clpr.ClprServiceInterface;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
+import org.hiero.hapi.interledger.clpr.ClprUpdateMessageQueueMetadataTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.client.ClprClient;
 
@@ -169,7 +176,7 @@ public class ClprClientImpl implements ClprClient {
         try {
             var stateProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(clprLedgerConfiguration);
             if (stateProof == null || stateProof.paths().isEmpty()) {
-                stateProof = devModeStateProof(clprLedgerConfiguration);
+                stateProof = devModeLedgerConfigStateProof(clprLedgerConfiguration);
             }
             final var txnBody = TransactionBody.newBuilder()
                     .transactionID(newTransactionId(payerAccountId))
@@ -203,10 +210,142 @@ public class ClprClientImpl implements ClprClient {
         }
     }
 
-    private com.hedera.hapi.block.stream.StateProof devModeStateProof(
-            @NonNull final ClprLedgerConfiguration configuration) {
+    @Override
+    public @NonNull ResponseCodeEnum updateMessageQueueMetadata(
+            @NonNull AccountID payerAccountId,
+            @NonNull AccountID nodeAccountId,
+            @NonNull ClprLedgerId ledgerId,
+            @NonNull ClprMessageQueueMetadata clprMessageQueueMetadata) {
+        try {
+            var stateProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(ledgerId, clprMessageQueueMetadata);
+            if (stateProof.paths().isEmpty()) {
+                stateProof = devModeMsgQueueMetadataStateProof(clprMessageQueueMetadata);
+            }
+            final var txnBody = TransactionBody.newBuilder()
+                    .transactionID(newTransactionId(payerAccountId))
+                    .clprUpdateMessageQueueMetadata(ClprUpdateMessageQueueMetadataTransactionBody.newBuilder()
+                            .ledgerId(ledgerId)
+                            .messageQueueMetadataProof(stateProof)
+                            .build())
+                    .transactionFee(1L)
+                    .transactionValidDuration(com.hedera.hapi.node.base.Duration.newBuilder()
+                            .seconds(120)
+                            .build())
+                    .nodeAccountID(nodeAccountId)
+                    .build();
+            final var bodyBytes = TransactionBody.PROTOBUF.toBytes(txnBody);
+            final var signatureMap = signer.sign(txnBody);
+            final var signedTransaction = SignedTransaction.newBuilder()
+                    .bodyBytes(bodyBytes)
+                    .sigMap(signatureMap)
+                    .build();
+            final var transaction = Transaction.newBuilder()
+                    .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTransaction))
+                    .build();
+            final var response = clprServiceClient.updateMessageQueueMetadata(transaction);
+            return response.nodeTransactionPrecheckCode();
+        } catch (final Exception e) {
+            log.error(
+                    "CLPR client failed to submit message queue metadata for payer {} and ledger {}",
+                    payerAccountId,
+                    ledgerId,
+                    e);
+            return ResponseCodeEnum.FAIL_INVALID;
+        }
+    }
+
+    @Override
+    public @Nullable ClprMessageQueueMetadata getMessageQueueMetadata(@NonNull ClprLedgerId ledgerId) {
+        // create query payload with header and specified ledger id
+        final var queryBody = ClprGetMessageQueueMetadataQuery.newBuilder()
+                .header(QueryHeader.newBuilder().build())
+                .ledgerId(ledgerId)
+                .build();
+
+        final var queryTxn =
+                Query.newBuilder().getClprMessageQueueMetadata(queryBody).build();
+        final var response = clprServiceClient.getMessageQueueMetadata(queryTxn);
+        if (response.hasClprMessageQueueMetadata()) {
+            // extract configuration from state proof
+            final var stateProof =
+                    Objects.requireNonNull(response.clprMessageQueueMetadata()).messageQueueMetadataProof();
+            if (stateProof != null && ClprStateProofUtils.validateStateProof(stateProof)) {
+                return org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageQueueMetadata(stateProof);
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public @NonNull ResponseCodeEnum processMessageBundle(
+            @NonNull AccountID payerAccountId,
+            @NonNull AccountID nodeAccountId,
+            @NonNull ClprLedgerId ledgerId,
+            @NonNull ClprMessageBundle messageBundle) {
+        try {
+            final var txnBody = TransactionBody.newBuilder()
+                    .transactionID(newTransactionId(payerAccountId))
+                    .clprProcessMessageBundle(ClprProcessMessageBundleTransactionBody.newBuilder()
+                            .messageBundle(messageBundle)
+                            .build())
+                    .transactionFee(1L)
+                    .transactionValidDuration(com.hedera.hapi.node.base.Duration.newBuilder()
+                            .seconds(120)
+                            .build())
+                    .nodeAccountID(nodeAccountId)
+                    .build();
+            final var bodyBytes = TransactionBody.PROTOBUF.toBytes(txnBody);
+            final var signatureMap = signer.sign(txnBody);
+            final var signedTransaction = SignedTransaction.newBuilder()
+                    .bodyBytes(bodyBytes)
+                    .sigMap(signatureMap)
+                    .build();
+            final var transaction = Transaction.newBuilder()
+                    .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTransaction))
+                    .build();
+            final var response = clprServiceClient.updateMessageQueueMetadata(transaction);
+            return response.nodeTransactionPrecheckCode();
+        } catch (final Exception e) {
+            log.error(
+                    "CLPR client failed to submit message queue metadata for payer {} and ledger {}",
+                    payerAccountId,
+                    ledgerId,
+                    e);
+            return ResponseCodeEnum.FAIL_INVALID;
+        }
+    }
+
+    @Override
+    public @Nullable ClprMessageBundle getMessages(@NonNull ClprLedgerId ledgerId, int maxNumMsg, int maxNumBytes) {
+        // create query payload with header and specified ledger id
+        final var queryBody = ClprGetMessagesQuery.newBuilder()
+                .header(QueryHeader.newBuilder().build())
+                .ledgerId(ledgerId)
+                .maxBundleLength(maxNumBytes)
+                .maxNumberOfMessages(maxNumMsg)
+                .build();
+
+        final var queryTxn = Query.newBuilder().getClprMessages(queryBody).build();
+        final var response = clprServiceClient.getMessages(queryTxn);
+        if (response.hasClprMessages()) {
+            return response.clprMessages().messageBundle();
+        }
+        return null;
+    }
+
+    private StateProof devModeLedgerConfigStateProof(@NonNull final ClprLedgerConfiguration configuration) {
         final var stateItemBytes =
                 org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(configuration);
+        return devModeStateProof(stateItemBytes);
+    }
+
+    private StateProof devModeMsgQueueMetadataStateProof(@NonNull final ClprMessageQueueMetadata messageQueueMetadata) {
+        final var stateItemBytes =
+                org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata.PROTOBUF.toBytes(messageQueueMetadata);
+        return devModeStateProof(stateItemBytes);
+    }
+
+    private com.hedera.hapi.block.stream.StateProof devModeStateProof(@NonNull final Bytes stateItemBytes) {
         final var leaf = com.hedera.hapi.node.state.blockstream.MerkleLeaf.newBuilder()
                 .stateItem(stateItemBytes)
                 .build();
