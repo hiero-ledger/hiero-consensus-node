@@ -11,8 +11,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeComm
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
 import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.restartAtNextConfigVersion;
 
@@ -34,8 +32,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
-import org.hiero.consensus.model.status.PlatformStatus;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -561,51 +557,6 @@ public class BlockNodeSuite {
                                 + "/ACTIVE] Connection state transitioned from READY to ACTIVE")));
     }
 
-    @Disabled
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.buffer.blockTtl", "30s",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        })
-            })
-    @Order(7)
-    final Stream<DynamicTest> testBlockBufferBackPressure() {
-        final AtomicReference<Instant> timeRef = new AtomicReference<>();
-
-        return hapiTest(
-                waitUntilNextBlocks(5).withBackgroundTraffic(true),
-                doingContextual(spec -> timeRef.set(Instant.now())),
-                blockNode(0).shutDownImmediately(),
-                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0),
-                        timeRef::get,
-                        Duration.ofMinutes(6),
-                        Duration.ofMinutes(6),
-                        "Block buffer is saturated; backpressure is being enabled",
-                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
-                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
-                blockNode(0).startImmediately(),
-                sourcingContextual(
-                        spec -> assertBlockNodeCommsLogContainsTimeframe(
-                                byNodeId(0),
-                                timeRef::get,
-                                Duration.ofMinutes(6),
-                                Duration.ofMinutes(6),
-                                "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled")),
-                waitForActive(byNodeId(0), Duration.ofSeconds(30)),
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(20).toNanos())));
-    }
-
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
@@ -624,7 +575,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(8)
+    @Order(7)
     final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
         final AtomicReference<Instant> connectionResetTime = new AtomicReference<>(Instant.now());
         final List<Integer> portNumbers = new ArrayList<>();
@@ -682,7 +633,7 @@ public class BlockNodeSuite {
                             "blockNode.streamResetPeriod", "20s",
                         })
             })
-    @Order(9)
+    @Order(8)
     final Stream<DynamicTest> testBlockBufferDurability() {
         /*
         1. Create some background traffic for a while.
@@ -760,7 +711,7 @@ public class BlockNodeSuite {
                             "1"
                         })
             })
-    @Order(10)
+    @Order(9)
     final Stream<DynamicTest> node0StreamingMultipleEndOfStreamsReceived() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -807,7 +758,7 @@ public class BlockNodeSuite {
                             "FILE_AND_GRPC"
                         })
             })
-    @Order(11)
+    @Order(10)
     final Stream<DynamicTest> node0StreamingExponentialBackoff() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
@@ -850,7 +801,7 @@ public class BlockNodeSuite {
                             "blockNode.highLatencyThreshold", "1s"
                         })
             })
-    @Order(12)
+    @Order(11)
     final Stream<DynamicTest> node0StreamingToHighLatencyBlockNode() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -888,7 +839,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(13)
+    @Order(12)
     final Stream<DynamicTest> testCNReactionToPublishStreamResponses() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
