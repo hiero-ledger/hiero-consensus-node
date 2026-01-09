@@ -499,12 +499,12 @@ enum StateIdentifier {
     /**
      * A state identifier for CLPR message queue metadata. Key/value state.
      */
-    STATE_ID_CLPR_MESSAGE_QUEUE_METADATA = 56;
+    STATE_ID_CLPR_MESSAGE_QUEUE_METADATA = 57;
 
     /**
      * A state identifier for CLPR messages.
      */
-    STATE_ID_CLPR_MESSAGES = 57;
+    STATE_ID_CLPR_MESSAGES = 58;
 
     /**
      * A state identifier for the round receipts queue. Queue state.
