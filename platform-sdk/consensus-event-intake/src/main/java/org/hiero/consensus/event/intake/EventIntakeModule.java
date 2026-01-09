@@ -2,8 +2,6 @@
 package org.hiero.consensus.event.intake;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -13,6 +11,7 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -36,7 +35,6 @@ public interface EventIntakeModule {
      * @param selfId the ID of this node
      * @param intakeEventCounter counter for the number of events in the intake pipeline
      * @param transactionLimits provides transaction limits
-     * @param recycleBin provides a recycle bin for files
      * @param startingRound the round number of the system's initial state
      */
     void initialize(
@@ -48,7 +46,6 @@ public interface EventIntakeModule {
             @NonNull NodeId selfId,
             @NonNull IntakeEventCounter intakeEventCounter,
             @NonNull TransactionLimits transactionLimits,
-            @NonNull RecycleBin recycleBin,
             long startingRound,
             @Nullable EventPipelineTracker eventPipelineTracker);
 

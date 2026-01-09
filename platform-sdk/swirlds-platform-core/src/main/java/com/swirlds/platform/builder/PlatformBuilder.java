@@ -19,7 +19,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
@@ -63,6 +62,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -430,7 +430,6 @@ public final class PlatformBuilder {
                 selfId,
                 intakeEventCounter,
                 execution.getTransactionLimits(),
-                platformContext.getRecycleBin(),
                 initialState.get().getRound(),
                 pipelineTracker);
     }
