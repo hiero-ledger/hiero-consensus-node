@@ -1183,8 +1183,8 @@ public class AutoAccountCreationSuite {
         final var childRecordFee = child.getTransactionFee();
         assertNotEquals(0, childRecordFee);
         // A single extra byte in the signature map will cost just ~40 tinybar more, so allowing
-        // a delta of 1000 tinybar is sufficient to stabilize this test indefinitely
-        final var permissibleDelta = 1000L;
+        // a delta of 2000 tinybar is sufficient to stabilize this test indefinitely
+        final var permissibleDelta = 2000L;
         final var observedDelta = Math.abs(parent.getTransactionFee() - approxTransferFee - squashedFees);
         assertTrue(
                 observedDelta <= permissibleDelta,

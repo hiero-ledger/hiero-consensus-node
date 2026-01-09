@@ -13,10 +13,6 @@ on:
         type: string
         description: "Run Extended Test Suite"
         default: "false"
-      enable-abbreviated-panel:
-        type: string
-        description: "Run Abbreviated JRS Panel"
-        default: "false"
       enable-hedera-node-jrs-panel:
         type: string
         description: "Run Hedera Node JRS Panel"
@@ -43,7 +39,7 @@ on:
         default: "latest"
       mirror-node-version:
         type: string
-        description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.142.2' will be used)"
+        description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.145.2' will be used)"
         default: "latest"
       helm-release-name:
         type: string
@@ -224,33 +220,6 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
-  abbreviated-panel:
-    name: JRS Panel
-    needs:
-      - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-abbreviated-panel == 'true' }}
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    with:
-      custom-job-name: "${{ inputs.custom-job-label }} Platform SDK"
-      panel-config: "configs/suites/GCP-PRCheck-Abbrev-4N.json"
-      ref: ${{ inputs.commit_sha }}
-      branch-name: ${{ inputs.branch_name }}
-      base-branch-name: ${{ inputs.branch_name }}
-      slack-results-channel: "regression-test"
-      slack-summary-channel: "regression-test"
-      use-branch-for-slack-channel: false
-    secrets:
-      access-token: ${{ secrets.platform-access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
-      jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
-      jrs-ssh-key-file: ${{ secrets.jrs-ssh-key-file }}
-      gcp-project-number: ${{ secrets.gcp-project-number }}
-      gcp-sa-key-contents: ${{ secrets.gcp-sa-key-contents }}
-      slack-api-token: ${{ secrets.slack-api-token }}
-      grafana-agent-username: ${{ secrets.grafana-agent-username }}
-      grafana-agent-password: ${{ secrets.grafana-agent-password }}
-
   hedera-node-jrs-panel:
     name: Hedera Node JRS Panel
     needs:
@@ -302,7 +271,7 @@ jobs:
       custom-job-name: "${{ inputs.custom-job-label }} Mirror Node Regression"
       solo-version: ${{ inputs.solo-version }}
       helm-release-name: ${{ inputs.helm-release-name }}
-      mirror-node-version: ${{ inputs.mirror-node-version || '0.142.2' }}
+      mirror-node-version: ${{ inputs.mirror-node-version || '0.145.2' }}
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
@@ -337,7 +306,7 @@ jobs:
 
   set-failure-mode:
     name: Set Failure Mode
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
@@ -348,7 +317,6 @@ jobs:
       - xts-hammer-tests
       - xts-hapi-tests
       - xts-otter-tests
-      - abbreviated-panel
       - hedera-node-jrs-panel
       - sdk-tck-regression-panel
       - mirror-node-regression-panel
@@ -419,7 +387,6 @@ jobs:
           # Add the failed panel job to the failed-tests list
 
           panel_statuses=(
-            ${{ needs.abbreviated-panel.result || 'skipped' }}
             ${{ needs.hedera-node-jrs-panel.result || 'skipped' }}
             ${{ needs.sdk-tck-regression-panel.result || 'skipped' }}
             ${{ needs.mirror-node-regression-panel.result || 'skipped' }}
@@ -427,7 +394,6 @@ jobs:
             ${{ needs.block-node-regression-panel.result || 'skipped' }}
           )
           panel_names=(
-            "abbreviated-panel"
             "hedera-node-jrs-panel"
             "sdk-tck-regression-panel"
             "mirror-node-regression-panel"

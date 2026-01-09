@@ -41,7 +41,8 @@ class CryptographyTests {
 
     @BeforeAll
     public static void startup() throws NoSuchAlgorithmException {
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Configuration configuration =
+                new TestConfigBuilder().withConfigDataType(CryptoConfig.class).getOrCreateConfig();
         cryptoConfig = configuration.getConfigData(CryptoConfig.class);
 
         assertTrue(cryptoConfig.computeCpuDigestThreadCount() >= 1);
@@ -53,8 +54,10 @@ class CryptographyTests {
 
     @AfterAll
     public static void shutdown() throws InterruptedException {
-        executorService.shutdown();
-        executorService.awaitTermination(2, TimeUnit.SECONDS);
+        if (executorService != null) {
+            executorService.shutdown();
+            executorService.awaitTermination(2, TimeUnit.SECONDS);
+        }
     }
 
     @ParameterizedTest
