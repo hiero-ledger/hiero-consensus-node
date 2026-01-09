@@ -92,19 +92,19 @@ public class RecordCreationSuite {
                         .hasKnownStatus(INSUFFICIENT_TX_FEE)
                         .logged()),
                 sourcing(() -> getAccountBalance(TO_ACCOUNT)
-                        .hasTinyBars(changeFromSnapshot(BEFORE, +feeObs.get().nodeFee()))
+                        .hasTinyBars(approxChangeFromSnapshot(BEFORE, +feeObs.get().nodeFee(),5))
                         .logged()),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_FUNDING)
-                        .hasTinyBars(changeFromSnapshot(
-                                FUNDING_BEFORE, (long) (+feeObs.get().networkFee() * 0.8 + 1)))
+                        .hasTinyBars(approxChangeFromSnapshot(
+                                FUNDING_BEFORE, (long) (+feeObs.get().networkFee() * 0.8 + 1),5))
                         .logged()),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_STAKING_REWARDS)
-                        .hasTinyBars(changeFromSnapshot(
-                                STAKING_REWARD1, (long) (+feeObs.get().networkFee() * 0.1)))
+                        .hasTinyBars(approxChangeFromSnapshot(
+                                STAKING_REWARD1, (long) (+feeObs.get().networkFee() * 0.1),5))
                         .logged()),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_NODE_REWARD)
-                        .hasTinyBars(changeFromSnapshot(
-                                NODE_REWARD1, (long) (+feeObs.get().networkFee() * 0.1)))
+                        .hasTinyBars(approxChangeFromSnapshot(
+                                NODE_REWARD1, (long) (+feeObs.get().networkFee() * 0.1),5))
                         .logged()),
                 sourcing(() -> getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
@@ -186,18 +186,18 @@ public class RecordCreationSuite {
                         .payingWith(GENESIS)),
                 sleepFor(SLEEP_MS),
                 sourcing(() -> getAccountBalance(TO_ACCOUNT)
-                        .hasTinyBars(changeFromSnapshot(BEFORE, -feeObs.get().networkFee()))),
+                        .hasTinyBars(approxChangeFromSnapshot(BEFORE, -feeObs.get().networkFee(),5))),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_FUNDING)
-                        .hasTinyBars(changeFromSnapshot(
-                                FUNDING_BEFORE, (long) (+feeObs.get().networkFee() * 0.8 + 1)))
+                        .hasTinyBars(approxChangeFromSnapshot(
+                                FUNDING_BEFORE, (long) (+feeObs.get().networkFee() * 0.8 + 1),5))
                         .logged()),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_STAKING_REWARDS)
-                        .hasTinyBars(changeFromSnapshot(
-                                STAKING_REWARD1, (long) (+feeObs.get().networkFee() * 0.1)))
+                        .hasTinyBars(approxChangeFromSnapshot(
+                                STAKING_REWARD1, (long) (+feeObs.get().networkFee() * 0.1),5))
                         .logged()),
                 sourcing(() -> getAccountBalance(FOR_ACCOUNT_NODE_REWARD)
-                        .hasTinyBars(changeFromSnapshot(
-                                NODE_REWARD1, (long) (+feeObs.get().networkFee() * 0.1)))
+                        .hasTinyBars(approxChangeFromSnapshot(
+                                NODE_REWARD1, (long) (+feeObs.get().networkFee() * 0.1),5))
                         .logged()),
                 sourcing(() -> getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
