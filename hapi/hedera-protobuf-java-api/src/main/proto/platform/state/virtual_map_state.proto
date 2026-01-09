@@ -672,16 +672,6 @@ message StateValue {
     org.hiero.hapi.interledger.state.clpr.ClprMessageValue ClprService_I_MESSAGES = 59;
 
     /**
-     * A state identifier for CLPR Message Queue.
-     */
-    org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata ClprService_I_MESSAGE_QUEUES = 57;
-
-    /**
-     * A state identifier for CLPR Messages.
-     */
-    org.hiero.hapi.interledger.state.clpr.ClprMessageValue ClprService_I_MESSAGESS = 58;
-
-    /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
