@@ -176,7 +176,7 @@ class TransactionDispatcherTest {
             final var result = subject.dispatchComputeFees(feeContext);
 
             // Then: Should use simple fee calculator
-            verify(simpleFeeCalculator).calculateTxFee(txBody, feeContext, EstimationMode.Intrinsic);
+            verify(simpleFeeCalculator).calculateTxFee(txBody, feeContext, EstimationMode.Stateful);
 
             // Verify fees are converted from tinycents to tinybars (divide by 12)
             assertThat(result).isNotNull();
