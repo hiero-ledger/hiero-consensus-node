@@ -565,6 +565,7 @@ public final class PlatformBuilder {
 
         initializeEventCreatorModule();
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
+        initializeHashgraphModule();
 
         final PlatformComponents platformComponentWiring = PlatformComponents.create(
                 platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
