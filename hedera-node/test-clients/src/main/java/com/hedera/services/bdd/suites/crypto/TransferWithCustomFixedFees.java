@@ -1318,6 +1318,7 @@ public class TransferWithCustomFixedFees {
                 cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
+                        .signedBy(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
     }
 
@@ -1374,6 +1375,7 @@ public class TransferWithCustomFixedFees {
                 cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
+                        .signedBy(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
     }
 
