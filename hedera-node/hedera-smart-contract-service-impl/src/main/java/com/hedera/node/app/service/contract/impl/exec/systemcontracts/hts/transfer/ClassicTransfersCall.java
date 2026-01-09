@@ -10,8 +10,6 @@ import static com.hedera.node.app.service.contract.impl.exec.gas.DispatchType.AS
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.encodedRc;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.TransferEventLoggingUtils.logSuccessfulFungibleTransfer;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.TransferEventLoggingUtils.logSuccessfulNftTransfer;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static java.util.Objects.requireNonNull;
 
@@ -72,18 +70,18 @@ public class ClassicTransfersCall extends AbstractCall {
     private final SpecialRewardReceivers specialRewardReceivers;
 
     /**
-     * @param gasCalculator the gas calculator for the system contract
-     * @param enhancement the enhancement to be used
-     * @param selector the method selector
-     * @param senderId the account id of the sender
-     * @param preemptingFailureStatus the response code to revert with
-     * @param syntheticTransfer the body of synthetic transfer operation
-     * @param configuration the configuration to use
-     * @param approvalSwitchHelper the switcher between unauthorized debits to approvals in a synthetic transfer
-     * @param callStatusStandardizer the standardizer of failure statuses to an HTS transfer system contract
-     * @param verificationStrategy the verification strategy to use
+     * @param gasCalculator             the gas calculator for the system contract
+     * @param enhancement               the enhancement to be used
+     * @param selector                  the method selector
+     * @param senderId                  the account id of the sender
+     * @param preemptingFailureStatus   the response code to revert with
+     * @param syntheticTransfer         the body of synthetic transfer operation
+     * @param configuration             the configuration to use
+     * @param approvalSwitchHelper      the switcher between unauthorized debits to approvals in a synthetic transfer
+     * @param callStatusStandardizer    the standardizer of failure statuses to an HTS transfer system contract
+     * @param verificationStrategy      the verification strategy to use
      * @param systemAccountCreditScreen the helper to screen if a transfer tries to credit a system account
-     * @param specialRewardReceivers the special reward receiver
+     * @param specialRewardReceivers    the special reward receiver
      */
     // too many parameters
     @SuppressWarnings("java:S107")
@@ -158,7 +156,7 @@ public class ClassicTransfersCall extends AbstractCall {
                 .dispatch(transferToDispatch, verificationStrategy, senderId, ContractCallStreamBuilder.class);
         final var op = transferToDispatch.cryptoTransferOrThrow();
         if (recordBuilder.status() == SUCCESS) {
-            maybeEmitErcLogsFor(op, frame);
+            TransferEventLoggingUtils.emitErcLogEventsFor(recordBuilder, readableAccountStore(), frame);
             specialRewardReceivers.addInFrame(frame, op, recordBuilder.getAssessedCustomFees());
         } else {
             recordBuilder.status(callStatusStandardizer.codeForFailure(recordBuilder.status(), frame, op));
@@ -267,18 +265,5 @@ public class ClassicTransfersCall extends AbstractCall {
     private boolean executionIsNotSupported() {
         return Arrays.equals(selector, ClassicTransfersTranslator.CRYPTO_TRANSFER_V2.selector())
                 && !configuration.getConfigData(ContractsConfig.class).precompileAtomicCryptoTransferEnabled();
-    }
-
-    private void maybeEmitErcLogsFor(
-            @NonNull final CryptoTransferTransactionBody op, @NonNull final MessageFrame frame) {
-        if (Arrays.equals(ClassicTransfersTranslator.TRANSFER_FROM.selector(), selector)) {
-            final var fungibleTransfers = op.tokenTransfers().getFirst();
-            logSuccessfulFungibleTransfer(
-                    fungibleTransfers.tokenOrThrow(), fungibleTransfers.transfers(), readableAccountStore(), frame);
-        } else if (Arrays.equals(ClassicTransfersTranslator.TRANSFER_NFT_FROM.selector(), selector)) {
-            final var nftTransfers = op.tokenTransfers().getFirst();
-            logSuccessfulNftTransfer(
-                    nftTransfers.tokenOrThrow(), nftTransfers.nftTransfers().getFirst(), readableAccountStore(), frame);
-        }
     }
 }

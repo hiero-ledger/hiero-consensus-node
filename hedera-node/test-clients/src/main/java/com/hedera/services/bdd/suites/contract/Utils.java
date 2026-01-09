@@ -93,6 +93,18 @@ public class Utils {
         return ByteString.copyFrom(Bytes32.fromHexStringLenient(hexString).toArray());
     }
 
+    public static ByteString parsedToByteString(final TokenID id) {
+        return parsedToByteString(id.getShardNum(), id.getRealmNum(), id.getTokenNum());
+    }
+
+    public static ByteString parsedToByteString(final ContractID id) {
+        return parsedToByteString(id.getShardNum(), id.getRealmNum(), id.getContractNum());
+    }
+
+    public static ByteString parsedToByteString(final AccountID id) {
+        return parsedToByteString(id.getShardNum(), id.getRealmNum(), id.getAccountNum());
+    }
+
     public static ByteString parsedToByteString(long n) {
         return ByteString.copyFrom(
                 Bytes32.fromHexStringLenient(Long.toHexString(n)).toArray());
