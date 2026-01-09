@@ -206,10 +206,20 @@ jobs:
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
 
-            CLEANED_COMMIT_LIST="${COMMIT_LIST//\`/}"
-            ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${CLEANED_COMMIT_LIST}")
-            ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
-            echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
+            COMMIT_COUNT=$(echo "$COMMIT_LIST" | wc -l)
+            COMMIT_LIST_STR=""
+            if [[ -z "${COMMIT_LIST}" ]]; then
+              # should never get here.
+              echo "::error file=zxcron-extended-test-suite.yaml,line=210::No commits associated with this release; exiting."
+              exit 1
+            elif [[ $COMMIT_COUNT -gt 15 ]]; then
+              COMMIT_LIST_STR="Please refer to the workflow summary for the full list of associated commits."
+            else
+              PARSED_COMMIT_LIST="${COMMIT_LIST//\`/}"
+              ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${PARSED_COMMIT_LIST}")
+              COMMIT_LIST_STR=${ESCAPED_COMMIT_LIST:1:-1}
+            fi
+            echo "commit-list=${COMMIT_LIST_STR}" >> "${GITHUB_OUTPUT}"
 
             # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
@@ -624,6 +634,8 @@ jobs:
       - name: Build Slack Payload Message
         id: payload
         run: |
+
+
           cat <<EOF > slack_payload.json
           {
             "attachments": [
