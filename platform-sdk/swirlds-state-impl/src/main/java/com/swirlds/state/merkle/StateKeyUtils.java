@@ -42,7 +42,7 @@ import java.util.Objects;
 public class StateKeyUtils {
 
     // StateKey.key OneOf field number for singletons
-    private static final int FIELD_NUM_SINGLETON = 1;
+    public static final int FIELD_NUM_SINGLETON = 1;
 
     private StateKeyUtils() {}
 
