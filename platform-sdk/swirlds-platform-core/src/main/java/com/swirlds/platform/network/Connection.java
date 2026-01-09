@@ -47,7 +47,7 @@ public interface Connection {
 
     /**
      * Is there currently a valid connection from me to the member at the given index in the address book?
-     *
+     * <p>
      * If this method returns {@code true}, the underlying socket is guaranteed to be non-null.
      *
      * @return true is connected, false otherwise.
@@ -58,26 +58,23 @@ public interface Connection {
      * Returns the current timeout value of this connection.
      *
      * @return the current timeout value in milliseconds
-     * @throws SocketException
-     * 		if there is an error in the underlying protocol, such as a TCP error.
+     * @throws SocketException if there is an error in the underlying protocol, such as a TCP error.
      */
     int getTimeout() throws SocketException;
 
     /**
      * Sets the timeout of this connection.
      *
-     * @param timeoutMillis
-     * 		The timeout value to set in milliseconds. A value of zero is treated as an infinite timeout.
-     * @throws SocketException
-     * 		if there is an error in the underlying protocol, such as a TCP error.
+     * @param timeoutMillis The timeout value to set in milliseconds. A value of zero is treated as an infinite
+     *                      timeout.
+     * @throws SocketException if there is an error in the underlying protocol, such as a TCP error.
      */
     void setTimeout(final long timeoutMillis) throws SocketException;
 
     /**
      * Initialize {@code this} instance for a gossip session.
      *
-     * @throws IOException
-     * 		if the connection is broken
+     * @throws IOException if the connection is broken
      */
     void initForSync() throws IOException;
 
@@ -103,4 +100,10 @@ public interface Connection {
     default String generateDescription() {
         return String.format("%s %s %s", getSelfId(), isOutbound() ? "->" : "<-", getOtherId());
     }
+
+    /**
+     * Optional call by client to indicate that read operation has finished. Some implementations of Connection might
+     * use it to optimize network communication (by sending quick ack for example)
+     */
+    default void afterRead() {}
 }
