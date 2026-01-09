@@ -706,7 +706,7 @@ class NodeFeeManagerTest {
                 .withValue("staking.fees.stakingRewardPercentage", 0)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeManager(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodInfoManager);
 
         final var nodePayments = NodePayments.newBuilder().payments(List.of()).build();
         final var stakePeriodInfo = StakePeriodInfo.newBuilder()
@@ -877,13 +877,22 @@ class NodeFeeManagerTest {
     }
 
     private void givenSetupForDistributionWithDeletedAccount(
-            NodePayments nodePayments, long feeCollectionBalance, long deletedAccountNum) {
+            NodePayments nodePayments,
+            StakePeriodInfo stakePeriodInfo,
+            long feeCollectionBalance,
+            long deletedAccountNum) {
         nodePaymentsState = new FunctionWritableSingletonState<>(
                 NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get, nodePaymentsRef::set);
         nodePaymentsRef.set(nodePayments);
 
+        stakePeriodInfoState = new FunctionWritableSingletonState<>(
+                STAKE_PERIOD_INFO_STATE_ID, STAKE_PERIOD_INFO_STATE_LABEL, stakePeriodInfoRef::get, stakePeriodInfoRef::set);
+        stakePeriodInfoRef.set(stakePeriodInfo);
+
         final var readableNodePaymentsState = new FunctionReadableSingletonState<>(
                 NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get);
+        final var readableStakePeriodInfoState = new FunctionReadableSingletonState<>(
+                STAKE_PERIOD_INFO_STATE_ID, STAKE_PERIOD_INFO_STATE_LABEL, stakePeriodInfoRef::get);
 
         final var entityIdState = new FunctionWritableSingletonState<>(
                 ENTITY_ID_STATE_ID,
@@ -923,6 +932,7 @@ class NodeFeeManagerTest {
 
         writableStates = new MapWritableStates(Map.of(
                 NODE_PAYMENTS_STATE_ID, nodePaymentsState,
+                STAKE_PERIOD_INFO_STATE_ID, stakePeriodInfoState,
                 ENTITY_ID_STATE_ID, entityIdState,
                 ENTITY_COUNTS_STATE_ID, entityCountsState,
                 ACCOUNTS_STATE_ID, accounts,
@@ -936,6 +946,7 @@ class NodeFeeManagerTest {
 
         readableStates = new MapReadableStates(Map.of(
                 NODE_PAYMENTS_STATE_ID, readableNodePaymentsState,
+                STAKE_PERIOD_INFO_STATE_ID, readableStakePeriodInfoState,
                 ENTITY_ID_STATE_ID, readableEntityIdState,
                 ENTITY_COUNTS_STATE_ID, readableEntityCountsState));
 
