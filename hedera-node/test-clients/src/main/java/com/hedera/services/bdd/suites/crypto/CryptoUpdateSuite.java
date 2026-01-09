@@ -45,6 +45,7 @@ import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -53,6 +54,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_B
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
+import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
@@ -65,6 +67,7 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -503,5 +506,21 @@ public class CryptoUpdateSuite {
         return hapiTest(
                 cryptoCreate(account).declinedReward(false),
                 cryptoUpdate(account).payingWith(DEFAULT_PAYER).expiring(-1).hasKnownStatus(INVALID_EXPIRATION_TIME));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateAccountWithDelegationAddress() {
+        final var accountTotest = "accountToTest";
+        final var longZeroAddress = ByteString.copyFrom(CommonUtils.unhex("0000000000000000000000000000000fffffffff"));
+        final var emptyAddress = ByteString.empty();
+        final var badAddress = ByteString.copyFrom(CommonUtils.unhex("0fffffffff"));
+        return hapiTest(
+                cryptoCreate(accountTotest).balance(ONE_HUNDRED_HBARS),
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(emptyAddress)),
+                cryptoUpdate(accountTotest).delegationAddress(longZeroAddress),
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(longZeroAddress)),
+                cryptoUpdate(accountTotest).delegationAddress(emptyAddress),
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(emptyAddress)),
+                cryptoUpdate(accountTotest).delegationAddress(badAddress).hasPrecheck(INVALID_CONTRACT_ID));
     }
 }

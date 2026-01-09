@@ -296,4 +296,20 @@ public interface HederaWorldUpdater extends WorldUpdater {
     default EntityIdFactory entityIdFactory() {
         return enhancement().nativeOperations().entityIdFactory();
     }
+
+    /**
+     * Sets the account code delegation to the given address for the given account ID.
+     * @param accountID the account ID to set the delegation for
+     * @param delegationAddress the address to set as the delegation indicator
+     * @return true if the code delegation was set successfully, false otherwise
+     */
+    boolean setAccountCodeDelegation(@NonNull final AccountID accountID, @NonNull final Address delegationAddress);
+
+    /**
+     * Create a new account with code delegation to the given address for the new account.
+     * @param authority the alias address of the new account to create
+     * @param delegationAddress the address to set as the delegation indicator
+     * @return true if the account was created and the code delegation was set successfully, false otherwise
+     */
+    boolean createAccountWithCodeDelegation(@NonNull final Address authority, @NonNull final Address delegationAddress);
 }

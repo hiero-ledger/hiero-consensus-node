@@ -359,7 +359,6 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
         return HOLLOW_ACCOUNT_KEY.equals(account.key());
     }
-
     /**
      * {@inheritDoc}
      */
@@ -419,7 +418,8 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public Optional<ExceptionalHaltReason> tryLazyCreation(@NonNull final Address address) {
+    public Optional<ExceptionalHaltReason> tryLazyCreation(
+            @NonNull final Address address, @Nullable final Address delegationAddress) {
         if (isLongZero(address)) {
             return Optional.of(INVALID_ALIAS_KEY);
         }
@@ -437,7 +437,10 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 }
             }
         }
-        final var status = nativeOperations.createHollowAccount(tuweniToPbjBytes(address));
+        final var delegationAddressBytes = delegationAddress == null
+                ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY
+                : tuweniToPbjBytes(delegationAddress);
+        final var status = nativeOperations.createHollowAccount(tuweniToPbjBytes(address), delegationAddressBytes);
         if (status != SUCCESS) {
             return status == MAX_CHILD_RECORDS_EXCEEDED
                     ? Optional.of(INSUFFICIENT_CHILD_RECORDS)

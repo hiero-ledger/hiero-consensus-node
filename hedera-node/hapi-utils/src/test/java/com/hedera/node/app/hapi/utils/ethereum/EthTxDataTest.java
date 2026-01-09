@@ -1005,7 +1005,7 @@ class EthTxDataTest {
         byte[] innerList = rlpList(
                 rlpBytes(chainId), rlpBytes(address), rlpUInt(nonce), rlpUInt(yParity), rlpBytes(r), rlpBytes(s));
 
-        byte[] authorizationList = rlpList(innerList);
+        byte[] authorizationList = innerList;
 
         final byte[] raw = buildType4Raw(
                 fillBytes(2, 0x01),

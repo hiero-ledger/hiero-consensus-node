@@ -46,6 +46,7 @@ public interface ContractServiceComponent {
          * @param systemContractMethodRegistry registry of all system contract methods
          * @param customOps any additional custom operations to use when constructing the EVM
          * @param entityIdFactory a factory for creating entity IDs
+         * @param nativeLibVerifier the native library verifier
          * @return the contract service component
          */
         ContractServiceComponent create(

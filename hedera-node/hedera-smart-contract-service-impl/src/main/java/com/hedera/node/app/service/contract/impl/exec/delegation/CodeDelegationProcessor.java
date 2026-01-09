@@ -7,6 +7,8 @@ import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELE
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
+import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import java.math.BigInteger;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
@@ -61,15 +63,21 @@ public record CodeDelegationProcessor(long chainId) {
             return result;
         }
 
+        // Get a new proxy world updater to handle state changes and records for code delegations.
+        final ProxyWorldUpdater proxyWorldUpdater = (ProxyWorldUpdater) worldUpdater.updater();
         transaction
                 .codeDelegations()
-                .forEach(codeDelegation -> setAccountCodeToDelegationIndicator(worldUpdater, codeDelegation, result));
+                .forEach(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, result));
+        // Commit the changes for code delegations.
+        proxyWorldUpdater.commit();
 
         return result;
     }
 
-    private void setAccountCodeToDelegationIndicator(
-            final WorldUpdater worldUpdater, final CodeDelegation codeDelegation, final CodeDelegationResult result) {
+    private void processCodeDelegation(
+            final ProxyWorldUpdater proxyWorldUpdater,
+            final CodeDelegation codeDelegation,
+            final CodeDelegationResult result) {
         LOG.trace("Processing code delegation: {}", codeDelegation);
 
         if ((codeDelegation.getChainId() != 0) && (chainId != codeDelegation.getChainId())) {
@@ -84,10 +92,6 @@ public record CodeDelegationProcessor(long chainId) {
             return;
         }
 
-        if (codeDelegation.getR().compareTo(HALF_CURVE_ORDER) > 0) {
-            return;
-        }
-
         if (codeDelegation.getYParity() >= MAX_Y_PARITY) {
             return;
         }
@@ -99,18 +103,27 @@ public record CodeDelegationProcessor(long chainId) {
 
         final var authorizerAddress = Address.wrap(Bytes.wrap(authorizer.get().address()));
         final Optional<MutableAccount> maybeAuthorityAccount =
-                Optional.ofNullable(worldUpdater.getAccount(authorizerAddress));
+                Optional.ofNullable(proxyWorldUpdater.getAccount(authorizerAddress));
 
         result.addAccessedDelegatorAddress(authorizerAddress);
 
+        final var delegatedContractAddress = Address.wrap(Bytes.wrap(codeDelegation.address()));
+
         MutableAccount authority;
-        boolean authorityDoesAlreadyExist = false;
         if (maybeAuthorityAccount.isEmpty()) {
             // only create an account if nonce is valid
             if (codeDelegation.nonce() != 0) {
                 return;
             }
-            authority = worldUpdater.createAccount(authorizerAddress);
+
+            if (!proxyWorldUpdater.createAccountWithCodeDelegation(authorizerAddress, delegatedContractAddress)) {
+                return;
+            }
+
+            authority = proxyWorldUpdater.getAccount(authorizerAddress);
+            if (authority == null) {
+                return;
+            }
         } else {
             authority = maybeAuthorityAccount.get();
 
@@ -118,18 +131,22 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
-            authorityDoesAlreadyExist = true;
-        }
+            if (codeDelegation.nonce() != authority.getNonce()) {
+                return;
+            }
 
-        if (codeDelegation.nonce() != authority.getNonce()) {
-            return;
-        }
+            // Ensure that the account is a regular account
+            if (!((HederaEvmAccount) authority).isRegularAccount()) {
+                return;
+            }
 
-        if (authorityDoesAlreadyExist) {
+            if (!proxyWorldUpdater.setAccountCodeDelegation(
+                    ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
+                return;
+            }
             result.incrementAlreadyExistingDelegators();
         }
 
-        setAccountCodeToDelegationIndicator(authority, authorizerAddress);
         authority.incrementNonce();
     }
 
@@ -141,16 +158,5 @@ public record CodeDelegationProcessor(long chainId) {
         return code != null
                 && code.size() == DELEGATED_CODE_SIZE
                 && code.slice(0, CODE_DELEGATION_PREFIX.size()).equals(CODE_DELEGATION_PREFIX);
-    }
-
-    private void setAccountCodeToDelegationIndicator(
-            final MutableAccount account, final Address codeDelegationAddress) {
-        // code delegation to zero address removes any delegated code
-        if (codeDelegationAddress.equals(Address.ZERO)) {
-            account.setCode(Bytes.EMPTY);
-            return;
-        }
-
-        account.setCode(Bytes.concatenate(CODE_DELEGATION_PREFIX, codeDelegationAddress));
     }
 }

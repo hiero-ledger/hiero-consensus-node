@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.se
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -26,8 +27,10 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -128,19 +131,18 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull ResponseCodeEnum createHollowAccount(@NonNull final Bytes evmAddress) {
+    public @NonNull ResponseCodeEnum createHollowAccount(
+            @NonNull final Bytes evmAddress, @NonNull final Bytes delegationAddress) {
         final boolean unlimitedAutoAssociations =
                 context.configuration().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
         final var synthTxn = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthHollowAccountCreation(evmAddress, unlimitedAutoAssociations))
+                .cryptoCreateAccount(
+                        synthHollowAccountCreation(evmAddress, unlimitedAutoAssociations, delegationAddress))
                 .build();
 
         try {
-            return context.dispatch(setupDispatch(
-                            context.payer(),
-                            synthTxn,
-                            CryptoCreateStreamBuilder.class,
-                            DISPATCH_ONLY_NOOP_FEE_CHARGING))
+            return context.dispatch(hollowAccountCreationDispatchOptions(
+                            !delegationAddress.equals(Bytes.EMPTY), context.payer(), synthTxn))
                     .status();
         } catch (HandleException e) {
             // It is critically important we don't let HandleExceptions propagate to the workflow because
@@ -151,6 +153,25 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
         }
     }
 
+    /**
+     * Returns the {@link DispatchOptions} to use.  If the transaction has a delegation address, it will
+     * dispatch a child transaction.
+     * Otherwise, it will dispatch a preceding transaction.
+     *
+     * @param hasDelegationAddress whether the transaction has a delegation address
+     * @param payerId the ID of the account that will pay for the transaction
+     * @param body the transaction body to dispatch
+     * @return the dispatch options to use for the dispatch
+     */
+    private static DispatchOptions<CryptoCreateStreamBuilder> hollowAccountCreationDispatchOptions(
+            final boolean hasDelegationAddress, @NonNull final AccountID payerId, @NonNull final TransactionBody body) {
+        if (hasDelegationAddress) {
+            return stepDispatch(
+                    payerId, body, CryptoCreateStreamBuilder.class, SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER);
+        } else {
+            return setupDispatch(payerId, body, CryptoCreateStreamBuilder.class, DISPATCH_ONLY_NOOP_FEE_CHARGING);
+        }
+    }
     /**
      * {@inheritDoc}
      */

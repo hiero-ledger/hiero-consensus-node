@@ -662,9 +662,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         }
 
         private static Stream<Arguments> createContextDispatchers() {
-            return Stream.of(Arguments.of(
-                    (Consumer<HandleContext>) context ->
-                            context.dispatch(independentDispatch(ALICE.accountID(), txBody, StreamBuilder.class)),
+            return Stream.of(
+                    Arguments.of((Consumer<HandleContext>) context ->
+                            context.dispatch(independentDispatch(ALICE.accountID(), txBody, StreamBuilder.class))),
                     Arguments.of((Consumer<HandleContext>) context -> context.dispatch(DispatchOptions.subDispatch(
                             ALICE.accountID(),
                             txBody,
@@ -676,7 +676,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                             UNIVERSAL_NOOP_FEE_CHARGING,
                             PropagateFeeChargingStrategy.YES))),
                     Arguments.of((Consumer<HandleContext>) context -> context.dispatch(setupDispatch(
-                            ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING)))));
+                            ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING))));
         }
 
         @ParameterizedTest

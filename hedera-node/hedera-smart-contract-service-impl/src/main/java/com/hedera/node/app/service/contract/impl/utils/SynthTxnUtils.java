@@ -132,10 +132,14 @@ public class SynthTxnUtils {
      * to dispatch.
      *
      * @param evmAddress the EVM address
+     * @param unlimitedAutoAssociations whether the account should have unlimited automatic token associations
+     * @param delegationAddress the contract address to delegate the account to if any
      * @return the corresponding {@link CryptoCreateTransactionBody}
      */
     public static CryptoCreateTransactionBody synthHollowAccountCreation(
-            @NonNull final Bytes evmAddress, final boolean unlimitedAutoAssociations) {
+            @NonNull final Bytes evmAddress,
+            final boolean unlimitedAutoAssociations,
+            @NonNull final Bytes delegationAddress) {
         requireNonNull(evmAddress);
         return CryptoCreateTransactionBody.newBuilder()
                 .initialBalance(0L)
@@ -143,6 +147,7 @@ public class SynthTxnUtils {
                 .maxAutomaticTokenAssociations(unlimitedAutoAssociations ? -1 : 0)
                 .key(IMMUTABILITY_SENTINEL_KEY)
                 .autoRenewPeriod(DEFAULT_AUTO_RENEW_PERIOD)
+                .delegationAddress(delegationAddress)
                 .build();
     }
 

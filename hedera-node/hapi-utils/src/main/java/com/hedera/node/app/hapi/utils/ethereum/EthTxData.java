@@ -212,7 +212,7 @@ public record EthTxData(
                                 Integers.toBytesUnsigned(value),
                                 callData,
                                 accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
-                                List.of(authorizationList),
+                                authorizationListAsRlp() != null ? authorizationListAsRlp() : new Object[0],
                                 Integers.toBytes(recId),
                                 r,
                                 s));
@@ -466,29 +466,23 @@ public record EthTxData(
         final List<CodeDelegation> codeDelegations = new ArrayList<>();
         if (authorizationList != null) {
             final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList);
-            final var rlpItem = decoder.next();
-            if (!rlpItem.isList()) {
-                return codeDelegations;
-            }
-
-            for (final var rlpInner : rlpItem.asRLPList().elements()) {
-                if (!rlpInner.isList()) {
-                    throw new IllegalArgumentException("Code authorization is not a list");
+            while (decoder.hasNext()) {
+                final var rlpItem = decoder.next();
+                if (!rlpItem.isList()) {
+                    return codeDelegations;
                 }
-
-                final var rlpInnerList = rlpInner.asRLPList().elements();
-                if (rlpInnerList.size() != 6) {
+                if (rlpItem.asRLPList().elements().size() != 6) {
                     throw new IllegalArgumentException(
                             "Code authorization does not contain expected number of elements");
                 }
-
+                final var elements = rlpItem.asRLPList().elements();
                 codeDelegations.add(new CodeDelegation(
-                        rlpInnerList.get(0).data(), // chainId)
-                        rlpInnerList.get(1).data(), // address
-                        asLong(rlpInnerList.get(2)), // nonce
-                        asByte(rlpInnerList.get(3)), // yParity
-                        rlpInnerList.get(4).data(), // r
-                        rlpInnerList.get(5).data() // s
+                        elements.get(0).data(), // chainId)
+                        elements.get(1).data(), // address
+                        asLong(elements.get(2)), // nonce
+                        asByte(elements.get(3)), // yParity
+                        elements.get(4).data(), // r
+                        elements.get(5).data() // s
                         ));
             }
         }
