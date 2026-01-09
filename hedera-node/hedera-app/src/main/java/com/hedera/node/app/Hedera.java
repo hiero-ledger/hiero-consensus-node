@@ -271,6 +271,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
     private final ConsensusServiceImpl consensusServiceImpl;
 
+    private final NetworkServiceImpl networkServiceImpl;
+
     /**
      * The file service singleton, kept as a field here to avoid constructing twice
      * (once in constructor to register schemas, again inside Dagger component).
@@ -521,6 +523,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .txBody());
         tokenServiceImpl = new TokenServiceImpl(appContext);
         consensusServiceImpl = new ConsensusServiceImpl();
+        networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         blockStreamService = new BlockStreamService();
@@ -551,7 +554,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         blockStreamService,
                         new FeeService(),
                         new CongestionThrottleService(),
-                        new NetworkServiceImpl(),
+                        networkServiceImpl,
                         new AddressBookServiceImpl(),
                         new RosterServiceImpl(
                                 this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState)),
@@ -1263,6 +1266,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .fileServiceImpl(fileServiceImpl)
                 .contractServiceImpl(contractServiceImpl)
                 .utilServiceImpl(utilServiceImpl)
+                .networkServiceImpl(networkServiceImpl)
                 .tokenServiceImpl(tokenServiceImpl)
                 .consensusServiceImpl(consensusServiceImpl)
                 .scheduleService(scheduleServiceImpl)
