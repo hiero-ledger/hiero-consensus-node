@@ -634,8 +634,6 @@ jobs:
       - name: Build Slack Payload Message
         id: payload
         run: |
-
-
           cat <<EOF > slack_payload.json
           {
             "attachments": [
