@@ -104,6 +104,11 @@ class RootProxyWorldUpdaterTest {
     }
 
     @Test
+    void returnsEvmFrameStateForRealTimeAccess() {
+        assertSame(evmFrameState, subject.getEvmFrameState());
+    }
+
+    @Test
     void performsAdditionalCommitActionsInOrder() {
         InOrder inOrder = BDDMockito.inOrder(storageSizeValidator, storageManager, rentCalculator, hederaOperations);
 
