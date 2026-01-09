@@ -47,7 +47,7 @@
       "schedule": [
         {
           "name": "HookStore",
-          "baseFee": 50000000
+          "baseFee": 49000000
         }
       ]
     },
