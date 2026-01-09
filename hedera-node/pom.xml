@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (C) 2024-2025 Hedera Hashgraph, LLC
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.hedera.hashgraph</groupId>
+        <artifactId>hiero-consensus-node</artifactId>
+        <version>0.70.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>hedera-node-parent</artifactId>
+    <packaging>pom</packaging>
+    <name>Hedera Node - Parent</name>
+    <description>Hedera Node Services and Application</description>
+
+    <modules>
+        <!-- Foundation -->
+        <module>hapi-utils</module>
+        <module>hedera-config</module>
+        <module>hapi-fees</module>
+        <module>hedera-entity-id-service</module>
+        <module>hedera-app-spi</module>
+
+        <!-- Service Interfaces -->
+        <module>hedera-addressbook-service</module>
+        <module>hedera-consensus-service</module>
+        <module>hedera-file-service</module>
+        <module>hedera-network-admin-service</module>
+        <module>hedera-schedule-service</module>
+        <module>hedera-smart-contract-service</module>
+        <module>hedera-token-service</module>
+        <module>hedera-util-service</module>
+        <module>hedera-roster-service</module>
+
+        <!-- Service Implementations (order matters - dependencies first) -->
+        <module>hedera-entity-id-service-impl</module>
+        <module>hedera-token-service-impl</module>
+        <module>hedera-addressbook-service-impl</module>
+        <module>hedera-consensus-service-impl</module>
+        <module>hedera-file-service-impl</module>
+        <module>hedera-network-admin-service-impl</module>
+        <module>hedera-schedule-service-impl</module>
+        <module>hedera-smart-contract-service-impl</module>
+        <module>hedera-util-service-impl</module>
+        <module>hedera-roster-service-impl</module>
+
+        <!-- Application -->
+        <module>hedera-app</module>
+
+        <!-- Test Fixtures (after hedera-app since hedera-app-test-fixtures depends on it) -->
+        <module>hedera-config-test-fixtures</module>
+        <module>hedera-app-spi-test-fixtures</module>
+        <module>hedera-token-service-test-fixtures</module>
+        <module>hedera-app-test-fixtures</module>
+
+        <!-- TODO: test-clients has JPMS incompatibility with testcontainers (module name mismatch) -->
+        <!-- <module>test-clients</module> -->
+        <!-- yahcli depends on test-clients, so it's also temporarily disabled -->
+        <!-- <module>yahcli</module> -->
+    </modules>
+</project>
