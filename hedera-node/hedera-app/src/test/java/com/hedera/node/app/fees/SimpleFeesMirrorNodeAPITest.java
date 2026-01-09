@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -217,9 +218,7 @@ public class SimpleFeesMirrorNodeAPITest {
 
          */
     }
-
-    @Test
-    public void testSubmitMessageIntrinsicPasses() throws ParseException {
+    private StandaloneFeeCalculator setupCalculator() {
         // configure overrides
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
         // bring up the full state
@@ -232,11 +231,15 @@ public class SimpleFeesMirrorNodeAPITest {
 
         // make the calculator
         final StandaloneFeeCalculator calc = new StandaloneFeeCalculatorImpl(state, properties);
+        return calc;
+    }
 
-        // make an example transaction
+    @Test
+    public void testSubmitMessageIntrinsicPasses() throws ParseException {
+        final StandaloneFeeCalculator calc = setupCalculator();
+
         final long topicEntityNum = 1L;
         final TopicID topicId = TopicID.newBuilder().topicNum(topicEntityNum).build();
-
         final var body = TransactionBody.newBuilder()
                 .consensusSubmitMessage(ConsensusSubmitMessageTransactionBody.newBuilder()
                         .topicID(topicId)
@@ -248,13 +251,45 @@ public class SimpleFeesMirrorNodeAPITest {
                 .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
                 .sigMap(sigMap)
                 .build();
-
         final Transaction txn = Transaction.newBuilder()
                 .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx)).build();
 
         final FeeResult result = calc.calculate(txn, Intrinsic);
         assertThat(result.service).isEqualTo(0L);
-        System.out.println("JSON is \n" + feeResultToJson(result));
+//        System.out.println("JSON is \n" + feeResultToJson(result));
+    }
+
+    @Test
+    public void testCreateTopic() throws ParseException {
+        final StandaloneFeeCalculator calc = setupCalculator();
+        final var body = TransactionBody.newBuilder()
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.newBuilder()
+                        .memo("sometopicname").build()
+                ).build();
+        final Transaction txn = Transaction.newBuilder().body(body).build();
+        //0.01000
+        final FeeResult result = calc.calculate(txn, Intrinsic);
+        System.out.println("fee is " + result);
+        final var TINY_CENTS = 100_000_000L;
+        assertThat(result.total()).isEqualTo(1 * TINY_CENTS); //0.01 USD
+    }
+
+    @Test
+    public void testSubmitMessage() throws ParseException {
+        final StandaloneFeeCalculator calc = setupCalculator();
+        //0.01000
+        final long topicEntityNum = 1L;
+        final TopicID topicId =
+                TopicID.newBuilder().topicNum(topicEntityNum).build();
+        final var body = TransactionBody.newBuilder()
+                .consensusSubmitMessage(ConsensusSubmitMessageTransactionBody.newBuilder()
+                        .topicID(topicId)
+                        .message(Bytes.wrap("some message"))
+                        .build())
+                .build();
+        final Transaction txn = Transaction.newBuilder().body(body).build();
+        final FeeResult result = calc.calculate(txn, Intrinsic);
+        assertThat(result.service).isEqualTo(0L);
     }
 
     @Test

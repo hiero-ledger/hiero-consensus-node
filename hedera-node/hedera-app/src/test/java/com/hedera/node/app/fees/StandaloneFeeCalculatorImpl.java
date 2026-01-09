@@ -26,7 +26,48 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 
 public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
-    public static class TestFeeContextImpl implements FeeContext {
+
+    private TestFeeContextImpl feeContext = new TestFeeContextImpl();
+
+    private final SimpleFeeCalculator calc;
+
+    public StandaloneFeeCalculatorImpl(State state, TransactionExecutors.Properties properties) {
+        // make an entity id factory
+        final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
+        // load a new executor component
+        final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(
+                properties.state(),
+                properties.appProperties(),
+                properties.customTracerBinding(),
+                properties.customOps(),
+                entityIdFactory);
+        // init
+        executor.stateNetworkInfo().initFrom(state);
+        executor.initializer().initialize(state, StreamMode.BOTH);
+
+        // return the calculator
+        this.calc = executor.feeManager().getSimpleFeeCalculator();
+    }
+
+    @Override
+    public FeeResult calculate(Transaction transaction, ServiceFeeCalculator.EstimationMode mode) throws ParseException {
+        final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(
+                BufferedData.wrap(transaction.signedTransactionBytes().toByteArray()));
+        if (signedTransaction.hasSigMap()) {
+            final var sigMap = signedTransaction.sigMapOrThrow();
+            feeContext.setNumTxnSignatures(sigMap.sigPair().size());
+        } else {
+            feeContext.setNumTxnSignatures(0);
+        }
+        if(transaction.hasBody()) {
+            return calc.calculateTxFee(transaction.bodyOrThrow(), feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+        }
+        final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(
+                BufferedData.wrap(signedTransaction.bodyBytes().toByteArray()));
+        return calc.calculateTxFee(transactionBody, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+    }
+
+    private class TestFeeContextImpl implements FeeContext {
 
         private int _numTxnSignatures;
 
@@ -93,42 +134,5 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
         public void setNumTxnSignatures(int sigcount) {
             this._numTxnSignatures = sigcount;
         }
-    }
-
-    private TestFeeContextImpl feeContext = new TestFeeContextImpl();
-
-    private final SimpleFeeCalculator calc;
-
-    public StandaloneFeeCalculatorImpl(State state, TransactionExecutors.Properties properties) {
-        // make an entity id factory
-        final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
-        // load a new executor component
-        final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(
-                properties.state(),
-                properties.appProperties(),
-                properties.customTracerBinding(),
-                properties.customOps(),
-                entityIdFactory);
-        // init
-        executor.stateNetworkInfo().initFrom(state);
-        executor.initializer().initialize(state, StreamMode.BOTH);
-
-        // return the calculator
-        this.calc = executor.feeManager().getSimpleFeeCalculator();
-    }
-
-    @Override
-    public FeeResult calculate(Transaction transaction, ServiceFeeCalculator.EstimationMode mode) throws ParseException {
-        final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(
-                BufferedData.wrap(transaction.signedTransactionBytes().toByteArray()));
-        if (signedTransaction.hasSigMap()) {
-            final var sigMap = signedTransaction.sigMapOrThrow();
-            feeContext.setNumTxnSignatures(sigMap.sigPair().size());
-        } else {
-            feeContext.setNumTxnSignatures(0);
-        }
-        final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(
-                BufferedData.wrap(signedTransaction.bodyBytes().toByteArray()));
-        return calc.calculateTxFee(transactionBody, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
     }
 }
