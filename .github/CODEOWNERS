@@ -81,6 +81,8 @@
 /platform-sdk/swirlds-unit-tests/structures/        @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-virtualmap/                   @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
+/hiero-observability                                @hiero-ledger/hiero-consensus-node-foundation-codeowners
+
 ####################
 #####   HAPI  ######
 ####################
