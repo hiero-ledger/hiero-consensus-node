@@ -271,12 +271,12 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public long kvPath(final int stateId, @NonNull final Bytes key) {
+    public long getKvPath(final int stateId, @NonNull final Bytes key) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public long singletonPath(final int stateId) {
+    public long getSingletonPath(final int stateId) {
         throw new UnsupportedOperationException();
     }
 
@@ -291,7 +291,7 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
+    public long getQueueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
         throw new UnsupportedOperationException();
     }
 
@@ -311,22 +311,22 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public Bytes queuePeekHead(int stateId) {
+    public Bytes peekQueueHead(int stateId) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Bytes queuePeekTail(int stateId) {
+    public Bytes peekQueueTail(int stateId) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Bytes queuePeek(int stateId, int index) {
+    public Bytes peekQueue(int stateId, int index) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public List<Bytes> queueAsList(int stateId) {
+    public List<Bytes> getQueueAsList(int stateId) {
         throw new UnsupportedOperationException();
     }
 
@@ -352,12 +352,12 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public void queuePush(int stateId, @NonNull Bytes value) {
+    public void pushQueue(int stateId, @NonNull Bytes value) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Bytes queuePop(int stateId) {
+    public Bytes popQueue(int stateId) {
         throw new UnsupportedOperationException();
     }
 

@@ -722,7 +722,7 @@ public class VirtualMapState implements MerkleNodeState {
     /**
      * {@inheritDoc}}
      */
-    public long singletonPath(final int stateId) {
+    public long getSingletonPath(final int stateId) {
         return virtualMap.getRecords().findPath(getStateKeyForSingleton(stateId));
     }
 
@@ -730,7 +730,7 @@ public class VirtualMapState implements MerkleNodeState {
      * {@inheritDoc}}
      */
     @Override
-    public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
+    public long getQueueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
         final StateValue<QueueState> queueStateValue =
                 virtualMap.get(StateKeyUtils.queueStateKey(stateId), QUEUE_STATE_VALUE_CODEC);
         if (queueStateValue == null) {
@@ -757,7 +757,7 @@ public class VirtualMapState implements MerkleNodeState {
      * {@inheritDoc}
      */
     @Override
-    public long kvPath(final int stateId, @NonNull final Bytes key) {
+    public long getKvPath(final int stateId, @NonNull final Bytes key) {
         return virtualMap.getRecords().findPath(kvKey(stateId, key));
     }
 
@@ -929,7 +929,7 @@ public class VirtualMapState implements MerkleNodeState {
      */
     @Nullable
     @Override
-    public Bytes queuePeekHead(final int stateId) {
+    public Bytes peekQueueHead(final int stateId) {
         final QueueState state = getQueueState(stateId);
         if (state == null || state.head() >= state.tail()) {
             return null; // Empty queue
@@ -944,7 +944,7 @@ public class VirtualMapState implements MerkleNodeState {
      */
     @Nullable
     @Override
-    public Bytes queuePeekTail(final int stateId) {
+    public Bytes peekQueueTail(final int stateId) {
         final QueueState state = getQueueState(stateId);
         if (state == null || state.head() >= state.tail()) {
             return null; // Empty queue
@@ -960,7 +960,7 @@ public class VirtualMapState implements MerkleNodeState {
      */
     @Nullable
     @Override
-    public Bytes queuePeek(final int stateID, final int index) {
+    public Bytes peekQueue(final int stateID, final int index) {
         final QueueState state = getQueueState(stateID);
         if (state == null) {
             return null;
@@ -978,7 +978,7 @@ public class VirtualMapState implements MerkleNodeState {
      * {@inheritDoc}
      */
     @Override
-    public List<Bytes> queueAsList(final int stateID) {
+    public List<Bytes> getQueueAsList(final int stateID) {
         final QueueState state = getQueueState(stateID);
         final List<Bytes> result = new ArrayList<>();
         for (long i = state.head(); i < state.tail(); i++) {
@@ -1039,7 +1039,7 @@ public class VirtualMapState implements MerkleNodeState {
      * {@inheritDoc}
      */
     @Override
-    public void queuePush(final int stateId, @NonNull final Bytes value) {
+    public void pushQueue(final int stateId, @NonNull final Bytes value) {
         requireNonNull(value, "value must not be null");
         final Bytes qStateKey = queueStateKey(stateId);
         final Bytes existing = virtualMap.getBytes(qStateKey);
@@ -1072,9 +1072,9 @@ public class VirtualMapState implements MerkleNodeState {
      * {@inheritDoc}
      */
     @Override
-    public Bytes queuePop(final int stateId) {
+    public Bytes popQueue(final int stateId) {
         final Bytes qStateKey = queueStateKey(stateId);
-        final QueueState qState = getQueueState(qStateKey);
+        final QueueState qState = getQueueState(stateId);
         if (qState == null) return null; // empty
 
         final Bytes elementKey = queueKey(stateId, (int) qState.head());
@@ -1092,32 +1092,13 @@ public class VirtualMapState implements MerkleNodeState {
         return value;
     }
 
-    private @Nullable QueueState getQueueState(Bytes qStateKey) {
-        final Bytes existing = virtualMap.getBytes(qStateKey);
-        if (existing == null) {
-            return null;
-        }
-        final QueueState qState;
-        try {
-            final Bytes unwrapped = unwrap(existing);
-            qState = QueueStateCodec.INSTANCE.parse(unwrapped);
-        } catch (ParseException e) {
-            throw new IllegalStateException("Failed to parse existing queue state", e);
-        }
-
-        if (qState.head() >= qState.tail()) {
-            return null;
-        }
-        return qState;
-    }
-
     /**
      * {@inheritDoc}}
      */
     @Override
     public void removeQueue(int stateId) {
         final Bytes qStateKey = queueStateKey(stateId);
-        QueueState qState = getQueueState(qStateKey);
+        QueueState qState = getQueueState(stateId);
         if (qState == null) {
             return;
         }

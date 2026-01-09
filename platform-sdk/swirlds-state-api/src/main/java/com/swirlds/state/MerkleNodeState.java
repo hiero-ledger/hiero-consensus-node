@@ -63,9 +63,9 @@ public interface MerkleNodeState extends State {
      * @return The merkle path of the queue element or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH} if stateId is unknown or element is not found.
      * @param <V> The type of the value of the queue element
      */
-    default <V> long queueElementPath(
+    default <V> long getQueueElementPath(
             final int stateId, @NonNull final V expectedValue, @NonNull final Codec<V> valueCodec) {
-        return queueElementPath(stateId, valueCodec.toBytes(expectedValue));
+        return getQueueElementPath(stateId, valueCodec.toBytes(expectedValue));
     }
 
     /**
@@ -76,8 +76,8 @@ public interface MerkleNodeState extends State {
      * if the key is not found or the stateId is unknown.
      * @param <V> The type of the value of the queue element
      */
-    default <V> long kvPath(final int stateId, @NonNull final V key, @NonNull final Codec<V> keyCodec) {
-        return kvPath(stateId, keyCodec.toBytes(key));
+    default <V> long getKvPath(final int stateId, @NonNull final V key, @NonNull final Codec<V> keyCodec) {
+        return getKvPath(stateId, keyCodec.toBytes(key));
     }
 
     /**
@@ -104,7 +104,7 @@ public interface MerkleNodeState extends State {
      * @param stateId The state ID of the singleton state.
      * @return The merkle path of the singleton state or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH} if the stateId is unknown.
      */
-    long singletonPath(int stateId);
+    long getSingletonPath(int stateId);
 
     /**
      * Get the merkle path of the queue element by its state ID and value.
@@ -113,7 +113,7 @@ public interface MerkleNodeState extends State {
      * @return The merkle path of the queue element by its state ID and value or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
      * if the stateId is unknown.
      */
-    long queueElementPath(int stateId, @NonNull Bytes expectedValue);
+    long getQueueElementPath(int stateId, @NonNull Bytes expectedValue);
 
     /**
      * Get the merkle path of the key-value pair in the state by its state ID and key.
@@ -122,7 +122,7 @@ public interface MerkleNodeState extends State {
      * @return The merkle path of the key-value pair or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
      * if the key is not found or the stateId is unknown.
      */
-    long kvPath(int stateId, @NonNull Bytes key);
+    long getKvPath(int stateId, @NonNull Bytes key);
 
     /**
      * Get a map value from the state
@@ -161,7 +161,7 @@ public interface MerkleNodeState extends State {
      * @return the binary protobuf encoded value at head
      * @throws IllegalArgumentException if the stateId is not valid or not a queue type
      */
-    Bytes queuePeekHead(final int stateId);
+    Bytes peekQueueHead(final int stateId);
 
     /**
      * Peek at tail element in a queue from the latest state version
@@ -170,7 +170,7 @@ public interface MerkleNodeState extends State {
      * @return the binary protobuf encoded value at tail
      * @throws IllegalArgumentException if the stateID is not valid or not a queue type
      */
-    Bytes queuePeekTail(final int stateId);
+    Bytes peekQueueTail(final int stateId);
 
     /**
      * Peek at element at index in a queue from the latest state version. Index has to be between the head and the tail
@@ -181,7 +181,7 @@ public interface MerkleNodeState extends State {
      * @return the binary protobuf encoded value at index
      * @throws IllegalArgumentException if the stateID is not valid or not a queue type
      */
-    Bytes queuePeek(final int stateId, final int index);
+    Bytes peekQueue(final int stateId, final int index);
 
     /**
      * Get all elements in a queue from the latest state version as a list. The list will be ordered from head to tail.
@@ -192,7 +192,7 @@ public interface MerkleNodeState extends State {
      * @return the list of binary protobuf encoded values in the queue
      * @throws IllegalArgumentException if the stateID is not valid or not a queue type
      */
-    List<Bytes> queueAsList(final int stateId);
+    List<Bytes> getQueueAsList(final int stateId);
 
     /**
      * Add/update a singleton value for the given state ID using raw protobuf bytes of the value.
@@ -235,7 +235,7 @@ public interface MerkleNodeState extends State {
      * @param stateId the queue state ID
      * @param value the raw protobuf-encoded element bytes (not wrapped), must not be null
      */
-    void queuePush(int stateId, @NonNull Bytes value);
+    void pushQueue(int stateId, @NonNull Bytes value);
 
     /**
      * Pop an element from the queue for the given state ID.
@@ -245,8 +245,7 @@ public interface MerkleNodeState extends State {
      * @return the raw protobuf-encoded element bytes (not wrapped), or null if empty
      */
     @Nullable
-    Bytes queuePop(int stateId);
-
+    Bytes popQueue(int stateId);
 
     /**
      * Remove all the elements of the queue for the given state ID and the queue metadata.
