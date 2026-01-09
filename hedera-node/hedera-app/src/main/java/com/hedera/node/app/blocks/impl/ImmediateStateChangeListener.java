@@ -78,6 +78,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 
 /**
  * A state change listener that tracks an entire sequence of changes, even if this sequence
@@ -241,6 +243,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case HookId HookId -> new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.HOOK_ID_KEY, HookId));
             case ClprLedgerId clprLedgerId ->
                 new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CLPR_LEDGER_ID_KEY, clprLedgerId));
+            case ClprMessageKey clprMessageKey ->
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CLPR_MESSAGE_KEY, clprMessageKey));
             default ->
                 throw new IllegalStateException(
                         "Unrecognized key type " + key.getClass().getSimpleName());
@@ -322,6 +326,9 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case WrapsMessageHistory wrapsMessageHistory ->
                 new MapChangeValue(new OneOf<>(
                         MapChangeValue.ValueChoiceOneOfType.WRAPS_MESSAGE_HISTORY_VALUE, wrapsMessageHistory));
+            case ClprMessageValue clprMessageValue ->
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.CLPR_MESSAGE_VALUE, clprMessageValue));
             default ->
                 throw new IllegalStateException(
                         "Unexpected value: " + value.getClass().getSimpleName());
