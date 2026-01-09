@@ -133,8 +133,7 @@ public final class SignedStateFileReader {
      * <p>
      * If this SignedState object needs to become a real state to support the node operations later, the services/app
      * code will be responsible for initializing all the supported services. Note that the app skips registering
-     * service states if it finds the PlatformState is already registered. For this reason, a call to
-     * {@code SignedStateFileReader.unregisterServiceStates(SignedState)} below needs to be made to remove the stubs.
+     * service states if it finds the PlatformState is already registered.
      *
      * @param signedState a signed state to register schemas in
      */
@@ -169,20 +168,4 @@ public final class SignedStateFileReader {
                 });
     }
 
-    /**
-     * Unregister the PlatformStateService and RosterService so that the app
-     * can initialize States API eventually. Currently, it wouldn't initialize it
-     * if it sees the PlatformStateService already present. This check occurs at
-     * Hedera.onStateInitialized().
-     *
-     * See the doc for registerServiceStates above for more details on why
-     * we initialize these stub states in the first place.
-     *
-     * @param signedState a signed state to unregister services from
-     */
-    public static void unregisterServiceStates(@NonNull final SignedState signedState) {
-        final MerkleNodeState state = signedState.getState();
-        state.unregisterService(PlatformStateService.NAME);
-        state.unregisterService(RosterStateId.SERVICE_NAME);
-    }
 }

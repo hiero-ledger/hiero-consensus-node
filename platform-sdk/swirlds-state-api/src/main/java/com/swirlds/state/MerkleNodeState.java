@@ -49,33 +49,6 @@ public interface MerkleNodeState extends State {
     void initializeState(@NonNull StateMetadata<?, ?> md);
 
     /**
-     * Unregister a service without removing its nodes from the state.
-     * <p>
-     * Services such as the PlatformStateService and RosterService may be registered
-     * on a newly loaded (or received via Reconnect) SignedState object in order
-     * to access the PlatformState and RosterState/RosterMap objects so that the code
-     * can fetch the current active Roster for the state and validate it. Once validated,
-     * the state may need to be loaded into the system as the actual state,
-     * and as a part of this process, the States API
-     * is going to be initialized to allow access to all the services known to the app.
-     * However, the States API initialization is guarded by a
-     * {@code state.getReadableStates(PlatformStateService.NAME).isEmpty()} check.
-     * So if this service has previously been initialized, then the States API
-     * won't be initialized in full.
-     * <p>
-     * To prevent this and to allow the system to initialize all the services,
-     * we unregister the PlatformStateService and RosterService after the validation is performed.
-     * <p>
-     * Note that unlike the {@link #removeServiceState(String, int)} method in this class,
-     * the unregisterService() method will NOT remove the merkle nodes that store the states of
-     * the services being unregistered. This is by design because these nodes will be used
-     * by the actual service states once the app initializes the States API in full.
-     *
-     * @param serviceName a service to unregister
-     */
-    void unregisterService(@NonNull String serviceName);
-
-    /**
      * Removes the node and metadata from the state merkle tree.
      *
      * @param serviceName The service name. Cannot be null.
@@ -222,7 +195,7 @@ public interface MerkleNodeState extends State {
     List<Bytes> queueAsList(final int stateId);
 
     /**
-     * Update a singleton value for the given state ID using raw protobuf bytes of the value.
+     * Add/update a singleton value for the given state ID using raw protobuf bytes of the value.
      * Null values are not allowed.
      *
      * @param stateId the singleton state ID
@@ -231,7 +204,15 @@ public interface MerkleNodeState extends State {
     void updateSingleton(int stateId, @NonNull Bytes value);
 
     /**
-     * Update a key/value entry for the given map state ID using raw protobuf bytes of the key and value.
+     * Remove a singleton value for the given state ID.
+     * Does nothing if the singleton with such a state ID does not exist.
+     *
+     * @param stateId the singleton state ID
+     */
+    void removeSingleton(int stateId);
+
+    /**
+     * Add/update a key/value entry for the given map state ID using raw protobuf bytes of the key and value.
      * The key must not be null. The value may be null, in which case the mapping is removed (same as {@link #removeKv(int, Bytes)}).
      *
      * @param stateId the map state ID
@@ -265,4 +246,13 @@ public interface MerkleNodeState extends State {
      */
     @Nullable
     Bytes queuePop(int stateId);
+
+
+    /**
+     * Remove all the elements of the queue for the given state ID and the queue metadata.
+     * Does nothing if the queue with such a state ID does not exist.
+     * <b>WARNING:</b> This operation may be expensive and slow for large queues.
+     * @param stateId the queue state ID
+     */
+    void removeQueue(int stateId);
 }

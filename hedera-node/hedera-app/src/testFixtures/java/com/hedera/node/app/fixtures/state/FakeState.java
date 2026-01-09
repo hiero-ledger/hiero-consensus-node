@@ -271,11 +271,6 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public void unregisterService(@NonNull final String serviceName) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public long kvPath(final int stateId, @NonNull final Bytes key) {
         throw new UnsupportedOperationException();
     }
@@ -363,6 +358,16 @@ public class FakeState implements MerkleNodeState {
 
     @Override
     public Bytes queuePop(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void removeSingleton(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void removeQueue(int stateId) {
         throw new UnsupportedOperationException();
     }
 }

@@ -1393,4 +1393,39 @@ public class VirtualMapStateTest extends MerkleTestBase {
         // Empty now
         assertThat(virtualMapState.queuePop(STEAM_STATE_ID)).isNull();
     }
+
+    @Test
+    @DisplayName("removeSingleton removes the singleton entry from the map")
+    void testRemoveSingleton() {
+        // Given
+        setupSingletonCountry();
+        virtualMapState.initializeState(countryMetadata);
+        virtualMapState.updateSingleton(COUNTRY_STATE_ID, ProtoBytes.PROTOBUF.toBytes(GHANA));
+        assertThat(virtualMapState.getSingleton(COUNTRY_STATE_ID)).isNotNull();
+
+        // When
+        virtualMapState.removeSingleton(COUNTRY_STATE_ID);
+
+        // Then
+        assertThat(virtualMapState.getSingleton(COUNTRY_STATE_ID)).isNull();
+    }
+
+    @Test
+    @DisplayName("removeQueue removes all elements and the queue state itself")
+    void testRemoveQueue() {
+        // Given
+        setupSteamQueue();
+        virtualMapState.initializeState(steamMetadata);
+        virtualMapState.queuePush(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(ART));
+        virtualMapState.queuePush(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(BIOLOGY));
+        assertThat(virtualMapState.getQueueState(STEAM_STATE_ID)).isNotNull();
+        assertThat(virtualMapState.queuePeekHead(STEAM_STATE_ID)).isNotNull();
+
+        // When
+        virtualMapState.removeQueue(STEAM_STATE_ID);
+
+        // Then
+        assertThat(virtualMapState.getQueueState(STEAM_STATE_ID)).isNull();
+        assertThat(virtualMapState.queuePeekHead(STEAM_STATE_ID)).isNull();
+    }
 }

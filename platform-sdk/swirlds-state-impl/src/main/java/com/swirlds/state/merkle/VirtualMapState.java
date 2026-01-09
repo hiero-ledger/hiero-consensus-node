@@ -252,38 +252,6 @@ public class VirtualMapState implements MerkleNodeState {
     }
 
     /**
-     * Unregister a service without removing its nodes from the state.
-     * <p>
-     * Services such as the PlatformStateService and RosterService may be registered
-     * on a newly loaded (or received via Reconnect) SignedState object in order
-     * to access the PlatformState and RosterState/RosterMap objects so that the code
-     * can fetch the current active Roster for the state and validate it. Once validated,
-     * the state may need to be loaded into the system as the actual state,
-     * and as a part of this process, the States API
-     * is going to be initialized to allow access to all the services known to the app.
-     * However, the States API initialization is guarded by a
-     * {@code state.getReadableStates(PlatformStateService.NAME).isEmpty()} check.
-     * So if this service has previously been initialized, then the States API
-     * won't be initialized in full.
-     * <p>
-     * To prevent this and to allow the system to initialize all the services,
-     * we unregister the PlatformStateService and RosterService after the validation is performed.
-     * <p>
-     * Note that unlike the {@link #removeServiceState(String, int)} method in this class,
-     * the unregisterService() method will NOT remove the merkle nodes that store the states of
-     * the services being unregistered. This is by design because these nodes will be used
-     * by the actual service states once the app initializes the States API in full.
-     *
-     * @param serviceName a service to unregister
-     */
-    public void unregisterService(@NonNull final String serviceName) {
-        readableStatesMap.remove(serviceName);
-        writableStatesMap.remove(serviceName);
-
-        services.remove(serviceName);
-    }
-
-    /**
      * Removes the node and metadata from the state merkle tree.
      *
      * @param serviceName The service name. Cannot be null.
@@ -1039,6 +1007,14 @@ public class VirtualMapState implements MerkleNodeState {
      * {@inheritDoc}
      */
     @Override
+    public void removeSingleton(int stateId) {
+        virtualMap.remove(singletonKey(stateId));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void updateKv(final int stateId, @NonNull final Bytes key, @Nullable final Bytes value) {
         requireNonNull(key, "key must not be null");
         final Bytes stateKey = kvKey(stateId, key);
@@ -1098,21 +1074,8 @@ public class VirtualMapState implements MerkleNodeState {
     @Override
     public Bytes queuePop(final int stateId) {
         final Bytes qStateKey = queueStateKey(stateId);
-        final Bytes existing = virtualMap.getBytes(qStateKey);
-        if (existing == null) {
-            return null;
-        }
-        final QueueState qState;
-        try {
-            final Bytes unwrapped = unwrap(existing);
-            qState = QueueStateCodec.INSTANCE.parse(unwrapped);
-        } catch (com.hedera.pbj.runtime.ParseException e) {
-            throw new IllegalStateException("Failed to parse existing queue state", e);
-        }
-
-        if (qState.head() >= qState.tail()) {
-            return null; // empty
-        }
+        final QueueState qState = getQueueState(qStateKey);
+        if (qState == null) return null; // empty
 
         final Bytes elementKey = queueKey(stateId, (int) qState.head());
         final Bytes stored = virtualMap.getBytes(elementKey);
@@ -1127,5 +1090,42 @@ public class VirtualMapState implements MerkleNodeState {
         virtualMap.putBytes(qStateKey, wrappedState);
 
         return value;
+    }
+
+    private @Nullable QueueState getQueueState(Bytes qStateKey) {
+        final Bytes existing = virtualMap.getBytes(qStateKey);
+        if (existing == null) {
+            return null;
+        }
+        final QueueState qState;
+        try {
+            final Bytes unwrapped = unwrap(existing);
+            qState = QueueStateCodec.INSTANCE.parse(unwrapped);
+        } catch (ParseException e) {
+            throw new IllegalStateException("Failed to parse existing queue state", e);
+        }
+
+        if (qState.head() >= qState.tail()) {
+            return null;
+        }
+        return qState;
+    }
+
+    /**
+     * {@inheritDoc}}
+     */
+    @Override
+    public void removeQueue(int stateId) {
+        final Bytes qStateKey = queueStateKey(stateId);
+        QueueState qState = getQueueState(qStateKey);
+        if (qState == null) {
+            return;
+        }
+        long tail = qState.tail();
+        while (qState.head() < tail) {
+            virtualMap.remove(queueKey(stateId, (int) qState.head()));
+            qState = qState.elementRemoved();
+        }
+        virtualMap.remove(qStateKey);
     }
 }
