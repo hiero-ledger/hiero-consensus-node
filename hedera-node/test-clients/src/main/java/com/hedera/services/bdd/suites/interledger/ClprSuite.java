@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSI
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.gossipCaCertificateForNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
@@ -54,7 +55,6 @@ import org.junit.jupiter.api.Tag;
 
 @OrderedInIsolation
 @Tag(TestTags.CLPR)
-@OrderedInIsolation
 @HapiTestLifecycle
 public class ClprSuite implements LifecycleTest {
     private static final Map<String, String> CLPR_OVERRIDES = Map.of("clpr.clprEnabled", "true");
