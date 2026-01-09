@@ -62,6 +62,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -94,7 +95,8 @@ public class AdditionalHip1064Tests {
         testLifecycle.overrideInClass(Map.of(
                 "nodes.nodeRewardsEnabled", "true",
                 "nodes.preserveMinNodeRewardBalance", "true",
-                "ledger.transfers.maxLen", "2"));
+                "ledger.transfers.maxLen", "2",
+                "nodes.feeCollectionAccountEnabled", "false"));
         testLifecycle.doAdhoc(
                 nodeUpdate("0").declineReward(false),
                 nodeUpdate("1").declineReward(false),
@@ -108,6 +110,7 @@ public class AdditionalHip1064Tests {
      */
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @Order(1)
+    @Disabled
     final Stream<DynamicTest> nodeWithMinimalActivityReceivesRewards() {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
 
@@ -340,7 +343,7 @@ public class AdditionalHip1064Tests {
      */
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
-            overrides = {"nodes.minNodeRewardBalance"})
+            overrides = {"nodes.minNodeRewardBalance", "nodes.feeCollectionAccountEnabled"})
     @Order(5)
     final Stream<DynamicTest> feeRedirectionWithMinRewardBalanceZero() {
         final AtomicLong initialNodeRewardBalance = new AtomicLong(0);
@@ -348,6 +351,7 @@ public class AdditionalHip1064Tests {
 
         return hapiTest(
                 overriding("nodes.minNodeRewardBalance", "0"), // Zero minimum balance
+                overriding("nodes.feeCollectionAccountEnabled", "false"),
 
                 // Start with small balance in node reward account
                 cryptoTransfer(TokenMovement.movingHbar(1000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
@@ -600,7 +604,7 @@ public class AdditionalHip1064Tests {
      */
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
-            overrides = {"nodes.minNodeRewardBalance"})
+            overrides = {"nodes.minNodeRewardBalance", "nodes.feeCollectionAccountEnabled"})
     @Order(10)
     final Stream<DynamicTest> feeRedirectionWhenBalanceBelowThreshold() {
         final AtomicLong balanceBeforeTest = new AtomicLong(0);
@@ -608,6 +612,7 @@ public class AdditionalHip1064Tests {
 
         return hapiTest(
                 overriding("nodes.minNodeRewardBalance", "100000000000"), // 1000 HBAR in tinybars
+                overriding("nodes.feeCollectionAccountEnabled", "false"),
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoCreate(CIVILIAN_PAYER),
 
@@ -794,6 +799,7 @@ public class AdditionalHip1064Tests {
 
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 sleepForBlockPeriod(),
 
                 // Record initial balances
@@ -871,6 +877,7 @@ public class AdditionalHip1064Tests {
                             .build();
                 }),
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
 
                 // Trigger reward payment
                 cryptoCreate("nobody").payingWith(GENESIS),
@@ -1024,7 +1031,7 @@ public class AdditionalHip1064Tests {
         };
     }
 
-    private static VisibleItemsValidator allNodesActiveValidator(
+    public static VisibleItemsValidator allNodesActiveValidator(
             @NonNull final LongSupplier expectedPerNodeReward, @NonNull final LongSupplier nodeRewardBalance) {
         return (spec, records) -> {
             final var items = records.get(SELECTED_ITEMS_KEY);

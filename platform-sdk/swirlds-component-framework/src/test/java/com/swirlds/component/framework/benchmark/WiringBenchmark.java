@@ -6,7 +6,6 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.WiringModel;
@@ -16,6 +15,7 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import java.time.Duration;
 import java.util.concurrent.ForkJoinPool;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 class WiringBenchmark {
 

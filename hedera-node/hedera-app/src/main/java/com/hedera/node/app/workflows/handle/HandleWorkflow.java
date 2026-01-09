@@ -58,6 +58,7 @@ import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
+import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -163,6 +164,7 @@ public class HandleWorkflow {
     // The last second for which this workflow has confirmed all scheduled transactions are executed
     private long lastExecutedSecond;
     private final NodeRewardManager nodeRewardManager;
+    private final NodeFeeManager nodeFeeManager;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
 
@@ -197,7 +199,8 @@ public class HandleWorkflow {
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
-            @NonNull final QuiescenceController quiescenceController) {
+            @NonNull final QuiescenceController quiescenceController,
+            @NonNull final NodeFeeManager nodeFeeManager) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -230,6 +233,7 @@ public class HandleWorkflow {
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
         this.blockBufferService = requireNonNull(blockBufferService);
         this.apiProviders = requireNonNull(apiProviders);
+        this.nodeFeeManager = requireNonNull(nodeFeeManager);
     }
 
     /**
@@ -301,23 +305,31 @@ public class HandleWorkflow {
                 logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
             }
         }
+        final var lastUsedConsTime = blockHashSigner.isReady()
+                ? (streamMode == RECORDS
+                        ? blockRecordManager.lastUsedConsensusTime()
+                        : blockStreamManager.lastUsedConsensusTime())
+                : round.getConsensusTimestamp();
+        // Using the last used consensus time, we need to add 2ns, in case this triggers stake periods side effects
+        try {
+            transactionsDispatched |=
+                    nodeFeeManager.distributeFees(state, lastUsedConsTime.plusNanos(2), systemTransactions);
+        } catch (Exception e) {
+            logger.error("{} Failed to pay node fees to nodes", ALERT_MESSAGE, e);
+        }
+        try {
+            transactionsDispatched |=
+                    nodeRewardManager.maybeRewardActiveNodes(state, lastUsedConsTime.plusNanos(4), systemTransactions);
+        } catch (Exception e) {
+            logger.error("{} Failed to reward active nodes", ALERT_MESSAGE, e);
+        }
         try {
             final int receiptEntriesBatchSize = configProvider
                     .getConfiguration()
                     .getConfigData(BlockStreamConfig.class)
                     .receiptEntriesBatchSize();
             transactionsDispatched |= handleEvents(state, round, receiptEntriesBatchSize, stateSignatureTxnCallback);
-            try {
-                final var lastConsTime = streamMode == RECORDS
-                        ? blockRecordManager.lastUsedConsensusTime()
-                        : blockStreamManager.lastUsedConsensusTime();
-                if (lastConsTime.isAfter(EPOCH)) {
-                    transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
-                            state, lastConsTime.plusNanos(1), systemTransactions);
-                }
-            } catch (Exception e) {
-                logger.warn("Failed to reward active nodes", e);
-            }
+
             // Inform the BlockRecordManager that the round is complete, so it can update running hashes in state
             // from results computed in background threads. The running hash has to be included in state, but we want
             // to synchronize with background threads as infrequently as possible; per round is the best we can do
@@ -478,7 +490,7 @@ public class HandleWorkflow {
      * @param txn the {@link ConsensusTransaction} to be handled
      * @param eventBirthRound the birth round of the event that this transaction belongs to
      * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
-     *                                transaction type
+     * transaction type
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
     private boolean handlePlatformTransaction(
@@ -563,6 +575,7 @@ public class HandleWorkflow {
     /**
      * Executes all scheduled transactions that are due to expire in the interval
      * {@code [lastIntervalProcessTime, consensusNow]} and returns whether any were executed.
+     *
      * @param state the state to execute scheduled transactions from
      * @param consensusNow the current consensus time
      * @param proximalCreatorInfo the node info of the "closest" event creator
@@ -667,7 +680,8 @@ public class HandleWorkflow {
             final var iter = scheduleService.executableTxns(
                     executionStart,
                     iteratorEnd,
-                    StoreFactoryImpl.from(state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders));
+                    StoreFactoryImpl.from(
+                            state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders, nodeFeeManager));
 
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
             // Configuration sets a maximum number of execution slots per user transaction

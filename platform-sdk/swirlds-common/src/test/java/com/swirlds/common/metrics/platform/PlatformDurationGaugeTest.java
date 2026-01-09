@@ -5,7 +5,6 @@ import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.metrics.DurationGauge;
 import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
@@ -13,6 +12,8 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
 import java.util.List;
+import org.hiero.consensus.metrics.DurationGauge;
+import org.hiero.consensus.metrics.platform.PlatformDurationGauge;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

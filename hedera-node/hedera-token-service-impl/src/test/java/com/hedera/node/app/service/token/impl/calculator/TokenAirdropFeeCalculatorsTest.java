@@ -150,7 +150,7 @@ class TokenAirdropFeeCalculatorsTest {
                         makeExtraDef(Extra.KEYS, 100000000L),
                         makeExtraDef(Extra.FUNGIBLE_TOKENS, 1000000L),
                         makeExtraDef(Extra.NON_FUNGIBLE_TOKENS, 1000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE, 9000000L),
+                        makeExtraDef(Extra.TOKEN_TRANSFER_BASE, 9000000L),
                         makeExtraDef(Extra.AIRDROPS, 5000000L))
                 .services(makeService(
                         "Token",
@@ -159,7 +159,7 @@ class TokenAirdropFeeCalculatorsTest {
                         makeServiceFee(
                                 HederaFunctionality.CRYPTO_TRANSFER,
                                 100L,
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE, 0),
+                                makeExtraIncluded(Extra.TOKEN_TRANSFER_BASE, 0),
                                 makeExtraIncluded(Extra.FUNGIBLE_TOKENS, 1),
                                 makeExtraIncluded(Extra.NON_FUNGIBLE_TOKENS, 1))))
                 .build();
