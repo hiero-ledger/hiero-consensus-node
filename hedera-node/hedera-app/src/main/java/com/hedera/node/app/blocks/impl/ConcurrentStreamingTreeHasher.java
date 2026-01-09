@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.StreamingTreeHasher;
@@ -114,17 +113,17 @@ public class ConcurrentStreamingTreeHasher implements StreamingTreeHasher {
      */
     public static Bytes rootHashFrom(@NonNull final Status penultimateStatus, @NonNull final Bytes lastLeafHash) {
         requireNonNull(lastLeafHash);
-        var hash = lastLeafHash.toByteArray();
+        var hash = lastLeafHash;
         final var rootHeight = rootHeightFor(penultimateStatus.numLeaves() + 1);
         for (int i = 0; i < rootHeight; i++) {
             final var rightmostHash = penultimateStatus.rightmostHashes().get(i);
             if (rightmostHash.length() == 0) {
-                hash = BlockImplUtils.combine(hash, HashCombiner.EMPTY_HASHES[i]);
+                hash = BlockImplUtils.hashInternalNode(hash, Bytes.wrap(HashCombiner.EMPTY_HASHES[i]));
             } else {
-                hash = BlockImplUtils.combine(rightmostHash.toByteArray(), hash);
+                hash = BlockImplUtils.hashInternalNode(rightmostHash, hash);
             }
         }
-        return Bytes.wrap(hash);
+        return hash;
     }
 
     private class HashCombiner {
@@ -136,9 +135,10 @@ public class ConcurrentStreamingTreeHasher implements StreamingTreeHasher {
         private static final byte[][] EMPTY_HASHES = new byte[MAX_DEPTH][];
 
         static {
-            EMPTY_HASHES[0] = noThrowSha384HashOf(new byte[0]);
+            EMPTY_HASHES[0] = BlockImplUtils.hashLeaf(Bytes.wrap(new byte[StreamingTreeHasher.HASH_LENGTH]))
+                    .toByteArray();
             for (int i = 1; i < MAX_DEPTH; i++) {
-                EMPTY_HASHES[i] = BlockImplUtils.combine(EMPTY_HASHES[i - 1], EMPTY_HASHES[i - 1]);
+                EMPTY_HASHES[i] = BlockImplUtils.hashInternalNode(EMPTY_HASHES[i - 1], EMPTY_HASHES[i - 1]);
             }
         }
 
@@ -209,13 +209,11 @@ public class ConcurrentStreamingTreeHasher implements StreamingTreeHasher {
 
         private List<byte[]> combine(@NonNull final List<byte[]> hashes) {
             final List<byte[]> result = new ArrayList<>();
-            final var digest = DIGESTS.get();
+            // (FUTURE) Use dedicated message digest instance
             for (int i = 0, m = hashes.size(); i < m; i += 2) {
                 final var left = hashes.get(i);
                 final var right = i + 1 < m ? hashes.get(i + 1) : EMPTY_HASHES[height];
-                digest.update(left);
-                digest.update(right);
-                result.add(digest.digest());
+                result.add(BlockImplUtils.hashInternalNode(left, right));
             }
             return result;
         }

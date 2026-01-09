@@ -246,7 +246,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                     || Objects.equals(pendingProof.blockTimestamp(), Timestamp.DEFAULT)
                     || pendingProof.siblingHashesFromPrevBlockRoot().size() != NUM_SIBLINGS_PER_BLOCK) {
                 logger.warn(
-                        "Pending proof metadata from {} is missing required fields (not considering remaining - {})",
+                        "Pending proof metadata from {} doesn't match required fields (not considering remaining - {})",
                         proofJson.toPath(),
                         Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
                 break;
