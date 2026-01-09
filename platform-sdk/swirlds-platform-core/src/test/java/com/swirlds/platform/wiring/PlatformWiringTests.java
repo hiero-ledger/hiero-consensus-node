@@ -54,7 +54,6 @@ import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
-import org.hiero.consensus.hashgraph.impl.ConsensusEngine;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;

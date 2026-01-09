@@ -10,7 +10,7 @@ import com.swirlds.config.api.ConfigProperty;
  *
  * @param consensusEngine configuration for the consensus engine scheduler
  */
-@ConfigData("event.creation.wiring")
+@ConfigData("hashgraph.wiring")
 public record HashgraphWiringConfig(
         @ConfigProperty(
                         defaultValue =
