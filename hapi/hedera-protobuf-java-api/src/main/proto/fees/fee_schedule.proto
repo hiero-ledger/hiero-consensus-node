@@ -191,6 +191,13 @@ message ServiceFeeDefinition {
    * will be free.
    */
   bool free = 4;
+
+  /**
+   * Variable rate pricing configuration for this fee definition.
+   * If not specified, variable rates are not supported for this
+   * transaction type, and the transaction will be charged the standard fee.
+   */
+  VariableRateDefinition high_volume_rates = 5;
 }
 
 /**
@@ -219,5 +226,101 @@ message UnreadableTransactionFee {
    * is optional and may be zero.
    */
   uint64 fee = 1;
+}
+
+/**
+ * Defines the configuration for variable rate pricing.
+ * If variable rate pricing is in effect, the resulting fee multiplier will be a
+ * value between 1 (standard fee) and `max_multiplier` (cost ceiling). If a
+ * `pricing_curve` is specified, then the multiplier will be determined by the
+ * utilization percentage of the variable rate throttle and the pricing curve. If
+ * no `pricing_curve` is specified, then the multiplier will be interpolated
+ * on an _effective_ pricing curve described by a straight line
+ * between the standard fee and `max_multiplier` * `standard_fee`.
+ */
+message VariableRateDefinition {
+  /**
+   * Maximum multiplier to prevent extreme pricing (cost ceiling).
+   * Given the normal price of the transaction, the computed variable price
+   * will not exceed `max_multiplier` * `standard_fee`. Provides predictability
+   * for users regardless of utilization. The minimum price will be the
+   * `standard_fee`. This value is divided by 1,000,000 and then added to the
+   * minimum value of 1.
+   * <p>
+   * ##Example
+   * A value of `2,450,300` results in an _effective_ floating point multiplier
+   * of `3.4503`.<br/>
+   * A value of `0` results in an _effective_ floating point
+   * multiplier of `1.0`.
+   */
+  uint32 max_multiplier = 2;
+
+  /**
+   * Pricing curve configuration defining how fees scale with variable rate
+   * capacity utilization. Given a utilization percentage (0.0 to 1.0), the
+   * pricing curve determines the multiplier to use. If the curve returns a
+   * multiplier greater than `max_multiplier`, then `max_multiplier`
+   * will be used.
+   * <p>
+   * If the pricing_curve is not specified, then the multiplier will be linearly
+   * interpolated between 1 and `max_multiplier`.
+   */
+  PricingCurve pricing_curve = 3;
+}
+
+/**
+ * Defines the pricing curve used for variable rate calculations.
+ * This can be one of several types of curves, each with its own formula for
+ * calculating the multiplier based on the utilization percentage of the
+ * variable rate throttle.
+ */
+message PricingCurve {
+  oneof curve_type {
+    PiecewiseLinearCurve piecewise_linear = 1;
+  }
+}
+
+/**
+ * Contains a set of points (utilization, multiplier) that define a piecewise
+ * linear curve for variable pricing. Each point represents a linear segment
+ * between two utilization thresholds. The multiplier to use is interpolated
+ * between these points based on the current utilization percentage.
+ *
+ * For example, given points
+ *  - (0.0, 1.0)
+ *  - (0.5, 2.0)
+ *  - (1.0, 5.0)
+ * The multiplier for a utilization of 0.75 would be interpolated between the
+ * second and third points, resulting in a multiplier of 3.5.
+ */
+message PiecewiseLinearCurve {
+  /**
+   * A list of points defining the piecewise linear curve.
+   * Each point is a pair of (utilization_percentage, multiplier). The list
+   * must be sorted by utilization_percentage in ascending order, and
+   * sub-ordered by multiplier in ascending order for points with the same
+   * utilization percentage. It is legal to have two points with the same
+   * utilization percentage, but they must have different multipliers.
+   * This allows the creation of stepped pricing curves.
+   */
+  repeated PiecewiseLinearPoint points = 1;
+}
+
+/**
+ * Represents a single point in a piecewise linear curve, with a utilization
+ * percentage and the corresponding multiplier.
+ */
+message PiecewiseLinearPoint {
+  /**
+   * The utilization percentage for this point, in thousandths of one percent.
+   * This value must be between 0 and 100,000, inclusive.
+   */
+  uint32 utilization_percentage = 1;
+
+  /**
+   * The multiplier to apply at this utilization percentage.
+   * This value is divided by 1,000,000 then added to 1.
+   */
+  uint32 multiplier = 2;
 }
 

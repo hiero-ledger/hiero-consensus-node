@@ -671,6 +671,13 @@ message TransactionBody {
      * If used with a transaction type that does not support custom fee limits, the transaction will fail.
      */
     repeated CustomFeeLimit max_custom_fees = 1001;
+
+    /**
+     * If set to true, this transaction uses high-volume throttles and pricing
+     * for entity creation. It only affects supported transaction types; otherwise,
+     * it is ignored.
+     */
+    bool high_volume = 1002;
 }
 
 /**
