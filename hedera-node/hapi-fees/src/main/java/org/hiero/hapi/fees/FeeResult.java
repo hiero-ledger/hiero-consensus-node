@@ -18,6 +18,7 @@ public class FeeResult {
     public long network = 0;
     /** Details about the fee, broken down by label. */
     public List<FeeDetail> nodeDetails = new ArrayList<>();
+
     public List<FeeDetail> networkDetails = new ArrayList<>();
     public List<FeeDetail> serviceDetails = new ArrayList<>();
 
@@ -43,6 +44,7 @@ public class FeeResult {
         nodeDetails.add(new FeeDetail(count, cost));
         node = clampedAdd(node, count * cost);
     }
+
     public void addNodeFee(long count, long cost, String name) {
         nodeDetails.add(new FeeDetail(count, cost, name));
         node = clampedAdd(node, count * cost);
@@ -72,6 +74,7 @@ public class FeeResult {
             this.fee = fee;
             this.name = "unnamed";
         }
+
         public FeeDetail(long count, long fee, String name) {
             this.count = count;
             this.fee = fee;

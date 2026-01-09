@@ -11,7 +11,6 @@ import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.SignedTransaction;
 import com.swirlds.state.State;
-
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -20,10 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 public class SimpleFeesRecordStreamTest {
 
@@ -90,12 +86,11 @@ public class SimpleFeesRecordStreamTest {
                 .build();
         final StandaloneFeeCalculator calc = new StandaloneFeeCalculatorImpl(state, properties);
 
-
         final String records_dir = "../../temp/";
 
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
             paths.filter(Files::isRegularFile).forEach(file -> {
-//                System.out.println("reading file " + file);
+                //                System.out.println("reading file " + file);
                 if (!file.toString().endsWith("rcd")) {
                     System.out.println("skipping");
                     return;
@@ -103,44 +98,50 @@ public class SimpleFeesRecordStreamTest {
                 try (final var fin = new FileInputStream(file.toFile())) {
                     final var recordFileVersion =
                             ByteBuffer.wrap(fin.readNBytes(4)).getInt();
-//                    System.out.println("read version " + recordFileVersion);
+                    //                    System.out.println("read version " + recordFileVersion);
                     final var recordStreamFile = RecordStreamFile.parseFrom(fin);
                     recordStreamFile.getRecordStreamItemsList().stream().forEach(item -> {
                         try {
-//                            final var txn = item.getTransaction();
+                            //                            final var txn = item.getTransaction();
                             final var signedTxnBytes = item.getTransaction().getSignedTransactionBytes();
                             final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
-//                            final Transaction txn = Transaction.newBuilder().signedTransactionBytes(signedTxn.getBodyBytes())
+                            //                            final Transaction txn =
+                            // Transaction.newBuilder().signedTransactionBytes(signedTxn.getBodyBytes())
                             final var body = TransactionBody.PROTOBUF.parse(
                                     Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
-                            final Transaction txn = Transaction.newBuilder().body(body).build();
+                            final Transaction txn =
+                                    Transaction.newBuilder().body(body).build();
                             if (shouldSkip(body.data().kind())) {
                                 return;
                             }
-//                            System.out.println("TXN: memo " + body.memo());
-//                            System.out.println("TXN: fee " + body.transactionFee());
-//                            System.out.println("TXN: id " + body.transactionID());
-//                            System.out.println("calculating simple fees for transaction " + body);
+                            //                            System.out.println("TXN: memo " + body.memo());
+                            //                            System.out.println("TXN: fee " + body.transactionFee());
+                            //                            System.out.println("TXN: id " + body.transactionID());
+                            //                            System.out.println("calculating simple fees for transaction "
+                            // + body);
                             final var result = calc.calculate(txn, ServiceFeeCalculator.EstimationMode.Intrinsic);
-//                            System.out.println("result is " + result);
+                            //                            System.out.println("result is " + result);
                             // max fee in tiny bar //
-//                            System.out.println("original      is : " + body.transactionFee());
+                            //                            System.out.println("original      is : " +
+                            // body.transactionFee());
                             final var record = item.getRecord();
                             final var txnFee = record.getTransactionFee();
                             // actual fee charged (in tiny bar)?
-                            var fract = ((double)result.total())/(double)(txnFee*12);
-                            if(Math.abs(1 - fract) > 0.05) {
-                                System.out.println("TXN: data case " + body.data().kind());
+                            var fract = ((double) result.total()) / (double) (txnFee * 12);
+                            if (Math.abs(1 - fract) > 0.05) {
+                                System.out.println(
+                                        "TXN: data case " + body.data().kind());
                                 System.out.println("simple        is : " + result.total());
-                                System.out.println("record trans fee : " + (txnFee*12));
+                                System.out.println("record trans fee : " + (txnFee * 12));
                                 System.out.println("fract = " + fract);
                             }
                             // rec fee * 12 to get cents
                             // 845911
-//                            System.out.println(
-//                                    "status is " + record.getReceipt().getStatus());
-//                            System.out.println(
-//                                    "exchange rate is " + record.getReceipt().getExchangeRate());
+                            //                            System.out.println(
+                            //                                    "status is " + record.getReceipt().getStatus());
+                            //                            System.out.println(
+                            //                                    "exchange rate is " +
+                            // record.getReceipt().getExchangeRate());
 
                         } catch (Exception e) {
                             System.out.println("exception " + e);
@@ -161,9 +162,9 @@ public class SimpleFeesRecordStreamTest {
         if (kind == TransactionBody.DataOneOfType.CONSENSUS_SUBMIT_MESSAGE) {
             return true;
         }
-//        if (kind == TransactionBody.DataOneOfType.CRYPTO_TRANSFER) {
-//            return true;
-//        }
+        //        if (kind == TransactionBody.DataOneOfType.CRYPTO_TRANSFER) {
+        //            return true;
+        //        }
 
         // fee calculator not implemented yet
         // coming in PR: https://github.com/hiero-ledger/hiero-consensus-node/pull/22584

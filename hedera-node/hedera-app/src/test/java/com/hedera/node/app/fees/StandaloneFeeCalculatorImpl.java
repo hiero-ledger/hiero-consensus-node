@@ -1,4 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
+
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Transaction;
@@ -21,9 +25,6 @@ import com.swirlds.state.State;
 import org.hiero.hapi.fees.FeeResult;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 
 public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
@@ -50,7 +51,8 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
     }
 
     @Override
-    public FeeResult calculate(Transaction transaction, ServiceFeeCalculator.EstimationMode mode) throws ParseException {
+    public FeeResult calculate(Transaction transaction, ServiceFeeCalculator.EstimationMode mode)
+            throws ParseException {
         final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(
                 BufferedData.wrap(transaction.signedTransactionBytes().toByteArray()));
         if (signedTransaction.hasSigMap()) {
@@ -59,8 +61,9 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
         } else {
             feeContext.setNumTxnSignatures(0);
         }
-        if(transaction.hasBody()) {
-            return calc.calculateTxFee(transaction.bodyOrThrow(), feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+        if (transaction.hasBody()) {
+            return calc.calculateTxFee(
+                    transaction.bodyOrThrow(), feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
         }
         final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(
                 BufferedData.wrap(signedTransaction.bodyBytes().toByteArray()));
@@ -74,7 +77,6 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
         public TestFeeContextImpl() {
             this._numTxnSignatures = 0;
         }
-
 
         @Override
         public @NonNull AccountID payer() {

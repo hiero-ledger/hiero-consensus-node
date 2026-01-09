@@ -1150,8 +1150,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                     .runAllChecks(any(), any(), any(), any());
 
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateQueryFee(
-                            query, queryContext, ServiceFeeCalculator.EstimationMode.Intrinsic).total())
+            given(simpleFeeCalculator
+                            .calculateQueryFee(query, queryContext, ServiceFeeCalculator.EstimationMode.Intrinsic)
+                            .total())
                     .willReturn(100000L);
 
             mockTopicGetInfoHandler(query, queryHeader, payment);
