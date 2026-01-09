@@ -15,5 +15,6 @@ module org.hiero.base.utility {
     requires transitive com.swirlds.logging;
     requires io.github.classgraph;
     requires jdk.unsupported;
+    requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 }
