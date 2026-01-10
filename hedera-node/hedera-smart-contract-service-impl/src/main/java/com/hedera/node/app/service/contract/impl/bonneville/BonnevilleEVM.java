@@ -95,7 +95,7 @@ public class BonnevilleEVM extends HEVM {
         /* 00 */ "stop", "add ", "mul ", "sub ", "div ", "05  ", "06  ", "07  ", "08  ", "09  ", "exp ", "sign", "0C  ", "0D  ", "0E  ", "0F  ",
         /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "18  ", "not ", "1A  ", "shl ", "shr ", "1D  ", "1E  ", "1F  ",
         /* 20 */ "kecc", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
-        /* 30 */ "addr", "31  ", "32  ", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "gasP", "3C  ", "retZ", "retC", "hash",
+        /* 30 */ "addr", "31  ", "orig", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "gasP", "3C  ", "retZ", "retC", "hash",
         /* 40 */ "40  ", "Coin", "42  ", "43  ", "seed", "limi", "chid", "47  ", "fee ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
         /* 50 */ "pop ", "mld ", "mst ", "53  ", "Csld", "Csst", "jmp ", "jmpi", "58  ", "59  ", "gas ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
         };
@@ -399,6 +399,7 @@ class BEVM {
 
             // call/input/output arguments
             case 0x30 -> address();
+            case 0x32 -> origin();
             case 0x33 -> caller();
             case 0x34 -> callValue();
             case 0x35 -> callDataLoad();
@@ -642,23 +643,29 @@ class BEVM {
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long base0 = STK0[--_sp], base1 = STK1[_sp], base2 = STK2[_sp], base3 = STK3[_sp];
         long pow0  = STK0[--_sp],  pow1 = STK1[_sp],  pow2 = STK2[_sp],  pow3 = STK3[_sp];
-
-        // Gas is based on busy longs in the power, converted to bytes
-        int numBytes =
-            pow3 != 0 ? 32 :
-            pow2 != 0 ? 24 :
-            pow1 != 0 ? 16 :
-            pow0 != 0 ?  8 : 0;
+        int numBits =
+            pow3 != 0 ? 24*8+(64-Long.numberOfLeadingZeros(pow3)) :
+            pow2 != 0 ? 16*8+(64-Long.numberOfLeadingZeros(pow2)) :
+            pow1 != 0 ?  8*8+(64-Long.numberOfLeadingZeros(pow1)) :
+                             (64-Long.numberOfLeadingZeros(pow0)) ;
+        int numBytes = (numBits+7)>>3;
         var halt = useGas(_gasCalc.expOperationGasCost(numBytes));
         if( halt!=null ) return halt;
 
         if( (pow1 | pow2 | pow3) == 0 ) {
             if( pow0 == 0 )     // base^0 == 1
                 return push(1,0,0,0);
-        }
-        if( (base1 | base2 | base3) == 0 ) {
-            if( base0 == 0 )    // 0^pow == 0
-                return push(0,0,0,0);
+            if( (base1 | base2 | base3) == 0 && 0 <= pow0 && pow0 < 256) {
+                if( base0 == 0 )    // 0^pow == 0
+                    return push(0,0,0,0);
+                if( base0 == 1 )    // 1^pow == 1
+                    return push(1,0,0,0);
+                // exp2(log2(base^pow)) ==   // identity on exp(log(X))
+                // exp2(pow*log2(base)) ==   // power rule
+                int log2 = Long.numberOfTrailingZeros(base0);
+                if( (1L<<log2)==base0 && pow0*log2 < 256 )
+                    return shl((int)pow0*log2,1,0,0,0);
+            }
         }
         // Prolly BigInteger
         throw new TODO();
@@ -890,6 +897,13 @@ class BEVM {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
         return push(_frame.getRecipientAddress());
+    }
+
+    // Push passed originator address
+    private ExceptionalHaltReason origin() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        return push(_frame.getOriginatorAddress());
     }
 
     // Push passed ETH value
