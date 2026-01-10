@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -17,7 +15,6 @@ import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -35,7 +32,7 @@ import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class ClprEndpointTest extends ClprTestBase {
+class ClprEndpointClientTest extends ClprTestBase {
 
     @Mock
     private ConfigProvider configProvider;
@@ -61,7 +58,10 @@ class ClprEndpointTest extends ClprTestBase {
     @Mock
     private ClprClient remoteClient;
 
-    private ClprEndpoint subject;
+    @Mock
+    private ClprStateProofManager stateProofManager;
+
+    private ClprEndpointClient subject;
 
     private ServiceEndpoint localEndpoint;
     private ServiceEndpoint remoteEndpoint;
@@ -90,16 +90,11 @@ class ClprEndpointTest extends ClprTestBase {
         selfAccountId = AccountID.newBuilder().accountNum(3).build();
         when(selfNodeInfo.accountId()).thenReturn(selfAccountId);
 
-        when(remoteNodeInfo.nodeId()).thenReturn(2L);
-        when(remoteNodeInfo.hapiEndpoints()).thenReturn(List.of(remoteEndpoint));
-        remoteAccountId = AccountID.newBuilder().accountNum(4).build();
-        when(remoteNodeInfo.accountId()).thenReturn(remoteAccountId);
-        when(networkInfo.addressBook()).thenReturn(List.of(selfNodeInfo, remoteNodeInfo));
-
-        subject = new ClprEndpoint(
+        subject = new ClprEndpointClient(
                 networkInfo,
                 configProvider,
                 connectionManager,
+                stateProofManager,
                 Clock.fixed(Instant.ofEpochSecond(1_000, 100), ZoneOffset.UTC));
     }
 
@@ -113,31 +108,45 @@ class ClprEndpointTest extends ClprTestBase {
     }
 
     @Test
-    void runOnceSkipsWhenLocalConfigMissing() throws UnknownHostException {
-        when(connectionManager.createClient(localEndpoint)).thenReturn(localClient);
-        when(localClient.getConfiguration()).thenReturn(null);
+    void runOnceSkipsWhenLocalConfigMissing() {
+        when(stateProofManager.getLocalLedgerId()).thenReturn(null);
 
         subject.runOnce();
 
-        verify(localClient).getConfiguration();
-        verify(localClient, never()).setConfiguration(any(), any(), any());
-        verify(remoteClient, never()).setConfiguration(any(), any(), any());
+        verifyNoInteractions(connectionManager);
     }
 
     @Test
-    void runOnceRefreshesExistingConfiguration() throws UnknownHostException {
-        final var localConfig = localClprConfig
+    void runOncePublishesAndPullsRemoteConfig() throws Exception {
+        final var localConfig = localClprConfig;
+        final var remoteNodeAccountId = AccountID.newBuilder().accountNum(7).build();
+        final var remoteStored = remoteClprConfig
                 .copyBuilder()
-                .timestamp(Timestamp.newBuilder().seconds(50).nanos(0).build())
+                .timestamp(Timestamp.newBuilder().seconds(10).nanos(0).build())
+                .endpoints(List.of(org.hiero.hapi.interledger.state.clpr.ClprEndpoint.newBuilder()
+                        .endpoint(remoteEndpoint)
+                        .signingCertificate(Bytes.wrap("cert"))
+                        .nodeAccountId(remoteNodeAccountId)
+                        .build()))
                 .build();
-
+        final var remoteUpdated = remoteStored
+                .copyBuilder()
+                .timestamp(Timestamp.newBuilder().seconds(20).nanos(0).build())
+                .build();
+        when(stateProofManager.getLocalLedgerId()).thenReturn(localClprLedgerId);
+        final var localProof = buildLocalClprStateProofWrapper(localConfig);
+        when(stateProofManager.getLedgerConfiguration(localClprLedgerId)).thenReturn(localProof);
+        when(stateProofManager.readAllLedgerConfigurations())
+                .thenReturn(java.util.Map.of(localClprLedgerId, localConfig, remoteClprLedgerId, remoteStored));
+        when(connectionManager.createClient(remoteEndpoint)).thenReturn(remoteClient);
         when(connectionManager.createClient(localEndpoint)).thenReturn(localClient);
-        when(localClient.getConfiguration()).thenReturn(localConfig);
+        final var remoteProof = buildLocalClprStateProofWrapper(remoteUpdated);
+        when(remoteClient.getConfiguration(remoteClprLedgerId)).thenReturn(remoteProof);
 
         subject.runOnce();
 
-        verify(localClient).getConfiguration();
-        verify(localClient, never()).setConfiguration(any(), any(), any());
-        verifyNoInteractions(remoteClient);
+        verify(remoteClient).setConfiguration(selfAccountId, remoteNodeAccountId, localProof);
+        verify(remoteClient).getConfiguration(remoteClprLedgerId);
+        verify(localClient).setConfiguration(selfAccountId, selfAccountId, remoteProof);
     }
 }

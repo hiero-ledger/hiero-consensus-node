@@ -48,7 +48,7 @@ class ClprClientImplTest {
     }
 
     @Test
-    void setConfigurationBuildsTransaction() throws Exception {
+    void setConfigurationSubmitsProvidedProof() throws Exception {
         when(serviceClient.setLedgerConfiguration(any(Transaction.class)))
                 .thenReturn(TransactionResponse.newBuilder()
                         .nodeTransactionPrecheckCode(ResponseCodeEnum.SUCCESS)
@@ -56,7 +56,8 @@ class ClprClientImplTest {
 
         final var payerAccountId = AccountID.newBuilder().accountNum(42).build();
         final var nodeAccountId = AccountID.newBuilder().accountNum(7).build();
-        final var status = subject.setConfiguration(payerAccountId, nodeAccountId, sampleConfiguration);
+        final var proof = ClprStateProofUtils.buildLocalClprStateProofWrapper(sampleConfiguration);
+        final var status = subject.setConfiguration(payerAccountId, nodeAccountId, proof);
 
         assertEquals(ResponseCodeEnum.SUCCESS, status);
         final ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
@@ -68,8 +69,7 @@ class ClprClientImplTest {
         assertEquals(120, body.transactionValidDurationOrThrow().seconds());
         assertEquals(payerAccountId, body.transactionIDOrThrow().accountIDOrThrow());
         assertEquals(nodeAccountId, body.nodeAccountIDOrThrow());
-        final var proof = body.clprSetLedgerConfigurationOrThrow().ledgerConfigurationProofOrThrow();
-        assertEquals(sampleConfiguration, ClprStateProofUtils.extractConfiguration(proof));
+        assertEquals(proof, body.clprSetLedgerConfigurationOrThrow().ledgerConfigurationProofOrThrow());
     }
 
     @Test
@@ -79,7 +79,8 @@ class ClprClientImplTest {
 
         final var payerAccountId = AccountID.newBuilder().accountNum(42).build();
         final var nodeAccountId = AccountID.newBuilder().accountNum(7).build();
-        final var status = subject.setConfiguration(payerAccountId, nodeAccountId, sampleConfiguration);
+        final var proof = ClprStateProofUtils.buildLocalClprStateProofWrapper(sampleConfiguration);
+        final var status = subject.setConfiguration(payerAccountId, nodeAccountId, proof);
 
         assertEquals(ResponseCodeEnum.FAIL_INVALID, status);
     }
