@@ -189,22 +189,25 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         final var metadataLedgerId = existingMetadata != null && existingMetadata.ledgerId() != null
                 ? existingMetadata.ledgerId()
                 : newConfig.ledgerId();
+
+        final var ledgerId = newConfig.ledgerIdOrThrow();
+        final var configStore = context.storeFactory().writableStore(WritableClprLedgerConfigurationStore.class);
+        final var existingConfig = configStore.get(ledgerId);
+        final var endpointVisibilityChanged = endpointVisibilityChanged(existingConfig, newConfig);
+        final var shouldUpdateConfig = updatesConfig(existingConfig, newConfig) || endpointVisibilityChanged;
         if (existingMetadata != null
                 && existingMetadata.ledgerId() != null
                 && existingMetadata.rosterHash() != null
                 && existingMetadata.ledgerId().equals(newConfig.ledgerId())
-                && existingMetadata.rosterHash().equals(activeRosterHash)) {
+                && existingMetadata.rosterHash().equals(activeRosterHash)
+                && !shouldUpdateConfig) {
             return;
         }
         metadataStore.put(ClprLocalLedgerMetadata.newBuilder()
                 .ledgerId(metadataLedgerId)
                 .rosterHash(activeRosterHash)
                 .build());
-
-        final var ledgerId = newConfig.ledgerIdOrThrow();
-        final var configStore = context.storeFactory().writableStore(WritableClprLedgerConfigurationStore.class);
-        final var existingConfig = configStore.get(ledgerId);
-        if (updatesConfig(existingConfig, newConfig)) {
+        if (shouldUpdateConfig) {
             // If the configuration is an update, we store it in the writable store.
             configStore.put(newConfig);
         }
@@ -228,6 +231,22 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         final var newTime = newConfig.timestampOrThrow();
         return newTime.seconds() > existingTime.seconds()
                 || (newTime.seconds() == existingTime.seconds() && newTime.nanos() > existingTime.nanos());
+    }
+
+    private static boolean endpointVisibilityChanged(
+            @Nullable final ClprLedgerConfiguration existingConfig, @NonNull final ClprLedgerConfiguration newConfig) {
+        if (existingConfig == null) {
+            return true;
+        }
+        return hasPublicizedEndpoints(existingConfig) != hasPublicizedEndpoints(newConfig);
+    }
+
+    private static boolean hasPublicizedEndpoints(@NonNull final ClprLedgerConfiguration config) {
+        final var endpoints = config.endpoints();
+        if (endpoints.isEmpty()) {
+            return false;
+        }
+        return endpoints.stream().allMatch(org.hiero.hapi.interledger.state.clpr.ClprEndpoint::hasEndpoint);
     }
 
     @NonNull

@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -78,7 +79,7 @@ import org.junit.jupiter.api.Tag;
 public class ClprShipOfTheseusSuite implements LifecycleTest {
     private static final Pattern OVERRIDE_SCOPE_DIR_PATTERN = Pattern.compile("\\d+");
     private static final Duration CONFIG_PROPAGATION_TIMEOUT = Duration.ofMinutes(1);
-    private static final Duration CONFIG_PROPAGATION_POLL_INTERVAL = Duration.ofSeconds(2);
+    private static final Duration CONFIG_PROPAGATION_POLL_INTERVAL = Duration.ofSeconds(1);
 
     static {
         // Capture subprocess stdout/stderr early so startup failures surface in logs.
@@ -94,7 +95,8 @@ public class ClprShipOfTheseusSuite implements LifecycleTest {
                         firstGrpcPort = 35400,
                         setupOverrides = {
                             @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true")
+                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "true"),
+                            @ConfigOverride(key = "clpr.connectionFrequency", value = "1000")
                         }),
                 @MultiNetworkHapiTest.Network(
                         name = "SHIP_B",
@@ -102,7 +104,8 @@ public class ClprShipOfTheseusSuite implements LifecycleTest {
                         firstGrpcPort = 36400,
                         setupOverrides = {
                             @ConfigOverride(key = "clpr.clprEnabled", value = "true"),
-                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false")
+                            @ConfigOverride(key = "clpr.publicizeNetworkAddresses", value = "false"),
+                            @ConfigOverride(key = "clpr.connectionFrequency", value = "1000")
                         })
             })
     @DisplayName("Two-network Ship of Theseus baseline")
@@ -623,14 +626,15 @@ public class ClprShipOfTheseusSuite implements LifecycleTest {
     private SpecOperation[] seedStakerAccounts(
             final String networkPrefix, final List<Long> nodeIds, final Map<Long, AccountID> stakerIds) {
         final var ops = new ArrayList<SpecOperation>();
-        for (final var nodeId : nodeIds) {
-            ops.add(cryptoCreate(stakerAccountName(networkPrefix, nodeId))
-                    .payingWith(GENESIS)
-                    .key(GENESIS)
-                    .balance(ONE_HBAR)
-                    .stakedNodeId(nodeId)
-                    .exposingCreatedIdTo(id -> stakerIds.put(nodeId, id)));
-        }
+        final var createOps = nodeIds.stream()
+                .map(nodeId -> cryptoCreate(stakerAccountName(networkPrefix, nodeId))
+                        .payingWith(GENESIS)
+                        .key(GENESIS)
+                        .balance(ONE_HBAR)
+                        .stakedNodeId(nodeId)
+                        .exposingCreatedIdTo(id -> stakerIds.put(nodeId, id)))
+                .toArray(SpecOperation[]::new);
+        ops.add(inParallel(createOps));
         ops.add(waitForNextStakingPeriod());
         ops.add(triggerStakingPeriodUpdate());
         return ops.toArray(SpecOperation[]::new);

@@ -58,7 +58,7 @@ public class ClprClientImpl implements ClprClient {
     private static final Logger log = LogManager.getLogger(ClprClientImpl.class);
 
     private static final PbjGrpcClientConfig clientConfig = new PbjGrpcClientConfig(
-            Duration.ofSeconds(10),
+            Duration.ofSeconds(1),
             Tls.builder().enabled(false).build(),
             Optional.empty(),
             ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO);

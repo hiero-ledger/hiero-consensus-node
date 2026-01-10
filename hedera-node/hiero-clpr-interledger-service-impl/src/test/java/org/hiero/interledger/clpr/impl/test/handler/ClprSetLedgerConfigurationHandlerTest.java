@@ -367,7 +367,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     }
 
     @Test
-    public void handleIsNoOpWhenRosterHashDoesNotAdvance() {
+    public void handleUpdatesConfigWhenRosterHashDoesNotAdvance() {
         final var txn = TransactionBody.newBuilder()
                 .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
                         .ledgerConfigurationProof(buildLocalClprStateProofWrapper(localClprConfig))
@@ -384,7 +384,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
 
         assertThatCode(() -> subject.handle(handleContext)).doesNotThrowAnyException();
         verify(metadataStore, never()).put(any());
-        verify(writableConfigStoreMock, never()).put(any());
+        verify(writableConfigStoreMock).put(any());
     }
 
     @Test
