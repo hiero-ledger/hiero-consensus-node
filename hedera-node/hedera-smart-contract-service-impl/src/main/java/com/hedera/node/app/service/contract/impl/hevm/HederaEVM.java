@@ -12,6 +12,7 @@ import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.util.Optional;
 
+import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -107,7 +108,7 @@ public class HederaEVM extends HEVM {
         final long opsDurationMultiplier = opsDurationSchedule.opsGasBasedDurationMultiplier();
         final long opsDurationDenominator = opsDurationSchedule.multipliersDenominator();
 
-        final SB trace = null; // new SB();
+        final SB trace = new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null ) {
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
@@ -277,13 +278,13 @@ public class HederaEVM extends HEVM {
     private SB postTrace(MessageFrame frame, SB trace) {
         trace.hex2(frame.stackSize());
         // Dump TOS
-        //if( frame.stackSize() > 0 ) {
-        //    trace.p(" 0x");
-        //    Bytes bs = frame.getStackItem(0);
-        //    int len = bs.size();
-        //    for( int i=0; i<len; i++ )
-        //        trace.hex1(bs.get(i));
-        //}
+        if( frame.stackSize() > 0 ) {
+            trace.p(" 0x");
+            Bytes bs = frame.getStackItem(0);
+            int len = bs.size();
+            for( int i=0; i<32-len; i++ )  trace.hex1(0);
+            for( int i=0; i<   len; i++ )  trace.hex1(bs.get(i));
+        }
         return trace;
     }
     private static String contractStr(int opcode) {

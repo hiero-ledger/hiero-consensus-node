@@ -92,10 +92,10 @@ public class BonnevilleEVM extends HEVM {
         return String.format("%x",op);
     }
     private static final String[] OPNAMES = new String[]{
-        /* 00 */ "stop", "add ", "mul ", "sub ", "div ", "05  ", "06  ", "07  ", "08  ", "09  ", "exp ", "0B  ", "0C  ", "0D  ", "0E  ", "0F  ",
+        /* 00 */ "stop", "add ", "mul ", "sub ", "div ", "05  ", "06  ", "07  ", "08  ", "09  ", "exp ", "sign", "0C  ", "0D  ", "0E  ", "0F  ",
         /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "18  ", "not ", "1A  ", "shl ", "shr ", "1D  ", "1E  ", "1F  ",
         /* 20 */ "kecc", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
-        /* 30 */ "30  ", "31  ", "32  ", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "gasP", "3C  ", "retZ", "retC", "hash",
+        /* 30 */ "addr", "31  ", "32  ", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "gasP", "3C  ", "retZ", "retC", "hash",
         /* 40 */ "40  ", "Coin", "42  ", "43  ", "seed", "limi", "chid", "47  ", "fee ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
         /* 50 */ "pop ", "mld ", "mst ", "53  ", "Csld", "Csst", "jmp ", "jmpi", "58  ", "59  ", "gas ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
         };
@@ -260,6 +260,9 @@ class BEVM {
 
     // Push a long
     private ExceptionalHaltReason push( long x ) { return push(x,0,0,0); }
+    // Push an immediate 0 to stack
+    private ExceptionalHaltReason push0() { return push( 0L ); }
+
 
     // Push a UInt256
     private ExceptionalHaltReason push( UInt256 val ) {
@@ -355,7 +358,7 @@ class BEVM {
     ExceptionalHaltReason _run() {
         if( _codes.length==0 )
             return stop();
-        SB trace = null; // new SB();
+        SB trace = new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null )
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
@@ -379,6 +382,7 @@ class BEVM {
             case 0x03 -> sub();
             case 0x04 -> div();
             case 0x0A -> exp();
+            case 0x0B -> sign();
             case 0x10 -> ult();
             case 0x11 -> ugt();
             case 0x12 -> slt();
@@ -394,6 +398,7 @@ class BEVM {
             case 0x20 -> keccak256();
 
             // call/input/output arguments
+            case 0x30 -> address();
             case 0x33 -> caller();
             case 0x34 -> callValue();
             case 0x35 -> callDataLoad();
@@ -439,7 +444,7 @@ class BEVM {
             case 0x5B -> noop();// Jump Destination, a no-op
 
             // Stack manipulation
-            case 0x5F -> push0();
+            case 0x5F -> push0Op();
 
             case 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F,
                  0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F
@@ -500,7 +505,7 @@ class BEVM {
     private SB postTrace(SB trace) {
         trace.hex2(_sp);
         // Dump TOS
-        //if( _sp > 0 ) trace.p(" 0x").hex8(STK3[_sp-1]).hex8(STK2[_sp-1]).hex8(STK1[_sp-1]).hex8(STK0[_sp-1]);
+        if( _sp > 0 ) trace.p(" 0x").hex8(STK3[_sp-1]).hex8(STK2[_sp-1]).hex8(STK1[_sp-1]).hex8(STK0[_sp-1]);
         return trace;
     }
 
@@ -517,18 +522,18 @@ class BEVM {
 
         // If both sign bits are the same and differ from the result, we overflowed
         long add0 = lhs0 + rhs0;
-        if( overflowAdd(lhs0,rhs0,add0) ) throw new TODO();
         long add1 = lhs1 + rhs1;
-        if( overflowAdd(lhs1,rhs1,add1) ) throw new TODO();
+        if( overflowAdd(lhs0,rhs0,add0) ) add1++;
         long add2 = lhs2 + rhs2;
-        if( overflowAdd(lhs2,rhs2,add2) ) throw new TODO();
+        if( overflowAdd(lhs1,rhs1,add1) ) add2++;
         long add3 = lhs3 + rhs3;
+        if( overflowAdd(lhs2,rhs2,add2) ) add3++;
         // Math is mod 256, so ignore last overflow
         return push(add0,add1,add2,add3);
     }
     // Check the relationship amongst the sign bits only; the lower 63 bits are
     // computed but ignored.
-    private static boolean overflowAdd( long x, long y, long sum ) { return (~(x^y) & (x^sum)) < 0; }
+    private static boolean overflowAdd( long x, long y, long sum ) { return ((x&y) | ((x^y) & ~sum)) < 0; }
 
     private ExceptionalHaltReason mul() {
         var halt = useGas(_gasCalc.getLowTierGasCost());
@@ -657,6 +662,49 @@ class BEVM {
         }
         // Prolly BigInteger
         throw new TODO();
+    }
+
+    // Sgn extend
+    private ExceptionalHaltReason sign() {
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        int x = popInt();
+        var halt = useGas(_gasCalc.getLowTierGasCost());
+        if( halt!=null ) return halt;
+        // Push the sign-extend of vak, starting from byte x.  if x>=32, then v
+        // is used no-change.  If x==31 then we would only extend the high byte.
+        if( x >= 31 ) return null;
+        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
+        x = 32 - x;             // Shift byte to high position
+        int shf = x*8;          // Bytes to bits
+
+        // While shift is large, shift by whole registers
+        while( shf >= 64 ) {
+            val3 = val2;  val2 = val1;  val1 = val0;  val0 = 0;
+            shf -= 64;
+        }
+        // Remaining partial shift has to merge across word boundaries
+        if( shf != 0 ) {
+            val3 = (val3<<shf) | (val2>>>(64-shf));
+            val2 = (val2<<shf) | (val1>>>(64-shf));
+            val1 = (val1<<shf) | (val0>>>(64-shf));
+            val0 = (val0<<shf);
+        }
+        // Unwind shift, but sign-extend.
+        // While shift is large, shift by whole registers
+        shf = x*8;
+        while( shf >= 64 ) {
+            val0 = val1;  val1 = val2;  val2 = val3;  val3 = val3 < 0 ? -1L : 0;
+            shf -= 64;
+        }
+        // Remaining partial shift has to merge across word boundries
+        if( shf != 0 ) {
+            val0 = (val0>>>shf) | (val1<<(64-shf));
+            val1 = (val1>>>shf) | (val2<<(64-shf));
+            val2 = (val2>>>shf) | (val3<<(64-shf));
+            val3 = (val3>> shf); // Signed shift
+        }
+
+        return push(val0, val1, val2, val3);
     }
 
     // Pop 2 words and Unsigned compare them.  Caller safety checked.
@@ -820,19 +868,29 @@ class BEVM {
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int adr = popInt();
         int len = popInt();
-        var halt = useGas(_gasCalc.keccak256OperationGasCost(_frame, adr, len));
+        int nwords = (len+31)>>5;
+        long gas = nwords*6/*FrontierGasCalculator.KECCAK256_OPERATION_WORD_GAS_COST*/
+            + 30/*FrontierGasCalculator.KECCAK256_OPERATION_BASE_COST*/
+            + memoryExpansionGasCost(adr,len);
+        var halt = useGas(gas);
         if( halt!=null ) return halt;
 
         Bytes bytes = _mem.asBytes(adr, len);
         Bytes keccak = Hash.keccak256(bytes);
         assert keccak.size()==32; // Base implementation has changed?
-        byte[] kek = keccak.toArrayUnsafe();
-        return push32(kek);
+        return push32(keccak.toArrayUnsafe());
     }
 
 
     // ---------------------
     // Call input/output
+
+    // Recipient
+    private ExceptionalHaltReason address() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        return push(_frame.getRecipientAddress());
+    }
 
     // Push passed ETH value
     private ExceptionalHaltReason caller() {
@@ -1070,7 +1128,10 @@ class BEVM {
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-        return _abstractCall(trace,str, stipend,to,Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen);
+
+        var sender = _frame.getSenderAddress();
+
+        return _abstractCall(trace,str, stipend,to,sender,Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen);
     }
     private boolean isRedirectFromNativeEntity() {
         final var updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
@@ -1219,10 +1280,10 @@ class BEVM {
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int adr = popInt();
         if( adr == Integer.MAX_VALUE ) return useGas(adr); // Fail, out of gas
-        assert (adr&31)==0;                                // Spec requires alignment, not checked?
 
         var halt = useGas(_gasCalc.getVeryLowTierGasCost() + memoryExpansionGasCost(adr, 32));
         if( halt!=null ) return halt;
+        _mem.growMem( adr+32 );
 
         return push( _mem.read(adr+24), _mem.read(adr+16), _mem.read(adr+8), _mem.read(adr) );
     }
@@ -1401,8 +1462,7 @@ class BEVM {
         return null;
     }
 
-    // Push an immediate 0 to stack
-    private ExceptionalHaltReason push0() {
+    private ExceptionalHaltReason push0Op() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
         return push( 0L );
@@ -1596,12 +1656,16 @@ class BEVM {
         return _abstractCall(trace,str, stipend,to,value,hasValue,srcOff,srcLen,dstOff,dstLen);
     }
 
-    private ExceptionalHaltReason _abstractCall(SB trace, String str,long stipend, Address contract, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
-        Account contractAccount = _frame.getWorldUpdater().get(contract);
 
+    private ExceptionalHaltReason _abstractCall(SB trace, String str,long stipend, Address contract, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
         var sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
             ? FrameUtils.hookOwnerAddress(_frame)
             : _frame.getRecipientAddress();
+        return _abstractCall(trace, str, stipend, contract, sender, value, hasValue, srcOff, srcLen, dstOff, dstLen );
+    }
+
+    private ExceptionalHaltReason _abstractCall(SB trace, String str,long stipend, Address contract, Address sender, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
+        Account contractAccount = _frame.getWorldUpdater().get(contract);
 
         // gas cost check.  As usual, the input values are capped at
         // Integer.MAX_VALUE and the sum of a few of these will not overflow a
@@ -1700,7 +1764,7 @@ class BEVM {
         msg.start(child, _tracing);
 
         if( hsys != null ) {
-            assert child.getState() == MessageFrame.State.COMPLETED_SUCCESS;
+            //assert child.getState() == MessageFrame.State.COMPLETED_SUCCESS;
         } else {
             assert child.getState() == MessageFrame.State.CODE_EXECUTING;
             // ----------------------------
@@ -1712,7 +1776,7 @@ class BEVM {
         switch( child.getState() ) {
         case MessageFrame.State.CODE_SUSPENDED:    throw new TODO("Should not reach here");
         case MessageFrame.State.CODE_SUCCESS:      msg.codeSuccess(child, _tracing);  break; // Sets COMPLETED_SUCCESS
-        case MessageFrame.State.EXCEPTIONAL_HALT:  throw new TODO(); // msg.exceptionalHalt(child); break;
+        case MessageFrame.State.EXCEPTIONAL_HALT:  msg.exceptionalHalt1(child); break;
         case MessageFrame.State.REVERT:            msg.revert(child);  break;
         case MessageFrame.State.COMPLETED_SUCCESS: break; // Precompiled sys contracts hit here
         case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");

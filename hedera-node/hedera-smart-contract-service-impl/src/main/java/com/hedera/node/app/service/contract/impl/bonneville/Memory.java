@@ -19,12 +19,12 @@ public class Memory {
     byte[] _mem=new byte[32];   // Raw bytes
 
     long read( int adr ) {
-        assert (adr&7)==0;      // 8b aligned, caller already checked
         return adr >= _mem.length ? 0 : read8(_mem,adr);
     }
 
 
     // Grow to handle len bytes
+    // TODO: Only grow backing store on non-zero WRITES.
     void growMem( int len ) {
         len = (len+31) & -32;   // Round up to nearest 32
         // Grow in-use bytes
@@ -39,12 +39,12 @@ public class Memory {
         _mem = Arrays.copyOf(_mem, newlen);
     }
 
-    // Big-endian read long from any array
+    // Big-endian read long from any array, zero fill off end
     static long read8( byte[] src, int off ) {
         long x = 0;
         for( int i=0; i<8; i++ ) {
             x <<= 8;
-            x |= src[off + i] & 0xFF;
+            x |= (off+i < src.length ? (src[off + i] & 0xFF) : 0);
         }
         return x;
     }
