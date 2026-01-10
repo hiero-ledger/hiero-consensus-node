@@ -504,7 +504,7 @@ class AtomicAutoAccountCreationSuite {
         // The expected (network + service) fee for two token transfers to a receiver
         // with no auto-creation; note it is approximate because the fee will vary slightly
         // with the size of the sig map, depending on the lengths of the public key prefixes required
-        final long approxTransferFee = 1162100L;
+        final long approxTransferFee = 1218008L;
 
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
@@ -526,7 +526,9 @@ class AtomicAutoAccountCreationSuite {
                                         moving(100, A_TOKEN).between(TOKEN_TREASURY, CIVILIAN),
                                         moving(100, B_TOKEN).between(TOKEN_TREASURY, CIVILIAN))
                                 .via("transferAToSponsor")
-                                .batchKey("batchOperator"))
+                                .batchKey("batchOperator")
+                                .signedBy(TOKEN_TREASURY)
+                                .payingWith(TOKEN_TREASURY))
                         .payingWith("batchOperator"),
                 getAccountInfo(TOKEN_TREASURY)
                         .hasToken(relationshipWith(B_TOKEN).balance(900)),
@@ -908,7 +910,7 @@ class AtomicAutoAccountCreationSuite {
     @HapiTest
     final Stream<DynamicTest> autoAccountCreationsHappyPath() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
+        final long transferFee = 190000L;
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
                 cryptoCreate(CIVILIAN).balance(10 * ONE_HBAR),
@@ -919,6 +921,7 @@ class AtomicAutoAccountCreationSuite {
                                         tinyBarsFromToWithAlias(CIVILIAN, VALID_ALIAS, ONE_HBAR))
                                 .batchKey("batchOperator")
                                 .via(TRANSFER_TXN)
+                                .signedBy(PAYER_1, SPONSOR, CIVILIAN)
                                 .payingWith(PAYER_1))
                         .payingWith("batchOperator"),
                 getReceipt(TRANSFER_TXN).andAnyChildReceipts().hasChildAutoAccountCreations(1),
