@@ -230,7 +230,7 @@ public enum TransactionExecutors {
         };
     }
 
-    private ExecutorComponent newExecutorComponent(
+    public ExecutorComponent newExecutorComponent(
             @NonNull final State state,
             @NonNull Map<String, String> properties,
             @NonNull final TracerBinding tracerBinding,

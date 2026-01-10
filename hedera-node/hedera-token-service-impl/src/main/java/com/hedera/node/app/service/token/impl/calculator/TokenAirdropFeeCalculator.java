@@ -16,7 +16,8 @@ public class TokenAirdropFeeCalculator extends CryptoTransferFeeCalculator {
             @NonNull final TransactionBody txnBody,
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final FeeSchedule feeSchedule) {
+            @NonNull final FeeSchedule feeSchedule,
+            EstimationMode mode) {
         final var op = txnBody.tokenAirdropOrThrow();
         final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
                 .tokenTransfers(op.tokenTransfers())
@@ -27,7 +28,7 @@ public class TokenAirdropFeeCalculator extends CryptoTransferFeeCalculator {
                 .transactionID(txnBody.transactionID())
                 .build();
 
-        super.accumulateServiceFee(syntheticCryptoTransfer, feeContext, feeResult, feeSchedule);
+        super.accumulateServiceFee(syntheticCryptoTransfer, feeContext, feeResult, feeSchedule, mode);
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

@@ -30,6 +30,10 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /** Calculates transaction and query fees. Null context = approximate, non-null = exact using state. */
 public interface ServiceFeeCalculator {
+    enum EstimationMode {
+        Stateful,
+        Intrinsic
+    }
     /**
      * Accumulated service fees as a side effect into the given fee result. This will be implemented by every
      * single handler's fee calculator.
@@ -43,7 +47,8 @@ public interface ServiceFeeCalculator {
             @NonNull TransactionBody txnBody,
             @Nullable FeeContext feeContext,
             @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule);
+            @NonNull FeeSchedule feeSchedule,
+            EstimationMode mode);
     /**
      * Returns the transaction type this calculator is for.
      * @return the transaction type
@@ -71,7 +76,7 @@ public interface ServiceFeeCalculator {
                 long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
                 if (amount > included) {
                     final long overage = amount - included;
-                    result.addServiceFee(overage, extraFee);
+                    result.addServiceFee(overage, extraFee, ref.name().name());
                 }
             }
         }

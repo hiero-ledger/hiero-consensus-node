@@ -22,7 +22,8 @@ public class ConsensusCreateTopicFeeCalculator implements ServiceFeeCalculator {
             @NonNull TransactionBody txnBody,
             @Nullable FeeContext feeContext,
             @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule) {
+            @NonNull FeeSchedule feeSchedule,
+            EstimationMode mode) {
         long keys = 0;
         final var op = txnBody.consensusCreateTopicOrThrow();
         if (op.hasAdminKey()) {

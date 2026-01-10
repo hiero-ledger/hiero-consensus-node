@@ -22,7 +22,8 @@ public class CryptoApproveAllowanceFeeCalculator implements ServiceFeeCalculator
             @NonNull final TransactionBody txnBody,
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final FeeSchedule feeSchedule) {
+            @NonNull final FeeSchedule feeSchedule,
+            EstimationMode mode) {
         final var op = txnBody.cryptoApproveAllowanceOrThrow();
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE);

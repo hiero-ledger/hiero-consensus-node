@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -21,7 +22,8 @@ public class FileGetContentsFeeCalculator implements QueryFeeCalculator {
             @NonNull Query query,
             @Nullable QueryContext queryContext,
             @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule) {
+            @NonNull FeeSchedule feeSchedule,
+            ServiceFeeCalculator.EstimationMode mode) {
         final var fileStore = queryContext.createStore(ReadableFileStore.class);
         final var op = query.fileGetContentsOrThrow();
 
