@@ -337,17 +337,17 @@ public class BlockNodeSuite {
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
                 doingContextual(spec -> time.set(Instant.now())),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
+                blockNode(0).sendNodeBehindPublisherImmediately(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
                         Duration.ofSeconds(30),
                         Duration.ofSeconds(45),
                         String.format(
-                                "/localhost:%s/ACTIVE] Block node reported it is behind. Will restart stream at block 0.",
+                                "/localhost:%s/ACTIVE] Received BehindPublisher response for block 9223372036854775807.",
                                 portNumbers.getFirst()),
                         String.format(
-                                "/localhost:%s/ACTIVE] Received EndOfStream response (block=9223372036854775807, responseCode=BEHIND).",
+                                "/localhost:%s/ACTIVE] Block node reported it is behind. Will start streaming block 0.",
                                 portNumbers.getFirst()))),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())));
@@ -769,10 +769,11 @@ public class BlockNodeSuite {
                     portNumbers.add(spec.getBlockNodePortById(0));
                     portNumbers.add(spec.getBlockNodePortById(1));
                 }),
-                waitUntilNextBlocks(5).withBackgroundTraffic(true),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
                 doingContextual(spec -> time.set(Instant.now())),
-                blockNode(0).sendEndOfStreamImmediately(Code.TIMEOUT).withBlockNumber(9L),
-                blockNode(0).sendEndOfStreamImmediately(Code.TIMEOUT).withBlockNumber(10L),
+                blockNode(0).sendEndOfStreamImmediately(Code.TIMEOUT).withBlockNumber(1L),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                blockNode(0).sendEndOfStreamImmediately(Code.TIMEOUT).withBlockNumber(2L),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -813,13 +814,13 @@ public class BlockNodeSuite {
         return hapiTest(
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
                 doingContextual(spec -> time.set(Instant.now())),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(1L),
+                blockNode(0).sendEndOfStreamImmediately(Code.TIMEOUT).withBlockNumber(1L),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(2L),
+                blockNode(0).sendEndOfStreamImmediately(Code.DUPLICATE_BLOCK).withBlockNumber(2L),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(3L),
+                blockNode(0).sendEndOfStreamImmediately(Code.BAD_BLOCK_PROOF).withBlockNumber(3L),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(4L),
+                blockNode(0).sendEndOfStreamImmediately(Code.INVALID_REQUEST).withBlockNumber(4L),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -904,17 +905,17 @@ public class BlockNodeSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] BlockAcknowledgement received for block",
                                 portNumbers.getFirst()))),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
+                blockNode(0).sendNodeBehindPublisherImmediately(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
                         Duration.ofSeconds(20),
                         Duration.ofSeconds(20),
                         String.format(
-                                "/localhost:%s/ACTIVE] Received EndOfStream response (block=9223372036854775807, responseCode=BEHIND)",
+                                "/localhost:%s/ACTIVE] Received BehindPublisher response for block 9223372036854775807.",
                                 portNumbers.getFirst()),
                         String.format(
-                                "/localhost:%s/ACTIVE] Block node reported it is behind. Will restart stream at block 0.",
+                                "/localhost:%s/ACTIVE] Block node reported it is behind. Will start streaming block 0.",
                                 portNumbers.getFirst()))),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
                 blockNode(0).sendSkipBlockImmediately(Long.MAX_VALUE),

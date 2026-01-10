@@ -80,6 +80,17 @@ public class BlockNodeVerbs {
         }
 
         /**
+         * Sends an immediate NodeBehindPublisher response to the block node simulator.
+         *
+         * @param blockNumber the last verified block number
+         * @return the operation
+         */
+        public BlockNodeOp sendNodeBehindPublisherImmediately(long blockNumber) {
+            return BlockNodeOp.sendNodeBehindPublisherImmediately(nodeIndex, blockNumber)
+                    .build();
+        }
+
+        /**
          * Shuts down the block node simulator immediately.
          *
          * @return the operation
