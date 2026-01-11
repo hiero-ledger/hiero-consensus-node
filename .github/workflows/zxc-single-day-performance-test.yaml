@@ -509,7 +509,6 @@ jobs:
           tar cvfz /tmp/SwirldsMerkleDB.tgz build/libs/swirlds-benchmarks-*-jmh.jar settings.txt
 
       - name: Deploy SwirldsMerkleDB test
-        if: false
         run: |
           set +x
           set +e
@@ -539,7 +538,6 @@ jobs:
             perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Start SwirldsMerkleDB test
-        if: false
         run: |
           set +x
           set +e
@@ -1119,7 +1117,6 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
 
       - name: Records logs of CryptoBenchMerkleDb
-        if: false
         run: |
           set +x
           set +e
@@ -1137,9 +1134,8 @@ jobs:
       - name: Extract benchmark score of CryptoBenchMerkleDb test
         id: CryptoBenchMerkleDbLogs
         run: |
-          #result=$(grep 'Total transactions:' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $NF}')
-          echo "value=0" >> $GITHUB_OUTPUT
-          echo "value=0"
+          result=$(grep 'Total transactions:' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $NF}')
+          echo "value=${result}" >> $GITHUB_OUTPUT
 
       - name: Authenticate to Google Cloud
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
@@ -1151,7 +1147,6 @@ jobs:
         uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
 
       - name: Publish logs
-        if: false
         run: |
           cd "${{ github.workspace }}"/
 
