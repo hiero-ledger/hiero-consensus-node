@@ -149,7 +149,7 @@ jobs:
     runs-on: hl-cn-citr-lin-sm
     needs:
       - promote-build-candidate
-    if: ${{ needs.promote-build-candidate.result == 'success' }}
+    if: ${{ github.event.repository.private == false && needs.promote-build-candidate.result == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -189,7 +189,8 @@ jobs:
     needs:
       - determine-build-candidate
       - promote-build-candidate
-    if: ${{ needs.promote-build-candidate.result == 'success' &&
+    if: ${{ github.event.repository.private == false &&
+      needs.promote-build-candidate.result == 'success' &&
       needs.determine-build-candidate.result == 'success' &&
       needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:

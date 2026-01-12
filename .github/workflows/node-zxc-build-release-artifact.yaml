@@ -397,7 +397,7 @@ jobs:
 
       - name: Upload Artifacts (CDN Bucket)
         uses: google-github-actions/upload-cloud-storage@7c6e11cb7291594c5dfe0bc1dd9cd905e31e600c # v2.2.2
-        if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
+        if: ${{ github.event.repository.private == false && inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
         with:
           path: ${{ steps.artifact-release.outputs.folder }}
           destination: ${{ secrets.cdn-bucket-name }}/node/software/v${{ needs.validate.outputs.version-prefix }}/
@@ -547,6 +547,7 @@ jobs:
   gcp-production-image:
     name: Publish Production Image
     uses: ./.github/workflows/zxc-publish-production-image.yaml
+    if: ${{ github.event.repository.private == false }}
     needs:
       - validate
       - build-artifact
@@ -566,6 +567,7 @@ jobs:
   jfr-production-image:
     name: Publish Production Image
     uses: ./.github/workflows/zxc-publish-production-image.yaml
+    if: ${{ github.event.repository.private == false }}
     needs:
       - validate
       - build-artifact
@@ -588,7 +590,7 @@ jobs:
     needs:
       - gcp-production-image
       - jfr-production-image
-    if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+    if: ${{ github.event.repository.private == false && inputs.dry-run-enabled != true && !cancelled() && !failure() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -706,7 +708,7 @@ jobs:
       create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
     needs:
       - validate
-    if: ${{ inputs.release-profile != 'none' }}
+    if: ${{ github.event.repository.private == false && inputs.release-profile != 'none' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -909,7 +911,7 @@ jobs:
 
   create-github-release:
     name: Create GitHub Release
-    if: ${{ needs.publish.outputs.create-release == 'true' }}
+    if: ${{ github.event.repository.private == false && needs.publish.outputs.create-release == 'true' }}
     uses: ./.github/workflows/zxc-create-github-release.yaml
     needs:
       - publish

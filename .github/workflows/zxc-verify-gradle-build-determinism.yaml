@@ -120,28 +120,54 @@ jobs:
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
         run: gsutil cp "${{ steps.manifest.outputs.file }}" "${{ steps.baseline.outputs.file }}"
 
+  generate-matrix:
+    name: "Generate OS Matrix for Determinism Verification"
+    runs-on: hiero-network-node-linux-medium
+    outputs:
+      os-matrix: ${{ steps.set-matrix.outputs.os-matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Set OS Matrix
+        id: set-matrix
+        run: |
+          COMMON_RUNNERS=(
+            "ubuntu-24.04"
+            "ubuntu-22.04"
+            "hiero-network-node-linux-medium"
+            "hiero-network-node-linux-ubuntu-24-medium"
+            "hiero-network-node-linux-debian-12-medium"
+            "hiero-network-node-linux-large"
+            "hiero-network-node-linux-ubuntu-24-large"
+            "hiero-network-node-linux-debian-12-large"
+          )
+
+          PUBLIC_ONLY_RUNNERS=(
+            "windows-2022"
+            "windows-2025"
+          )
+
+          if [[ "${{ github.event.repository.private }}" == "true" ]]; then
+            ALL_RUNNERS=("${COMMON_RUNNERS[@]}")
+          else
+            ALL_RUNNERS=("${COMMON_RUNNERS[@]}" "${PUBLIC_ONLY_RUNNERS[@]}")
+          fi
+
+          printf -v joined '"%s",' "${ALL_RUNNERS[@]}"
+          echo "matrix={\"os\":[${joined%,}]}" >> $GITHUB_OUTPUT
+
   verify-artifacts:
     name: "Gradle: Verify Artifacts (${{ join(matrix.os, ', ') }})"
     runs-on: ${{ matrix.os }}
     needs:
       - generate-baseline
+      - generate-matrix
     strategy:
       fail-fast: false
-      matrix:
-        # Disabled MacOS runner testing due to concurrency issues with the Github hosted runners.
-        os:
-          - ubuntu-24.04
-          - ubuntu-22.04
-          #- macos-12
-          #- macos-11
-          - windows-2022
-          - windows-2025
-          - hiero-network-node-linux-medium
-          - hiero-network-node-linux-ubuntu-24-medium
-          - hiero-network-node-linux-debian-12-medium
-          - hiero-network-node-linux-large
-          - hiero-network-node-linux-ubuntu-24-large
-          - hiero-network-node-linux-debian-12-large
+      matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
