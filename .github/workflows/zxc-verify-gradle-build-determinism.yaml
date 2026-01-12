@@ -167,9 +167,10 @@ jobs:
           echo "Pretty-printed matrix:"
           echo "$MATRIX" | jq .
           
-          # Set the output
-          echo "generated_matrix=$MATRIX" >> $GITHUB_OUTPUT
+          # Set the output (simplified name)
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
+  # Then in verify-artifacts:
   verify-artifacts:
     name: "Gradle: Verify Artifacts (${{ join(matrix.os, ', ') }})"
     runs-on: ${{ matrix.os }}
@@ -178,12 +179,18 @@ jobs:
       - generate-matrix
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.setup-matrix.outputs.generated_matrix) }}
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}  # Simplified
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
+
+      - name: Debug Matrix Values
+        run: |
+          echo "Current runner: ${{ matrix.os }}"
+          echo "Raw matrix output: ${{ needs.generate-matrix.outputs.matrix }}"
+          echo "All matrix values: ${{ toJSON(matrix) }}"
 
       - name: Standardize Git Line Endings
         run: |
