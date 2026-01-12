@@ -26,17 +26,7 @@ import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.consensus.concurrent.config.BasicCommonConfig;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.event.creator.config.EventCreationConfig;
-import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
-import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
-import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.PcesConfig;
 
 /**
  * Registers configuration types for the platform.
@@ -56,21 +46,12 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
         return Set.of(
                 BasicCommonConfig.class,
                 BasicConfig.class,
-                ConsensusConfig.class,
-                CryptoConfig.class,
-                EventConfig.class,
-                EventCreationConfig.class,
-                EventCreationWiringConfig.class,
-                EventIntakeWiringConfig.class,
                 MerkleDbConfig.class,
-                MetricsConfig.class,
                 OSHealthCheckConfig.class,
                 PathsConfig.class,
-                PcesConfig.class,
                 PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
                 PlatformStatusConfig.class,
-                PrometheusConfig.class,
                 ProtocolConfig.class,
                 ReconnectConfig.class,
                 SocketConfig.class,
