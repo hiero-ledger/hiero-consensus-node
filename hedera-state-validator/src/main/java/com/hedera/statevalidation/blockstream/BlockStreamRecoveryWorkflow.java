@@ -15,7 +15,6 @@ import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
@@ -28,7 +27,6 @@ import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -60,14 +58,7 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final Path outputPath,
             @NonNull final String expectedHash)
             throws IOException {
-        final DeserializedSignedState deserializedSignedState;
-        try {
-            deserializedSignedState = StateUtils.getDeserializedSignedState();
-        } catch (ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
-        final MerkleNodeState state =
-                deserializedSignedState.reservedSignedState().get().getState();
+        final MerkleNodeState state = StateUtils.getState();
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
                 new BlockStreamRecoveryWorkflow(state, targetRound, outputPath, expectedHash);

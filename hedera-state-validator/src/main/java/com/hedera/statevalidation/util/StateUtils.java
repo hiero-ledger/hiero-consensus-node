@@ -6,6 +6,7 @@ import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
+import static com.swirlds.platform.state.signed.StartupStateUtils.copyInitialSignedState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -58,6 +59,8 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.signed.HashedReservedSignedState;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
@@ -67,7 +70,6 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.constructable.ConstructableUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.time.InstantSource;
@@ -90,6 +92,7 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 @SuppressWarnings({"rawtypes", "resource"})
 public final class StateUtils {
 
+    private static MerkleNodeState state;
     private static DeserializedSignedState deserializedSignedState;
 
     // Static JSON codec cache
@@ -98,9 +101,30 @@ public final class StateUtils {
 
     private StateUtils() {}
 
-    public static DeserializedSignedState getDeserializedSignedState()
-            throws ConstructableRegistryException, IOException {
+    /**
+     * Returns <b>mutable</b> instance of {@link MerkleNodeState} loaded from disk.
+     * @return mutable instance of {@link MerkleNodeState}
+     */
+    public static MerkleNodeState getState() {
+        if (state == null) {
+            initState();
+        }
+        return state;
+    }
+
+    /**
+     * Returns <b>immutable</b> instance of {@link DeserializedSignedState} loaded from disk.
+     * @return immutable instance of {@link DeserializedSignedState}
+     */
+    public static DeserializedSignedState getDeserializedSignedState() {
         if (deserializedSignedState == null) {
+            initState();
+        }
+        return deserializedSignedState;
+    }
+
+    private static void initState() {
+        try {
             registerConstructables();
 
             final PlatformContext platformContext = getPlatformContext();
@@ -113,11 +137,17 @@ public final class StateUtils {
                     virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
                     platformContext);
 
-            initServiceMigrator(getState(), platformContext, serviceRegistry);
+            final SignedState signedState =
+                    deserializedSignedState.reservedSignedState().get();
 
-            return deserializedSignedState;
+            // need to create copy of the loaded state to make it mutable
+            final HashedReservedSignedState hashedSignedState =
+                    copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
+            state = hashedSignedState.state().get().getState();
+            initServiceMigrator(state, platformContext, serviceRegistry);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        return deserializedSignedState;
     }
 
     private static void registerConstructables() throws ConstructableRegistryException {
@@ -225,11 +255,6 @@ public final class StateUtils {
                 new FakeStartupNetworks(Network.newBuilder().build()),
                 new StoreMetricsServiceImpl(new NoOpMetrics()),
                 new ConfigProviderImpl());
-    }
-
-    // Used for lambda shorthands
-    private static State getState() {
-        return deserializedSignedState.reservedSignedState().get().getState();
     }
 
     // Uses cached JSON codecs

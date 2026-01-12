@@ -19,10 +19,9 @@ import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.report.SlackReportGenerator;
-import com.hedera.statevalidation.util.junit.StateResolver;
+import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.state.merkle.StateValue;
@@ -37,17 +36,14 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, SlackReportGenerator.class})
+@ExtendWith({MerkleNodeStateResolver.class, SlackReportGenerator.class})
 @Tag("tokenRelations")
 public class TokenRelationsIntegrity {
 
     private static final Logger log = LogManager.getLogger(TokenRelationsIntegrity.class);
 
     @Test
-    void validate(DeserializedSignedState deserializedState) throws InterruptedException {
-        final MerkleNodeState merkleNodeState =
-                deserializedState.reservedSignedState().get().getState();
-
+    void validate(final MerkleNodeState merkleNodeState) throws InterruptedException {
         final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
         assertNotNull(virtualMap);
 
