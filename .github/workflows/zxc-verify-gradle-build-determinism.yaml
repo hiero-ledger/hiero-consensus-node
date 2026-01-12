@@ -157,8 +157,18 @@ jobs:
           fi
           
           printf -v joined '"%s",' "${ALL_RUNNERS[@]}"
-          echo "::debug::Generated OS Matrix: [${joined%,}]"
-          echo "matrix={\"os\":[${joined%,}]}" >> $GITHUB_OUTPUT
+          MATRIX="{\"os\":[${joined%,}]}"
+          
+          # Print to console
+          echo "Matrix configuration:"
+          echo "$MATRIX"
+          
+          # Or for pretty-printed JSON (if jq is available)
+          echo "Pretty-printed matrix:"
+          echo "$MATRIX" | jq .
+          
+          # Set the output
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
   verify-artifacts:
     name: "Gradle: Verify Artifacts (${{ join(matrix.os, ', ') }})"
