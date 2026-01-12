@@ -157,18 +157,18 @@ jobs:
           fi
           
           printf -v joined '"%s",' "${ALL_RUNNERS}"
-          MATRIX="{\"os\":[${joined%,}]}"
+          GEN_MATRIX="{\"os\":[${joined%,}]}"
           
           # Print to console
           echo "Matrix configuration:"
-          echo "$MATRIX"
+          echo "GEN_MATRIX"
           
           # Or for pretty-printed JSON (if jq is available)
           echo "Pretty-printed matrix:"
-          echo "$MATRIX" | jq .
+          echo "GEN_MATRIX" | jq .
           
           # Set the output (simplified name)
-          echo "matrix=$(echo $MATRIX | jq -c .)" >> $GITHUB_OUTPUT
+          echo "matrix=$GEN_MATRIX" >> $GITHUB_OUTPUT
 
   verify-output:
     name: Verify Matrix Output
