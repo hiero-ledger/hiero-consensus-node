@@ -993,17 +993,17 @@ class AtomicBatchApproveAllowanceTest {
                         .freezeKey(FREEZE_KEY)
                         .pauseKey(PAUSE_KEY)
                         .treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                mintToken(
+                                NON_FUNGIBLE_TOKEN,
+                                List.of(
+                                        ByteString.copyFromUtf8("a"),
+                                        ByteString.copyFromUtf8("b"),
+                                        ByteString.copyFromUtf8("c")))
+                        .via(NFT_TOKEN_MINT_TXN),
+                mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
                 atomicBatchDefaultOperator(
-                        tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                        tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
-                        mintToken(
-                                        NON_FUNGIBLE_TOKEN,
-                                        List.of(
-                                                ByteString.copyFromUtf8("a"),
-                                                ByteString.copyFromUtf8("b"),
-                                                ByteString.copyFromUtf8("c")))
-                                .via(NFT_TOKEN_MINT_TXN),
-                        mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
                         grantTokenKyc(FUNGIBLE_TOKEN, OWNER),
                         grantTokenKyc(NON_FUNGIBLE_TOKEN, OWNER),
                         cryptoTransfer(
