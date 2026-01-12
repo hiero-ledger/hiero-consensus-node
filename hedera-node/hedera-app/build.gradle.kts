@@ -60,6 +60,12 @@ jmhModuleInfo {
     requires("com.hedera.node.app.test.fixtures")
     requires("com.hedera.node.hapi")
     requires("com.hedera.pbj.runtime")
+    requires("com.hedera.pbj.grpc.helidon")
+    requires("com.hedera.pbj.grpc.helidon.config")
+    requires("io.helidon.common")
+    requires("io.helidon.webserver")
+    requires("com.swirlds.config.api")
+    requires("org.hiero.consensus.model")
     requires("jmh.core")
     requires("org.hiero.base.crypto")
 }
@@ -167,6 +173,8 @@ var updateDockerEnvTask =
         workingDir(layout.projectDirectory.dir("../docker"))
         commandLine("./update-env.sh", project.version)
     }
+
+dependencies { implementation(project(":config")) }
 
 tasks.register<Exec>("createDockerImage") {
     description = "Creates the docker image of the services based on the current version"
