@@ -168,7 +168,7 @@ jobs:
           echo "$MATRIX" | jq .
           
           # Set the output
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "generated_matrix=$MATRIX" >> $GITHUB_OUTPUT
 
   verify-artifacts:
     name: "Gradle: Verify Artifacts (${{ join(matrix.os, ', ') }})"
@@ -178,7 +178,7 @@ jobs:
       - generate-matrix
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.setup-matrix.outputs.generated_matrix) }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
