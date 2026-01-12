@@ -64,7 +64,6 @@ jmhModuleInfo {
     requires("com.hedera.pbj.grpc.helidon.config")
     requires("io.helidon.common")
     requires("io.helidon.webserver")
-    requires("io.helidon.grpc.core")
     requires("com.swirlds.config.api")
     requires("org.hiero.consensus.model")
     requires("jmh.core")
