@@ -13,8 +13,6 @@ import com.hedera.cryptography.wraps.Proof;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.node.app.history.HistoryLibrary;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
-import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.SplittableRandom;
 

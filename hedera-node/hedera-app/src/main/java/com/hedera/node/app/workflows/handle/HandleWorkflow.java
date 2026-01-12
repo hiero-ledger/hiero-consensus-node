@@ -332,7 +332,8 @@ public class HandleWorkflow {
                                 .<ProtoBytes>getSingleton(V059HistorySchema.LEDGER_ID_STATE_ID)
                                 .get())
                         .value();
-                systemTransactions.externalizeLedgerId(state, lastUsedConsTime.plusNanos(6), ledgerId, Bytes.wrap(historyService.getServiceName()));
+                systemTransactions.externalizeLedgerId(
+                        state, lastUsedConsTime.plusNanos(6), ledgerId, Bytes.wrap(historyService.getServiceName()));
                 transactionsDispatched = true;
             } catch (Exception e) {
                 logger.error("{} Failed to externalize ledger id", ALERT_MESSAGE, e);

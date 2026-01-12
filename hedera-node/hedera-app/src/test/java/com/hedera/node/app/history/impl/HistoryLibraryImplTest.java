@@ -33,7 +33,9 @@ class HistoryLibraryImplTest {
 
     @Test
     void wrapsVerificationKeyIsTbd() {
-        assertArrayEquals("(FUTURE) Use real proof verification key when library exposes it".getBytes(UTF_8), subject.wrapsVerificationKey());
+        assertArrayEquals(
+                "(FUTURE) Use real proof verification key when library exposes it".getBytes(UTF_8),
+                subject.wrapsVerificationKey());
     }
 
     @Test
