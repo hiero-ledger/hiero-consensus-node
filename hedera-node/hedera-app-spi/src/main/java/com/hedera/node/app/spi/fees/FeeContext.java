@@ -104,4 +104,16 @@ public interface FeeContext {
     default long tinybarsFromTinycents(final long amount) {
         return tinycentsToTinybars(amount, fromPbj(activeRate()));
     }
+
+    /**
+     * Returns the current utilization of the high-volume throttle for the transaction's functionality,
+     * in thousandths of one percent (0-100000). This is used for HIP-1313 variable rate pricing.
+     *
+     * <p>If no high-volume throttle exists for the functionality, returns 0.
+     *
+     * @return the utilization in thousandths of one percent (0-100000)
+     */
+    default int highVolumeThrottleUtilizationScaled() {
+        return 0;
+    }
 }

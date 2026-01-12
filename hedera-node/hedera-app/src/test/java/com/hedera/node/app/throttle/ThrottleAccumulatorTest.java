@@ -2221,6 +2221,124 @@ class ThrottleAccumulatorTest {
                 "Should NOT have high-volume throttle for CRYPTO_TRANSFER");
     }
 
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void getHighVolumeThrottleUtilizationReturnsZeroWhenNoThrottleExists(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                null,
+                ThrottleAccumulator.Verbose.YES);
+        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        subject.rebuildFor(defs);
+
+        // when - query utilization for a functionality with no high-volume throttle
+        final double utilization = subject.getHighVolumeThrottleUtilization(CRYPTO_TRANSFER, TIME_INSTANT);
+
+        // then
+        assertEquals(0.0, utilization, "Utilization should be 0 when no high-volume throttle exists");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void getHighVolumeThrottleUtilizationReturnsZeroWhenThrottleIsEmpty(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                null,
+                ThrottleAccumulator.Verbose.YES);
+        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        subject.rebuildFor(defs);
+
+        // when - query utilization for a functionality with high-volume throttle but no usage
+        final double utilization = subject.getHighVolumeThrottleUtilization(CRYPTO_CREATE, TIME_INSTANT);
+
+        // then - should be 0 since no transactions have been processed
+        assertEquals(0.0, utilization, "Utilization should be 0 when throttle has no usage");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void getHighVolumeThrottleUtilizationIncreasesWithUsage(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        subject.rebuildFor(defs);
+
+        // Create a high-volume CryptoCreate transaction
+        final var cryptoCreateBody =
+                com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder().build();
+        final var highVolumeTxBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .cryptoCreateAccount(cryptoCreateBody)
+                .highVolume(true)
+                .build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(highVolumeTxBody))
+                .build();
+        final var highVolumeTxnInfo = new TransactionInfo(
+                signedTx,
+                highVolumeTxBody,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                CRYPTO_CREATE,
+                null);
+
+        // when - submit some high-volume transactions
+        for (int i = 0; i < 100; i++) {
+            subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT.plusNanos(i), state, null, false);
+        }
+
+        // then - utilization should be greater than 0
+        final double utilization = subject.getHighVolumeThrottleUtilization(CRYPTO_CREATE, TIME_INSTANT.plusNanos(100));
+        assertTrue(utilization > 0.0, "Utilization should be greater than 0 after processing transactions");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void getHighVolumeThrottleUtilizationScaledReturnsCorrectFormat(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                null,
+                ThrottleAccumulator.Verbose.YES);
+        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        subject.rebuildFor(defs);
+
+        // when - query scaled utilization for a functionality with no usage
+        final int scaledUtilization = subject.getHighVolumeThrottleUtilizationScaled(CRYPTO_CREATE, TIME_INSTANT);
+
+        // then - should be 0 (in thousandths of one percent)
+        assertEquals(0, scaledUtilization, "Scaled utilization should be 0 when throttle has no usage");
+    }
+
     @NonNull
     private static Bytes keyToBytes(Key key) throws IOException, ParseException {
         final var dataBuffer = getThreadLocalDataBuffer();

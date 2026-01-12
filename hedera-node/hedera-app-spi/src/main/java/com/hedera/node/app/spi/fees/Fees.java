@@ -128,6 +128,23 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
     }
 
     /**
+     * Applies a multiplier to all fee components and returns a new {@link Fees} object.
+     * Used for HIP-1313 variable rate pricing.
+     *
+     * @param multiplier the multiplier to apply (e.g., 1.5 means 50% increase)
+     * @return a new {@link Fees} object with the multiplied fees
+     */
+    public Fees applyMultiplier(final double multiplier) {
+        if (multiplier <= 1.0) {
+            return this; // No increase needed
+        }
+        return new Fees(
+                Math.round(nodeFee * multiplier),
+                Math.round(networkFee * multiplier),
+                Math.round(serviceFee * multiplier));
+    }
+
+    /**
      * A builder for {@link Fees} objects.
      */
     public static final class Builder {

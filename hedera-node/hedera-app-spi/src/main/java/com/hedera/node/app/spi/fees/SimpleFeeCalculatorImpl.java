@@ -68,11 +68,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     }
 
     /**
-     * Calculates fees for CryptoDelete transactions per HIP-1261.
-     * CryptoDelete uses only SIGNATURES extra for the service fee.
+     * Calculates fees for transactions per HIP-1261.
+     * For high-volume transactions (HIP-1313), applies variable rate pricing based on throttle utilization.
      *
      * @param txnBody the transaction body
-     * @param feeContext the fee context containing signature count
+     * @param feeContext the fee context containing signature count and throttle utilization
      * @return the calculated fee result
      */
     @NonNull

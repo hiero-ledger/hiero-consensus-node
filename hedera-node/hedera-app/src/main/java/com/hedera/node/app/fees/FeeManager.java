@@ -334,4 +334,15 @@ public final class FeeManager {
     public SimpleFeeCalculator getSimpleFeeCalculator() {
         return simpleFeeCalculator;
     }
+
+    /**
+     * Returns the simple fees schedule used for HIP-1261 fee calculation.
+     * Also used for HIP-1313 variable rate pricing lookup.
+     *
+     * @return the simple fees schedule, or null if not yet loaded
+     */
+    @Nullable
+    public org.hiero.hapi.support.fees.FeeSchedule getSimpleFeesSchedule() {
+        return simpleFeesSchedule;
+    }
 }

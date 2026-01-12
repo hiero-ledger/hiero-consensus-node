@@ -338,7 +338,8 @@ public final class IngestChecker {
                 configuration,
                 authorizer,
                 numSigs,
-                dispatcher);
+                dispatcher,
+                synchronizedThrottleAccumulator);
         final var fees = dispatcher.dispatchComputeFees(feeContext);
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
 

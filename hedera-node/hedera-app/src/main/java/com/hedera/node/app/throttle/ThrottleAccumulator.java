@@ -73,6 +73,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -85,6 +86,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -182,7 +184,7 @@ public class ThrottleAccumulator {
      * @param state the current state of the node
      * @param throttleUsages if not null, a list to accumulate throttle usages into
      * @param gasThrottleAlwaysEnabled if set, gas throttle is always enforced within this call,
-     *                                 even if the throttleByGas configuration flag is off
+     * even if the throttleByGas configuration flag is off
      * @return whether the transaction should be throttled
      */
     public boolean checkAndEnforceThrottle(
@@ -209,6 +211,8 @@ public class ThrottleAccumulator {
      * Returns the available ops duration capacity for the execution at a given time.
      * Takes into account the amount leaked from the bucket up to the provided time.
      * Returns Long.MAX_VALUE is the configured throttle type is NOOP_THROTTLE.
+     * @param now the time at which the available capacity is being checked for
+     * @return the available ops duration capacity
      */
     public long availableOpsDurationCapacity(@NonNull final Instant now) {
         if (throttleType == NOOP_THROTTLE) {
@@ -222,6 +226,8 @@ public class ThrottleAccumulator {
      * Consumes a given amount of ops duration units from the throttle's capacity.
      * Takes into account the amount leaked from the bucket up to the provided time.
      * If the amount to consume is greater than the available amount then overfills the bucket without an error.
+     * @param now the time at which the capacity is being consumed
+     * @param opsDurationUnitsToConsume the amount of ops duration units to consume
      */
     public void consumeOpsDurationThrottleCapacity(final long opsDurationUnitsToConsume, @NonNull final Instant now) {
         if (throttleType == NOOP_THROTTLE) {
@@ -259,9 +265,9 @@ public class ThrottleAccumulator {
 
             return enforceGasThrottle
                     && !gasThrottle.allow(
-                            now,
-                            query.contractCallLocalOrElse(ContractCallLocalQuery.DEFAULT)
-                                    .gas());
+                    now,
+                    query.contractCallLocalOrElse(ContractCallLocalQuery.DEFAULT)
+                            .gas());
         }
         resetLastAllowedUse();
         final var manager = functionReqs.get(queryFunction);
@@ -467,14 +473,13 @@ public class ThrottleAccumulator {
         }
 
         // Check if this is a high-volume transaction and use appropriate throttle bucket
-        final boolean isHighVolumeTxn = txBody != null && txBody.highVolume();
-        final var targetFunctionReqs = isHighVolumeTxn ? highVolumeFunctionReqs : functionReqs;
+        final boolean isHighVolume = txBody != null && txBody.highVolume();
+        final var targetFunctionReqs = isHighVolume ? highVolumeFunctionReqs : functionReqs;
         final var manager = targetFunctionReqs.get(function);
 
         // If high-volume flag is set but no high-volume bucket exists for this function,
         // fall back to normal throttle bucket
-        final var effectiveManager =
-                (manager == null && isHighVolumeTxn) ? functionReqs.get(function) : manager;
+        final var effectiveManager = (manager == null && isHighVolume) ? functionReqs.get(function) : manager;
 
         if (effectiveManager == null) {
             return true;
@@ -562,9 +567,9 @@ public class ThrottleAccumulator {
                 } else {
                     final var ledgerConfig = config.getConfigData(LedgerConfig.class);
                     expiry = Optional.ofNullable(txnInfo.transactionID())
-                                    .orElse(TransactionID.DEFAULT)
-                                    .transactionValidStartOrElse(Timestamp.DEFAULT)
-                                    .seconds()
+                            .orElse(TransactionID.DEFAULT)
+                            .transactionValidStartOrElse(Timestamp.DEFAULT)
+                            .seconds()
                             + ledgerConfig.scheduleTxExpiryTimeSecs();
                 }
                 final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
@@ -601,7 +606,7 @@ public class ThrottleAccumulator {
     /**
      * Returns the gas limit for a contract transaction.
      *
-     * @param txnBody  the transaction body
+     * @param txnBody the transaction body
      * @param function the functionality
      * @return the gas limit for a contract transaction
      */
@@ -609,22 +614,19 @@ public class ThrottleAccumulator {
             @NonNull final TransactionBody txnBody, @NonNull final HederaFunctionality function) {
         final long nominalGas =
                 switch (function) {
-                    case CONTRACT_CREATE ->
-                        txnBody.contractCreateInstanceOrThrow().gas();
+                    case CONTRACT_CREATE -> txnBody.contractCreateInstanceOrThrow().gas();
                     case CONTRACT_CALL -> txnBody.contractCallOrThrow().gas();
-                    case ETHEREUM_TRANSACTION ->
-                        Optional.of(txnBody.ethereumTransactionOrThrow()
-                                        .ethereumData()
-                                        .toByteArray())
-                                .map(EthTxData::populateEthTxData)
-                                .map(EthTxData::gasLimit)
-                                .orElse(0L);
-                    case HOOK_DISPATCH ->
-                        txnBody.hookDispatchOrThrow()
-                                .executionOrElse(HookExecution.DEFAULT)
-                                .callOrElse(HookCall.DEFAULT)
-                                .evmHookCallOrElse(EvmHookCall.DEFAULT)
-                                .gasLimit();
+                    case ETHEREUM_TRANSACTION -> Optional.of(txnBody.ethereumTransactionOrThrow()
+                                    .ethereumData()
+                                    .toByteArray())
+                            .map(EthTxData::populateEthTxData)
+                            .map(EthTxData::gasLimit)
+                            .orElse(0L);
+                    case HOOK_DISPATCH -> txnBody.hookDispatchOrThrow()
+                            .executionOrElse(HookExecution.DEFAULT)
+                            .callOrElse(HookCall.DEFAULT)
+                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                            .gasLimit();
                     default -> 0L;
                 };
         // Interpret negative gas as overflow
@@ -1131,6 +1133,54 @@ public class ThrottleAccumulator {
     @VisibleForTesting
     public boolean hasHighVolumeThrottleFor(@NonNull final HederaFunctionality function) {
         return highVolumeFunctionReqs.containsKey(function);
+    }
+
+    /**
+     * Returns the current utilization percentage of the high-volume throttle(s) for the given functionality.
+     * If multiple throttle buckets apply to this functionality, returns the maximum utilization
+     * (since a transaction must pass ALL throttle checks).
+     *
+     * <p>The utilization is returned as a value between 0 and 100 (percent).
+     *
+     * @param function the functionality to get utilization for
+     * @param now the current time for calculating leaked capacity
+     * @return the utilization percentage (0-100), or 0 if no high-volume throttle exists for this functionality
+     */
+    public double getHighVolumeThrottleUtilization(
+            @NonNull final HederaFunctionality function, @NonNull final Instant now) {
+        requireNonNull(function);
+        requireNonNull(now);
+
+        final var manager = highVolumeFunctionReqs.get(function);
+        if (manager == null) {
+            return 0.0;
+        }
+
+        // Get the maximum utilization across all throttle buckets for this functionality
+        // (since a transaction must pass ALL throttle checks, the most utilized bucket is the bottleneck)
+        double maxUtilization = 0.0;
+        for (final var throttle : manager.managedThrottles()) {
+            final double utilization = throttle.percentUsed(now);
+            maxUtilization = Math.max(maxUtilization, utilization);
+        }
+        return maxUtilization;
+    }
+
+    /**
+     * Returns the current utilization percentage of the high-volume throttle(s) for the given functionality,
+     * as an integer in thousandths of one percent (0-100000).
+     *
+     * <p>This format matches the {@code utilization_percentage} field in {@code PiecewiseLinearPoint}.
+     *
+     * @param function the functionality to get utilization for
+     * @param now the current time for calculating leaked capacity
+     * @return the utilization in thousandths of one percent (0-100000), or 0 if no high-volume throttle exists
+     */
+    public int getHighVolumeThrottleUtilizationScaled(
+            @NonNull final HederaFunctionality function, @NonNull final Instant now) {
+        final double percentUsed = getHighVolumeThrottleUtilization(function, now);
+        // Convert from percent (0-100) to thousandths of one percent (0-100000)
+        return (int) Math.round(percentUsed * 1000.0);
     }
 
     public enum ThrottleType {

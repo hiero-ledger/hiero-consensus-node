@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.dispatcher;
 
+import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -21,6 +25,9 @@ import com.hedera.node.config.data.FeesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.VariableRatePricing;
+import org.hiero.hapi.support.fees.FeeSchedule;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /**
  * A {@code TransactionDispatcher} provides functionality to forward pre-check, pre-handle, and handle-transaction
@@ -107,6 +114,8 @@ public class TransactionDispatcher {
      * Dispatch a compute fees request. It is forwarded to the correct handler, which takes care of the specific
      * calculation and returns the resulting {@link Fees}.
      *
+     * <p>For high-volume transactions (HIP-1313), applies variable rate pricing based on throttle utilization.
+     *
      * @param feeContext information needed to calculate the fees
      * @return the calculated fees
      */
@@ -116,15 +125,69 @@ public class TransactionDispatcher {
 
         try {
             final var handler = getHandler(feeContext.body());
+            final var txBody = feeContext.body();
+            Fees fees;
+
             if (shouldUseSimpleFees(feeContext)) {
+                // Simple fees path (HIP-1261)
                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                        .calculateTxFee(feeContext.body(), feeContext);
-                return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
+                        .calculateTxFee(txBody, feeContext);
+                fees = feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
+            } else {
+                // Legacy fees path
+                fees = handler.calculateFees(feeContext);
             }
-            return handler.calculateFees(feeContext);
+
+            // Apply variable rate pricing for high-volume transactions (HIP-1313)
+            // This applies to both simple fees and legacy fees paths
+            if (txBody.highVolume()) {
+                fees = applyVariableRatePricing(txBody, feeContext, fees);
+            }
+
+            return fees;
         } catch (UnsupportedOperationException ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
+    }
+
+    /**
+     * Applies variable rate pricing to the fees for high-volume transactions.
+     * Looks up the high_volume_rates from the ServiceFeeDefinition and applies the multiplier
+     * based on current throttle utilization.
+     *
+     * @param txBody the transaction body
+     * @param feeContext the fee context containing throttle utilization
+     * @param fees the base fees to modify
+     * @return the fees with variable rate pricing applied
+     */
+    @NonNull
+    private Fees applyVariableRatePricing(
+            @NonNull final TransactionBody txBody,
+            @NonNull final FeeContext feeContext,
+            @NonNull final Fees fees) {
+        final FeeSchedule feeSchedule = feeManager.getSimpleFeesSchedule();
+        if (feeSchedule == null) {
+            return fees;
+        }
+
+        final HederaFunctionality functionality;
+        try {
+            functionality = functionOf(txBody);
+        } catch (UnknownHederaFunctionality e) {
+            // If we can't determine the functionality, skip variable rate pricing
+            return fees;
+        }
+
+        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, functionality);
+        if (serviceDef == null || !serviceDef.hasHighVolumeRates()) {
+            return fees;
+        }
+
+        final int utilizationScaled = feeContext.highVolumeThrottleUtilizationScaled();
+        final double variableMultiplier =
+                VariableRatePricing.calculateMultiplier(serviceDef.highVolumeRates(), utilizationScaled);
+
+        return fees.applyMultiplier(variableMultiplier);
     }
 
     private boolean shouldUseSimpleFees(FeeContext feeContext) {

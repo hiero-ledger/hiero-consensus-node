@@ -83,4 +83,16 @@ public class SynchronizedThrottleAccumulator {
     private void setDecisionTime(@NonNull final Instant time) {
         lastDecisionTime = time.isBefore(lastDecisionTime) ? lastDecisionTime : time;
     }
+
+    /**
+     * Returns the current utilization of the high-volume throttle for the given functionality,
+     * in thousandths of one percent (0-100000). This is used for HIP-1313 variable rate pricing.
+     *
+     * @param function the functionality to get utilization for
+     * @return the utilization in thousandths of one percent (0-100000)
+     */
+    public synchronized int getHighVolumeThrottleUtilizationScaled(@NonNull final HederaFunctionality function) {
+        requireNonNull(function);
+        return frontendThrottle.getHighVolumeThrottleUtilizationScaled(function, instantSource.instant());
+    }
 }

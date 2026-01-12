@@ -50,6 +50,21 @@ public class FeeResult {
         return clampedAdd(clampedAdd(this.node, this.network), this.service);
     }
 
+    /**
+     * Applies a multiplier to all fee components (node, network, service).
+     * Used for HIP-1313 variable rate pricing.
+     *
+     * @param multiplier the multiplier to apply (e.g., 1.5 means 50% increase)
+     */
+    public void applyMultiplier(final double multiplier) {
+        if (multiplier <= 1.0) {
+            return; // No increase needed
+        }
+        this.node = Math.round(this.node * multiplier);
+        this.network = Math.round(this.network * multiplier);
+        this.service = Math.round(this.service * multiplier);
+    }
+
     /** Utility class representing the details of a particular fee component. */
     public static class FeeDetail {
         public long count;
