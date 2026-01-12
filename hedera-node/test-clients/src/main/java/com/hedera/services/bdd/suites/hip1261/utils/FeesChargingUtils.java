@@ -13,21 +13,11 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_INCLUDED_HOOKS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_BASE_FUNGIBLE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_BASE_NFT_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_ACCOUNTS;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_BASE_FUNGIBLE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_BASE_FUNGIBLE_CUSTOM_FEES;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_BASE_NFT;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_BASE_NFT_CUSTOM_FEES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_HOOK_UPDATES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FUNGIBLE_TOKENS_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOKS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_EXECUTION_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_UPDATES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.KEYS_FEE_USD;
@@ -36,6 +26,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_SIGNATURES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NON_FUNGIBLE_TOKENS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_CUSTOM_FEES_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_FEE_USD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -69,7 +61,7 @@ public class FeesChargingUtils {
         // ----- service fees -----
         final long keyExtrasService = Math.max(0L, keys - CRYPTO_CREATE_INCLUDED_KEYS);
         final long hookExtrasService = Math.max(0L, hooks - CRYPTO_CREATE_INCLUDED_HOOKS);
-        final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD + hookExtrasService * HOOKS_FEE_USD;
+        final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD + hookExtrasService * HOOK_UPDATES_FEE_USD;
         final double serviceFee = CRYPTO_CREATE_BASE_FEE_USD + serviceExtrasFee;
 
         return nodeFee + networkFee + serviceFee;
@@ -132,18 +124,13 @@ public class FeesChargingUtils {
 
     /**
      * SimpleFees formula for CryptoTransfer:
-     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * node    = NODE_BASE_FEE_USD + SIGNATURE_FEE_USD * max(0, sigs - NODE_INCLUDED_SIGNATURES)
      * network = node * NETWORK_MULTIPLIER
-     * service = CRYPTO_TRANSFER_BASE_FEE_USD
-     *         + CRYPTO_TRANSFER_BASE_FUNGIBLE_FEE_USD  * max(0, ftTokens - includedFTsService)
-     *         + CRYPTO_TRANSFER_BASE_NFT_FEE_USD * max(0, nftTokens - includedNFTsService)
-     *         + CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES_FEE_USD * max(0, customFeeFTs - includedCustomFeeFTsService)
-     *         + CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES_FEE_USD * max(0, customFeeNFTs - includedCustomFeeNFTsService)
-     *         + HOOK_EXECUTION_FEE_USD * max(0, hooks - includedHooksService)
-     *         + HOOK_UPDATES_FEE_USD * max(0, hookUpdates - includedHookUpdatesService)
-     *         + ACCOUNTS_FEE_USD * max(0, createdAccounts - includedCreatedAccountsService)
-     *         + FUNGIBLE_TOKENS_FEE_USD * max(0, createdFungibleTokens - includedCreatedFTsService)
-     *         + NON_FUNGIBLE_TOKENS_FEE_USD * max(0, createdNonFungibleTokens - includedCreatedNFTsService)
+     * service = TOKEN_TRANSFER_BASE_FEE_USD
+     *         + HOOK_EXECUTION_FEE_USD * max(0, uniqueHooksExecuted - CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION)
+     *         + ACCOUNTS_FEE_USD * max(0, uniqueAccounts - CRYPTO_TRANSFER_INCLUDED_ACCOUNTS)
+     *         + FUNGIBLE_TOKENS_FEE_USD * max(0, uniqueFungibleTokens - CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS)
+     *         + NON_FUNGIBLE_TOKENS_FEE_USD * max(0, uniqueNonFungibleTokens - CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS)
      * total   = node + network + service
      */
     private static double extra(long actual, long included, double feePerUnit) {
@@ -157,9 +144,9 @@ public class FeesChargingUtils {
             long uniqueAccounts,
             long uniqueFungibleTokens,
             long uniqueNonFungibleTokens,
-            boolean includedHbarBaseFee,
-            boolean includesFungibleBaseFee,
-            boolean includesNftBaseFee) {
+            boolean includesHbarBaseFee,
+            boolean includesTokenTransferBase,
+            boolean includesTokenTransferWithCustomBase) {
 
         // ----- node fees -----
         final double nodeExtrasFee = extra(sigs, NODE_INCLUDED_SIGNATURES, SIGNATURE_FEE_USD);
@@ -170,35 +157,29 @@ public class FeesChargingUtils {
 
         // ---- service base fees -----
         double serviceBaseFee = 0.0;
-        if (includedHbarBaseFee) {
+        if (includesHbarBaseFee) {
             serviceBaseFee += CRYPTO_TRANSFER_BASE_FEE_USD;
         }
-        if (includesFungibleBaseFee) {
-            serviceBaseFee += CRYPTO_TRANSFER_BASE_FUNGIBLE_FEE_USD;
+        if (includesTokenTransferBase) {
+            serviceBaseFee += TOKEN_TRANSFER_BASE_FEE_USD;
         }
-        if (includesNftBaseFee) {
-            serviceBaseFee += CRYPTO_TRANSFER_BASE_NFT_FEE_USD;
+        if (includesTokenTransferWithCustomBase) {
+            serviceBaseFee += TOKEN_TRANSFER_BASE_CUSTOM_FEES_USD;
         }
         // ---- service extras fees -----
-        final double hooksExtrasFee = extra(
-                uniqueHooksExecuted,
-                CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION,
-                HOOK_EXECUTION_FEE_USD);
-        final double accountsExtrasFee = extra(
-                uniqueAccounts,
-                CRYPTO_TRANSFER_INCLUDED_ACCOUNTS,
-                ACCOUNTS_FEE_USD);
-        final double uniqueFungibleTokensExtrasFee = extra(
-                uniqueFungibleTokens,
-                CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS,
-                FUNGIBLE_TOKENS_FEE_USD);
+        final double hooksExtrasFee =
+                extra(uniqueHooksExecuted, CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION, HOOK_EXECUTION_FEE_USD);
+        final double accountsExtrasFee = extra(uniqueAccounts, CRYPTO_TRANSFER_INCLUDED_ACCOUNTS, ACCOUNTS_FEE_USD);
+        final double uniqueFungibleTokensExtrasFee =
+                extra(uniqueFungibleTokens, CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS, FUNGIBLE_TOKENS_FEE_USD);
         final double uniqueNonFungibleTokensExtrasFee = extra(
-                uniqueNonFungibleTokens,
-                CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS,
-                NON_FUNGIBLE_TOKENS_FEE_USD);
+                uniqueNonFungibleTokens, CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS, NON_FUNGIBLE_TOKENS_FEE_USD);
 
-        final double serviceFee = serviceBaseFee + hooksExtrasFee + accountsExtrasFee
-                + uniqueFungibleTokensExtrasFee + uniqueNonFungibleTokensExtrasFee;
+        final double serviceFee = serviceBaseFee
+                + hooksExtrasFee
+                + accountsExtrasFee
+                + uniqueFungibleTokensExtrasFee
+                + uniqueNonFungibleTokensExtrasFee;
 
         return nodeFee + networkFee + serviceFee;
     }
@@ -216,7 +197,9 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
-                true, false, false);
+                true,
+                false,
+                false);
     }
 
     public static double expectedCryptoTransferFTFullFeeUsd(
@@ -232,7 +215,9 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
-                false, true, false);
+                false,
+                true,
+                false);
     }
 
     public static double expectedCryptoTransferNFTFullFeeUsd(
@@ -248,7 +233,9 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
-                false, false, true);
+                false,
+                true,
+                false);
     }
 
     public static double expectedCryptoTransferFTAndNFTFullFeeUsd(
@@ -264,7 +251,9 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
-                false, true, true);
+                false,
+                true,
+                false);
     }
 
     public static double expectedCryptoTransferHBARAndFTFullFeeUsd(
@@ -280,7 +269,9 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
-                true, true, false);
+                true,
+                true,
+                false);
     }
 
     public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(
@@ -296,7 +287,9 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
-                true, false, true);
+                true,
+                true,
+                false);
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
@@ -312,10 +305,20 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
-                true, true, true);
+                true,
+                true,
+                false);
     }
 
+    public static double expectedCryptoTransferNetworkFeeOnlyUsd(long sigs) {
 
+        // ----- node fees -----
+        final double nodeExtrasFee = extra(sigs, NODE_INCLUDED_SIGNATURES, SIGNATURE_FEE_USD);
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
 
     /**
      * Validates that the charged fee for a transaction (in USD) is within an allowed percent difference
