@@ -184,8 +184,6 @@ jobs:
       - name: Debug Matrix Values
         run: |
           echo "Raw matrix output: ${{ needs.generate-matrix.outputs.matrix }}"
-          echo "All matrix values: ${{ toJSON(fromJSON(matrix)) }}"
-
 
   # Then in verify-artifacts:
   verify-artifacts:
