@@ -46,9 +46,12 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.blockTtl", "30s",
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "15",
+                            "blockStream.streamMode",
+                            "BOTH",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC"
                         })
             })
     @Order(0)
@@ -73,9 +76,12 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.blockTtl", "30s",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "15",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC"
                         })
             })
     @Order(1)
@@ -105,9 +111,12 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.blockTtl", "30s",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "15",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "GRPC"
                         })
             })
     @Order(2)
@@ -138,9 +147,12 @@ public class BlockNodeBackPressureSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.blockTtl", "30s",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "15",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC"
                         })
             })
     @Order(3)
