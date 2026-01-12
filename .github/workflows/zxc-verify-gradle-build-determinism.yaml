@@ -172,14 +172,14 @@ jobs:
 
   # Then in verify-artifacts:
   verify-artifacts:
-    name: "Gradle: Verify Artifacts (${{ join(matrix.os, ', ') }})"
+    name: "Gradle: Verify Artifacts"
     runs-on: ${{ matrix.os }}
     needs:
       - generate-baseline
       - generate-matrix
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}  # Simplified
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
