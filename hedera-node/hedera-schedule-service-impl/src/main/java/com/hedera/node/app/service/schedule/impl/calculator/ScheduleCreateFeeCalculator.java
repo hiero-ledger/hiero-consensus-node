@@ -26,7 +26,7 @@ public class ScheduleCreateFeeCalculator implements ServiceFeeCalculator {
         final long keys = adminKey != null ? countKeys(adminKey) : 0;
         final var schedulesContractCall = op.scheduledTransactionBodyOrThrow().hasContractCall();
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.SCHEDULE_CREATE);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.addServiceBase(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keys);
         if (schedulesContractCall) {
             // Add extra fee for scheduling a contract call

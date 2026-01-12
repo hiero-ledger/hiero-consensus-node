@@ -20,7 +20,7 @@ public class FileGetContentsFeeCalculator implements QueryFeeCalculator {
     public void accumulateNodePayment(
             @NonNull Query query, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_GET_CONTENTS);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.addServiceBase(serviceDef.baseFee());
     }
 
     @Override
@@ -34,7 +34,7 @@ public class FileGetContentsFeeCalculator implements QueryFeeCalculator {
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_GET_CONTENTS);
         final var fileContents = fileStore.getFileLeaf(op.fileIDOrThrow()).contents();
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.addServiceBase(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, fileContents.length());
     }
 

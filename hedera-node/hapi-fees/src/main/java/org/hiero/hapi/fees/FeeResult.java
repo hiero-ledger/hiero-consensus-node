@@ -12,50 +12,60 @@ import java.util.List;
 public class FeeResult {
     /** The service component in tinycents. */
     public long service = 0;
+
+    public long serviceBase = 0;
+    public List<FeeDetail> serviceExtras = new ArrayList<>();
     /** The node component in tinycents. */
     public long node = 0;
+
+    public long nodeBase = 0;
+    public List<FeeDetail> nodeExtras = new ArrayList<>();
     /** The network component in tinycents. */
     public long network = 0;
-    /** Details about the fee, broken down by label. */
-    public List<FeeDetail> nodeDetails = new ArrayList<>();
 
-    public List<FeeDetail> networkDetails = new ArrayList<>();
-    public List<FeeDetail> serviceDetails = new ArrayList<>();
+    public int networkMultiplier = 0;
 
     /** Add a service fee with details.
-     * @param count the number of units for this fee.
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
-    public void addServiceFee(long count, long cost) {
-        serviceDetails.add(new FeeDetail(count, cost));
-        service = clampedAdd(service, count * cost);
+    public void addServiceBase(long cost) {
+        serviceBase = cost;
+        service = clampedAdd(service, cost);
     }
 
-    public void addServiceFee(long count, long cost, String name) {
-        serviceDetails.add(new FeeDetail(count, cost, name));
-        service = clampedAdd(service, count * cost);
+    public void addServiceExtra(String name, long per_unit, long used, int included, long charged) {
+        serviceExtras.add(new FeeDetail(name, per_unit, used, included, charged));
+        service = clampedAdd(service, per_unit * charged);
     }
 
-    /** Add a node fee with details.
-     * @param count the number of units for this fee.
-     * @param cost the actual computed cost of this service fee in tinycents.
+    /** Add the node base fee with details.
+     * @param cost the actual computed cost of this node base fee in tinycents.
      * */
-    public void addNodeFee(long count, long cost) {
-        nodeDetails.add(new FeeDetail(count, cost));
-        node = clampedAdd(node, count * cost);
+    public void addNodeBase(long cost) {
+        nodeBase = cost;
+        node = clampedAdd(node, cost);
     }
 
-    public void addNodeFee(long count, long cost, String name) {
-        nodeDetails.add(new FeeDetail(count, cost, name));
-        node = clampedAdd(node, count * cost);
+    /** Add node extra fee with details.
+     *
+     * @param name
+     * @param per_unit
+     * @param used
+     * @param included
+     * @param charged
+     */
+    public void addNodeExtra(String name, long per_unit, long used, int included, long charged) {
+        nodeExtras.add(new FeeDetail(name, per_unit, used, included, charged));
+        service = clampedAdd(service, per_unit * charged);
     }
 
     /** Add a network fee with details.
-     * @param cost the actual computed cost of this service fee in tinycents.
+     * @param multiplier the network multiplier
+     * @param node the actual computed cost of the node fee in tinycents
      * */
-    public void addNetworkFee(long cost) {
-        networkDetails.add(new FeeDetail(1, cost));
-        network = clampedAdd(network, cost);
+    public void addNetworkFee(int multiplier, long node) {
+        networkMultiplier = multiplier;
+        network = clampedAdd(network, node * multiplier);
     }
 
     /** the total fee in tinycents. */
@@ -63,36 +73,31 @@ public class FeeResult {
         return clampedAdd(clampedAdd(this.node, this.network), this.service);
     }
 
-    /** Utility class representing the details of a particular fee component. */
     public static class FeeDetail {
-        public long count;
-        public long fee;
         public String name;
+        public long per_unit;
+        public long used;
+        public long included;
+        public long charged;
 
-        public FeeDetail(long count, long fee) {
-            this.count = count;
-            this.fee = fee;
-            this.name = "unnamed";
-        }
-
-        public FeeDetail(long count, long fee, String name) {
-            this.count = count;
-            this.fee = fee;
+        public FeeDetail(String name, long per_unit, long used, long included, long charged) {
             this.name = name;
-        }
-
-        @Override
-        public String toString() {
-            return "FeeDetail{" + this.name + ", " + this.count + ", " + this.fee + "}";
+            this.per_unit = per_unit;
+            this.used = used;
+            this.included = included;
+            this.charged = charged;
         }
     }
-
+    /** Utility class representing the details of a particular fee component. */
     @Override
     public String toString() {
         return "FeeResult{" + "fee=" + this.total()
-                + ", nodeDetails=" + nodeDetails
-                + ", networkDetails=" + networkDetails
-                + ", serviceDetails=" + serviceDetails
+                + ", nodeBase=" + nodeBase
+                + ", nodeExtras=" + nodeExtras
+                + ", network=" + network
+                + ", networkMultiplier=" + networkMultiplier
+                + ", serviceBase=" + serviceBase
+                + ", serviceDetails=" + serviceExtras
                 + '}';
     }
 

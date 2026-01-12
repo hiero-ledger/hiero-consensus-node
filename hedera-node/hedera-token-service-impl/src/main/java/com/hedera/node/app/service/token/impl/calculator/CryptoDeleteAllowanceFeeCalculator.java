@@ -23,7 +23,7 @@ public class CryptoDeleteAllowanceFeeCalculator implements ServiceFeeCalculator 
         final var op = txnBody.cryptoDeleteAllowanceOrThrow();
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_DELETE_ALLOWANCE);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.addServiceBase(serviceDef.baseFee());
 
         final int totalAllowances = op.nftAllowances().size();
 

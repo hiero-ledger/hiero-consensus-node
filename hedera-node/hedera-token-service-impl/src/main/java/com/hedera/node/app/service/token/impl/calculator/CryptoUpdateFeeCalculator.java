@@ -24,7 +24,7 @@ public class CryptoUpdateFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeSchedule feeSchedule) {
         final var op = txnBody.cryptoUpdateAccountOrThrow();
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_UPDATE);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.addServiceBase(serviceDef.baseFee());
         if (op.hasKey()) {
             addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, countKeys(op.key()));
         }

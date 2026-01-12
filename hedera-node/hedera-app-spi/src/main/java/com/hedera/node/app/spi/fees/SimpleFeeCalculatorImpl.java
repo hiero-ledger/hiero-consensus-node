@@ -58,11 +58,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull final FeeResult result, @NonNull final Iterable<ExtraFeeReference> extras, final long signatures) {
         for (final ExtraFeeReference ref : extras) {
             final long used = ref.name() == SIGNATURES ? signatures : 0;
-            if (used > ref.includedCount()) {
-                final long overage = used - ref.includedCount();
-                final long unitFee = getExtraFee(ref.name());
-
-                result.addNodeFee(overage, unitFee, ref.name().name());
+            final long overage = Math.max(0, used - ref.includedCount());
+            final long unitFee = getExtraFee(ref.name());
+            if (used > 0) {
+                result.addNodeExtra(ref.name().name(), unitFee, used, ref.includedCount(), overage);
             }
         }
     }
@@ -87,11 +86,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
 
         // Add node base and extras
-        result.addNodeFee(1, feeSchedule.node().baseFee(), "base");
+        result.addNodeBase(feeSchedule.node().baseFee());
         addNodeExtras(result, feeSchedule.node().extras(), signatures);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
-        result.addNetworkFee(result.node * multiplier);
+        result.addNetworkFee(multiplier, result.node);
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());

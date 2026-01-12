@@ -15,9 +15,9 @@ public class FeeUtilsTest {
     @Test
     void testFeeResultToFees() {
         FeeResult feeResult = new FeeResult();
-        feeResult.addNodeFee(1, 1000);
-        feeResult.addNetworkFee(2000);
-        feeResult.addServiceFee(1, 3000);
+        feeResult.addNodeBase(1000);
+        feeResult.addNetworkFee(1, 2000);
+        feeResult.addServiceBase(3000);
 
         ExchangeRate rate = mock(ExchangeRate.class);
         when(rate.getHbarEquiv()).thenReturn(2);

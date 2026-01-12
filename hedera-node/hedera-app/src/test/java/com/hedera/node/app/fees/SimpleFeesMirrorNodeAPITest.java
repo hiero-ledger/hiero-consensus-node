@@ -139,38 +139,31 @@ public class SimpleFeesMirrorNodeAPITest {
         json.openObject();
 
         json.openKeyObject("node");
+        json.keyValue("baseFee", result.nodeBase);
         json.openKeyArray("extras");
-        for (FeeResult.FeeDetail detail : result.nodeDetails) {
-            json.keyValue("name", detail.name);
-            json.keyValue("count", detail.count);
-            json.keyValue("fee", detail.fee);
+        for (FeeResult.FeeDetail extra : result.nodeExtras) {
+            outputExtra(json, extra);
         }
         json.closeKeyArray();
         json.keyValue("subtotal", result.node);
         json.closeKeyObject();
 
         json.openKeyObject("network");
-        json.openKeyArray("extras");
-        for (FeeResult.FeeDetail detail : result.networkDetails) {
-            json.keyValue("name", detail.name);
-            json.keyValue("count", detail.count);
-            json.keyValue("fee", detail.fee);
-        }
-        json.closeKeyArray();
+        json.keyValue("multiplier", result.networkMultiplier);
         json.keyValue("subtotal", result.network);
         json.closeKeyObject();
 
         json.openKeyObject("service");
-        json.keyValue("baseFee", result.service);
+        json.keyValue("baseFee", result.serviceBase);
         json.openKeyArray("extras");
-        for (FeeResult.FeeDetail detail : result.serviceDetails) {
-            json.keyValue("name", detail.name);
-            json.keyValue("count", detail.count);
-            json.keyValue("fee", detail.fee);
+        for (FeeResult.FeeDetail extra : result.serviceExtras) {
+            outputExtra(json, extra);
         }
         json.closeKeyArray();
         json.closeKeyObject();
 
+        json.openKeyArray("notes");
+        json.closeKeyArray();
         json.keyValue("total", result.total());
         json.closeObject();
         return json.toString();
@@ -180,6 +173,17 @@ public class SimpleFeesMirrorNodeAPITest {
             "multiplier": 9,
             "subtotal": 900000
           },
+
+          * node needs base fee and extras
+          * service needs base fee and extras
+          * network needs multiplier and subtotal, not base fee or extras
+          * extra needs
+            * name of the extra
+            * fee per unit
+            * how many are included for free
+            * how many were actually charged for
+            * what was charged
+
           "node": {
             "baseFee": 100000,
             "extras": [
@@ -221,6 +225,21 @@ public class SimpleFeesMirrorNodeAPITest {
                  */
     }
 
+    private void outputExtra(JsonBuilder json, FeeResult.FeeDetail detail) {
+        // name
+        json.keyValue("name", detail.name);
+        // fee_per_unit, cost per unit for this extra
+        json.keyValue("fee_per_unit", detail.per_unit);
+        // count, how many were used
+        json.keyValue("count", detail.used);
+        // included, how many were included for free
+        json.keyValue("included", detail.included);
+        // charged, how many were actually charged for
+        json.keyValue("charged", detail.charged);
+        // subtotal for extra
+        json.keyValue("subtotal", detail.per_unit * detail.charged);
+    }
+
     private StandaloneFeeCalculator setupCalculator() {
         // configure overrides
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
@@ -260,7 +279,7 @@ public class SimpleFeesMirrorNodeAPITest {
 
         final FeeResult result = calc.calculate(txn, INTRINSIC);
         assertThat(result.service).isEqualTo(0L);
-        //        System.out.println("JSON is \n" + feeResultToJson(result));
+        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
     @Test
@@ -276,6 +295,7 @@ public class SimpleFeesMirrorNodeAPITest {
         final FeeResult result = calc.calculate(txn, INTRINSIC);
         final var TINY_CENTS = 100_000_000L;
         assertThat(result.total()).isEqualTo(1 * TINY_CENTS); // 0.01 USD
+        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
     @Test

@@ -42,9 +42,9 @@ public class FeeUtils {
      */
     public static FeeResult feesToFeeResult(Fees fees, ExchangeRate rate) {
         final var feeResult = new FeeResult();
-        feeResult.addNodeFee(1, FeeBuilder.getTinybarsFromTinyCents(rate, fees.nodeFee()));
-        feeResult.addNetworkFee(FeeBuilder.getTinybarsFromTinyCents(rate, fees.networkFee()));
-        feeResult.addServiceFee(1, FeeBuilder.getTinybarsFromTinyCents(rate, fees.serviceFee()));
+        feeResult.addNodeBase(FeeBuilder.getTinybarsFromTinyCents(rate, fees.nodeFee()));
+        feeResult.addNetworkFee(1, FeeBuilder.getTinybarsFromTinyCents(rate, fees.networkFee()));
+        feeResult.addServiceBase(FeeBuilder.getTinybarsFromTinyCents(rate, fees.serviceFee()));
         return feeResult;
     }
 
