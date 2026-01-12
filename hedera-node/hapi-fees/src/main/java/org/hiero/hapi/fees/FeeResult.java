@@ -73,21 +73,8 @@ public class FeeResult {
         return clampedAdd(clampedAdd(this.node, this.network), this.service);
     }
 
-    public static class FeeDetail {
-        public String name;
-        public long per_unit;
-        public long used;
-        public long included;
-        public long charged;
+    public record FeeDetail(String name, long per_unit, long used, long included, long charged) {}
 
-        public FeeDetail(String name, long per_unit, long used, long included, long charged) {
-            this.name = name;
-            this.per_unit = per_unit;
-            this.used = used;
-            this.included = included;
-            this.charged = charged;
-        }
-    }
     /** Utility class representing the details of a particular fee component. */
     @Override
     public String toString() {

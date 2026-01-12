@@ -227,17 +227,17 @@ public class SimpleFeesMirrorNodeAPITest {
 
     private void outputExtra(JsonBuilder json, FeeResult.FeeDetail detail) {
         // name
-        json.keyValue("name", detail.name);
+        json.keyValue("name", detail.name());
         // fee_per_unit, cost per unit for this extra
-        json.keyValue("fee_per_unit", detail.per_unit);
+        json.keyValue("fee_per_unit", detail.per_unit());
         // count, how many were used
-        json.keyValue("count", detail.used);
+        json.keyValue("count", detail.used());
         // included, how many were included for free
-        json.keyValue("included", detail.included);
+        json.keyValue("included", detail.included());
         // charged, how many were actually charged for
-        json.keyValue("charged", detail.charged);
+        json.keyValue("charged", detail.charged());
         // subtotal for extra
-        json.keyValue("subtotal", detail.per_unit * detail.charged);
+        json.keyValue("subtotal", detail.per_unit() * detail.charged());
     }
 
     private StandaloneFeeCalculator setupCalculator() {
