@@ -170,6 +170,22 @@ jobs:
           # Set the output (simplified name)
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
 
+  verify-output:
+    name: Verify Matrix Output
+    runs-on: hiero-network-node-linux-small-scheduler
+    needs:
+      - generate-matrix
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Debug Matrix Values
+        run: |
+          echo "Raw matrix output: ${{ needs.generate-matrix.outputs.matrix }}"
+          echo "All matrix values: ${{ toJSON(matrix) }}"
+
   # Then in verify-artifacts:
   verify-artifacts:
     name: "Gradle: Verify Artifacts"
