@@ -28,7 +28,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.fees.CryptoTransferSimpleFeesSuite.FUNGIBLE_TOKEN_BASE_FEE;
+import static com.hedera.services.bdd.suites.fees.CryptoTransferSimpleFeesSuite.TOKEN_TRANSFER_FEE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -201,7 +201,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                         .payingWith("sender")
                         .via("airdrop"),
                 // The transaction should be charged the same as a crypto transfer
-                validateChargedUsd("airdrop", FUNGIBLE_TOKEN_BASE_FEE));
+                validateChargedUsd("airdrop", TOKEN_TRANSFER_FEE));
     }
 
     @HapiTest

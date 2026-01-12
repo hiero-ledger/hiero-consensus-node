@@ -8,6 +8,7 @@ import com.swirlds.config.api.ConfigProperty;
 @ConfigData("hooks")
 public record HooksConfig(
         @ConfigProperty(defaultValue = "10") @NetworkProperty int maxHookStoreUpdates,
+        @ConfigProperty(defaultValue = "10") @NetworkProperty int maxHookInvocationsPerTransaction,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hooksEnabled,
         @ConfigProperty(defaultValue = "5000000") @NetworkProperty long maxNumberOfHooks,
         @ConfigProperty(defaultValue = "100000000") @NetworkProperty long maxEvmHookStorageSlots,

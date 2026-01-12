@@ -502,16 +502,26 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         requireNonNull(rb);
         requireNonNull(onNodeRefund);
         long amountRetracted = 0;
-        if (fees.nodeFee() > 0) {
-            final var nodeAccount = lookupAccount("Node account", nodeAccountId);
-            final long nodeBalance = nodeAccount.tinybarBalance();
-            final long amountToRetract = Math.min(fees.nodeFee(), nodeBalance);
-            accountStore.put(nodeAccount
-                    .copyBuilder()
-                    .tinybarBalance(nodeBalance - amountToRetract)
-                    .build());
-            onNodeRefund.accept(amountToRetract);
-            amountRetracted += amountToRetract;
+        final long nodeFee = fees.nodeFee();
+        if (nodeFee > 0) {
+            if (nodesConfig.feeCollectionAccountEnabled()) {
+                // Retract node fee from fee collection account
+                amountRetracted += retractFeeCollectionAccount(nodeFee);
+                // Also need to dissipate the accumulated node fee
+                nodeFeeAccumulator.dissipate(nodeAccountId, nodeFee);
+                onNodeRefund.accept(nodeFee);
+            } else {
+                // Retract node fee from node account
+                final var nodeAccount = lookupAccount("Node account", nodeAccountId);
+                final long nodeBalance = nodeAccount.tinybarBalance();
+                final long amountToRetract = Math.min(nodeFee, nodeBalance);
+                accountStore.put(nodeAccount
+                        .copyBuilder()
+                        .tinybarBalance(nodeBalance - amountToRetract)
+                        .build());
+                onNodeRefund.accept(amountToRetract);
+                amountRetracted += amountToRetract;
+            }
         }
         amountRetracted += nodesConfig.feeCollectionAccountEnabled()
                 ? retractFeeCollectionAccount(fees.totalWithoutNodeFee())

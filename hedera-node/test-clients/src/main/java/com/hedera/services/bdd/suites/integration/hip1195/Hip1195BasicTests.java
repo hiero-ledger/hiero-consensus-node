@@ -662,6 +662,7 @@ public class Hip1195BasicTests {
                         .withPreHookFor("sender", 242L, 3 * HOOK_GAS_LIMIT, "")
                         .withPrePostHookFor("treasury", 241L, 2 * HOOK_GAS_LIMIT, "")
                         .payingWith("sender")
+                        .signedBy("sender")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("nftTransferFails"),
                 sourcingContextual(spec -> {
