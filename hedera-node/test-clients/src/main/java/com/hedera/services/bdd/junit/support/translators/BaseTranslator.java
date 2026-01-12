@@ -654,7 +654,7 @@ public class BaseTranslator {
                                 }
                             }
                             if (value == null) {
-                                Bytes valueFromState;
+                                final Bytes valueFromState;
                                 if (executingHookId == null
                                         || contractId.contractNumOrThrow() != HTS_HOOKS_CONTRACT_NUM) {
                                     valueFromState = writtenSlots.get(slotKey);
@@ -663,13 +663,8 @@ public class BaseTranslator {
                                             new LambdaSlotKey(executingHookId, minimalKey(slotKey.key())));
                                 }
                                 if (valueFromState == null) {
-                                    // (FUTURE) - uncomment throw below once we have determined the right way to
-                                    // unblock BlockItem -> TransactionSidecarRecord translation for the scenario in
-                                    // ContractGetInfoSuite#userPaysTheGasUsed()
-                                    //                                    throw new IllegalStateException("No written
-                                    // value found for write to " + slotKey
-                                    //                                            + " in " + remainingStateChanges);
-                                    valueFromState = Bytes.fromHex("02");
+                                    throw new IllegalStateException("No written value found for write to " + slotKey
+                                            + " in " + remainingStateChanges);
                                 }
                                 value = HookUtils.minimalRepresentationOf(valueFromState);
                             }
