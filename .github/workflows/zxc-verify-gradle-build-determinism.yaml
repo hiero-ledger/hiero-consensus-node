@@ -155,8 +155,9 @@ jobs:
           else
             ALL_RUNNERS=("${COMMON_RUNNERS[@]}" "${PUBLIC_ONLY_RUNNERS[@]}")
           fi
-
+          
           printf -v joined '"%s",' "${ALL_RUNNERS[@]}"
+          echo "::debug::Generated OS Matrix: [${joined%,}]"
           echo "matrix={\"os\":[${joined%,}]}" >> $GITHUB_OUTPUT
 
   verify-artifacts:
