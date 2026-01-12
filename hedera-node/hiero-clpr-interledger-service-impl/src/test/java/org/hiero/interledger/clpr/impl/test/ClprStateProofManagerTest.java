@@ -6,12 +6,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -31,6 +34,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
 
     private ClprStateProofManager manager;
     private BlockProvenStateAccessor snapshotProvider;
+    private StateLifecycleManager stateLifecycleManager;
     private VirtualMapState testState;
     private ClprConfig devModeConfig;
 
@@ -40,8 +44,9 @@ class ClprStateProofManagerTest extends ClprTestBase {
         testState = buildMerkleStateWithConfigurations(
                 configurationMap,
                 ClprLocalLedgerMetadata.newBuilder().ledgerId(localClprLedgerId).build());
-        snapshotProvider = new BlockProvenStateAccessor();
-        snapshotProvider.update(testState);
+        stateLifecycleManager = mock(StateLifecycleManager.class);
+        when(stateLifecycleManager.getLatestImmutableState()).thenReturn(testState);
+        snapshotProvider = new BlockProvenStateAccessor(stateLifecycleManager);
         // Create dev mode config for testing
         devModeConfig = new ClprConfig(true, 5000, true, true);
         manager = new ClprStateProofManager(snapshotProvider, devModeConfig);
@@ -78,8 +83,9 @@ class ClprStateProofManagerTest extends ClprTestBase {
     @Test
     void getLocalLedgerIdReturnsEmptyWhenLedgerIdMissing() {
         final var emptyState = buildMerkleStateWithConfigurations(java.util.Map.of());
-        final var emptyAccessor = new BlockProvenStateAccessor();
-        emptyAccessor.update(emptyState);
+        final var emptyLifecycleManager = mock(StateLifecycleManager.class);
+        when(emptyLifecycleManager.getLatestImmutableState()).thenReturn(emptyState);
+        final var emptyAccessor = new BlockProvenStateAccessor(emptyLifecycleManager);
         final var managerWithMissingLedgerId = new ClprStateProofManager(emptyAccessor, devModeConfig);
         final var ledgerId = managerWithMissingLedgerId.getLocalLedgerId();
         assertNotNull(ledgerId);
@@ -92,8 +98,9 @@ class ClprStateProofManagerTest extends ClprTestBase {
                 ClprLocalLedgerMetadata.newBuilder().ledgerId(localClprLedgerId).build();
         final var state =
                 buildMerkleStateWithConfigurations(java.util.Map.of(remoteClprLedgerId, remoteClprConfig), metadata);
-        final var accessor = new BlockProvenStateAccessor();
-        accessor.update(state);
+        final var lifecycleManager = mock(StateLifecycleManager.class);
+        when(lifecycleManager.getLatestImmutableState()).thenReturn(state);
+        final var accessor = new BlockProvenStateAccessor(lifecycleManager);
         final var managerWithMetadata = new ClprStateProofManager(accessor, devModeConfig);
 
         final var ledgerId = managerWithMetadata.getLocalLedgerId();

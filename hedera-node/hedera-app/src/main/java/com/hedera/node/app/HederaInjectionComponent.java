@@ -65,6 +65,7 @@ import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
+import com.swirlds.state.StateLifecycleManager;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -208,6 +209,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder platform(Platform platform);
+
+        @BindsInstance
+        Builder stateLifecycleManager(StateLifecycleManager stateLifecycleManager);
 
         @BindsInstance
         Builder transactionPool(TransactionPoolNexus transactionPool);

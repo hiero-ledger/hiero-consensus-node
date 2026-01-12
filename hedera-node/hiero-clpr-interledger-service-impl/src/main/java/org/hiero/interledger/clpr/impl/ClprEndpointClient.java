@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -57,6 +58,8 @@ public class ClprEndpointClient {
 
     private record RemoteEndpoint(ServiceEndpoint endpoint, @Nullable AccountID nodeAccountId) {}
 
+    private record QueueMetadata(boolean hasMessages) {}
+
     @Inject
     public ClprEndpointClient(
             @NonNull final NetworkInfo networkInfo,
@@ -88,38 +91,42 @@ public class ClprEndpointClient {
      * pull newer remote configurations back into this network.
      */
     void runOnce() {
-        final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
-        if (!clprConfig.clprEnabled()) {
-            log.debug("CLPR endpoint maintenance skipped; feature disabled");
-            return;
-        }
-
-        final var localLedgerId = stateProofManager.getLocalLedgerId();
-        if (localLedgerId == null || localLedgerId.ledgerId() == Bytes.EMPTY) {
-            log.debug("CLPR endpoint maintenance awaiting local ledgerId bootstrap");
-            return;
-        }
-        final var configsByLedgerId = stateProofManager.readAllLedgerConfigurations();
-        final var localConfig = configsByLedgerId.get(localLedgerId);
-        if (localConfig == null) {
-            log.debug("CLPR endpoint maintenance found no local configuration for ledger {}", localLedgerId);
-            return;
-        }
-        final var localProof = stateProofManager.getLedgerConfiguration(localLedgerId);
-        if (localProof == null) {
-            log.debug("CLPR endpoint maintenance skipped; no state proof available for ledger {}", localLedgerId);
-            return;
-        }
-        final var selfNodeInfo = networkInfo.selfNodeInfo();
-        final var localEndpoint = localServiceEndpoint();
-        for (final var entry : configsByLedgerId.entrySet()) {
-            final var remoteLedgerId = entry.getKey();
-            if (localLedgerId.equals(remoteLedgerId)) {
-                continue;
+        try {
+            final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+            if (!clprConfig.clprEnabled()) {
+                log.debug("CLPR endpoint maintenance skipped; feature disabled");
+                return;
             }
-            final var storedRemoteConfig = entry.getValue();
-            exchangeWithRemote(
-                    selfNodeInfo, localEndpoint, localConfig, localProof, remoteLedgerId, storedRemoteConfig);
+
+            final var localLedgerId = stateProofManager.getLocalLedgerId();
+            if (localLedgerId == null || localLedgerId.ledgerId() == Bytes.EMPTY) {
+                log.debug("CLPR endpoint maintenance awaiting local ledgerId bootstrap");
+                return;
+            }
+            final var configsByLedgerId = stateProofManager.readAllLedgerConfigurations();
+            final var localConfig = configsByLedgerId.get(localLedgerId);
+            if (localConfig == null) {
+                log.debug("CLPR endpoint maintenance found no local configuration for ledger {}", localLedgerId);
+                return;
+            }
+            final var localProof = stateProofManager.getLedgerConfiguration(localLedgerId);
+            if (localProof == null) {
+                log.debug("CLPR endpoint maintenance skipped; no state proof available for ledger {}", localLedgerId);
+                return;
+            }
+            final var selfNodeInfo = networkInfo.selfNodeInfo();
+            final var localEndpoint = localServiceEndpoint();
+            for (final var entry : configsByLedgerId.entrySet()) {
+                final var remoteLedgerId = entry.getKey();
+                if (localLedgerId.equals(remoteLedgerId)) {
+                    continue;
+                }
+                final var storedRemoteConfig = entry.getValue();
+                exchangeWithRemote(
+                        selfNodeInfo, localEndpoint, localConfig, localProof, remoteLedgerId, storedRemoteConfig);
+            }
+        } catch (final Exception e) {
+            log.error("CLPR endpoint maintenance failed; will retry on next cycle", e);
         }
     }
 
@@ -229,21 +236,17 @@ public class ClprEndpointClient {
             final var selfAccount = selfNodeInfo.accountId();
             final var nodeAccountId =
                     remoteEndpoint.nodeAccountId() != null ? remoteEndpoint.nodeAccountId() : selfAccount;
-            publishLocalConfigProofToRemote(remoteClient, selfAccount, nodeAccountId, localProof);
-
-            final var fetchedProof = pullRemoteConfigProof(remoteClient, remoteLedgerId);
-            if (fetchedProof != null) {
-                final var fetchedRemoteConfig = ClprStateProofUtils.extractConfiguration(fetchedProof);
-                if (!remoteLedgerId.equals(fetchedRemoteConfig.ledgerId())) {
-                    log.debug(
-                            "CLPR Endpoint: Skipping fetched config for unexpected ledger {}; expected {}",
-                            fetchedRemoteConfig.ledgerId(),
-                            remoteLedgerId);
-                } else if (isNewerConfig(storedRemoteConfig, fetchedRemoteConfig)) {
-                    try (final ClprClient localClient = connectionManager.createClient(localEndpoint)) {
-                        localClient.setConfiguration(selfAccount, selfAccount, fetchedProof);
-                    }
-                }
+            final var protocolOutcome = runProtocolWithRemote(
+                    remoteClient,
+                    selfAccount,
+                    nodeAccountId,
+                    localEndpoint,
+                    localProof,
+                    remoteLedgerId,
+                    storedRemoteConfig,
+                    remoteEndpoint.endpoint());
+            if (!protocolOutcome) {
+                return false;
             }
             log.info(
                     "CLPR Endpoint: Completed publish/pull for remote ledger {} via endpoint {}",
@@ -266,12 +269,151 @@ public class ClprEndpointClient {
         return false;
     }
 
-    private void publishLocalConfigProofToRemote(
+    private boolean runProtocolWithRemote(
+            @NonNull final ClprClient remoteClient,
+            @NonNull final AccountID selfAccount,
+            @NonNull final AccountID nodeAccountId,
+            @NonNull final ServiceEndpoint localEndpoint,
+            @NonNull final com.hedera.hapi.block.stream.StateProof localProof,
+            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration storedRemoteConfig,
+            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
+        final var ledgerSucceeded = pushPullLedgerConfiguration(
+                remoteClient,
+                selfAccount,
+                nodeAccountId,
+                localEndpoint,
+                localProof,
+                remoteLedgerId,
+                storedRemoteConfig,
+                remoteServiceEndpoint);
+        if (!ledgerSucceeded) {
+            return false;
+        }
+
+        final var queueMetadata = pushPullQueueMetadata(remoteClient, remoteLedgerId, remoteServiceEndpoint);
+        if (queueMetadata == null) {
+            return false;
+        }
+        if (!queueMetadata.hasMessages()) {
+            return true;
+        }
+
+        final var queueContentSucceeded =
+                pushPullQueueContent(remoteClient, remoteLedgerId, queueMetadata, remoteServiceEndpoint);
+        return queueContentSucceeded;
+    }
+
+    private boolean pushPullLedgerConfiguration(
+            @NonNull final ClprClient remoteClient,
+            @NonNull final AccountID selfAccount,
+            @NonNull final AccountID nodeAccountId,
+            @NonNull final ServiceEndpoint localEndpoint,
+            @NonNull final com.hedera.hapi.block.stream.StateProof localProof,
+            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration storedRemoteConfig,
+            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
+        final var publishStatus = publishLocalConfigProofToRemote(remoteClient, selfAccount, nodeAccountId, localProof);
+        final boolean publishSucceeded = isSuccessful(publishStatus);
+        if (!publishSucceeded) {
+            log.warn(
+                    "CLPR Endpoint: Publish failed for remote ledger {} via endpoint {} (status {})",
+                    remoteLedgerId,
+                    remoteServiceEndpoint,
+                    publishStatus);
+        }
+
+        final var fetchedProof = pullRemoteConfigProof(remoteClient, remoteLedgerId);
+        boolean pullSucceeded = false;
+        if (fetchedProof != null) {
+            final var fetchedRemoteConfig = ClprStateProofUtils.extractConfiguration(fetchedProof);
+            if (!remoteLedgerId.equals(fetchedRemoteConfig.ledgerId())) {
+                log.debug(
+                        "CLPR Endpoint: Skipping fetched config for unexpected ledger {}; expected {}",
+                        fetchedRemoteConfig.ledgerId(),
+                        remoteLedgerId);
+            } else if (isNewerConfig(storedRemoteConfig, fetchedRemoteConfig)) {
+                try (final ClprClient localClient = connectionManager.createClient(localEndpoint)) {
+                    localClient.setConfiguration(selfAccount, selfAccount, fetchedProof);
+                    pullSucceeded = true;
+                } catch (final UnknownHostException e) {
+                    log.warn(
+                            "CLPR Endpoint: Unable to resolve local endpoint {} while storing config for remote ledger {}",
+                            localEndpoint,
+                            remoteLedgerId,
+                            e);
+                    return false;
+                }
+            } else {
+                pullSucceeded = true;
+            }
+        }
+        return publishSucceeded || pullSucceeded;
+    }
+
+    private @Nullable QueueMetadata pushPullQueueMetadata(
+            @NonNull final ClprClient remoteClient,
+            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
+        final var pushSuccess = pushQueueMetadata(remoteClient, remoteLedgerId, remoteServiceEndpoint);
+        if (!pushSuccess) {
+            return null;
+        }
+        return pullQueueMetadata(remoteClient, remoteLedgerId, remoteServiceEndpoint);
+    }
+
+    private boolean pushPullQueueContent(
+            @NonNull final ClprClient remoteClient,
+            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final QueueMetadata queueMetadata,
+            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
+        final var pushSuccess = pushQueueContent(remoteClient, remoteLedgerId, queueMetadata, remoteServiceEndpoint);
+        if (!pushSuccess) {
+            return false;
+        }
+        return pullQueueContent(remoteClient, remoteLedgerId, queueMetadata, remoteServiceEndpoint);
+    }
+
+    private boolean pushQueueMetadata(
+            @NonNull final ClprClient remoteClient,
+            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
+        // TODO: implement queue metadata publish/pull protocol.
+        return true;
+    }
+
+    private @Nullable QueueMetadata pullQueueMetadata(
+            @NonNull final ClprClient remoteClient,
+            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
+        // TODO: implement queue metadata publish/pull protocol.
+        return new QueueMetadata(false);
+    }
+
+    private boolean pushQueueContent(
+            @NonNull final ClprClient remoteClient,
+            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final QueueMetadata queueMetadata,
+            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
+        // TODO: implement queue content publish/pull protocol.
+        return true;
+    }
+
+    private boolean pullQueueContent(
+            @NonNull final ClprClient remoteClient,
+            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final QueueMetadata queueMetadata,
+            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
+        // TODO: implement queue content publish/pull protocol.
+        return true;
+    }
+
+    private ResponseCodeEnum publishLocalConfigProofToRemote(
             @NonNull final ClprClient remoteClient,
             @NonNull final com.hedera.hapi.node.base.AccountID selfAccount,
             @NonNull final com.hedera.hapi.node.base.AccountID nodeAccountId,
             @NonNull final com.hedera.hapi.block.stream.StateProof localProof) {
-        remoteClient.setConfiguration(selfAccount, nodeAccountId, localProof);
+        return remoteClient.setConfiguration(selfAccount, nodeAccountId, localProof);
     }
 
     private com.hedera.hapi.block.stream.StateProof pullRemoteConfigProof(
@@ -290,6 +432,10 @@ public class ClprEndpointClient {
         final var candidateTs = candidateConfig.timestampOrElse(Timestamp.DEFAULT);
         return candidateTs.seconds() > existingTs.seconds()
                 || (candidateTs.seconds() == existingTs.seconds() && candidateTs.nanos() > existingTs.nanos());
+    }
+
+    private static boolean isSuccessful(@Nullable final ResponseCodeEnum status) {
+        return status == ResponseCodeEnum.OK || status == ResponseCodeEnum.SUCCESS;
     }
 
     private RemoteEndpoint[] candidateEndpoints(

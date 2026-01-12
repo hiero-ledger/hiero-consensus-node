@@ -195,18 +195,20 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         final var existingConfig = configStore.get(ledgerId);
         final var endpointVisibilityChanged = endpointVisibilityChanged(existingConfig, newConfig);
         final var shouldUpdateConfig = updatesConfig(existingConfig, newConfig) || endpointVisibilityChanged;
-        if (existingMetadata != null
-                && existingMetadata.ledgerId() != null
-                && existingMetadata.rosterHash() != null
-                && existingMetadata.ledgerId().equals(newConfig.ledgerId())
-                && existingMetadata.rosterHash().equals(activeRosterHash)
-                && !shouldUpdateConfig) {
+        final var metadataChanged = existingMetadata == null
+                || existingMetadata.ledgerId() == null
+                || existingMetadata.rosterHash() == null
+                || !existingMetadata.ledgerId().equals(metadataLedgerId)
+                || !existingMetadata.rosterHash().equals(activeRosterHash);
+        if (!metadataChanged && !shouldUpdateConfig) {
             return;
         }
-        metadataStore.put(ClprLocalLedgerMetadata.newBuilder()
-                .ledgerId(metadataLedgerId)
-                .rosterHash(activeRosterHash)
-                .build());
+        if (metadataChanged) {
+            metadataStore.put(ClprLocalLedgerMetadata.newBuilder()
+                    .ledgerId(metadataLedgerId)
+                    .rosterHash(activeRosterHash)
+                    .build());
+        }
         if (shouldUpdateConfig) {
             // If the configuration is an update, we store it in the writable store.
             configStore.put(newConfig);

@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -140,6 +141,44 @@ class ClprEndpointClientTest extends ClprTestBase {
                 .thenReturn(java.util.Map.of(localClprLedgerId, localConfig, remoteClprLedgerId, remoteStored));
         when(connectionManager.createClient(remoteEndpoint)).thenReturn(remoteClient);
         when(connectionManager.createClient(localEndpoint)).thenReturn(localClient);
+        when(remoteClient.setConfiguration(selfAccountId, remoteNodeAccountId, localProof))
+                .thenReturn(ResponseCodeEnum.OK);
+        final var remoteProof = buildLocalClprStateProofWrapper(remoteUpdated);
+        when(remoteClient.getConfiguration(remoteClprLedgerId)).thenReturn(remoteProof);
+
+        subject.runOnce();
+
+        verify(remoteClient).setConfiguration(selfAccountId, remoteNodeAccountId, localProof);
+        verify(remoteClient).getConfiguration(remoteClprLedgerId);
+        verify(localClient).setConfiguration(selfAccountId, selfAccountId, remoteProof);
+    }
+
+    @Test
+    void runOncePullsRemoteConfigEvenWhenPublishFails() throws Exception {
+        final var localConfig = localClprConfig;
+        final var remoteNodeAccountId = AccountID.newBuilder().accountNum(7).build();
+        final var remoteStored = remoteClprConfig
+                .copyBuilder()
+                .timestamp(Timestamp.newBuilder().seconds(10).nanos(0).build())
+                .endpoints(List.of(org.hiero.hapi.interledger.state.clpr.ClprEndpoint.newBuilder()
+                        .endpoint(remoteEndpoint)
+                        .signingCertificate(Bytes.wrap("cert"))
+                        .nodeAccountId(remoteNodeAccountId)
+                        .build()))
+                .build();
+        final var remoteUpdated = remoteStored
+                .copyBuilder()
+                .timestamp(Timestamp.newBuilder().seconds(20).nanos(0).build())
+                .build();
+        when(stateProofManager.getLocalLedgerId()).thenReturn(localClprLedgerId);
+        final var localProof = buildLocalClprStateProofWrapper(localConfig);
+        when(stateProofManager.getLedgerConfiguration(localClprLedgerId)).thenReturn(localProof);
+        when(stateProofManager.readAllLedgerConfigurations())
+                .thenReturn(java.util.Map.of(localClprLedgerId, localConfig, remoteClprLedgerId, remoteStored));
+        when(connectionManager.createClient(remoteEndpoint)).thenReturn(remoteClient);
+        when(connectionManager.createClient(localEndpoint)).thenReturn(localClient);
+        when(remoteClient.setConfiguration(selfAccountId, remoteNodeAccountId, localProof))
+                .thenReturn(ResponseCodeEnum.INVALID_TRANSACTION);
         final var remoteProof = buildLocalClprStateProofWrapper(remoteUpdated);
         when(remoteClient.getConfiguration(remoteClprLedgerId)).thenReturn(remoteProof);
 
