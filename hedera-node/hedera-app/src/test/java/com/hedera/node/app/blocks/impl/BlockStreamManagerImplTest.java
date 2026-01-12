@@ -687,10 +687,10 @@ class BlockStreamManagerImplTest {
         assertEquals(
                 FIRST_FAKE_SIGNATURE,
                 aProof.blockStateProof().signedBlockProof().blockSignature());
-        // Since the state proof's first merkle path should be the leaf containing the block merkle tree's previous
-        // block hash (4 levels descended from the signed block root hash), there are four required siblings to keep for
-        // indirect proofs
-        assertEquals(4, aProof.siblingHashes().size());
+        // (FUTURE) An indirect state proof must have 3 merkle paths. Enable when full state proofs are supported.
+        //        assertEquals(
+        //                BlockStateProofGenerator.EXPECTED_MERKLE_PATH_COUNT,
+        //                aProof.blockStateProof().paths().size());
         // And the proof for N+1 using a direct proof
         final var bProofItem = lastBItem.get();
         assertNotNull(bProofItem);
@@ -699,7 +699,6 @@ class BlockStreamManagerImplTest {
         final var bProof = bItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO + 1, bProof.block());
         assertEquals(FIRST_FAKE_SIGNATURE, bProof.signedBlockProof().blockSignature());
-        assertTrue(bProof.siblingHashes().isEmpty());
 
         verify(indirectProofsCounter).increment();
     }

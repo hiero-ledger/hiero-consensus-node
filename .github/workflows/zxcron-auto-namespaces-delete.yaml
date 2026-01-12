@@ -66,7 +66,7 @@ on:
 
 jobs:
   delete-selected-namespaces:
-    runs-on: hiero-citr-linux-small
+    runs-on: hl-cn-citr-lin-sm
     env:
       Dallas_n1: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n1 }}
       Dallas_n2: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n2 }}
@@ -121,7 +121,7 @@ jobs:
             n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
-            if [ "${isChecked}" = "true" ]
+            if [[ "${isChecked}" = "true" ]]
             then
               echo "Deleting ${namespace}"
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace ${namespace}
@@ -148,7 +148,7 @@ jobs:
             n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
-            if [ "${isChecked}" = "true" ]
+            if [[ "${isChecked}" = "true" ]]
             then
               echo "Deleting ${namespace}"
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace ${namespace}

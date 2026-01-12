@@ -9,9 +9,14 @@ import com.hedera.node.app.service.token.impl.calculator.CryptoApproveAllowanceF
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteAllowanceFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.CryptoGetAccountRecordsFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.CryptoGetInfoFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoTransferFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoUpdateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenAirdropFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenBurnFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenCancelAirdropFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenClaimAirdropFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenDeleteFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenFreezeAccountFeeCalculator;
@@ -22,7 +27,9 @@ import com.hedera.node.app.service.token.impl.calculator.TokenUnpauseFeeCalculat
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema;
+import com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -49,6 +56,7 @@ public class TokenServiceImpl implements TokenService {
         registry.register(new V0490TokenSchema());
         registry.register(new V0530TokenSchema());
         registry.register(new V0610TokenSchema());
+        registry.register(new V0700TokenSchema());
     }
 
     @Override
@@ -67,6 +75,14 @@ public class TokenServiceImpl implements TokenService {
                 new TokenFreezeAccountFeeCalculator(),
                 new TokenUnfreezeAccountFeeCalculator(),
                 new TokenBurnFeeCalculator(),
-                new TokenDeleteFeeCalculator());
+                new TokenDeleteFeeCalculator(),
+                new TokenAirdropFeeCalculator(),
+                new TokenClaimAirdropFeeCalculator(),
+                new TokenCancelAirdropFeeCalculator());
+    }
+
+    @Override
+    public Set<QueryFeeCalculator> queryFeeCalculators() {
+        return Set.of(new CryptoGetInfoFeeCalculator(), new CryptoGetAccountRecordsFeeCalculator());
     }
 }

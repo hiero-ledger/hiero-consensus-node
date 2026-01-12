@@ -76,7 +76,7 @@ permissions:
 jobs:
   verify-tag:
     name: Verify Tag
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     continue-on-error: true
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
@@ -104,7 +104,7 @@ jobs:
           if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
             echo "The tag is a valid build tag."
             BUILD_NUMBER="${BASH_REMATCH[1]}"
-            echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+            echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
 
             echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
             echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
@@ -135,7 +135,7 @@ jobs:
 
   tag-sdlt-result:
     name: Tag SDLT Result
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - run-single-day-longevity-test
       - verify-tag
@@ -169,20 +169,20 @@ jobs:
           BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
 
           # Skip tagging if no build number is found
-          if [ -z "$BUILD_NUM" ]; then
+          if [[ -z "${BUILD_NUM}" ]]; then
             echo "No build number found. Skipping tagging step." >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
 
           # Populate the SDLT tag name and message
-          if [ "$RESULT" == "success" ]; then
+          if [[ "${RESULT}" == "success" ]]; then
             TAG_NAME="sdlt-pass-${BUILD_NUM}"
             MSG="Single Day Longevity Test passed for build-${BUILD_NUM}"
-          elif [ "$RESULT" == "failure" ]; then
+          elif [[ "${RESULT}" == "failure" ]]; then
             TAG_NAME="sdlt-fail-${BUILD_NUM}"
             MSG="Single Day Longevity Test FAILED for build-${BUILD_NUM}"
           else
-            echo "No tag will be applied. Test result was: $RESULT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "No tag will be applied. Test result was: ${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
 
@@ -194,7 +194,7 @@ jobs:
 
   get-commit-info:
     name: Get Commit Information
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     if: ${{ inputs.disable-notifications != true }}
     needs:
       - verify-tag
@@ -244,7 +244,7 @@ jobs:
 
   report-success:
     name: Report SDLT execution success
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - verify-tag
       - tag-sdlt-result
@@ -368,7 +368,7 @@ jobs:
 
   report-failure:
     name: Report SDLT execution failure
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - verify-tag
       - run-single-day-longevity-test

@@ -110,47 +110,6 @@ message BlockProof {
     uint64 block = 1;
 
     /**
-     * A set of hash values along with ordering information.<br/>
-     * This list of hash values form the set of sibling hash values needed to
-     * correctly reconstruct the parent hash, and all hash values "above" that
-     * hash in the merkle tree.
-     * <p>
-     * A Block proof can be constructed by combining the sibling hashes for
-     * a previous block hash and sibling hashes for each entry "above" that
-     * node in the merkle tree of a block proof that incorporates that previous
-     * block hash. This form of block proof may be used to prove a chain of
-     * blocks when one or more older blocks is missing the original block
-     * proof that signed the block's merkle root directly.
-     * <p>
-     * This list MUST be ordered from the sibling of the node that contains
-     * this block's root node hash, and continues up the merkle tree to the
-     * root hash of the signed block proof.
-     * <p>
-     * If this block proof has a "direct" signature, then this list MUST be
-     * empty.<br/>
-     * If this list is not empty, then this block proof MUST be verified by
-     * first constructing the "block" merkle tree and computing the root hash
-     * of that tree, then combining that hash with the values in this list,
-     * paying attention to the first/second sibling ordering, until the root
-     * merkle hash is produced from the last pair of sibling hashes. That
-     * "secondary" root hash MUST then be verified using the value of
-     * `block_signature`.
-     */
-    repeated MerkleSiblingHash sibling_hashes = 2;
-
-    /**
-     * The hinTS key that this signature verifies under; a stream consumer should
-     * only use this key after first checking the chain of trust proof.
-     */
-    bytes verification_key = 3;
-
-    /**
-     * Proof the hinTS verification key is in the chain of trust extending
-     * from the network's ledger id.
-     */
-    ChainOfTrustProof verification_key_proof = 4;
-
-    /**
      * The proof contents verifying the block's merkle root hash.<br/>
      * This is a `oneof` field that MAY contain one several types of
      * proofs.
@@ -164,15 +123,42 @@ message BlockProof {
          * used when the current block is signed directly by the consensus
          * nodes with a TSS signature; otherwise it MUST be empty.
          */
-        TssSignedBlockProof signed_block_proof = 5;
+        TssSignedBlockProof signed_block_proof = 2;
 
         /**
          * A proof of the block merkle tree's contents. This proof SHALL
          * contain the information necessary to validate the previous block's
          * hash, along with any information necessary to validate the current
          * block's hash.
+         * <p>
+         * Of necessity, the state proof MUST contain a set of hash values,
+         * along with ordering information, that allows for reconstruction of the
+         * block's hash. This list of hash values form the set of sibling hash values
+         * needed to correctly reconstruct the parent hash, and all hash values
+         * "above" that hash in the merkle tree.
+         * <p>
+         * A Block proof can be constructed by combining the sibling hashes for
+         * a previous block hash and sibling hashes for each entry "above" that
+         * node in the merkle tree of a block proof that incorporates that previous
+         * block hash. This form of block proof may be used to prove a chain of
+         * blocks when one or more older blocks is missing the original block
+         * proof that signed the block's merkle root directly.
+         * <p>
+         * Such a list MUST be ordered from the sibling of the node that contains
+         * this block's root node hash, and continues up the merkle tree to the
+         * root hash of the signed block proof.
+         * <p>
+         * If this block proof has a "direct" signature, then any associated list
+         * of siblings MUST be empty.<br/>
+         * If said list is not empty, then this block proof MUST be verified by
+         * first constructing the "block" merkle tree and computing the root hash
+         * of that tree, then combining that hash with the values in this list,
+         * paying attention to the first/second sibling ordering, until the root
+         * merkle hash is produced from the last pair of sibling hashes. That
+         * "secondary" root hash MUST then be verified using the value of
+         * `block_signature`.
          */
-        StateProof block_state_proof = 6;
+        StateProof block_state_proof = 3;
 
         /**
          * A proof consisting of RSA signatures from consensus nodes.<br/>
@@ -182,7 +168,15 @@ message BlockProof {
          * individual RSA signatures from consensus nodes; otherwise it MUST be
          * empty.
          */
-        SignedRecordFileProof signed_record_file_proof = 7;
+        SignedRecordFileProof signed_record_file_proof = 4;
+
+        /**
+         * If there is not yet a SNARK proving the chain of trust from ledger id to
+         * the hinTS verification key, an aggregation of Schnorr signatures on
+         * the concatenation of the ledger id and genesis hinTS verification key
+         * that serve as witnesses for the SNARK prover algorithm.
+         */
+        AggregatedNodeSignatures aggregated_node_signatures = 5;
     }
 }
 
@@ -216,4 +210,49 @@ message MerkleSiblingHash {
      * This SHALL contain the raw (e.g.) 384 bits (48 bytes) of the hash value.
      */
     bytes sibling_hash = 2;
+}
+
+/**
+ * A proof containing RSA signatures from consensus nodes for a block that was
+ * originally recorded in the record file format. It contains a list of
+ * signatures over the record file hash. How to compute the record file hash
+ * depends on the record file format version it was originally created with. To
+ * verify a block with a SignedRecordFileProof, the record file hash needs to be
+ * computed according to the record file format version and then verified with
+ * the signatures in this proof and the public keys of the consensus nodes at
+ * the point the record file was created. The public keys can be obtained form
+ * the network address book from a trusted source. See `RecordFileItem`
+ * documentation for description of how to compute the record file hash.
+ */
+message SignedRecordFileProof {
+  /**
+   * The record file format version, this dictates how the hash that is signed
+   * is computed. Valid versions are 2, 5 and 6.
+   */
+  uint32 version = 1;
+
+  /**
+   * A collection of RSA signatures from consensus nodes.<br/>
+   * These signatures validate the record file hash.
+   */
+  repeated RecordFileSignature record_file_signatures = 2;
+}
+
+/**
+ * A signature by a node on the record file hash. See `RecordFileItem`
+ * documentation for description of how to compute the record file hash.
+ */
+message RecordFileSignature {
+  /**
+   * A single RSA signature in DER-encoded X.509 certificate format.<br/>
+   * This is the RSA signature by the node's private RSA key on the record
+   * file hash.
+   */
+  bytes signatures_bytes = 1;
+
+  /**
+   * A unique node identifier.<br/>
+   * This is the node id of the consensus node that created this signature.
+   */
+  int32 node_id = 2;
 }

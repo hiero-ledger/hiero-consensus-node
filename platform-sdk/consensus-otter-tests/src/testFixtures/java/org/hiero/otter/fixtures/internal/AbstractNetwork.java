@@ -16,7 +16,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.common.utility.Threshold;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.reconnect.FallenBehindStatus;
@@ -43,6 +42,7 @@ import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.data.Percentage;
+import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -89,7 +89,6 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -240,7 +239,7 @@ public abstract class AbstractNetwork implements Network {
     }
 
     @Override
-    public @NotNull Roster roster() {
+    public @NonNull Roster roster() {
         if (lifecycle == Lifecycle.INIT) {
             throw new IllegalStateException("The roster is not available before the network is started.");
         }
@@ -629,6 +628,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public void restoreConnectivity() {
         networkPartitions.clear();
+        connected.clear();
         latencyOverrides.clear();
         bandwidthOverrides.clear();
         updateConnections();
@@ -732,7 +732,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
+    public @NonNull Network withConfigValue(@NonNull final String key, @NonNull final Duration value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
@@ -1213,7 +1213,9 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void disconnect() {
+            log.info("Disconnecting connection from node {} to node {}", sender.selfId(), receiver.selfId());
             connected.put(connectionKey, false);
+            updateConnections();
         }
 
         /**
@@ -1221,7 +1223,9 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void connect() {
+            log.info("Connecting connection from node {} to node {}", sender.selfId(), receiver.selfId());
             connected.put(connectionKey, true);
+            updateConnections();
         }
 
         /**
@@ -1237,6 +1241,7 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void restoreConnectivity() {
+            log.info("Restoring connectivity from node {} to node {}", sender.selfId(), receiver.selfId());
             connected.remove(connectionKey);
             restoreLatency();
             restoreBandwidthLimit();
@@ -1257,7 +1262,9 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void latency(@NonNull final Duration latency) {
             requireNonNull(latency);
+            log.info("Setting latency from node {} to node {} to {}", sender.selfId(), receiver.selfId(), latency);
             latencyOverrides.put(connectionKey, new LatencyOverride(latency, jitter()));
+            updateConnections();
         }
 
         /**
@@ -1275,7 +1282,9 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void jitter(@NonNull final Percentage jitter) {
             requireNonNull(jitter);
+            log.info("Setting jitter from node {} to node {} to {}", sender.selfId(), receiver.selfId(), jitter);
             latencyOverrides.put(connectionKey, new LatencyOverride(latency(), jitter));
+            updateConnections();
         }
 
         /**
@@ -1283,7 +1292,9 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void restoreLatency() {
+            log.info("Restoring latency from node {} to node {}", sender.selfId(), receiver.selfId());
             latencyOverrides.remove(connectionKey);
+            updateConnections();
         }
 
         /**
@@ -1301,7 +1312,13 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void bandwidthLimit(@NonNull final BandwidthLimit bandwidthLimit) {
             requireNonNull(bandwidthLimit);
+            log.info(
+                    "Setting bandwidth limit from node {} to node {} to {}",
+                    sender.selfId(),
+                    receiver.selfId(),
+                    bandwidthLimit);
             bandwidthOverrides.put(connectionKey, bandwidthLimit);
+            updateConnections();
         }
 
         /**
@@ -1309,7 +1326,9 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void restoreBandwidthLimit() {
+            log.info("Restoring bandwidth limit from node {} to node {}", sender.selfId(), receiver.selfId());
             bandwidthOverrides.remove(connectionKey);
+            updateConnections();
         }
     }
 

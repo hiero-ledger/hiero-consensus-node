@@ -8,7 +8,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.SignatureType;
@@ -32,12 +31,8 @@ public class RandomEventUtils {
             final Instant timestamp,
             final long birthRound,
             final TransactionWrapper[] transactions,
-            final EventImpl selfParent,
-            final EventImpl otherParent,
+            final List<EventImpl> allParents,
             final boolean fakeHash) {
-
-        final List<EventImpl> allParents =
-                Stream.of(selfParent, otherParent).filter(Objects::nonNull).toList();
 
         final UnsignedEvent unsignedEvent = randomUnsignedEventWithTimestamp(
                 random, creatorId, timestamp, birthRound, transactions, allParents, fakeHash);

@@ -3,9 +3,6 @@ package com.swirlds.platform.network.protocol.rpc;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.shadowgraph.RpcPeerHandler;
 import com.swirlds.platform.gossip.shadowgraph.RpcShadowgraphSynchronizer;
 import com.swirlds.platform.metrics.SyncMetrics;
@@ -15,6 +12,9 @@ import com.swirlds.platform.network.protocol.PeerProtocol;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 

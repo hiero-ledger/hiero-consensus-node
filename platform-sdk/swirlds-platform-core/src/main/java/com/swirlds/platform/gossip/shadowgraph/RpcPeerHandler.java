@@ -8,9 +8,7 @@ import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncGuard;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
@@ -27,6 +25,8 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;

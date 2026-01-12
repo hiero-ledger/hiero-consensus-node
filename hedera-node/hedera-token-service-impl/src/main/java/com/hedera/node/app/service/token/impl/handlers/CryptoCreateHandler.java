@@ -55,6 +55,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
@@ -158,7 +159,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // FUTURE: Clean up the error codes to be consistent.
         final var key = op.key();
         final var isInternal =
-                !txn.hasTransactionID() || (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get());
+                (!txn.hasTransactionID() || txn.transactionIDOrThrow().nonce() != 0)
+                        || (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get());
         final var keyIsEmpty = isEmpty(key);
         if (!isInternal && keyIsEmpty) {
             if (key == null) {
@@ -340,9 +342,16 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var entitiesConfig = context.configuration().getConfigData(EntitiesConfig.class);
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
-        final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
+        final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
         final var alias = op.alias();
+
+        final var txn = context.body();
+        final var isAdminPayer = entityIdFactory
+                .newAccountId(accountsConfig.systemAdmin())
+                .equals(txn.transactionIDOrElse(TransactionID.DEFAULT).accountIDOrElse(AccountID.DEFAULT));
+        final var isPostUpgradeSyntheticCreation =
+                txn.hasTransactionID() && txn.transactionIDOrThrow().nonce() != 0 && isAdminPayer;
 
         // Don't allow creation of accounts that don't match the configured shard and realm
         if (op.hasShardID()) {
@@ -357,7 +366,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
 
         // We have a limit on the total maximum number of entities that can be created on the network, for different
         // types of entities. We need to verify that creating a new account won't exceed that number.
-        if (accountStore.getNumberOfAccounts() + 1 > accountConfig.maxNumber()) {
+        if (accountStore.getNumberOfAccounts() + 1 > accountsConfig.maxNumber()) {
             throw new HandleException(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         }
 
@@ -399,7 +408,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 op.keyOrThrow(), // cannot be null by this point
                 context.attributeValidator(),
                 context.savepointStack().getBaseBuilder(StreamBuilder.class).isInternalDispatch()
-                        || stillCreatingSystemEntities);
+                        || stillCreatingSystemEntities
+                        || isPostUpgradeSyntheticCreation);
 
         // Validate the staking information included in this account creation.
         if (op.hasStakedAccountId() || op.hasStakedNodeId()) {
