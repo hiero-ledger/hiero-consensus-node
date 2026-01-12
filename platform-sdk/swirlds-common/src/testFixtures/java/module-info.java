@@ -12,7 +12,6 @@ open module com.swirlds.common.test.fixtures {
     exports com.swirlds.common.test.fixtures.threading;
     exports com.swirlds.common.test.fixtures.set;
     exports com.swirlds.common.test.fixtures.stream;
-    exports com.swirlds.common.test.fixtures.fcqueue;
     exports com.swirlds.common.test.fixtures.platform;
 
     requires transitive com.hedera.pbj.runtime;
@@ -23,12 +22,14 @@ open module com.swirlds.common.test.fixtures {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.logging;
-    requires com.swirlds.platform.core;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.utility.test.fixtures;
+    requires org.hiero.consensus.pces;
+    requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j.core;
     requires org.apache.logging.log4j;
     requires org.junit.jupiter.api;

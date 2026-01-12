@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.base.example.jdkmetrics;
 
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -12,6 +11,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import org.hiero.consensus.metrics.FunctionGauge;
 
 /**
  * Registers JVM metrics with the purpose of Benchmarking app behaviour

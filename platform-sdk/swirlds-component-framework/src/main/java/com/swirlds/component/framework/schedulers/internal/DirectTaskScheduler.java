@@ -3,7 +3,6 @@ package com.swirlds.component.framework.schedulers.internal;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder.UNLIMITED_CAPACITY;
 
-import com.swirlds.common.metrics.extensions.FractionalTimer;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
@@ -12,6 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Objects;
 import java.util.function.Consumer;
+import org.hiero.consensus.metrics.extensions.FractionalTimer;
 
 /**
  * A scheduler that performs work immediately on the caller's thread.

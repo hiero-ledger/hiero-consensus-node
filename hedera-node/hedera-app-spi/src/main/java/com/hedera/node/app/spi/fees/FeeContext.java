@@ -39,6 +39,8 @@ public interface FeeContext {
     @NonNull
     FeeCalculatorFactory feeCalculatorFactory();
 
+    SimpleFeeCalculator getSimpleFeeCalculator();
+
     /**
      * Get a readable store given the store's interface. This gives read-only access to the store.
      *

@@ -22,6 +22,7 @@ Some of the system accounts exist today and more can be created in the future. C
 - 0.0.60 - system undelete admin;
 - 0.0.800 - staking reward account;
 - 0.0.801 - node reward account.
+- 0.0.802 - fee collection account
 
 EVM addresses in range 1 → 9 are special addresses on which the Ethereum precompiled contracts exist. This is valid for both Ethereum and Hedera. Please note that this list can expand in the future.
 

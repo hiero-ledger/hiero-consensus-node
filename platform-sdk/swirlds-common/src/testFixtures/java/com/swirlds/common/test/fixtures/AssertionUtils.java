@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Iterator;
@@ -23,6 +22,7 @@ import org.hiero.base.CompareTo;
 import org.hiero.base.ValueReference;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.concurrent.interrupt.InterruptableSupplier;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * Contains various useful assertions.

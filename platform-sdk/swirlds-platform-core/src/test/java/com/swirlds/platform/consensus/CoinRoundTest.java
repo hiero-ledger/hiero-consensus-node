@@ -3,19 +3,18 @@ package com.swirlds.platform.consensus;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
-import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
-import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.pces.PcesFileReader;
+import org.hiero.consensus.pces.PcesFileTracker;
+import org.hiero.consensus.pces.PcesMultiFileIterator;
+import org.hiero.consensus.pces.PcesUtilities;
 import org.hiero.consensus.roster.RosterRetriever;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -57,7 +56,5 @@ public class CoinRoundTest extends PlatformTest {
             final PlatformEvent event = eventIterator.next();
             intake.addEvent(event);
         }
-
-        assertMarkerFile(ConsensusImpl.COIN_ROUND_MARKER_FILE, true);
     }
 }

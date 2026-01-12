@@ -8,6 +8,11 @@ plugins {
 
 description = "Base Crypto"
 
+mainModuleInfo {
+    annotationProcessor("com.swirlds.config.processor")
+    annotationProcessor("com.google.auto.service.processor")
+}
+
 testModuleInfo {
     requires("com.swirlds.common")
     requires("com.swirlds.common.test.fixtures")
