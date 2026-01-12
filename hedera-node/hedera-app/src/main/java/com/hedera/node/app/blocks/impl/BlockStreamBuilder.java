@@ -7,6 +7,7 @@ import static com.hedera.hapi.block.stream.trace.SlotRead.IdentifierOneOfType.IN
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
@@ -34,6 +35,7 @@ import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.block.stream.trace.SubmitMessageTraceData;
 import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.block.stream.trace.WrittenSlotKeys;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -612,6 +614,35 @@ public class BlockStreamBuilder
             if (slotUsages != null) {
                 final boolean traceExplicitWrites = logicallyIdentical == null;
                 if (traceExplicitWrites) {
+                    // When writes are traced explicitly in ContractSlotUsage#writtenSlotKeys, we index the reads
+                    // to their corresponding writes; so in the case of a reverted transaction, we need to swap
+                    // the indexes back to the original keys before output
+                    if (status == REVERTED_SUCCESS) {
+                        slotUsages = slotUsages.stream()
+                                .map(usage -> {
+                                    final var writtenKeys = usage.writtenSlotKeysOrElse(WrittenSlotKeys.DEFAULT)
+                                            .keys();
+                                    var reads = usage.slotReads();
+                                    if (!writtenKeys.isEmpty()) {
+                                        final List<SlotRead> explicitReads = new ArrayList<>(reads.size());
+                                        for (final var read : reads) {
+                                            if (read.hasIndex()) {
+                                                explicitReads.add(read.copyBuilder()
+                                                        .key(writtenKeys.get(read.indexOrThrow()))
+                                                        .build());
+                                            } else {
+                                                explicitReads.add(read);
+                                            }
+                                        }
+                                        reads = explicitReads;
+                                    }
+                                    return usage.copyBuilder()
+                                            .slotReads(reads)
+                                            .writtenSlotKeys((WrittenSlotKeys) null)
+                                            .build();
+                                })
+                                .toList();
+                    }
                     // Nothing else to do if these slot usages already traced their written keys explicitly
                     builder.contractSlotUsages(slotUsages);
                 } else {
@@ -1385,7 +1416,6 @@ public class BlockStreamBuilder
             scheduleId = null;
             scheduledTransactionId = null;
         }
-
         evmAddress = Bytes.EMPTY;
         runningHash = Bytes.EMPTY;
         sequenceNumber = 0L;
