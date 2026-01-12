@@ -15,7 +15,7 @@ They help track trends, resource usage, and system health over time.
 7. Support common metric types (counters, gauges, etc.) that are compatible with OpenMetrics standard.
 8. Support dynamic labels for dimensionality.
 9. Thread-safe and concurrent updates.
-10. Provide clear API for creating, updating, and exporting metrics. Application code should not depend and have access to internal implementation.
+10. Provide clear API for creating, updating, and exporting metrics.
 11. Application code should be able only to update metrics values and not read/export them directly.
 
 ### Key Concepts
@@ -39,15 +39,11 @@ Some metrics support client aggregations (tracking min, max, etc.) and allow to 
 
 ---
 
-The Metrics Core module is split into two root packages:
-- `org.hiero.metrics.api` - contains public API for recording and exporting metrics. This package and nested are accessible to clients.
-- `org.hiero.metrics.internal` - contains internal implementation of the API, hiding snapshotting implementation. This package and nested are not accessible to clients.
+The Metrics Core module contains classes in two modules:
+- `org.hiero.metrics` - contains metrics, that could be created and used.
+- `org.hiero.metrics.core` - contains all other classes supporting metrics functionality.
 
 The Metrics Core module has an optional dependency on `com.swirlds.config.api` for configuration support while discovering exporter factory SPI implementation.
-
-Entry points for clients are:
-- All metrics defined in `org.hiero.metrics.api` package, that can be used to create and update metrics.
-- [MetricsRegistry](../src/main/java/org/hiero/metrics/api/core/MetricRegistry.java) and its builder, to create registry for metrics and specify exporter to be used for exporting snapshots.
 
 See more about metrics here: [📘Metrics Details](metrics_details.md).
 
@@ -116,13 +112,5 @@ module my.module {
 
     provides org.hiero.metrics.api.core.MetricsRegistrationProvider with
             org.hiero.metrics.MyModuleMetricsProvider;
-}
-```
-
-```gradle
-// gradle build.gradle of the application
-mainModuleInfo {
-    // add open metrics http endpoint exporter so it can be discovered via SPI
-    runtimeOnly("org.hiero.metrics.openmetrics.http")
 }
 ```
