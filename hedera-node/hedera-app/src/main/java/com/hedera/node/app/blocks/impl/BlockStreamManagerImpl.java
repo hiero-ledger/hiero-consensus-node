@@ -734,6 +734,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * <p>
      * Synchronized to ensure that block proofs are always written in order, even in edge cases where multiple
      * pending block proofs become available at the same time.
+     * <p>
+     * <b>Note: It's critical to refrain from changing the signing algorithm while the chain of trust verification
+     * is disabled!</b> See GitHub issue #22676 for more details.
      *
      * @param blockHash the block hash of the latest signed block. May be for a block later than the one being proven.
      * @param blockSignature the signature to use in the block proof
@@ -743,8 +746,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private synchronized void finishProofWithSignature(
             @NonNull final Bytes blockHash,
             @NonNull final Bytes blockSignature,
-            @Nullable final Bytes verificationKey,
-            @Nullable final ChainOfTrustProof chainOfTrustProof) {
+            @SuppressWarnings("unused") @Nullable final Bytes verificationKey,
+            @SuppressWarnings("unused") @Nullable final ChainOfTrustProof chainOfTrustProof) {
         // Find the block whose hash is the signed message
         PendingBlock signedBlock = null;
         for (final var block : pendingBlocks) {
@@ -802,12 +805,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 indirectProofCounter.increment();
             }
 
-            if (verificationKey != null) {
-                proof.verificationKey(verificationKey);
-                if (chainOfTrustProof != null) {
-                    proof.verificationKeyProof(chainOfTrustProof);
-                }
-            }
+            // (FUTURE: GH issue #22676) Re-enable setting the verification key and chain of trust proof
+            // once the API is finalized
+            //            if (verificationKey != null) {
+            //                proof.verificationKey(verificationKey);
+            //                if (chainOfTrustProof != null) {
+            //                    proof.verificationKeyProof(chainOfTrustProof);
+            //                }
+            //            }
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             currentPendingBlock.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             currentPendingBlock.writer().closeCompleteBlock();
