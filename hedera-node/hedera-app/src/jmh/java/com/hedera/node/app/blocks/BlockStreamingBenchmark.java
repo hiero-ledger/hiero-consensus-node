@@ -6,7 +6,9 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeClientFactory;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionHelper;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
+import com.hedera.node.app.blocks.impl.streaming.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
@@ -20,10 +22,6 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -36,6 +34,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import jdk.jfr.Recording;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
+import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -354,7 +356,7 @@ public class BlockStreamingBenchmark {
 
         final BlockNodeConfiguration nodeConfig = BlockNodeConfiguration.newBuilder()
                 .address("localhost")
-                .port(networkProxy.getPort()) // Connect to Proxy!
+                .streamingPort(networkProxy.getPort()) // Connect to Proxy!
                 .priority(0)
                 .messageSizeSoftLimitBytes(2_097_152)
                 .messageSizeHardLimitBytes(4_194_304)
@@ -373,8 +375,8 @@ public class BlockStreamingBenchmark {
                 0L,
                 new BlockNodeClientFactory());
 
-        connection.createRequestPipeline();
-        connection.updateConnectionState(BlockNodeConnection.ConnectionState.ACTIVE);
+        connection.initialize();
+        BlockNodeConnectionHelper.updateConnectionState(connection, ConnectionState.ACTIVE);
 
         // 6. Writer
         writer = new GrpcBlockItemWriter(bufferService, connectionManager);
