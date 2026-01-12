@@ -3,14 +3,15 @@ package com.hedera.statevalidation.util.junit;
 
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import java.io.IOException;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.ParameterResolver;
 
-public class StateResolver implements ParameterResolver {
+/**
+ * Parameter resolver for {@link DeserializedSignedState} in JUnit tests.
+ */
+public class DeserializedSignedStateResolver implements ParameterResolver {
 
     @Override
     public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext)
@@ -21,10 +22,6 @@ public class StateResolver implements ParameterResolver {
     @Override
     public DeserializedSignedState resolveParameter(
             ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
-        try {
-            return StateUtils.getDeserializedSignedState();
-        } catch (ConstructableRegistryException | IOException e) {
-            throw new RuntimeException(e);
-        }
+        return StateUtils.getDeserializedSignedState();
     }
 }

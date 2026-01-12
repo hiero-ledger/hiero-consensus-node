@@ -14,9 +14,7 @@ import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
 import com.hedera.statevalidation.util.PlatformContextHelper;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
@@ -62,19 +60,7 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final Path outputPath,
             @NonNull final String expectedHash)
             throws IOException {
-        final DeserializedSignedState deserializedSignedState;
-        try {
-            deserializedSignedState = StateUtils.getDeserializedSignedState();
-        } catch (ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
-
-        final SignedState signedState =
-                deserializedSignedState.reservedSignedState().get();
-        // need to create copy of the loaded state to make it mutable
-        final HashedReservedSignedState hashedSignedState =
-                copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
-        final MerkleNodeState state = hashedSignedState.state().get().getState();
+        final MerkleNodeState state = StateUtils.getState();
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
                 new BlockStreamRecoveryWorkflow(state, targetRound, outputPath, expectedHash);
