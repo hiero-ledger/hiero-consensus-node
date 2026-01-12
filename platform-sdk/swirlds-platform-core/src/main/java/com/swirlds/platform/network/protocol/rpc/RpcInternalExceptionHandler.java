@@ -2,6 +2,7 @@
 package com.swirlds.platform.network.protocol.rpc;
 
 import com.swirlds.platform.network.Connection;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 
 /**
@@ -17,6 +18,6 @@ public interface RpcInternalExceptionHandler {
      * @param rateLimiter rate limiter to use for the exception
      * @throws InterruptedException if thread was interrupted
      */
-    void handleNetworkException(final Exception e, final Connection connection, final RateLimiter rateLimiter)
+    void handleNetworkException(@NonNull Exception e, @NonNull Connection connection, @NonNull RateLimiter rateLimiter)
             throws InterruptedException;
 }

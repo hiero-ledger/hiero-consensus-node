@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.rpc;
 
+/**
+ * Handler for messages/RPC coming from remote endpoint during gossip exchange (see {@link GossipRpcReceiver}, extended
+ * with functionality for initiating periodic actions from caller thread and doing a cleanup of internal state in case
+ * of global failures.
+ */
 public interface GossipRpcReceiverHandler extends GossipRpcReceiver {
 
     /**

@@ -2,10 +2,13 @@
 package com.swirlds.platform.sync;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
+import com.swirlds.base.utility.Pair;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -17,6 +20,7 @@ import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkMetrics;
+import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.protocol.rpc.RpcPeerProtocol;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
@@ -37,6 +41,9 @@ public class RpcPeerProtocolTests {
 
     private long lastSentSync;
     private Throwable foundException;
+    private NodeId alreadyAsked = null;
+    private Connection otherConnection = null;
+    private Connection lastConnection = null;
 
     @Test
     public void testPeerProtocolFrequentDisconnections() throws Throwable {
@@ -50,25 +57,25 @@ public class RpcPeerProtocolTests {
 
         final Roster roster = RandomRosterBuilder.create(randotron).withSize(2).build();
 
-        final var metrics = new NoOpMetrics();
+        final NoOpMetrics metrics = new NoOpMetrics();
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        var syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
+        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
 
         final Time time = Time.getCurrent();
-        final var permitProvider = new SyncPermitProvider(
+        final SyncPermitProvider permitProvider = new SyncPermitProvider(
                 metrics, time, syncConfig, roster.rosterEntries().size());
 
         for (int i = 0; i < 2; i++) {
 
-            final var selfEntry = roster.rosterEntries().get(i);
-            final var selfId = NodeId.of(selfEntry.nodeId());
+            final RosterEntry selfEntry = roster.rosterEntries().get(i);
+            final NodeId selfId = NodeId.of(selfEntry.nodeId());
 
-            final var peers = Utilities.createPeerInfoList(roster, selfId);
+            final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
             // other peer will be the only one in list of other peers
-            final var otherPeer = peers.get(0).nodeId();
+            final NodeId otherPeer = peers.get(0).nodeId();
 
             final RpcPeerProtocol peerProtocol = new RpcPeerProtocol(
                     selfId,
@@ -84,6 +91,8 @@ public class RpcPeerProtocolTests {
 
             peerProtocol.setRpcPeerHandler(new GossipRpcReceiverHandler() {
 
+                // we need to emulate the state machine of actual rpc handler
+
                 private boolean receivedEvents;
                 private boolean receivedTips;
                 private boolean receivedSyncData;
@@ -98,6 +107,7 @@ public class RpcPeerProtocolTests {
 
                 private void maybeSendSync() {
                     if (!sentSyncData) {
+                        // we don't care what contents we are sending, remote side is also a test implementation
                         peerProtocol.sendSyncData(new SyncData(EventWindow.getGenesisEventWindow(), List.of(), false));
                         lastSentSync = time.currentTimeMillis();
                         sentSyncData = true;
@@ -128,8 +138,10 @@ public class RpcPeerProtocolTests {
                     }
                     receivedTips = true;
                     try {
+                        // pretend we are doing some processing which takes time (filtering events, serializing them and
+                        // sending them over network etc)
                         Thread.sleep(5);
-                    } catch (InterruptedException e) {
+                    } catch (final InterruptedException e) {
                         throw new RuntimeException(e);
                     }
                     peerProtocol.sendEvents(List.of());
@@ -143,8 +155,10 @@ public class RpcPeerProtocolTests {
                     }
                     receivedEvents = true;
                     try {
+                        // pretend we are doing some processing which takes time (deserializing events, receiving them
+                        // over network etc)
                         Thread.sleep(6);
-                    } catch (InterruptedException e) {
+                    } catch (final InterruptedException e) {
                         throw new RuntimeException(e);
                     }
                 }
@@ -152,8 +166,9 @@ public class RpcPeerProtocolTests {
                 @Override
                 public void receiveEventsFinished() {
                     try {
+                        // again, wait for emulating internal processing and network delays
                         Thread.sleep(7);
-                    } catch (InterruptedException e) {
+                    } catch (final InterruptedException e) {
                         throw new RuntimeException(e);
                     }
                     cleanup();
@@ -164,10 +179,10 @@ public class RpcPeerProtocolTests {
                         while (running.get()) {
                             try {
                                 if (permitProvider.acquire()) {
-                                    Connection connection = connect(selfId, otherPeer);
+                                    final Connection connection = connect(selfId, otherPeer);
                                     peerProtocol.runProtocol(connection);
                                 }
-                            } catch (Exception exc) {
+                            } catch (final Exception exc) {
                                 foundException = exc;
                             }
                         }
@@ -176,6 +191,9 @@ public class RpcPeerProtocolTests {
         }
 
         for (int i = 0; i < 100; i++) {
+            // force disconnections multiple times per second;
+            // this time should be few times bigger than sum of all the delays in the methods above, to allow few syncs
+            // to happen between disconnections
             Thread.sleep(100);
             if (lastConnection != null) {
                 lastConnection.disconnect();
@@ -186,23 +204,25 @@ public class RpcPeerProtocolTests {
         }
 
         running.set(false);
-        lastConnection.disconnect();
+        if (lastConnection != null) {
+            lastConnection.disconnect();
+        }
         Thread.sleep(100);
         final long noSyncTime = time.currentTimeMillis() - lastSentSync;
         if (noSyncTime > 1000) {
-            throw new IllegalStateException("Has not synced in " + noSyncTime + " ms");
+            // one of the possible failure scenarios is that we are stuck in illegal state of
+            // "I think sync was sent to other party, but cleanup has happened and I didn't notice"
+            // we want to fail the test in such case
+            fail("Has not synced in " + noSyncTime + " ms");
         }
     }
 
-    private void handleException(Exception e, Connection connection, RateLimiter rateLimiter) {
+    private void handleException(
+            @NonNull final Exception e, @NonNull final Connection connection, @NonNull final RateLimiter rateLimiter) {
         if (e.getCause().toString().contains("ERROR")) {
             foundException = e.getCause();
         }
     }
-
-    NodeId alreadyAsked = null;
-    Connection otherConnection = null;
-    Connection lastConnection = null;
 
     /**
      * Create the pair of local connections between the nodes and returns them depending on who is asking. Valid only
@@ -216,7 +236,8 @@ public class RpcPeerProtocolTests {
     private synchronized Connection connect(final NodeId selfId, final NodeId otherPeer) throws IOException {
 
         if (alreadyAsked == null) {
-            final var connections = ConnectionFactory.createLocalConnections(selfId, otherPeer);
+            final Pair<Connection, Connection> connections =
+                    ConnectionFactory.createLocalConnections(selfId, otherPeer);
             alreadyAsked = selfId;
             otherConnection = connections.right();
             lastConnection = connections.left();
@@ -227,7 +248,7 @@ public class RpcPeerProtocolTests {
             throw new IllegalArgumentException(
                     "Node " + selfId + "asked about connection twice before other one tried to do so");
         }
-        final var connection = otherConnection;
+        final Connection connection = otherConnection;
         alreadyAsked = null;
         otherConnection = null;
         return connection;
