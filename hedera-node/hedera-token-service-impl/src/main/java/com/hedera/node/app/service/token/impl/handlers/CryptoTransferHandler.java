@@ -300,11 +300,14 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                 .calculate();
         if (hookInfo.numHookInvocations() > 0) {
             final var hooksConfig = config.getConfigData(HooksConfig.class);
-            // Avoid overflow in by clamping effective limit (out-of-bound txs will be failed or throttled anyway)
+            // Avoid overflow in by clamping effective limit. Since we validate each hook dispatch can't
+            // exceed maxGasPerSec downstream, we need to allow to charge upto maxGasPerSec * numHookInvocations
             final long effectiveGasLimit = Math.max(
                     0,
                     Math.min(
-                            config.getConfigData(ContractsConfig.class).maxGasPerSec(),
+                            hookInfo.numHookInvocations()
+                                    * config.getConfigData(ContractsConfig.class)
+                                            .maxGasPerSec(),
                             hookInfo.totalGasLimitOfHooks()));
 
             final var gasFees = clampedMultiply(effectiveGasLimit, feeContext.getGasPriceInTinycents());
@@ -321,6 +324,8 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
      * HBAR account transfers (pre-tx and pre+post), Fungible token account transfers (pre-tx and pre+post),
      * NFT transfers for sender and receiver (pre-tx and pre+post)
      * Each increment uses {@code clampedAdd} to avoid overflow.
+     * @param op the crypto transfer operation
+     * @return HookInfo containing the total number of hooks and total gas limit
      */
     public static HookInfo getHookInfo(final CryptoTransferTransactionBody op) {
         var hookInfo = HookInfo.NO_HOOKS;
