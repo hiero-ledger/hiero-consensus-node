@@ -55,7 +55,7 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
             final var op = ConsensusUpdateTopicTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusUpdateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
+            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.INTRINSIC);
             assertThat(result).isNotNull();
             Assertions.assertThat(result.node).isEqualTo(100000L);
             Assertions.assertThat(result.service).isEqualTo(498500000L);

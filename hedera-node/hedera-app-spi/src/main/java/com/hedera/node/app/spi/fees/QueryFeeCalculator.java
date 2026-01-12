@@ -15,21 +15,28 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 public interface QueryFeeCalculator {
     /**
-     * Accumulated service fees as a side effect into the given fee result. This will be implemented by every
-     * single handler's fee calculator.
+     * Accumulate query fees using only the transaction body (no state access).
      *
      * @param query        the query body
-     * @param queryContext the query state
      * @param feeResult    the fee result
      * @param feeSchedule  the fee schedule
-     * @param mode
      */
-    void accumulateNodePayment(
+    void accumulateNodePayment(@NonNull Query query, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule);
+
+    /**
+     * Accumulate query fees using the transaction body and query context. State access allowed.
+     *
+     * @param query        the query body
+     * @param feeResult    the fee result
+     * @param feeSchedule  the fee schedule
+     */
+    default void accumulateNodePayment(
             @NonNull Query query,
             @Nullable QueryContext queryContext,
             @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule,
-            ServiceFeeCalculator.EstimationMode mode);
+            @NonNull FeeSchedule feeSchedule) {
+        accumulateNodePayment(query, feeResult, feeSchedule);
+    }
     /**
      * Returns the query type this calculator is for.
      * @return the query type

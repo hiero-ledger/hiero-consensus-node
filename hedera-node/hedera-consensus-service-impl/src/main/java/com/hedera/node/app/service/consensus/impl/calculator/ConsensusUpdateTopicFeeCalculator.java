@@ -5,10 +5,8 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -17,11 +15,7 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 public class ConsensusUpdateTopicFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
-            @NonNull TransactionBody txnBody,
-            @Nullable FeeContext feeContext,
-            @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule,
-            EstimationMode mode) {
+            @NonNull TransactionBody txnBody, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
         final var op = txnBody.consensusUpdateTopicOrThrow();
         long keys = 0;
         if (op.hasAdminKey()) {

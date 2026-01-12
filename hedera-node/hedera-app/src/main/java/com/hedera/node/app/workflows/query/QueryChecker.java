@@ -223,7 +223,7 @@ public class QueryChecker {
                 dispatcher);
         if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                    .calculateTxFee(transactionInfo.txBody(), feeContext, EstimationMode.Stateful);
+                    .calculateTxFee(transactionInfo.txBody(), feeContext, EstimationMode.STATEFUL);
             final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
             return fees.totalFee();
         }

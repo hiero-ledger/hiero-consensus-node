@@ -6,10 +6,8 @@ import static org.hiero.hapi.support.fees.Extra.BYTES;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
@@ -18,10 +16,8 @@ public class FileAppendFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final FeeSchedule feeSchedule,
-            EstimationMode mode) {
+            @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_APPEND);
         feeResult.addServiceFee(1, serviceDef.baseFee());
         addExtraFee(

@@ -92,7 +92,7 @@ class TokenAirdropFeeCalculatorsTest {
                         .build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
+        final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.INTRINSIC);
 
         assertThat(result).isNotNull();
         assertThat(result.node).isEqualTo(1000L);
@@ -111,7 +111,7 @@ class TokenAirdropFeeCalculatorsTest {
                         TokenCancelAirdropTransactionBody.newBuilder().build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
+        final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.INTRINSIC);
 
         assertThat(result).isNotNull();
         assertThat(result.node).isEqualTo(1000L);
@@ -129,7 +129,7 @@ class TokenAirdropFeeCalculatorsTest {
                 .tokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder().build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Intrinsic);
+        final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.INTRINSIC);
 
         assertThat(result).isNotNull();
         assertThat(result.node).isEqualTo(1000L);

@@ -169,14 +169,14 @@ class TransactionDispatcherTest {
             feeResult.network = 200000L; // 200K tinycents
             feeResult.service = 498500000L; // 498.5M tinycents
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateTxFee(txBody, feeContext, EstimationMode.Stateful))
+            given(simpleFeeCalculator.calculateTxFee(txBody, feeContext, EstimationMode.STATEFUL))
                     .willReturn(feeResult);
 
             // When
             final var result = subject.dispatchComputeFees(feeContext);
 
             // Then: Should use simple fee calculator
-            verify(simpleFeeCalculator).calculateTxFee(txBody, feeContext, EstimationMode.Stateful);
+            verify(simpleFeeCalculator).calculateTxFee(txBody, feeContext, EstimationMode.STATEFUL);
 
             // Verify fees are converted from tinycents to tinybars (divide by 12)
             assertThat(result).isNotNull();

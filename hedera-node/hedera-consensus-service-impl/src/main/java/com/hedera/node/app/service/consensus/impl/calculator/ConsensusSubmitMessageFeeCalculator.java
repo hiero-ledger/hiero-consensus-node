@@ -19,25 +19,29 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
 
     @Override
     public void accumulateServiceFee(
-            @NonNull TransactionBody txnBody,
-            @Nullable FeeContext feeContext,
-            @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule,
-            EstimationMode mode) {
+            @NonNull TransactionBody txnBody, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
         feeResult.addServiceFee(1, serviceDef.baseFee(), "base");
-
         final var op = txnBody.consensusSubmitMessageOrThrow();
-
         final var msgSize = op.message().length();
         addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, msgSize);
-        if (mode == EstimationMode.Stateful) {
-            final var topic = feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrThrow());
-            final var hasCustomFees = (topic != null && !topic.customFees().isEmpty());
-            if (hasCustomFees) {
-                addExtraFee(feeResult, serviceDef, Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, feeSchedule, 1);
-            }
+    }
+
+    @Override
+    public void accumulateServiceFee(
+            @NonNull TransactionBody txnBody,
+            @Nullable FeeContext feeContext,
+            @NonNull FeeResult feeResult,
+            @NonNull FeeSchedule feeSchedule) {
+        this.accumulateServiceFee(txnBody, feeResult, feeSchedule);
+        final var op = txnBody.consensusSubmitMessageOrThrow();
+        final var topic = feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrThrow());
+        final ServiceFeeDefinition serviceDef =
+                lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
+        final var hasCustomFees = (topic != null && !topic.customFees().isEmpty());
+        if (hasCustomFees) {
+            addExtraFee(feeResult, serviceDef, Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, feeSchedule, 1);
         }
     }
 

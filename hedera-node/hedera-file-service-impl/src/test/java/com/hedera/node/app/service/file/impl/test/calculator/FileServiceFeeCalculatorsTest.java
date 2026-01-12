@@ -155,7 +155,7 @@ class FileServiceFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext, EstimationMode.Intrinsic);
+        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext, EstimationMode.INTRINSIC);
 
         assertThat(result).isNotNull();
         assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
@@ -170,8 +170,7 @@ class FileServiceFeeCalculatorsTest {
         final var fileGetInfoFeeCalculator = new FileGetInfoFeeCalculator();
         final var feeResult = new FeeResult();
 
-        fileGetInfoFeeCalculator.accumulateNodePayment(
-                query, mockQueryContext, feeResult, createTestFeeSchedule(), EstimationMode.Intrinsic);
+        fileGetInfoFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.node).isEqualTo(0L);
         assertThat(feeResult.network).isEqualTo(0L);
@@ -195,8 +194,7 @@ class FileServiceFeeCalculatorsTest {
         final var fileGetContentsFeeCalculator = new FileGetContentsFeeCalculator();
         final var feeResult = new FeeResult();
 
-        fileGetContentsFeeCalculator.accumulateNodePayment(
-                query, mockQueryContext, feeResult, createTestFeeSchedule(), EstimationMode.Intrinsic);
+        fileGetContentsFeeCalculator.accumulateNodePayment(query, feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.node).isEqualTo(0L);
         assertThat(feeResult.network).isEqualTo(0L);

@@ -119,7 +119,7 @@ public class SimpleFeesRecordStreamTest {
                             //                            System.out.println("TXN: id " + body.transactionID());
                             //                            System.out.println("calculating simple fees for transaction "
                             // + body);
-                            final var result = calc.calculate(txn, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                            final var result = calc.calculate(txn, ServiceFeeCalculator.EstimationMode.INTRINSIC);
                             //                            System.out.println("result is " + result);
                             // max fee in tiny bar //
                             //                            System.out.println("original      is : " +

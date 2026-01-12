@@ -57,7 +57,7 @@ class CryptoDeleteFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.INTRINSIC);
 
             // Then: Real production values from simpleFeesSchedules.json
             // node=100000, network=200000, service=49850000 (base only, no extras)
@@ -79,7 +79,7 @@ class CryptoDeleteFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.INTRINSIC);
 
             // Then: Base service fee only - CryptoDelete doesn't call addExtraFee
             // service=49850000
@@ -98,7 +98,7 @@ class CryptoDeleteFeeCalculatorTest {
 
             // When
             final var result =
-                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.Intrinsic);
+                    feeCalculator.calculateTxFee(body, feeContext, ServiceFeeCalculator.EstimationMode.INTRINSIC);
 
             // Then: Base service fee only - CryptoDelete doesn't call addExtraFee
             // service=49850000 (SIGNATURES are handled by node fee, not service fee)

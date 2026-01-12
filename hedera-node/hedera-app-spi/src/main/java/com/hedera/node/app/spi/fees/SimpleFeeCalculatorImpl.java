@@ -95,7 +95,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
-        serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule, mode);
+        if (mode == ServiceFeeCalculator.EstimationMode.STATEFUL) {
+            serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
+        } else {
+            serviceFeeCalculator.accumulateServiceFee(txnBody, result, feeSchedule);
+        }
         return result;
     }
 
@@ -146,7 +150,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             ServiceFeeCalculator.EstimationMode mode) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
-        queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule, mode);
+        if (mode == ServiceFeeCalculator.EstimationMode.STATEFUL) {
+            queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
+        } else {
+            queryFeeCalculator.accumulateNodePayment(query, result, feeSchedule);
+        }
         return result;
     }
 }

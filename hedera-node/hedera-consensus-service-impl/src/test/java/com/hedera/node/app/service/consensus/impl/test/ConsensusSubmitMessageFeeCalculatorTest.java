@@ -78,7 +78,7 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
                             .sequenceNumber(1L)
                             .build());
 
-            final var result = feeCalculator.calculateTxFee(body, feeCtx, EstimationMode.Intrinsic);
+            final var result = feeCalculator.calculateTxFee(body, feeCtx, EstimationMode.INTRINSIC);
             assertThat(result).isNotNull();
             Assertions.assertThat(result.node).isEqualTo(100000L);
             Assertions.assertThat(result.service).isEqualTo(498500000L);
@@ -104,7 +104,7 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
             // the 'topic' variable already has custom fees
             given(readableStore.getTopic(topic.topicId())).willReturn(topic);
 
-            final var result = feeCalculator.calculateTxFee(body, feeCtx, EstimationMode.Intrinsic);
+            final var result = feeCalculator.calculateTxFee(body, feeCtx, EstimationMode.INTRINSIC);
             assertThat(result).isNotNull();
             Assertions.assertThat(result.node).isEqualTo(100000L);
             Assertions.assertThat(result.service).isEqualTo(498500000L + 500000000L);

@@ -572,7 +572,7 @@ class QueryCheckerTest extends AppTestBase {
         when(feeManager.getSimpleFeeCalculator()).thenReturn(simpleFeeCalculator);
         when(feeManager.getExchangeRateManager()).thenReturn(exchangeRateManager);
         when(exchangeRateManager.activeRate(any())).thenReturn(activeRate);
-        when(simpleFeeCalculator.calculateTxFee(any(), any(), EstimationMode.Stateful))
+        when(simpleFeeCalculator.calculateTxFee(any(), any(), EstimationMode.STATEFUL))
                 .thenReturn(transferFeeResult);
 
         // Spy QueryChecker to mock feeResultToFees
@@ -585,7 +585,7 @@ class QueryCheckerTest extends AppTestBase {
         // Assert
         assertThat(result).isEqualTo(expectedFee);
         verify(feeManager).getSimpleFeeCalculator();
-        verify(simpleFeeCalculator).calculateTxFee(any(), any(), EstimationMode.Stateful);
+        verify(simpleFeeCalculator).calculateTxFee(any(), any(), EstimationMode.STATEFUL);
     }
 
     private TransactionInfo createPaymentInfo(final AccountID payerID, final AccountAmount... transfers) {

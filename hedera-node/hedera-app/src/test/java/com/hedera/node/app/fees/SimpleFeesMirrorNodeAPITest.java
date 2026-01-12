@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import static com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode.Intrinsic;
+import static com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode.INTRINSIC;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -57,7 +57,7 @@ public class SimpleFeesMirrorNodeAPITest {
                 .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
                 .build();
 
-        final FeeResult result = calc.calculate(txn, Intrinsic);
+        final FeeResult result = calc.calculate(txn, INTRINSIC);
         assertThat(result.service).isEqualTo(9999000000L);
         //        System.out.println("JSON is \n" + feeResultToJson(result));
     }
@@ -258,7 +258,7 @@ public class SimpleFeesMirrorNodeAPITest {
                 .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
                 .build();
 
-        final FeeResult result = calc.calculate(txn, Intrinsic);
+        final FeeResult result = calc.calculate(txn, INTRINSIC);
         assertThat(result.service).isEqualTo(0L);
         //        System.out.println("JSON is \n" + feeResultToJson(result));
     }
@@ -273,7 +273,7 @@ public class SimpleFeesMirrorNodeAPITest {
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
         // 0.01000
-        final FeeResult result = calc.calculate(txn, Intrinsic);
+        final FeeResult result = calc.calculate(txn, INTRINSIC);
         final var TINY_CENTS = 100_000_000L;
         assertThat(result.total()).isEqualTo(1 * TINY_CENTS); // 0.01 USD
     }
@@ -294,7 +294,7 @@ public class SimpleFeesMirrorNodeAPITest {
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
         // 0.01000
-        final FeeResult result = calc.calculate(txn, Intrinsic);
+        final FeeResult result = calc.calculate(txn, INTRINSIC);
         final var TINY_CENTS = 100_000_000L;
         assertThat(result.total()).isEqualTo(200 * TINY_CENTS); // 2.00 USD
         System.out.println("JSON is \n" + feeResultToJson(result));
@@ -313,7 +313,7 @@ public class SimpleFeesMirrorNodeAPITest {
                         .build())
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
-        final FeeResult result = calc.calculate(txn, Intrinsic);
+        final FeeResult result = calc.calculate(txn, INTRINSIC);
         assertThat(result.service).isEqualTo(0L);
         assertThat(result.total()).isEqualTo(1_000_000L); // add in the node + network fee
     }
@@ -346,7 +346,7 @@ public class SimpleFeesMirrorNodeAPITest {
                 .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
                 .build();
 
-        final FeeResult result = calc.calculate(txn, Intrinsic);
+        final FeeResult result = calc.calculate(txn, INTRINSIC);
         assertThat(result.service).isEqualTo(0L);
         //        System.out.println("JSON is \n" + feeResultToJson(result));
     }

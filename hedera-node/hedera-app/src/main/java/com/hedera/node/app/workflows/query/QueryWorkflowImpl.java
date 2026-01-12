@@ -238,7 +238,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             long queryFees = 0;
                             if (shouldUseSimpleFees(context)) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(context.query(), context, EstimationMode.Stateful);
+                                        .calculateQueryFee(context.query(), context, EstimationMode.STATEFUL);
                                 queryFees = tinycentsToTinybars(
                                         queryFeeTinyCents.total(),
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
@@ -298,7 +298,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     long queryFees = 0;
                     if (shouldUseSimpleFees(context)) {
                         final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                .calculateQueryFee(context.query(), context, EstimationMode.Stateful);
+                                .calculateQueryFee(context.query(), context, EstimationMode.STATEFUL);
                         queryFees = tinycentsToTinybars(
                                 queryFeeTinyCents.total(),
                                 fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));

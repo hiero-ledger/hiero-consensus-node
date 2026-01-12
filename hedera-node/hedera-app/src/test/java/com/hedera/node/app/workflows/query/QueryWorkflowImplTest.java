@@ -1151,7 +1151,7 @@ class QueryWorkflowImplTest extends AppTestBase {
 
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
             given(simpleFeeCalculator
-                            .calculateQueryFee(query, queryContext, EstimationMode.Stateful)
+                            .calculateQueryFee(query, queryContext, EstimationMode.STATEFUL)
                             .total())
                     .willReturn(100000L);
 
@@ -1162,7 +1162,7 @@ class QueryWorkflowImplTest extends AppTestBase {
             workflow.handleQuery(requestBuffer, responseBuffer);
 
             // Then: Should use simple fee calculator
-            verify(simpleFeeCalculator).calculateQueryFee(eq(query), any(), EstimationMode.Stateful);
+            verify(simpleFeeCalculator).calculateQueryFee(eq(query), any(), EstimationMode.STATEFUL);
         }
 
         @Test

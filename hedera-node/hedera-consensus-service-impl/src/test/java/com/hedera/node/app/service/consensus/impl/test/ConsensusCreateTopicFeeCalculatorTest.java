@@ -55,7 +55,7 @@ public class ConsensusCreateTopicFeeCalculatorTest {
             final var op = ConsensusCreateTopicTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusCreateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.Stateful);
+            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
 
             assertThat(result).isNotNull();
             Assertions.assertThat(result.node).isEqualTo(100000L);

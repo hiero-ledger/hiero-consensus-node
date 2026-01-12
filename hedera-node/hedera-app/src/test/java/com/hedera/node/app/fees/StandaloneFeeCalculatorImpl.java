@@ -61,11 +61,11 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
             feeContext.setNumTxnSignatures(0);
         }
         if (transaction.hasBody()) {
-            return calc.calculateTxFee(transaction.bodyOrThrow(), feeContext, EstimationMode.Intrinsic);
+            return calc.calculateTxFee(transaction.bodyOrThrow(), feeContext, EstimationMode.INTRINSIC);
         }
         final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(
                 BufferedData.wrap(signedTransaction.bodyBytes().toByteArray()));
-        return calc.calculateTxFee(transactionBody, feeContext, EstimationMode.Intrinsic);
+        return calc.calculateTxFee(transactionBody, feeContext, EstimationMode.INTRINSIC);
     }
 
     private class TestFeeContextImpl implements FeeContext {

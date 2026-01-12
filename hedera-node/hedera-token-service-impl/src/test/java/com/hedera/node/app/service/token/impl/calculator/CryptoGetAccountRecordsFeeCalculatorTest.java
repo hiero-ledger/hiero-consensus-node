@@ -59,7 +59,7 @@ class CryptoGetAccountRecordsFeeCalculatorTest {
                     Query.newBuilder().cryptoGetAccountRecords(cryptoGetRecords).build();
 
             // When
-            final var result = feeCalculator.calculateQueryFee(query, null, EstimationMode.Intrinsic);
+            final var result = feeCalculator.calculateQueryFee(query, null, EstimationMode.INTRINSIC);
 
             // Then: service=1000000 ($0.0001 USD)
             assertThat(result).isNotNull();
@@ -78,7 +78,7 @@ class CryptoGetAccountRecordsFeeCalculatorTest {
                     Query.newBuilder().cryptoGetAccountRecords(cryptoGetRecords).build();
 
             // When
-            final var result = feeCalculator.calculateQueryFee(query, null, EstimationMode.Intrinsic);
+            final var result = feeCalculator.calculateQueryFee(query, null, EstimationMode.INTRINSIC);
 
             // Then: Same fees - context is optional
             assertThat(result).isEqualTo(1000000L);

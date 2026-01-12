@@ -6,10 +6,8 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -21,10 +19,8 @@ public class TokenCreateFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final FeeSchedule feeSchedule,
-            EstimationMode mode) {
+            @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_CREATE);
         feeResult.addServiceFee(1, serviceDef.baseFee(), serviceDef.name().name());
         var op = txnBody.tokenCreationOrThrow();

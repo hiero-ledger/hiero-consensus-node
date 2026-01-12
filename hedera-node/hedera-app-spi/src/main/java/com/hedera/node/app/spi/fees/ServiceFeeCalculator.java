@@ -31,24 +31,35 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 /** Calculates transaction and query fees. Null context = approximate, non-null = exact using state. */
 public interface ServiceFeeCalculator {
     enum EstimationMode {
-        Stateful,
-        Intrinsic
+        STATEFUL,
+        INTRINSIC
     }
     /**
-     * Accumulated service fees as a side effect into the given fee result. This will be implemented by every
-     * single handler's fee calculator.
+     * Accumulate service fees using only the transaction body (no state access).
+     *
+     * @param txnBody the transaction body
+     * @param feeResult the fee result
+     * @param feeSchedule the fee schedule
+     */
+    void accumulateServiceFee(
+            @NonNull TransactionBody txnBody, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule);
+
+    /**
+     * Accumulate service fees using the fee context. Using state is allowed.
      *
      * @param txnBody the transaction body
      * @param feeContext the fee context
      * @param feeResult the fee result
      * @param feeSchedule the fee schedule
      */
-    void accumulateServiceFee(
+    default void accumulateServiceFee(
             @NonNull TransactionBody txnBody,
             @Nullable FeeContext feeContext,
             @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule,
-            EstimationMode mode);
+            @NonNull FeeSchedule feeSchedule) {
+        accumulateServiceFee(txnBody, feeResult, feeSchedule);
+    }
+
     /**
      * Returns the transaction type this calculator is for.
      * @return the transaction type
