@@ -168,7 +168,7 @@ jobs:
           echo "$MATRIX" | jq .
           
           # Set the output (simplified name)
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+          echo "matrix=$(echo $MATRIX | jq -c .)" >> $GITHUB_OUTPUT
 
   verify-output:
     name: Verify Matrix Output
@@ -184,7 +184,8 @@ jobs:
       - name: Debug Matrix Values
         run: |
           echo "Raw matrix output: ${{ needs.generate-matrix.outputs.matrix }}"
-          echo "All matrix values: ${{ toJSON(matrix) }}"
+          echo "All matrix values: ${{ toJSON(fromJSON(matrix)) }}"
+
 
   # Then in verify-artifacts:
   verify-artifacts:
