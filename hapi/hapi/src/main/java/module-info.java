@@ -102,6 +102,7 @@ module com.hedera.node.hapi {
     opens com.hedera.hapi.services.auxiliary.history.legacy;
     opens com.hedera.node.internal.network.legacy;
     opens com.hedera.hapi.node.state.token.legacy;
+    opens com.hedera.hapi.node.tss.legacy;
 
     // for reflective access when asserting object equality
     opens com.hedera.hapi.platform.state to
