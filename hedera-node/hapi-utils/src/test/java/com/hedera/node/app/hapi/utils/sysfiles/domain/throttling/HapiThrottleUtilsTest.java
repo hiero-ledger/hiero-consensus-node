@@ -10,7 +10,6 @@ import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.ThrottleBucket;
 import com.hederahashgraph.api.proto.java.ThrottleGroup;
 import java.io.IOException;
-
 import org.junit.jupiter.api.Test;
 
 class HapiThrottleUtilsTest {

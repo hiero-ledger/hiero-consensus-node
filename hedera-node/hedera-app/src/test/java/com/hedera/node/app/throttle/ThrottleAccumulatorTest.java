@@ -2041,7 +2041,8 @@ class ThrottleAccumulatorTest {
         // High-volume throttles should exist for CRYPTO_CREATE
         assertFalse(subject.highVolumeActiveThrottles().isEmpty(), "High-volume throttles should be populated");
         // Should have high-volume throttle for CRYPTO_CREATE
-        assertTrue(subject.hasHighVolumeThrottleFor(CRYPTO_CREATE), "Should have high-volume throttle for CRYPTO_CREATE");
+        assertTrue(
+                subject.hasHighVolumeThrottleFor(CRYPTO_CREATE), "Should have high-volume throttle for CRYPTO_CREATE");
         // Should NOT have high-volume throttle for CRYPTO_TRANSFER (not in high-volume bucket)
         assertFalse(
                 subject.hasHighVolumeThrottleFor(CRYPTO_TRANSFER),
@@ -2073,8 +2074,8 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
 
         // Create a high-volume CryptoCreate transaction
-        final var cryptoCreateBody =
-                com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder().build();
+        final var cryptoCreateBody = com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder()
+                .build();
         final var highVolumeTxBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .cryptoCreateAccount(cryptoCreateBody)
@@ -2097,7 +2098,8 @@ class ThrottleAccumulatorTest {
         // High-volume bucket has 1000 ops/sec with 2 sec burst = 2000 capacity
         var throttled = false;
         for (int i = 0; i < 2100; i++) {
-            throttled = subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT.plusNanos(i), state, null, false);
+            throttled =
+                    subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT.plusNanos(i), state, null, false);
             if (throttled) break;
         }
 
@@ -2130,8 +2132,8 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
 
         // Create a normal (non-high-volume) CryptoCreate transaction
-        final var cryptoCreateBody =
-                com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder().build();
+        final var cryptoCreateBody = com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder()
+                .build();
         final var normalTxBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .cryptoCreateAccount(cryptoCreateBody)
@@ -2190,7 +2192,8 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
 
         // Create a high-volume CryptoTransfer transaction (no high-volume bucket exists for this)
-        final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder().build();
+        final var cryptoTransferBody =
+                CryptoTransferTransactionBody.newBuilder().build();
         final var highVolumeTxBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .cryptoTransfer(cryptoTransferBody)
@@ -2210,11 +2213,12 @@ class ThrottleAccumulatorTest {
                 null);
 
         // when - the transaction should not be throttled (falls back to normal bucket)
-        final var throttled =
-                subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT, state, null, false);
+        final var throttled = subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT, state, null, false);
 
         // then - should not be throttled on first attempt (uses normal bucket)
-        assertFalse(throttled, "High-volume transaction should fall back to normal bucket when no high-volume bucket exists");
+        assertFalse(
+                throttled,
+                "High-volume transaction should fall back to normal bucket when no high-volume bucket exists");
         // Verify no high-volume bucket exists for CRYPTO_TRANSFER
         assertFalse(
                 subject.hasHighVolumeThrottleFor(CRYPTO_TRANSFER),
