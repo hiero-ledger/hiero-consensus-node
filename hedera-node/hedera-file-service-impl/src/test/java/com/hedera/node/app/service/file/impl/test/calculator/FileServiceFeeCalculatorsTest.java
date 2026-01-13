@@ -194,7 +194,7 @@ class FileServiceFeeCalculatorsTest {
         final var fileGetContentsFeeCalculator = new FileGetContentsFeeCalculator();
         final var feeResult = new FeeResult();
 
-        fileGetContentsFeeCalculator.accumulateNodePayment(query, feeResult, createTestFeeSchedule());
+        fileGetContentsFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.node).isEqualTo(0L);
         assertThat(feeResult.network).isEqualTo(0L);
