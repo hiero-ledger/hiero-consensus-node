@@ -45,7 +45,19 @@
           "extras": [
             { "name": "KEYS", "includedCount": 1 },
             { "name": "HOOK_UPDATES", "includedCount": 0 }
-          ]
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "CryptoUpdate",
@@ -79,7 +91,19 @@
           "baseFee": 500000000,
           "extras": [
             { "name": "ALLOWANCES", "includedCount": 1 }
-          ]
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "CryptoDeleteAllowance",
@@ -99,7 +123,19 @@
           "extras": [
             { "name": "KEYS", "includedCount": 0 },
             { "name": "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE", "includedCount": 0 }
-          ]
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "ConsensusUpdateTopic",
@@ -148,7 +184,19 @@
           "extras": [
             { "name": "KEYS", "includedCount": 1},
             { "name": "BYTES", "includedCount": 1000}
-          ]
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "FileUpdate",
@@ -163,7 +211,19 @@
           "baseFee": 499000000,
           "extras": [
             { "name": "BYTES", "includedCount": 1000}
-          ]
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "FileDelete",
@@ -193,14 +253,38 @@
           "extras": [
             {"name": "KEYS", "includedCount": 1},
             {"name": "TOKEN_CREATE_WITH_CUSTOM_FEE", "includedCount": 0 }
-          ]
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "TokenMint",
           "baseFee": 9000000,
           "extras": [
             {"name": "TOKEN_MINT_NFT", "includedCount": 0 }
-          ]
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "TokenBurn",
@@ -241,9 +325,57 @@
           ]
         },
         {
+          "name": "TokenAssociateToAccount",
+          "baseFee": 500000000,
+          "extras": [],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "TokenAirdrop",
+          "baseFee": 1000000000,
+          "extras": [
+            { "name": "AIRDROPS", "includedCount": 1 }
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
+        },
+        {
           "name": "TokenClaimAirdrop",
           "baseFee": 9000000,
-          "extras": []
+          "extras": [],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "TokenCancelAirdrop",
@@ -261,7 +393,19 @@
           "extras": [
             { "name": "KEYS", "includedCount": 1},
             { "name": "SCHEDULE_CREATE_CONTRACT_CALL_BASE", "includedCount": 0}
-          ]
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
         },
         {
           "name": "ScheduleSign",
@@ -277,6 +421,47 @@
           "name": "ScheduleGetInfo",
           "baseFee": 0,
           "extras": []
+        }
+      ]
+    },
+    {
+      "name": "Contract",
+      "schedule": [
+        {
+          "name": "ContractCreate",
+          "baseFee": 2000000000,
+          "extras": [
+            { "name": "GAS", "includedCount": 0 }
+          ],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "LambdaSStore",
+          "baseFee": 10000000,
+          "extras": [],
+          "highVolumeRates": {
+            "maxMultiplier": 4000000,
+            "pricingCurve": {
+              "piecewiseLinear": {
+                "points": [
+                  { "utilizationPercentage": 0, "multiplier": 0 },
+                  { "utilizationPercentage": 50000, "multiplier": 1000000 },
+                  { "utilizationPercentage": 100000, "multiplier": 4000000 }
+                ]
+              }
+            }
+          }
         }
       ]
     }
