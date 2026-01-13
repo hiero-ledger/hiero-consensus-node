@@ -391,7 +391,8 @@ public class WrapsHistoryProver implements HistoryProver {
                                                         Bytes.wrap(aggregatePhaseOutput.signature()),
                                                         new ArrayList<>(phaseMessages
                                                                 .get(R1)
-                                                                .keySet()));
+                                                                .keySet()),
+                                                        targetMetadata);
                                                 final var proof = HistoryProof.newBuilder()
                                                         .targetProofKeys(proofKeyList)
                                                         .targetHistory(

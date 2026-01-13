@@ -38,7 +38,7 @@ env:
 jobs:
   parameters:
     name: Determine Configurable Parameters
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     outputs:
       solo-ge-0440: ${{ steps.set-parameters.outputs.solo-ge-0440 }}
       solo-version: ${{ steps.set-parameters.outputs.solo-version }}
@@ -63,7 +63,7 @@ jobs:
 
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
@@ -206,10 +206,20 @@ jobs:
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
 
-            CLEANED_COMMIT_LIST="${COMMIT_LIST//\`/}"
-            ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${CLEANED_COMMIT_LIST}")
-            ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
-            echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
+            COMMIT_COUNT=$(echo "$COMMIT_LIST" | wc -l)
+            COMMIT_LIST_STR=""
+            if [[ -z "${COMMIT_LIST//[[:space:]]/}" ]]; then
+              # should never get here.
+              echo "::error file=zxcron-extended-test-suite.yaml,line=213::No commits associated with this release; exiting."
+              exit 1
+            elif [[ $COMMIT_COUNT -gt 15 ]]; then
+              COMMIT_LIST_STR="Please refer to the workflow summary for the full list of associated commits."
+            else
+              PARSED_COMMIT_LIST="${COMMIT_LIST//\`/}"
+              ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${PARSED_COMMIT_LIST}")
+              COMMIT_LIST_STR=${ESCAPED_COMMIT_LIST:1:-1}
+            fi
+            echo "commit-list=${COMMIT_LIST_STR}" >> "${GITHUB_OUTPUT}"
 
             # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
@@ -298,7 +308,7 @@ jobs:
 
   tag-for-promotion:
     name: Tag as XTS-Passing
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution
@@ -361,7 +371,7 @@ jobs:
 
   report-success:
     name: Report XTS execution success
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution
@@ -485,7 +495,7 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution

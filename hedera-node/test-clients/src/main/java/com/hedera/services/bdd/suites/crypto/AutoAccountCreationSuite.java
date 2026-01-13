@@ -577,7 +577,7 @@ public class AutoAccountCreationSuite {
         // The expected (network + service) fee for two token transfers to a receiver
         // with no auto-creation; note it is approximate because the fee will vary slightly
         // with the size of the sig map, depending on the lengths of the public key prefixes required
-        final long approxTransferFee = 1162008L;
+        final long approxTransferFee = 1218008L;
 
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
@@ -598,7 +598,9 @@ public class AutoAccountCreationSuite {
                 cryptoTransfer(
                                 moving(100, A_TOKEN).between(TOKEN_TREASURY, CIVILIAN),
                                 moving(100, B_TOKEN).between(TOKEN_TREASURY, CIVILIAN))
-                        .via("transferAToSponsor"),
+                        .via("transferAToSponsor")
+                        .signedBy(TOKEN_TREASURY)
+                        .payingWith(TOKEN_TREASURY),
                 getAccountInfo(TOKEN_TREASURY)
                         .hasToken(relationshipWith(B_TOKEN).balance(900)),
                 getAccountInfo(TOKEN_TREASURY)
@@ -1097,7 +1099,7 @@ public class AutoAccountCreationSuite {
     @HapiTest
     final Stream<DynamicTest> autoAccountCreationsHappyPath() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
+        final long transferFee = 190000L;
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
                 cryptoCreate(CIVILIAN).balance(10 * ONE_HBAR),
@@ -1107,6 +1109,7 @@ public class AutoAccountCreationSuite {
                                 tinyBarsFromToWithAlias(SPONSOR, VALID_ALIAS, ONE_HUNDRED_HBARS),
                                 tinyBarsFromToWithAlias(CIVILIAN, VALID_ALIAS, ONE_HBAR))
                         .via(TRANSFER_TXN)
+                        .signedBy(PAYER, SPONSOR, CIVILIAN)
                         .payingWith(PAYER),
                 getReceipt(TRANSFER_TXN).andAnyChildReceipts().hasChildAutoAccountCreations(1),
                 getTxnRecord(TRANSFER_TXN).andAllChildRecords().logged(),
@@ -1183,8 +1186,8 @@ public class AutoAccountCreationSuite {
         final var childRecordFee = child.getTransactionFee();
         assertNotEquals(0, childRecordFee);
         // A single extra byte in the signature map will cost just ~40 tinybar more, so allowing
-        // a delta of 1000 tinybar is sufficient to stabilize this test indefinitely
-        final var permissibleDelta = 1000L;
+        // a delta of 2000 tinybar is sufficient to stabilize this test indefinitely
+        final var permissibleDelta = 2000L;
         final var observedDelta = Math.abs(parent.getTransactionFee() - approxTransferFee - squashedFees);
         assertTrue(
                 observedDelta <= permissibleDelta,

@@ -724,8 +724,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             // The indirect proof seq field could still be null if the factory doesn't produce a validator
             if (indirectProofSeq != null) {
                 // We can't verify the indirect proof until we have a signed block proof, so store the indirect proof
-                // for
-                // later verification and short-circuit the remainder of the proof verification
+                // for later verification and short-circuit the remainder of the proof verification
                 indirectProofSeq.registerProof(
                         blockNumber,
                         proof,
@@ -749,50 +748,59 @@ public class StateChangesValidator implements BlockStreamValidator {
 
         // If hints are enabled, verify the signature using the hints library
         if (hintsLibrary != null) {
-            final var signature = proof.signedBlockProofOrThrow().blockSignature();
-            final var vk = proof.verificationKey();
-            final boolean valid =
-                    hintsLibrary.verifyAggregate(signature, expectedBlockHash, vk, 1, hintsThresholdDenominator);
-            if (!valid) {
-                Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
-            } else {
-                logger.info("Verified signature on #{}", proof.block());
-            }
-            // If history proofs are enabled, verify the history proof
-            if (historyLibrary != null) {
-                assertTrue(
-                        proof.hasVerificationKeyProof(),
-                        "No chain-of-trust for hinTS key in proof (start round #" + firstRound + ") - " + proof);
-                final var chainOfTrustProof = proof.verificationKeyProofOrThrow();
-                switch (chainOfTrustProof.proof().kind()) {
-                    case UNSET ->
-                        Assertions.fail("Empty chain-of-trust for hinTS key in proof (start round #" + firstRound
-                                + ") - " + proof);
-                    case AGGREGATED_NODE_SIGNATURES -> {
-                        final var context = vkContexts.get(vk);
-                        final var wrapsMessage = context.wrapsMessageGiven(historyLibrary, vk);
-                        final var nonRecursiveProof = chainOfTrustProof.aggregatedNodeSignaturesOrThrow();
-                        assertTrue(
-                                historyLibrary.verifyAggregateSignature(
-                                        wrapsMessage,
-                                        context.publicKeysFor(nonRecursiveProof.signingNodeIds()),
-                                        nonRecursiveProof.aggregatedSignature().toByteArray()),
-                                "Invalid aggregated signature "
-                                        + nonRecursiveProof.aggregatedSignature()
-                                        + " in proof (start round #" + firstRound
-                                        + ", signing node ids " + nonRecursiveProof.signingNodeIds()
-                                        + ") on WRAPS message " + Bytes.wrap(wrapsMessage)
-                                        + " with metadata " + vk
-                                        + " - context " + context);
-                    }
-                    case WRAPS_PROOF -> {
-                        final var compressedProof = chainOfTrustProof.wrapsProofOrThrow();
-                        assertTrue(
-                                historyLibrary.isValidWraps(compressedProof.toByteArray()),
-                                "Invalid WRAPS proof (start round #" + firstRound + ") - " + chainOfTrustProof);
-                    }
-                }
-            }
+            // (FUTURE: GH issue #22676) Re-enable using the hints and history libraries to verify the
+            // chain-of-trust. Necessary protobuf changes cause the following code not to compile, but
+            // the method for retrieving the verification key hasn't yet been finalized, so this code
+            // is disabled for a short time until such method is enumerated.
+            //            final var signature = proof.signedBlockProofOrThrow().blockSignature();
+            //            final var vk = proof.verificationKey();
+            //            final boolean valid =
+            //                    hintsLibrary.verifyAggregate(signature, expectedBlockHash, vk, 1,
+            // hintsThresholdDenominator);
+            //            if (!valid) {
+            //                Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " +
+            // proof);
+            //            } else {
+            //                logger.info("Verified signature on #{}", proof.block());
+            //            }
+            //            // If history proofs are enabled, verify the history proof
+            //            if (historyLibrary != null) {
+            //                assertTrue(
+            //                        proof.hasVerificationKeyProof(),
+            //                        "No chain-of-trust for hinTS key in proof (start round #" + firstRound + ") - " +
+            // proof);
+            //                final var chainOfTrustProof = proof.verificationKeyProofOrThrow();
+            //                switch (chainOfTrustProof.proof().kind()) {
+            //                    case UNSET ->
+            //                        Assertions.fail("Empty chain-of-trust for hinTS key in proof (start round #" +
+            // firstRound
+            //                                + ") - " + proof);
+            //                    case AGGREGATED_NODE_SIGNATURES -> {
+            //                        final var context = vkContexts.get(vk);
+            //                        final var wrapsMessage = context.wrapsMessageGiven(historyLibrary, vk);
+            //                        final var nonRecursiveProof = chainOfTrustProof.aggregatedNodeSignaturesOrThrow();
+            //                        assertTrue(
+            //                                historyLibrary.verifyAggregateSignature(
+            //                                        wrapsMessage,
+            //                                        context.publicKeysFor(nonRecursiveProof.signingNodeIds()),
+            //                                        nonRecursiveProof.aggregatedSignature().toByteArray()),
+            //                                "Invalid aggregated signature "
+            //                                        + nonRecursiveProof.aggregatedSignature()
+            //                                        + " in proof (start round #" + firstRound
+            //                                        + ", signing node ids " + nonRecursiveProof.signingNodeIds()
+            //                                        + ") on WRAPS message " + Bytes.wrap(wrapsMessage)
+            //                                        + " with metadata " + vk
+            //                                        + " - context " + context);
+            //                    }
+            //                    case WRAPS_PROOF -> {
+            //                        final var compressedProof = chainOfTrustProof.wrapsProofOrThrow();
+            //                        assertTrue(
+            //                                historyLibrary.isValidWraps(compressedProof.toByteArray()),
+            //                                "Invalid WRAPS proof (start round #" + firstRound + ") - " +
+            // chainOfTrustProof);
+            //                    }
+            //                }
+            //            }
 
             if (indirectProofsNeedVerification()) {
                 logger.info("Verifying contiguous indirect proofs prior to block {}", blockNumber);
