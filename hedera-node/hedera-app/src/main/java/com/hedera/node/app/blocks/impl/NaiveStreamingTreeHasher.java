@@ -20,8 +20,8 @@ import java.util.concurrent.CompletableFuture;
  * {@link ByteBuffer} leaves. Used to test the correctness of more efficient implementations.
  */
 public class NaiveStreamingTreeHasher implements StreamingTreeHasher {
-    private static final byte[] EMPTY_HASH =
-            hashLeaf(BlockStreamManager.ZERO_BLOCK_HASH).toByteArray();
+    private static final Bytes EMPTY_HASH_BYTES = hashLeaf(BlockStreamManager.ZERO_BLOCK_HASH);
+    private static final byte[] EMPTY_HASH = EMPTY_HASH_BYTES.toByteArray();
 
     private final List<byte[]> leafHashes = new ArrayList<>();
     private boolean rootHashRequested = false;
@@ -62,7 +62,7 @@ public class NaiveStreamingTreeHasher implements StreamingTreeHasher {
             // Even though we have no leaves in this tree at all, and typically hash a value before adding it as a leaf,
             // the empty hash value here has already been hashed as a leaf, and therefore doesn't need to be hashed
             // again
-            return CompletableFuture.completedFuture(Bytes.wrap(EMPTY_HASH));
+            return CompletableFuture.completedFuture(EMPTY_HASH_BYTES);
         }
         Queue<byte[]> hashes = new LinkedList<>(leafHashes);
         final int n = hashes.size();

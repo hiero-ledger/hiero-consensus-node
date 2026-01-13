@@ -15,6 +15,7 @@ import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.bloc
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
@@ -267,9 +268,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .map(Bytes::toByteArray)
                 .toList();
         previousBlockHashes = new IncrementalStreamingHasher(
-                CommonUtils.sha384DigestOrThrow(),
-                prevBlocksIntermediateHashes,
-                blockStreamInfo.intermediateBlockRootsLeafCount());
+                sha384DigestOrThrow(), prevBlocksIntermediateHashes, blockStreamInfo.intermediateBlockRootsLeafCount());
         final var allPrevBlocksHash = Bytes.wrap(previousBlockHashes.computeRootHash());
 
         // Branch 3: Retrieve the previous block's starting state hash (not done right here, just part of the calculated
@@ -982,7 +981,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 case TRANSACTION_RESULT -> {
                     runningHashManager.nextResultHash(hash);
                     hash.rewind();
-                    outputTreeHasher.addLeaf(ByteBuffer.wrap(hash.array()));
+                    outputTreeHasher.addLeaf(hash);
                 }
                 case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(hash);
                 case STATE_CHANGES -> stateChangesHasher.addLeaf(hash);
