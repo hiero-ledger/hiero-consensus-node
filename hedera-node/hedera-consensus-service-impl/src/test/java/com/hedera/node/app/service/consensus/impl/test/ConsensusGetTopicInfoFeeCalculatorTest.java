@@ -47,9 +47,9 @@ public class ConsensusGetTopicInfoFeeCalculatorTest {
     void calculateFee() {
         final var op = ConsensusGetTopicInfoQuery.newBuilder().build();
         final var query = Query.newBuilder().consensusGetTopicInfo(op).build();
-        final var result = feeCalculator.calculateQueryFee(query, queryContext, EstimationMode.INTRINSIC);
+        final var result = feeCalculator.calculateQueryFee(query, queryContext, EstimationMode.STATEFUL);
 
-        assertThat(result).isEqualTo(GET_INFO_BASE_FEE);
+        assertThat(result.total()).isEqualTo(GET_INFO_BASE_FEE);
     }
 
     private static FeeSchedule createTestFeeSchedule() {
