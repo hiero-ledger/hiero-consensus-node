@@ -49,10 +49,14 @@ public class SimpleSmartContractServiceFeesTest {
     static final double ETHEREUM_CALL_BASE_FEE = 0.0001;
     // 0.0001 cost and 9x network multiplier = 0.001
     static final double SINGLE_SIGNATURE_COST = 0.001;
+    static final double SINGLE_BYTE_FEE = 0.000011;
     static final double EXPECTED_GAS_USED = 0.00184;
 
     @Contract(contract = "SmartContractsFees")
     static SpecContract contract;
+
+    @Contract(contract = "CalldataSize")
+    static SpecContract calldataContract;
 
     @Account(tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount civilian;
@@ -62,7 +66,7 @@ public class SimpleSmartContractServiceFeesTest {
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(contract.getInfo(), civilian.getInfo(), relayer.getInfo());
+        lifecycle.doAdhoc(contract.getInfo(), calldataContract.getInfo(), civilian.getInfo(), relayer.getInfo());
     }
 
     @HapiTest
@@ -121,5 +125,32 @@ public class SimpleSmartContractServiceFeesTest {
                 validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 1),
                 validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 1),
                 validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE, 1));
+    }
+
+    @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
+    @DisplayName("Do an JUMBO ethereum transaction and assure proper fee charged")
+    final Stream<DynamicTest> jumboEthTransactionBaseUSDFee() {
+        final var payloadSize = 10 * 1024;
+        final var jumboPayload = new byte[payloadSize];
+        // (ethData - includedBytes) * byteFee
+        final var expectedFeeFromBytes = (10480 - 6144) * SINGLE_BYTE_FEE;
+        final var jumboGasUsed = 0.0054;
+        return hapiTest(
+                overriding("contracts.evm.ethTransaction.zeroHapiFees.enabled", "false"),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                ethereumCall(calldataContract.name(), "callme", (Object) jumboPayload)
+                        .fee(ONE_HBAR)
+                        .memo("TESTT")
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signedBy(SECP_256K1_SOURCE_KEY)
+                        .payingWith(relayer.name())
+                        .markAsJumboTxn()
+                        .nonce(0)
+                        .via("ethCall"),
+                // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
+                validateChargedUsdWithin("ethCall", jumboGasUsed + ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes, 1),
+                validateChargedUsdForGasOnly("ethCall", jumboGasUsed, 1),
+                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes, 1));
     }
 }

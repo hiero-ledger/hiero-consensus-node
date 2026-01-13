@@ -97,7 +97,13 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
-        return Set.of(new HookStoreHandler.FeeCalculator());
+        return Set.of(
+                new HookStoreHandler.FeeCalculator(),
+                new ContractCreateFeeCalculator(),
+                new ContractCallFeeCalculator(),
+                new ContractDeleteFeeCalculator(),
+                new ContractUpdateFeeCalculator(),
+                new EthereumFeeCalculator());
     }
 
     public void createMetrics() {
@@ -126,16 +132,6 @@ public class ContractServiceImpl implements ContractService {
      */
     public NativeLibVerifier nativeLibVerifier() {
         return component.nativeLibVerifier();
-    }
-
-    @Override
-    public Set<ServiceFeeCalculator> serviceFeeCalculators() {
-        return Set.of(
-                new ContractCreateFeeCalculator(),
-                new ContractCallFeeCalculator(),
-                new ContractDeleteFeeCalculator(),
-                new ContractUpdateFeeCalculator(),
-                new EthereumFeeCalculator());
     }
 
     private @NonNull List<CallTranslator<? extends AbstractCallAttempt<?>>> allCallTranslators() {
