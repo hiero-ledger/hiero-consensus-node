@@ -499,9 +499,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * Put a key/value during the current writing session. The value will not be retrievable until
      * it is committed in the {@link #endWriting()} call.
      *
-     * <p>This method may be called multiple times for the same key in a single writing
-     * session. The value from the last call will be stored in this map after the session is
-     * ended.
+     * <p>For any given key, this method may be called only once in a single writing session.
      *
      * @param keyBytes the key to store the value for
      * @param value the value to store for given key
@@ -514,7 +512,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         final BucketMutation bucketMap = findBucketForUpdate(keyBytes, keyHashCode, INVALID_VALUE, value);
         // Identity check: findBucketForUpdate() may have already added a bucket mutation for this
         // key, in this case it doesn't make sense to call bucketMap.put()
-        if ((bucketMap.getKeyBytes() != keyBytes) || (bucketMap.getNext() != null)) {
+        if (bucketMap.getKeyBytes() != keyBytes) {
             bucketMap.put(keyBytes, keyHashCode, value);
         }
     }
@@ -543,11 +541,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     void putIfEqual(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
         final BucketMutation bucketMap = findBucketForUpdate(keyBytes, keyHashCode, oldValue, value);
-        // Identity check: findBucketForUpdate() may have already added a bucket mutation for this
-        // key, in this case it doesn't make sense to call bucketMap.putIfEqual()
-        if ((bucketMap.getKeyBytes() != keyBytes) || (bucketMap.getNext() != null)) {
-            bucketMap.putIfEqual(keyBytes, keyHashCode, oldValue, value);
-        }
+        bucketMap.putIfEqual(keyBytes, keyHashCode, oldValue, value);
     }
 
     /**
