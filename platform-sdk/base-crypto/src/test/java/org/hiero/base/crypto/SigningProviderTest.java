@@ -26,8 +26,6 @@ public class SigningProviderTest {
     public static void startup() throws NoSuchAlgorithmException {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         cryptoConfig = configuration.getConfigData(CryptoConfig.class);
-
-        assertTrue(cryptoConfig.computeCpuDigestThreadCount() > 1, "Check cpu digest thread count");
     }
 
     @ParameterizedTest
