@@ -42,6 +42,8 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hederahashgraph.api.proto.java.AccountID.AccountCase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -470,5 +472,17 @@ public class CommonPbjConverters {
                 .port(t.getPort())
                 .domainName(t.getDomainName())
                 .build();
+    }
+
+    public static ClprLedgerConfiguration toPbj(@NonNull org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration clprLedgerConfiguration) {
+        requireNonNull(clprLedgerConfiguration);
+        try{
+            final var bytes = clprLedgerConfiguration.toByteArray();
+            return ClprLedgerConfiguration.PROTOBUF.parse(
+                    BufferedData.wrap(bytes), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 }

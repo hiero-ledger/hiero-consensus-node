@@ -398,8 +398,7 @@ public class ClprSuite implements LifecycleTest {
                         org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(pbjConfig);
                 return ClprLedgerConfiguration.parseFrom(configBytes.toByteArray());
             }
-        } catch (UnknownHostException
-                | com.google.protobuf.InvalidProtocolBufferException
+        } catch (com.google.protobuf.InvalidProtocolBufferException
                 | IllegalArgumentException
                 | IllegalStateException e) {
             throw new IllegalStateException("Unable to fetch CLPR ledger configuration", e);
@@ -449,11 +448,12 @@ public class ClprSuite implements LifecycleTest {
 
         return doingContextual(spec -> {
             try (final var client = createClient(node.get())) {
+                final var config = tryFetchLedgerConfiguration(node.get());
                 final var payer = asAccount(spec, 2);
                 client.updateMessageQueueMetadata(
                         toPbj(payer),
                         node.get().getAccountId(),
-                        client.getConfiguration().ledgerId(),
+                        toPbj(config).ledgerId(),
                         clprMessageQueueMetadata);
             }
         });
@@ -464,11 +464,12 @@ public class ClprSuite implements LifecycleTest {
 
         return doingContextual(spec -> {
             try (final var client = createClient(node.get())) {
+                final var config = tryFetchLedgerConfiguration(node.get());
                 final var payer = asAccount(spec, 2);
                 client.processMessageBundle(
                         toPbj(payer),
                         node.get().getAccountId(),
-                        client.getConfiguration().ledgerId(),
+                        toPbj(config).ledgerId(),
                         messageBundle);
             }
         });
@@ -478,8 +479,9 @@ public class ClprSuite implements LifecycleTest {
             final AtomicReference<HederaNode> node, final AtomicReference<ClprMessageBundle> exposingMessageBundle) {
         return doingContextual(spec -> {
             try (final var client = createClient(node.get())) {
+                final var config = tryFetchLedgerConfiguration(node.get());
                 final var messageBundle =
-                        client.getMessages(client.getConfiguration().ledgerId(), 10, 1000);
+                        client.getMessages(toPbj(config).ledgerId(), 10, 1000);
                 exposingMessageBundle.set(messageBundle);
             }
         });
@@ -490,8 +492,9 @@ public class ClprSuite implements LifecycleTest {
             final AtomicReference<ClprMessageQueueMetadata> exposingMessageQueueMetadata) {
         return doingContextual(spec -> {
             try (final var client = createClient(node.get())) {
+                final var config = tryFetchLedgerConfiguration(node.get());
                 final var messageQueueMetadata =
-                        client.getMessageQueueMetadata(client.getConfiguration().ledgerId());
+                        client.getMessageQueueMetadata(toPbj(config).ledgerId());
                 exposingMessageQueueMetadata.set(messageQueueMetadata);
             }
         });
