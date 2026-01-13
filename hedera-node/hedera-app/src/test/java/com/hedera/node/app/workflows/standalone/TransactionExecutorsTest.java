@@ -15,6 +15,9 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.streams.ContractAction;
+import com.hedera.hapi.streams.ContractActionType;
+import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
@@ -93,6 +96,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -101,15 +105,22 @@ import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Transaction;
 import org.hyperledger.besu.evm.EVM;
+import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.log.Log;
+import org.hyperledger.besu.evm.worldstate.WorldView;
 import org.hyperledger.besu.evm.operation.AbstractOperation;
 import org.hyperledger.besu.evm.operation.Operation;
+import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.tracing.StandardJsonTracer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -522,6 +533,102 @@ public class TransactionExecutorsTest {
             frame.popStackItem();
             frame.pushStackItem(FAKE_BLOCK_HASH);
             return ONLY_RESULT;
+        }
+    }
+
+    /**
+     * An adapter that wraps an {@link OperationTracer} and implements {@link ActionSidecarContentTracer}.
+     * This allows using Besu's standard tracers (like {@code StandardJsonTracer}) with the Hedera
+     * contract execution infrastructure that expects {@link ActionSidecarContentTracer} instances.
+     */
+    private static class OperationTracerAdapter implements ActionSidecarContentTracer {
+        private final OperationTracer delegate;
+
+        OperationTracerAdapter(@NonNull final OperationTracer delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void traceOriginAction(@NonNull final MessageFrame frame) {}
+
+        @Override
+        public void sanitizeTracedActions(@NonNull final MessageFrame frame) {}
+
+        @Override
+        public void tracePrecompileResult(@NonNull final MessageFrame frame, @NonNull final ContractActionType type) {}
+
+        @Override
+        @NonNull
+        public List<ContractAction> contractActions() {
+            return List.of();
+        }
+
+        @Override
+        public void tracePreExecution(@NonNull final MessageFrame frame) {
+            delegate.tracePreExecution(frame);
+        }
+
+        @Override
+        public void tracePostExecution(
+                @NonNull final MessageFrame frame, @NonNull final Operation.OperationResult operationResult) {
+            delegate.tracePostExecution(frame, operationResult);
+        }
+
+        @Override
+        public void tracePrecompileCall(
+                @NonNull final MessageFrame frame,
+                final long gasRequirement,
+                @Nullable final org.apache.tuweni.bytes.Bytes output) {
+            delegate.tracePrecompileCall(frame, gasRequirement, output);
+        }
+
+        @Override
+        public void traceAccountCreationResult(
+                @NonNull final MessageFrame frame, @NonNull final Optional<ExceptionalHaltReason> haltReason) {
+            delegate.traceAccountCreationResult(frame, haltReason);
+        }
+
+        @Override
+        public void tracePrepareTransaction(@NonNull final WorldView worldView, @NonNull final Transaction transaction) {
+            delegate.tracePrepareTransaction(worldView, transaction);
+        }
+
+        @Override
+        public void traceStartTransaction(@NonNull final WorldView worldView, @NonNull final Transaction transaction) {
+            delegate.traceStartTransaction(worldView, transaction);
+        }
+
+        @Override
+        public void traceEndTransaction(
+                @NonNull final WorldView worldView,
+                @NonNull final Transaction tx,
+                final boolean status,
+                @Nullable final org.apache.tuweni.bytes.Bytes output,
+                @NonNull final List<Log> logs,
+                final long gasUsed,
+                final Set<Address> selfDestructs,
+                final long timeNs) {
+            delegate.traceEndTransaction(worldView, tx, status, output, logs, gasUsed, selfDestructs, timeNs);
+        }
+
+        @Override
+        public void traceContextEnter(@NonNull final MessageFrame frame) {
+            delegate.traceContextEnter(frame);
+        }
+
+        @Override
+        public void traceContextReEnter(@NonNull final MessageFrame frame) {
+            delegate.traceContextReEnter(frame);
+        }
+
+        @Override
+        public void traceContextExit(@NonNull final MessageFrame frame) {
+            delegate.traceContextExit(frame);
+        }
+
+        @Override
+        public boolean isExtendedTracing() {
+            return delegate.isExtendedTracing();
         }
     }
 }
