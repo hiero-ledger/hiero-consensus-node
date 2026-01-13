@@ -2041,7 +2041,8 @@ class ThrottleAccumulatorTest {
         // High-volume throttles should exist for CRYPTO_CREATE
         assertFalse(subject.highVolumeActiveThrottles().isEmpty(), "High-volume throttles should be populated");
         // Should have high-volume throttle for CRYPTO_CREATE
-        assertTrue(subject.hasHighVolumeThrottleFor(CRYPTO_CREATE), "Should have high-volume throttle for CRYPTO_CREATE");
+        assertTrue(
+                subject.hasHighVolumeThrottleFor(CRYPTO_CREATE), "Should have high-volume throttle for CRYPTO_CREATE");
         // Should NOT have high-volume throttle for CRYPTO_TRANSFER (not in high-volume bucket)
         assertFalse(
                 subject.hasHighVolumeThrottleFor(CRYPTO_TRANSFER),
@@ -2073,8 +2074,8 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
 
         // Create a high-volume CryptoCreate transaction
-        final var cryptoCreateBody =
-                com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder().build();
+        final var cryptoCreateBody = com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder()
+                .build();
         final var highVolumeTxBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .cryptoCreateAccount(cryptoCreateBody)
@@ -2097,7 +2098,8 @@ class ThrottleAccumulatorTest {
         // High-volume bucket has 1000 ops/sec with 2 sec burst = 2000 capacity
         var throttled = false;
         for (int i = 0; i < 2100; i++) {
-            throttled = subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT.plusNanos(i), state, null, false);
+            throttled =
+                    subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT.plusNanos(i), state, null, false);
             if (throttled) break;
         }
 
@@ -2130,8 +2132,8 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
 
         // Create a normal (non-high-volume) CryptoCreate transaction
-        final var cryptoCreateBody =
-                com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder().build();
+        final var cryptoCreateBody = com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder()
+                .build();
         final var normalTxBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .cryptoCreateAccount(cryptoCreateBody)
@@ -2190,7 +2192,8 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
 
         // Create a high-volume CryptoTransfer transaction (no high-volume bucket exists for this)
-        final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder().build();
+        final var cryptoTransferBody =
+                CryptoTransferTransactionBody.newBuilder().build();
         final var highVolumeTxBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .cryptoTransfer(cryptoTransferBody)
@@ -2210,11 +2213,12 @@ class ThrottleAccumulatorTest {
                 null);
 
         // when - the transaction should not be throttled (falls back to normal bucket)
-        final var throttled =
-                subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT, state, null, false);
+        final var throttled = subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT, state, null, false);
 
         // then - should not be throttled on first attempt (uses normal bucket)
-        assertFalse(throttled, "High-volume transaction should fall back to normal bucket when no high-volume bucket exists");
+        assertFalse(
+                throttled,
+                "High-volume transaction should fall back to normal bucket when no high-volume bucket exists");
         // Verify no high-volume bucket exists for CRYPTO_TRANSFER
         assertFalse(
                 subject.hasHighVolumeThrottleFor(CRYPTO_TRANSFER),
@@ -2223,8 +2227,8 @@ class ThrottleAccumulatorTest {
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
-    void getHighVolumeThrottleUtilizationReturnsZeroWhenNoThrottleExists(
-            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+    void getHighVolumeThrottleUtilizationReturnsZeroWhenNoThrottleExists(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
@@ -2244,8 +2248,8 @@ class ThrottleAccumulatorTest {
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
-    void getHighVolumeThrottleUtilizationReturnsZeroWhenThrottleIsEmpty(
-            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+    void getHighVolumeThrottleUtilizationReturnsZeroWhenThrottleIsEmpty(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
@@ -2288,8 +2292,8 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
 
         // Create a high-volume CryptoCreate transaction
-        final var cryptoCreateBody =
-                com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder().build();
+        final var cryptoCreateBody = com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder()
+                .build();
         final var highVolumeTxBody = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .cryptoCreateAccount(cryptoCreateBody)
@@ -2337,6 +2341,160 @@ class ThrottleAccumulatorTest {
 
         // then - should be 0 (in thousandths of one percent)
         assertEquals(0, scaledUtilization, "Scaled utilization should be 0 when throttle has no usage");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void highVolumeCryptoTransferWithImplicitCreationsUsesHighVolumeCryptoCreateThrottle(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
+        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.get(anyInt())).willReturn(aliases);
+
+        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        subject.rebuildFor(defs);
+
+        // Create a high-volume CryptoTransfer with implicit creations (auto-account creation)
+        // The implicit creations should use the high-volume CRYPTO_CREATE throttle bucket
+        var accountAmounts = new ArrayList<AccountAmount>();
+        for (int i = 1; i <= 1; i++) {
+            accountAmounts.add(AccountAmount.newBuilder()
+                    .accountID(AccountID.newBuilder()
+                            .alias(Bytes.wrap("abcdeabcdeabcdeabcde"))
+                            .build())
+                    .amount(i)
+                    .build());
+        }
+        final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
+                .transfers(
+                        TransferList.newBuilder().accountAmounts(accountAmounts).build())
+                .build();
+        final var highVolumeTxBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .cryptoTransfer(cryptoTransferBody)
+                .highVolume(true)
+                .build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(highVolumeTxBody))
+                .build();
+        final var highVolumeTxnInfo = new TransactionInfo(
+                signedTx,
+                highVolumeTxBody,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                CRYPTO_TRANSFER,
+                null);
+
+        // when - submit high-volume CryptoTransfer with implicit creations
+        // High-volume CRYPTO_CREATE bucket has 1000 ops/sec with 2 sec burst = 2000 capacity
+        // Normal CRYPTO_CREATE bucket has 100 ops/sec with 2 sec burst = 200 capacity
+        // If we submit 500 transactions, it should NOT be throttled if using high-volume bucket
+        // but WOULD be throttled if using normal bucket
+        var throttled = false;
+        for (int i = 0; i < 500; i++) {
+            throttled =
+                    subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT.plusNanos(i), state, null, false);
+            if (throttled) break;
+        }
+
+        // then - should NOT be throttled because high-volume CRYPTO_CREATE bucket has 2000 capacity
+        assertFalse(
+                throttled,
+                "High-volume CryptoTransfer with implicit creations should use high-volume CRYPTO_CREATE throttle");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void normalCryptoTransferWithImplicitCreationsUsesNormalCryptoCreateThrottle(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
+        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.get(anyInt())).willReturn(aliases);
+
+        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        subject.rebuildFor(defs);
+
+        // Create a normal (non-high-volume) CryptoTransfer with implicit creations
+        var accountAmounts = new ArrayList<AccountAmount>();
+        for (int i = 1; i <= 1; i++) {
+            accountAmounts.add(AccountAmount.newBuilder()
+                    .accountID(AccountID.newBuilder()
+                            .alias(Bytes.wrap("abcdeabcdeabcdeabcde"))
+                            .build())
+                    .amount(i)
+                    .build());
+        }
+        final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
+                .transfers(
+                        TransferList.newBuilder().accountAmounts(accountAmounts).build())
+                .build();
+        final var normalTxBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .cryptoTransfer(cryptoTransferBody)
+                .highVolume(false)
+                .build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(normalTxBody))
+                .build();
+        final var normalTxnInfo = new TransactionInfo(
+                signedTx,
+                normalTxBody,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                CRYPTO_TRANSFER,
+                null);
+
+        // when - submit normal CryptoTransfer with implicit creations
+        // Normal CRYPTO_CREATE bucket has 100 ops/sec with 2 sec burst = 200 capacity
+        // If we submit 250 transactions, it SHOULD be throttled because normal bucket only has 200 capacity
+        var throttled = false;
+        for (int i = 0; i < 250; i++) {
+            throttled = subject.checkAndEnforceThrottle(normalTxnInfo, TIME_INSTANT.plusNanos(i), state, null, false);
+            if (throttled) break;
+        }
+
+        // then - should be throttled because normal CRYPTO_CREATE bucket only has 200 capacity
+        assertTrue(
+                throttled,
+                "Normal CryptoTransfer with implicit creations should use normal CRYPTO_CREATE throttle and be throttled");
     }
 
     @NonNull

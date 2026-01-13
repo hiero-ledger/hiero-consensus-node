@@ -73,7 +73,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -86,7 +85,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
-
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -499,12 +497,17 @@ public class ThrottleAccumulator {
                         configuration,
                         getImplicitCreationsCount(txBody, accountStore),
                         getAutoAssociationsCount(txBody, relationStore),
+                        isHighVolume,
                         throttleUsages);
             }
             case ETHEREUM_TRANSACTION -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
                 yield shouldThrottleEthTxn(
-                        effectiveManager, now, getImplicitCreationsCount(txBody, accountStore), throttleUsages);
+                        effectiveManager,
+                        now,
+                        getImplicitCreationsCount(txBody, accountStore),
+                        isHighVolume,
+                        throttleUsages);
             }
             default -> !effectiveManager.allReqsMetAt(now, throttleUsages);
         };
@@ -518,6 +521,7 @@ public class ThrottleAccumulator {
             List<ThrottleUsage> throttleUsages) {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
+        final var isHighVolume = txnBody.highVolume();
         if (!op.hasScheduledTransactionBody()) {
             return true;
         }
@@ -549,7 +553,8 @@ public class ThrottleAccumulator {
                             .build();
                     final int implicitCreationsCount = getImplicitCreationsCount(transferTxnBody, accountStore);
                     if (implicitCreationsCount > 0) {
-                        return shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages);
+                        return shouldThrottleImplicitCreations(
+                                implicitCreationsCount, now, isHighVolume, throttleUsages);
                     }
                 }
             }
@@ -672,11 +677,13 @@ public class ThrottleAccumulator {
             @NonNull final Configuration configuration,
             final int implicitCreationsCount,
             final int autoAssociationsCount,
+            final boolean isHighVolume,
             List<ThrottleUsage> throttleUsages) {
         final boolean unlimitedAutoAssociations =
                 configuration.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
         if (implicitCreationsCount > 0) {
-            return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now, throttleUsages);
+            return shouldThrottleBasedOnImplicitCreations(
+                    manager, implicitCreationsCount, now, isHighVolume, throttleUsages);
         } else if (unlimitedAutoAssociations && autoAssociationsCount > 0) {
             return shouldThrottleBasedOnAutoAssociations(manager, autoAssociationsCount, now, throttleUsages);
         } else {
@@ -688,8 +695,10 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleReqsManager manager,
             @NonNull final Instant now,
             final int implicitCreationsCount,
+            final boolean isHighVolume,
             @Nullable final List<ThrottleUsage> throttleUsages) {
-        return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now, throttleUsages);
+        return shouldThrottleBasedOnImplicitCreations(
+                manager, implicitCreationsCount, now, isHighVolume, throttleUsages);
     }
 
     public int getImplicitCreationsCount(
@@ -859,10 +868,11 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleReqsManager manager,
             final int implicitCreationsCount,
             @NonNull final Instant now,
+            final boolean isHighVolume,
             @Nullable final List<ThrottleUsage> throttleUsages) {
         return (implicitCreationsCount == 0)
                 ? !manager.allReqsMetAt(now, throttleUsages)
-                : shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages);
+                : shouldThrottleImplicitCreations(implicitCreationsCount, now, isHighVolume, throttleUsages);
     }
 
     private boolean shouldThrottleBasedExcessBytes(
@@ -887,8 +897,20 @@ public class ThrottleAccumulator {
     }
 
     private boolean shouldThrottleImplicitCreations(
-            final int n, @NonNull final Instant now, @Nullable final List<ThrottleUsage> throttleUsages) {
-        final var manager = functionReqs.get(CRYPTO_CREATE);
+            final int n,
+            @NonNull final Instant now,
+            final boolean isHighVolume,
+            @Nullable final List<ThrottleUsage> throttleUsages) {
+        // For high-volume transactions, use the high-volume CRYPTO_CREATE throttle if available
+        // This implements HIP-1313: implicit creations in high-volume CryptoTransfer use high-volume throttles
+        final var targetFunctionReqs = isHighVolume ? highVolumeFunctionReqs : functionReqs;
+        var manager = targetFunctionReqs.get(CRYPTO_CREATE);
+
+        // Fall back to normal throttle if high-volume throttle doesn't exist for CRYPTO_CREATE
+        if (manager == null && isHighVolume) {
+            manager = functionReqs.get(CRYPTO_CREATE);
+        }
+
         return manager == null || !manager.allReqsMetAt(now, n, ONE_TO_ONE, throttleUsages);
     }
 
