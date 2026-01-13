@@ -2,6 +2,7 @@
 package com.hedera.node.app.fees;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SubType;
@@ -14,11 +15,13 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 
 /**
@@ -38,6 +41,8 @@ public class FeeContextImpl implements FeeContext {
     private final Authorizer authorizer;
     private final int numSignatures;
     private final TransactionDispatcher transactionDispatcher;
+    @Nullable
+    private final SynchronizedThrottleAccumulator throttleAccumulator;
 
     /**
      * Constructor of {@code FeeContextImpl}
@@ -50,6 +55,7 @@ public class FeeContextImpl implements FeeContext {
      * @param storeFactory          the {@link ReadableStoreFactory} to create readable stores
      * @param numSignatures         the number of signatures in the transaction
      * @param transactionDispatcher the {@link TransactionDispatcher} to dispatch child transactions
+     * @param throttleAccumulator   the {@link SynchronizedThrottleAccumulator} for high-volume throttle utilization
      */
     public FeeContextImpl(
             @NonNull final Instant consensusTime,
@@ -61,7 +67,8 @@ public class FeeContextImpl implements FeeContext {
             @NonNull final Configuration configuration,
             @NonNull final Authorizer authorizer,
             final int numSignatures,
-            final TransactionDispatcher transactionDispatcher) {
+            final TransactionDispatcher transactionDispatcher,
+            @Nullable final SynchronizedThrottleAccumulator throttleAccumulator) {
         this.consensusTime = consensusTime;
         this.txInfo = txInfo;
         this.payerKey = payerKey;
@@ -72,6 +79,7 @@ public class FeeContextImpl implements FeeContext {
         this.authorizer = authorizer;
         this.numSignatures = numSignatures;
         this.transactionDispatcher = transactionDispatcher;
+        this.throttleAccumulator = throttleAccumulator;
     }
 
     @Override
@@ -161,5 +169,13 @@ public class FeeContextImpl implements FeeContext {
     @Override
     public long getGasPriceInTinycents() {
         return feeManager.getGasPriceInTinyCents(consensusTime);
+    }
+
+    @Override
+    public int getHighVolumeThrottleUtilization(@NonNull final HederaFunctionality functionality) {
+        if (throttleAccumulator == null) {
+            return 0;
+        }
+        return throttleAccumulator.getHighVolumeThrottleUtilization(functionality);
     }
 }

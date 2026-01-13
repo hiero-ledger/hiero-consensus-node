@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -14,9 +16,11 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.fees.HighVolumePricingCalculator;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /**
  * Base class for simple fee calculators. Provides reusable utility methods for common fee
@@ -68,8 +72,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     }
 
     /**
-     * Calculates fees for CryptoDelete transactions per HIP-1261.
-     * CryptoDelete uses only SIGNATURES extra for the service fee.
+     * Calculates fees for transactions per HIP-1261.
+     * For high-volume transactions (HIP-1313), applies a dynamic multiplier based on throttle utilization.
      *
      * @param txnBody the transaction body
      * @param feeContext the fee context containing signature count
@@ -92,7 +96,81 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
+
+        // Apply high-volume pricing multiplier if applicable (HIP-1313)
+        if (txnBody.highVolume() && feeContext != null) {
+            applyHighVolumeMultiplier(txnBody, feeContext, result);
+        }
+
         return result;
+    }
+
+    /**
+     * Applies the high-volume pricing multiplier to the service fee based on throttle utilization.
+     * Per HIP-1313, the multiplier is calculated from the pricing curve defined in the fee schedule.
+     *
+     * @param txnBody the transaction body
+     * @param feeContext the fee context
+     * @param result the fee result to modify
+     */
+    private void applyHighVolumeMultiplier(
+            @NonNull final TransactionBody txnBody,
+            @NonNull final FeeContext feeContext,
+            @NonNull final FeeResult result) {
+        // Get the HederaFunctionality for this transaction
+        final HederaFunctionality functionality = mapToFunctionality(txnBody);
+        if (functionality == null) {
+            return;
+        }
+
+        // Look up the service fee definition to get the high volume rates
+        final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);
+        if (serviceFeeDefinition == null || serviceFeeDefinition.highVolumeRates() == null) {
+            return;
+        }
+
+        // Get the current throttle utilization
+        final int utilizationPercentage = feeContext.getHighVolumeThrottleUtilization(functionality);
+
+        // Calculate the multiplier based on the pricing curve
+        final long rawMultiplier = HighVolumePricingCalculator.calculateMultiplier(
+                serviceFeeDefinition.highVolumeRates(), utilizationPercentage);
+
+        // Apply the multiplier to the service fee
+        // The raw multiplier is scaled by MULTIPLIER_SCALE (1,000,000) and represents the amount to add to 1
+        // So effective multiplier = 1 + (rawMultiplier / MULTIPLIER_SCALE)
+        // We apply this to the service fee: newServiceFee = serviceFee * (1 + rawMultiplier / MULTIPLIER_SCALE)
+        // = serviceFee + serviceFee * rawMultiplier / MULTIPLIER_SCALE
+        if (rawMultiplier > 0) {
+            final long additionalFee =
+                    (result.service * rawMultiplier) / HighVolumePricingCalculator.MULTIPLIER_SCALE;
+            // Add the additional fee as a single unit with the computed cost
+            result.addServiceFee(1, additionalFee);
+        }
+    }
+
+    /**
+     * Maps a TransactionBody to its corresponding HederaFunctionality.
+     *
+     * @param txnBody the transaction body
+     * @return the HederaFunctionality, or null if unknown
+     */
+    @Nullable
+    private HederaFunctionality mapToFunctionality(@NonNull final TransactionBody txnBody) {
+        return switch (txnBody.data().kind()) {
+            case CRYPTO_CREATE_ACCOUNT -> HederaFunctionality.CRYPTO_CREATE;
+            case CRYPTO_APPROVE_ALLOWANCE -> HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
+            case CONSENSUS_CREATE_TOPIC -> HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+            case FILE_CREATE -> HederaFunctionality.FILE_CREATE;
+            case TOKEN_CREATION -> HederaFunctionality.TOKEN_CREATE;
+            case TOKEN_MINT -> HederaFunctionality.TOKEN_MINT;
+            case TOKEN_ASSOCIATE -> HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
+            case TOKEN_AIRDROP -> HederaFunctionality.TOKEN_AIRDROP;
+            case TOKEN_CLAIM_AIRDROP -> HederaFunctionality.TOKEN_CLAIM_AIRDROP;
+            case SCHEDULE_CREATE -> HederaFunctionality.SCHEDULE_CREATE;
+            case CONTRACT_CREATE_INSTANCE -> HederaFunctionality.CONTRACT_CREATE;
+            default -> null;
+        };
     }
 
     @Override

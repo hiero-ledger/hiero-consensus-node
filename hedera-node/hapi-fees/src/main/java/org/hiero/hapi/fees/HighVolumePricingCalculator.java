@@ -1,0 +1,159 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.hapi.fees;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
+import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
+import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
+import org.hiero.hapi.support.fees.PricingCurve;
+import org.hiero.hapi.support.fees.VariableRateDefinition;
+
+/**
+ * Calculates the fee multiplier for high-volume transactions based on throttle utilization
+ * and the pricing curve defined in the fee schedule per HIP-1313.
+ *
+ * <p>The multiplier is calculated using piecewise linear interpolation between points
+ * on the pricing curve. The utilization percentage is expressed in thousandths of one percent
+ * (0 to 100,000), and the multiplier values are expressed as values that are divided by
+ * 1,000,000 and then added to 1.
+ *
+ * <p>For example:
+ * <ul>
+ *   <li>utilizationPercentage = 50,000 means 50% utilization</li>
+ *   <li>multiplier = 1,000,000 means an effective multiplier of 2.0x (1,000,000/1,000,000 + 1)</li>
+ *   <li>multiplier = 4,000,000 means an effective multiplier of 5.0x (4,000,000/1,000,000 + 1)</li>
+ * </ul>
+ */
+public final class HighVolumePricingCalculator {
+
+    /** The scale factor for utilization percentage (100,000 = 100%). */
+    public static final int UTILIZATION_SCALE = 100_000;
+
+    /** The scale factor for multiplier values (1,000,000 = 1.0 added to base of 1). */
+    public static final long MULTIPLIER_SCALE = 1_000_000L;
+
+    private HighVolumePricingCalculator() {
+        // Utility class - prevent instantiation
+    }
+
+    /**
+     * Calculates the fee multiplier for a high-volume transaction based on the current
+     * throttle utilization and the variable rate definition from the fee schedule.
+     *
+     * @param variableRateDefinition the variable rate definition containing max multiplier and pricing curve
+     * @param utilizationPercentage the current utilization percentage in thousandths of one percent (0 to 100,000)
+     * @return the calculated multiplier as a long value (scaled by MULTIPLIER_SCALE, then add 1)
+     */
+    public static long calculateMultiplier(
+            @Nullable final VariableRateDefinition variableRateDefinition, final int utilizationPercentage) {
+        // If no variable rate definition, return base multiplier (1x = 0 in scaled form)
+        if (variableRateDefinition == null) {
+            return 0;
+        }
+
+        final int maxMultiplier = variableRateDefinition.maxMultiplier();
+        final PricingCurve pricingCurve = variableRateDefinition.pricingCurve();
+
+        // Clamp utilization to valid range
+        final int clampedUtilization = Math.max(0, Math.min(utilizationPercentage, UTILIZATION_SCALE));
+
+        long rawMultiplier;
+        if (pricingCurve == null || !pricingCurve.hasPiecewiseLinear()) {
+            // No pricing curve specified - use linear interpolation between 1x and max_multiplier
+            rawMultiplier = linearInterpolate(0, 0, UTILIZATION_SCALE, maxMultiplier, clampedUtilization);
+        } else {
+            // Use piecewise linear curve
+            rawMultiplier = interpolatePiecewiseLinear(pricingCurve.piecewiseLinear(), clampedUtilization);
+        }
+
+        // Cap at max multiplier
+        return Math.min(rawMultiplier, maxMultiplier);
+    }
+
+    /**
+     * Calculates the effective multiplier as a double value (for display/logging purposes).
+     * The effective multiplier is the raw multiplier divided by MULTIPLIER_SCALE plus 1.
+     *
+     * @param rawMultiplier the raw multiplier value (scaled by MULTIPLIER_SCALE)
+     * @return the effective multiplier as a double (e.g., 2.0 for 2x)
+     */
+    public static double toEffectiveMultiplier(final long rawMultiplier) {
+        return 1.0 + (double) rawMultiplier / MULTIPLIER_SCALE;
+    }
+
+    /**
+     * Interpolates the multiplier from a piecewise linear curve based on utilization.
+     *
+     * @param curve the piecewise linear curve
+     * @param utilizationPercentage the utilization percentage (0 to 100,000)
+     * @return the interpolated multiplier (scaled)
+     */
+    private static long interpolatePiecewiseLinear(
+            @NonNull final PiecewiseLinearCurve curve, final int utilizationPercentage) {
+        final List<PiecewiseLinearPoint> points = curve.points();
+
+        // Handle empty curve - return base multiplier
+        if (points.isEmpty()) {
+            return 0;
+        }
+
+        // Handle single point - return that point's multiplier
+        if (points.size() == 1) {
+            return points.get(0).multiplier();
+        }
+
+        // Find the two points to interpolate between
+        PiecewiseLinearPoint lowerPoint = null;
+        PiecewiseLinearPoint upperPoint = null;
+
+        for (int i = 0; i < points.size(); i++) {
+            final PiecewiseLinearPoint point = points.get(i);
+            if (point.utilizationPercentage() <= utilizationPercentage) {
+                lowerPoint = point;
+            }
+            if (point.utilizationPercentage() >= utilizationPercentage && upperPoint == null) {
+                upperPoint = point;
+            }
+        }
+
+        // If utilization is below the first point, use the first point's multiplier
+        if (lowerPoint == null) {
+            return points.get(0).multiplier();
+        }
+
+        // If utilization is above the last point, use the last point's multiplier
+        if (upperPoint == null) {
+            return points.get(points.size() - 1).multiplier();
+        }
+
+        // If we're exactly on a point, return that point's multiplier
+        if (lowerPoint.utilizationPercentage() == upperPoint.utilizationPercentage()) {
+            return upperPoint.multiplier();
+        }
+
+        // Interpolate between the two points
+        return linearInterpolate(
+                lowerPoint.utilizationPercentage(),
+                lowerPoint.multiplier(),
+                upperPoint.utilizationPercentage(),
+                upperPoint.multiplier(),
+                utilizationPercentage);
+    }
+
+    /**
+     * Performs linear interpolation between two points.
+     */
+    private static long linearInterpolate(
+            final int x1, final long y1, final int x2, final long y2, final int x) {
+        if (x2 == x1) {
+            return y1;
+        }
+        // Use long arithmetic to avoid overflow
+        final long dx = x2 - x1;
+        final long dy = y2 - y1;
+        final long offset = x - x1;
+        return y1 + (dy * offset) / dx;
+    }
+}
+

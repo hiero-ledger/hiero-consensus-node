@@ -1131,6 +1131,68 @@ public class ThrottleAccumulator {
         return highVolumeFunctionReqs.containsKey(function);
     }
 
+    /**
+     * Returns the current utilization percentage of the high-volume throttle for the given functionality.
+     * The utilization is expressed in thousandths of one percent (0 to 100,000), where 100,000 = 100%.
+     *
+     * <p>This method calculates the maximum utilization across all throttle buckets that apply to
+     * the given functionality, as the pricing should be based on the most constrained resource.
+     *
+     * @param function the functionality to get the utilization for
+     * @param now the current time (used to calculate leaked capacity)
+     * @return the utilization percentage in thousandths of one percent (0 to 100,000),
+     *         or 0 if no high-volume throttle exists for the functionality
+     */
+    public int getHighVolumeThrottleUtilization(
+            @NonNull final HederaFunctionality function, @NonNull final Instant now) {
+        requireNonNull(function);
+        requireNonNull(now);
+
+        final var manager = highVolumeFunctionReqs.get(function);
+        if (manager == null) {
+            return 0;
+        }
+
+        // Get the maximum utilization across all throttles for this functionality
+        double maxUtilization = 0.0;
+        for (final var throttle : manager.managedThrottles()) {
+            final double utilization = throttle.percentUsed(now);
+            maxUtilization = Math.max(maxUtilization, utilization);
+        }
+
+        // Convert from percentage (0-100) to thousandths of one percent (0-100,000)
+        // percentUsed returns a value from 0.0 to 100.0
+        return (int) Math.min(100_000, Math.round(maxUtilization * 1000));
+    }
+
+    /**
+     * Returns the current instantaneous utilization percentage of the high-volume throttle
+     * for the given functionality, without accounting for time-based capacity leakage.
+     * The utilization is expressed in thousandths of one percent (0 to 100,000), where 100,000 = 100%.
+     *
+     * @param function the functionality to get the utilization for
+     * @return the utilization percentage in thousandths of one percent (0 to 100,000),
+     *         or 0 if no high-volume throttle exists for the functionality
+     */
+    public int getHighVolumeThrottleInstantaneousUtilization(@NonNull final HederaFunctionality function) {
+        requireNonNull(function);
+
+        final var manager = highVolumeFunctionReqs.get(function);
+        if (manager == null) {
+            return 0;
+        }
+
+        // Get the maximum utilization across all throttles for this functionality
+        double maxUtilization = 0.0;
+        for (final var throttle : manager.managedThrottles()) {
+            final double utilization = throttle.instantaneousPercentUsed();
+            maxUtilization = Math.max(maxUtilization, utilization);
+        }
+
+        // Convert from percentage (0-100) to thousandths of one percent (0-100,000)
+        return (int) Math.min(100_000, Math.round(maxUtilization * 1000));
+    }
+
     public enum ThrottleType {
         FRONTEND_THROTTLE,
         BACKEND_THROTTLE,

@@ -219,7 +219,8 @@ public class QueryChecker {
                 authorizer,
                 // Signatures aren't applicable to queries
                 -1,
-                dispatcher);
+                dispatcher,
+                null); // No throttle accumulator for queries
         if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                     .calculateTxFee(transactionInfo.txBody(), feeContext);
