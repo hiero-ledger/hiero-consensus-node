@@ -27,7 +27,12 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import picocli.CommandLine;
+
+import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
+import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
+import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 
 @CommandLine.Command(
         name = "extract-consensus-snapshot",
@@ -57,7 +62,13 @@ public class ExtractConsensusSnapshotStateCommand extends AbstractCommand {
     @Override
     public Integer call() throws IOException, ExecutionException, InterruptedException {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-        BootstrapUtils.setupConstructableRegistry();
+        setupConstructableRegistry();
+        try {
+            setupConstructableRegistryWithConfiguration(configuration);
+            registerVirtualMapConstructables(configuration);
+        } catch (final ConstructableRegistryException e) {
+            throw new RuntimeException(e);
+        }
 
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
