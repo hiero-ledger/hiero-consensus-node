@@ -467,24 +467,22 @@ public class ThrottleAccumulator {
         }
 
         // Check if this is a high-volume transaction and use appropriate throttle bucket
-        final boolean isHighVolumeTxn = txBody != null && txBody.highVolume();
+        final boolean isHighVolumeTxn = txBody.highVolume();
         final var targetFunctionReqs = isHighVolumeTxn ? highVolumeFunctionReqs : functionReqs;
         final var manager = targetFunctionReqs.get(function);
 
         // If high-volume flag is set but no high-volume bucket exists for this function,
         // fall back to normal throttle bucket
-        final var effectiveManager =
-                (manager == null && isHighVolumeTxn) ? functionReqs.get(function) : manager;
+        final var effectiveManager = (manager == null && isHighVolumeTxn) ? functionReqs.get(function) : manager;
 
         if (effectiveManager == null) {
             return true;
         }
 
         return switch (function) {
-            case SCHEDULE_CREATE -> shouldThrottleScheduleCreate(
-                    effectiveManager, txnInfo, now, state, throttleUsages);
-            case TOKEN_MINT -> shouldThrottleMint(
-                    effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
+            case SCHEDULE_CREATE -> shouldThrottleScheduleCreate(effectiveManager, txnInfo, now, state, throttleUsages);
+            case TOKEN_MINT ->
+                shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
                 final var relationStore = new ReadableStoreFactory(state).getStore(ReadableTokenRelationStore.class);
