@@ -14,10 +14,12 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
+import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.metrics.api.Metrics;
@@ -92,6 +94,19 @@ public class ContractServiceImpl implements ContractService {
         registry.registerAll(new V0490ContractSchema(), new V065ContractSchema());
     }
 
+    @Override
+    public Set<ServiceFeeCalculator> serviceFeeCalculators() {
+        return Set.of(new HookStoreHandler.FeeCalculator());
+    }
+
+    @Override
+    public Set<QueryFeeCalculator> queryFeeCalculators() {
+        return Set.of(
+                new ContractCallLocalFeeCalculator(),
+                new ContractGetByteCodeFeeCalculator(),
+                new ContractGetInfoFeeCalculator());
+    }
+
     public void createMetrics() {
         final var contractMetrics = requireNonNull(component.contractMetrics());
 
@@ -126,13 +141,5 @@ public class ContractServiceImpl implements ContractService {
         allCallTranslators.addAll(component.hssCallTranslators().get());
         allCallTranslators.addAll(component.htsCallTranslators().get());
         return allCallTranslators;
-    }
-
-    @Override
-    public Set<QueryFeeCalculator> queryFeeCalculators() {
-        return Set.of(
-                new ContractCallLocalFeeCalculator(),
-                new ContractGetByteCodeFeeCalculator(),
-                new ContractGetInfoFeeCalculator());
     }
 }
