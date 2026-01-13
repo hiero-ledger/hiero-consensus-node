@@ -351,7 +351,10 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     FILE_GET_CONTENTS,
                     FILE_GET_INFO,
                     CRYPTO_GET_INFO,
-                    CRYPTO_GET_ACCOUNT_RECORDS -> true;
+                    CRYPTO_GET_ACCOUNT_RECORDS,
+                    CONTRACT_CALL_LOCAL,
+                    CONTRACT_GET_BYTECODE,
+                    CONTRACT_GET_INFO -> true;
             default -> false;
         };
     }

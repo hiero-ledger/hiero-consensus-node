@@ -279,6 +279,34 @@
           "extras": []
         }
       ]
+    },
+    {
+      "name": "Contract",
+      "schedule": [
+        {
+          "name": "ContractCallLocal",
+          "baseFee": 0,
+          "extras": [
+            {
+              "name": "GAS", "includedCount": 0
+            }
+          ]
+        },
+        {
+          "name": "ContractGetBytecode",
+          "baseFee": 0,
+          "extras": [
+            {
+              "name": "BYTES", "includedCount": 1000
+            }
+          ]
+        },
+        {
+          "name": "ContractGetInfo",
+          "baseFee": 0,
+          "extras": []
+        }
+      ]
     }
   ]
 }
