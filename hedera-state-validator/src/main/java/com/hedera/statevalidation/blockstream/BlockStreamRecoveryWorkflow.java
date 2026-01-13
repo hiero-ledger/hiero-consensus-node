@@ -3,7 +3,6 @@ package com.hedera.statevalidation.blockstream;
 
 import static com.hedera.statevalidation.ApplyBlocksCommand.DEFAULT_TARGET_ROUND;
 import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
-import static com.swirlds.platform.state.signed.StartupStateUtils.copyInitialSignedState;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
@@ -27,7 +26,6 @@ import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.model.node.NodeId;
 
