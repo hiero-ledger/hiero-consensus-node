@@ -46,4 +46,6 @@ public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "10") @NetworkProperty int distinctTxnIdsToTry,
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean preserveStateWeightsDuringOverride,
         // Default value is the working directory
-        @ConfigProperty(defaultValue = "") @NodeProperty String configTxtPath) {}
+        @ConfigProperty(defaultValue = "") @NodeProperty String configTxtPath,
+        // Config for high volume throttles
+        @ConfigProperty(defaultValue = "false") @NodeProperty boolean highVolumeThrottlesEnabled) {}
