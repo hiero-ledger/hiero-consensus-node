@@ -70,7 +70,6 @@ public class HookStoreHandler implements TransactionHandler {
         @Override
         public void accumulateServiceFee(
                 @NonNull final TransactionBody txnBody,
-                @Nullable final FeeContext feeContext,
                 @NonNull final FeeResult feeResult,
                 @NonNull final FeeSchedule feeSchedule) {
             requireNonNull(txnBody);
@@ -79,7 +78,10 @@ public class HookStoreHandler implements TransactionHandler {
             final var fee = lookupServiceFee(feeSchedule, HederaFunctionality.HOOK_STORE);
             requireNonNull(fee);
             final var op = txnBody.hookStoreOrThrow();
-            feeResult.addServiceFee(slotCount(op.storageUpdates()), fee.baseFee());
+            // TODO: what does this code do? why is it multiplying the base fee times a count instead of using an extra?
+            //      feeResult.addServiceFee(slotCount(op.storageUpdates()), fee.baseFee());
+            final var slots = slotCount(op.storageUpdates());
+            feeResult.addServiceBase(slots*fee.baseFee());
         }
     }
 
