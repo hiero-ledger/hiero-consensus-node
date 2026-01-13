@@ -60,10 +60,6 @@ public class ExtractConsensusSnapshotStateCommand extends AbstractCommand {
         BootstrapUtils.setupConstructableRegistry();
 
         final PlatformContext platformContext = PlatformContext.create(configuration);
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                (virtualMap) -> new VirtualMapState(virtualMap, platformContext.getMetrics()));
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final DeserializedSignedState deserializedSignedState =
