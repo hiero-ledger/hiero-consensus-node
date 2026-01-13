@@ -45,7 +45,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -81,7 +80,7 @@ public class HookStoreHandler implements TransactionHandler {
             // TODO: what does this code do? why is it multiplying the base fee times a count instead of using an extra?
             //      feeResult.addServiceFee(slotCount(op.storageUpdates()), fee.baseFee());
             final var slots = slotCount(op.storageUpdates());
-            feeResult.addServiceBase(slots*fee.baseFee());
+            feeResult.addServiceBase(slots * fee.baseFee());
         }
     }
 
