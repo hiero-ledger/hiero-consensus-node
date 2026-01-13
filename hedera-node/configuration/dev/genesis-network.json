@@ -1,0 +1,62 @@
+{
+  "nodeMetadata": [{
+    "rosterEntry": {
+      "weight": "1",
+      "gossipCaCertificate": "MIIDsTCCAhmgAwIBAgIJAK05TS8KZeb1MA0GCSqGSIb3DQEBDAUAMBcxFTATBgNVBAMTDHMtenc5amVmeTB5djAgFw0wMDAxMDEwMDAwMDBaGA8yMTAwMDEwMTAwMDAwMFowFzEVMBMGA1UEAxMMcy16dzlqZWZ5MHl2MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAwaD/XSNytT0S0Su4fdA/XjQn4M7h08iYu9MgxLPdFyV5ROo5oH9TRNmr/N1QIUBy8bvBIXP+eTPQMsfSEHNMyS0kviK0TPUMKqBvGbzXUYDcPo3t1f/KwCv5hyHfnD558g6ZQsrJMouZFgr+pE1CyHsBR/PylWcIXtP4Qdvjero1osVEa8Y4xixwOm9oD6BgG/58YlTp/i9HFnDs3MomEocWoI9BQVlewMSseuWJ833u3hdIDswVAPiDNdDjOSlyXo5Od18+SqRMhnvIbTv21xZaS3Zt1M62IiIWNKCj2ChAgAtbPlQGQOovjFdJw6ag4MR0UVw/Dtmq2rj4RCOolU/X9OQLcxJa7O1PeR26UFLj9bMZGkMPmy3TDkBxzFQoDIMNoNHg3VQwDCQ+8I2fgbOpA3PxCRC29JdbsthhJzmTIh5CuCta+CMmf3nekKciESnwQjck+SCKTKFac0WMVV4I4BXbnXfIhKysr0lx04VOp7vdnPr0nfhSwRRz6W+hAgMBAAEwDQYJKoZIhvcNAQEMBQADggGBAEVejWwbJ209IKSxzMCru7NkYM2YVhLRBoqrjNWkeYd/UkyAjERGnT8Xp1LXziTW4VNtXwK4eIiQ9iScE17QVYMSa204978tQsWkBPNDeTh9ZZ7/X/imrBk4JUwqPO5qu7rKe45waffajVzhV6PEC8AiCr0F2PVPCsSro3V6B2uhT1mPH4NeVm9xpQ+TOvl5UBSZ2VnTVuccXpVP2wQoV4EV+lQEF7MhVoYcD3lg+h4Ec8drLVefvDCqfOcYx8QTgRsCT2bQ5+M1CzC9OadPHzJYGOXSbuzs7HgQi8d9VWFbFWj7m3TnVnZ5YGVB029PRMK9B/WtuBw4TUuOoaKH+9NWJ4NE7CWC8EAYfy8kH/gS1UhhdUpHg4ucvpT50+kzMYPE9lGi4ro/Xc13/wVg2xfLDTSBcY1oqq+gdsZhJnTTwmTUI1KBHCUQpBiYfR+6RsyvX+XTtXn+ACwQb/1M2D/w0OFsnZJpShdkY31v0imPwTicEN5OQ7f9FzjTrME2YA==",
+      "gossipEndpoint": [{
+        "port": 31013,
+        "domainName": "localhost"
+      }]
+    },
+    "node": {
+      "accountId": {
+        "accountNum": "3"
+      }
+    }
+  }, {
+    "rosterEntry": {
+      "nodeId": "1",
+      "weight": "1",
+      "gossipCaCertificate": "MIIDsDCCAhigAwIBAgIIHWg7e2Q/smQwDQYJKoZIhvcNAQEMBQAwFzEVMBMGA1UEAxMMcy1sZXdpc3RrdWZrMCAXDTAwMDEwMTAwMDAwMFoYDzIxMDAwMTAxMDAwMDAwWjAXMRUwEwYDVQQDEwxzLWxld2lzdGt1ZmswggGiMA0GCSqGSIb3DQEBAQUAA4IBjwAwggGKAoIBgQCq+VrAXqUt/sv9P8nwY8zFo3u84mpxM+7LM6zVld3BrtilJUe79vvcKfxLV9fgXXBpU06I4BbOZxATeJTO+gqeiYxR+OtcjfBkpCJKXvBmZ29cOChI2Y+VGDG6vqjlCOkJsJoC3jvERwLEupQj9QMhhWpW9mVSdPQ3GA8QkV3hY+AarzW7Q+a+Q0wraVU+Gsd3m96czUhrI0FBvc4cqf1nLAJsJsynTJe9rZOqhfLZQFl8s8Igro1h0tCpZ9AuachI3hTbBtvfbaAuKYE/I7sYo4LHk3iBUZzR5hknkpl6QJBBC5cCykfBzp6nokuVFzanW8TXpsfxKSUnOa0wepMy19uHSLkbIMiCBVse94KDs5mh1KJTeMZnp4n6DGJUjTTNO1q7L5o0QuTi3P7hoXVqoWRgQh+gCQfApsPOEC11XRxOi4rnj9aDHe4PvjeF/PNMCZLodHm31d4u3rVCJ9Iy5TOdAJEbnBvZMGQyfzOC2OxU9hfOUdf6NhWgf+d+wEUCAwEAATANBgkqhkiG9w0BAQwFAAOCAYEAb71bUSqHMSTjTZkJ9HGR0CVaN5mdXK3x9jo64aTXmRqQgDeuzFQaWht033eXJppvihDRB4IpmWjbj8r10hBxEWBzFMMGbTMdUfaiSRxC+th6D3ssIaNB9xi/HCJV91QJ1hLIsvTVlN0A6YRVZXwXWgd76oAyP0hE0p9a3m6JwwiKzohbJD4YI79tkus9bkddRKFOwxcFLlcieNxrZr6udFFW3CGFMbtQfOqqWykjrS/wmWBuXlokNbyFLIt6FF3+OmIV/aAEOlQ7PQwahHcb4sCTUhvCOk1nxJZwE0R3pWgHlhAzm+Dht+XeDv/oCRh+SkurjaQNXS70a+tTWjUP9RScDjvm9ka/4mo2/6NOvqCKytfwm1kddyzmj37/tGpH7i8ivHEYxnXBo+QtwVjIDXsPc86+S4hvvI8jOR1yzHVpAKwH/wZLOHPzws6OzGEIJcwndKZBTfSR8+hfd2O6smL1NyicVliFIJX4Gumm2O0OkKkvb9K+THHGEXFpllwf",
+      "gossipEndpoint": [{
+        "port": 31015,
+        "domainName": "localhost"
+      }]
+    },
+    "node": {
+      "accountId": {
+        "accountNum": "4"
+      }
+    }
+  }, {
+    "rosterEntry": {
+      "nodeId": "2",
+      "weight": "1",
+      "gossipCaCertificate": "MIIDsTCCAhmgAwIBAgIJAJg3GRFp5bT9MA0GCSqGSIb3DQEBDAUAMBcxFTATBgNVBAMTDHMtN3N2Y2E5NHQwZDAgFw0wMDAxMDEwMDAwMDBaGA8yMTAwMDEwMTAwMDAwMFowFzEVMBMGA1UEAxMMcy03c3ZjYTk0dDBkMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEApebrdnQpXg5oBJ3kWKQCmvT3tqp184BfgRCLk34sxtjnD0Iv5bb/uh8UqyV7bljWol/xuIj+4gc1o9srGgGMH2I9Hs00jC0ajPYV81YC7VtCyRBemvL1Fz7CbeBhCZFComAgjtTD9TS3d8v90lSaxYcCUj6imJtqUDYPOFnzw1kpM0p3jiDuGdLlg14LPr80jcgoVjsVYnhUIS43BC7co+p2q5i6MfiXaP0sVMz7pLbhQd3mzYFKlj5I5Y4GaZdNAU5m0SFR4B3w1bpaNjwaV3dFaZSA4HT6+czCnU6ygrgynsvDH7e9kZDyjHvS2VWf9tfq11RIfqJb71AskrD9kZFj1CSQ/dHPMCqNNa2bIwDl7HCSkHAWJWpuV1zuGQUWMxHcbor25D8LDqEPN7MAkd2pT78H24NdVWvs1xOrEW1DPS6pGKPzNx8IPLUiF7vKGoenLKbrWp8/Ou3c1sMlSRD85ol2ep3FQ0Dt9UJQe0Z3Vgqik4zkKZ6W5VDLKxPTAgMBAAEwDQYJKoZIhvcNAQEMBQADggGBAIAOvcUcdK5SFtaYnsOqDS0tf2nABKmKqniTyuwruPJI6OrLTuNbCIqwI4jjQdVpVndxXoDEdLmsg0rkRujUoXWC2Lu2k7+PcGNn5/yFCkt3eL3UIUc3VE7UFrZiLnJjX8820PuImvuZ6Fd6zy+spnnSbsR7IuIAANSYXRYSExwbYK3DobyDQ7cWLM2e4ys7bUD1ZJksJtUpoHUWpwXkMlYhiK5e2WIK28AlmHrD7PIObCm9PH6H6c08AR+WQPix7XErxY1RNDhsa4T72ip59ufm4ugopnAdI3cx+hEgAZs4Xd9Vpo3m3/4VOm2Ipt2KHXCRb0o4gX0ny+xG0I5mm4zL9qazXMSDhNEtjFxJedqa/+f3CgnVE53bWgTXfbocBhaHMIhNoQpr/+nDlFIzk5JIHAuYke0SNL/6mM40LYgCe9vEh+BjIG9UsvoIpXIw1DxNMUw4j+nPPvOCWE5cPEe6JtgpmnX49qb0x0V0DWwSAUtNgACchjqALVJsG+xiAA==",
+      "gossipEndpoint": [{
+        "port": 31017,
+        "domainName": "localhost"
+      }]
+    },
+    "node": {
+      "accountId": {
+        "accountNum": "5"
+      }
+    }
+  }, {
+    "rosterEntry": {
+      "nodeId": "3",
+      "weight": "1",
+      "gossipCaCertificate": "MIIDsTCCAhmgAwIBAgIJAN7hww13zBZEMA0GCSqGSIb3DQEBDAUAMBcxFTATBgNVBAMTDHMtYjRnYnN4bm5rdDAgFw0wMDAxMDEwMDAwMDBaGA8yMTAwMDEwMTAwMDAwMFowFzEVMBMGA1UEAxMMcy1iNGdic3hubmt0MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAyv21cr9GVHiWeHCDiJjPsJqrWIwsOIzwAuePVkDz1dbxtJc0qYFfp0SqplgXsYS5Sjd27L63zQlKSkqvJnhcgrXaaU9XYVDphGXKDYS2c6sV29h2GKkT7/NrUfrW4ftu1hbATjqmK2E76+9hAg+6gzrsP16G+iiJmsP2/0iAD3nDKGMtuX5IGJCUhE8HfB1KcLLGB/yUywRfHho400zLrteAEUCnh/AV0rPo41dftyCLVxEUvK8lBg46nObwvGVtZA1UG2/dSA8UY6mWxcobmrKHAqkwHGbohIBPFopcKdoNb2wFJx57yjX4mhAB6BFerxeJXpWloTpzdlObZ6Mf57Oj4g6iGzn7NKZl8YwCtL8XOqGTN08HUbc6OnEm/wGH0HZ5kM5K2vfNJBzddq93+zytj8xgblVD0+3yxgOEt70A2DuK6nIE3Pzi6G7ai7XQbrDhY2bHHyH1FuBlViVCNY/n8Lx2nMVi5smcJUOUOO1La7Y1qRa7uwk5+UuO+5ajAgMBAAEwDQYJKoZIhvcNAQEMBQADggGBAKJR5jERX3TW9XZWgDmfbsZUY1ZEhPE+pYVd/mu+MS2cY7e+shvFgCDYUevREufWUE/qT6YxBfnHVtIHO/FY+2DH4upHxn2G8Knz5Od5Hf/edtXbmal8vvPLsP8dcQbnGKYu4TCZHYoZSKC8lFOYFpXTOZY5bK5auD0YHyFZABaMRIBkPr7bNJGTVDx0eo2fTr2H3ZPRlH8fJke4165wc6972VXCkxlX97ituDh/ZQP3b8AE+CJja6ZrrV6y2pgYWASzZ1M26Cpx+tvS3xZYnl4NdRpmXVe89kD2UuhXFVJ4VfngftNHeuQkX1iLkgzpYu2j3/HFGl/Mc1ybf6ZwBqONOSYiRiSwnN/lKOny2krtL4GDXIO1HSr4oebWlOyMAMhV9P3RCMfNckmOJ6f+o/hF5wFdrW8taY0kQ8RPMOIHAyRmZ6GZdSzw9A++aGvCe8eIvxurP46QhIigdQDYrzj+VArGv5WmZl4dI+BmRLwtW+gntOJTR9f846rx3pCNVg==",
+      "gossipEndpoint": [{
+        "port": 31019,
+        "domainName": "localhost"
+      }]
+    },
+    "node": {
+      "accountId": {
+        "accountNum": "6"
+      }
+    }
+  }]
+}
