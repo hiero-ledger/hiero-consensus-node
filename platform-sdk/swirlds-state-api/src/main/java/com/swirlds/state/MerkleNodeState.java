@@ -31,6 +31,11 @@ public interface MerkleNodeState extends State {
     MerkleNodeState copy();
 
     /**
+     * Commit all singleton states for every registered service.
+     */
+    void commitSingletons();
+
+    /**
      * Initializes the defined service state.
      *
      * @param md The metadata associated with the state.

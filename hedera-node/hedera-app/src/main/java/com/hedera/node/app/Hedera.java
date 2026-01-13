@@ -362,7 +362,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     /**
      * The action to take, if any, when a consensus round is sealed.
      */
-    private final BiPredicate<Round, State> onSealConsensusRound;
+    private final BiPredicate<Round, MerkleNodeState> onSealConsensusRound;
 
     private final boolean quiescenceEnabled;
 
@@ -1041,7 +1041,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * @return true if a block has closed, signaling a safe time to sign the state without risking loss
      * of transactions in the event of an incident
      */
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
         requireNonNull(state);
         requireNonNull(round);
         return onSealConsensusRound.test(round, state);
@@ -1359,7 +1359,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         return root;
     }
 
-    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
+    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
         daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
         return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
     }

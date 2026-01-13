@@ -299,6 +299,11 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
+    public void commitSingletons() {
+        // do nothing
+    }
+
+    @Override
     public void initializeState(@NonNull final StateMetadata<?, ?> md) {
         // do nothing
     }
