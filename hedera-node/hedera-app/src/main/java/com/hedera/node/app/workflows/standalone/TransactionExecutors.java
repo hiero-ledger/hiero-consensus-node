@@ -17,6 +17,7 @@ import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
+import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
@@ -34,7 +35,6 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -323,8 +323,7 @@ public enum TransactionExecutors {
     private enum DefaultTracerBinding implements TracerBinding {
         DEFAULT_TRACER_BINDING;
 
-        private static final ThreadLocal<List<ActionSidecarContentTracer>> TRACERS =
-                ThreadLocal.withInitial(List::of);
+        private static final ThreadLocal<List<ActionSidecarContentTracer>> TRACERS = ThreadLocal.withInitial(List::of);
 
         @Override
         public void runWhere(
