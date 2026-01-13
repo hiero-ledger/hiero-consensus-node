@@ -29,7 +29,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_ASSEMBLY_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
-import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
@@ -144,7 +144,7 @@ public class BlockTransactionalUnitTranslator {
                     put(FILE_UPDATE, new FileUpdateTranslator());
                     put(FILE_APPEND, new FileAppendTranslator());
                     put(FREEZE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
-                    put(LAMBDA_S_STORE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HOOK_STORE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_CREATE, new NodeCreateTranslator());
                     put(NODE_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);

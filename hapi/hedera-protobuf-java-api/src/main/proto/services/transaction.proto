@@ -100,7 +100,7 @@ import "services/auxiliary/history/history_proof_vote.proto";
 
 import "services/auxiliary/tss/ledger_id_publication.proto";
 
-import "services/lambda_sstore.proto";
+import "services/hook_store.proto";
 import "services/hook_dispatch.proto";
 
 /**
@@ -655,9 +655,9 @@ message TransactionBody {
         AtomicBatchTransactionBody atomic_batch = 74;
 
         /**
-         * A transaction body for updating the storage of a EVM lambda hook.
+         * A transaction body for updating the storage of an EVM hook.
          */
-        com.hedera.hapi.node.hooks.LambdaSStoreTransactionBody lambda_sstore = 75;
+        com.hedera.hapi.node.hooks.HookStoreTransactionBody hook_store = 75;
 
         /**
          * An internal-only transaction body for dispatching a hook CRUD operation.
