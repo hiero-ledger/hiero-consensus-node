@@ -130,8 +130,8 @@ public class TransactionDispatcher {
 
             if (shouldUseSimpleFees(feeContext)) {
                 // Simple fees path (HIP-1261)
-                var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                        .calculateTxFee(txBody, feeContext);
+                var feeResult =
+                        requireNonNull(feeManager.getSimpleFeeCalculator()).calculateTxFee(txBody, feeContext);
                 fees = feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
             } else {
                 // Legacy fees path
@@ -162,9 +162,7 @@ public class TransactionDispatcher {
      */
     @NonNull
     private Fees applyVariableRatePricing(
-            @NonNull final TransactionBody txBody,
-            @NonNull final FeeContext feeContext,
-            @NonNull final Fees fees) {
+            @NonNull final TransactionBody txBody, @NonNull final FeeContext feeContext, @NonNull final Fees fees) {
         final FeeSchedule feeSchedule = feeManager.getSimpleFeesSchedule();
         if (feeSchedule == null) {
             return fees;

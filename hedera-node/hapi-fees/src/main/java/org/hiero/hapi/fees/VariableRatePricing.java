@@ -41,7 +41,8 @@ public final class VariableRatePricing {
      * @param utilizationScaled the current utilization in thousandths of one percent (0-100000)
      * @return the fee multiplier (1.0 to max_multiplier)
      */
-    public static double calculateMultiplier(@Nullable final VariableRateDefinition variableRateDef, final int utilizationScaled) {
+    public static double calculateMultiplier(
+            @Nullable final VariableRateDefinition variableRateDef, final int utilizationScaled) {
         if (variableRateDef == null) {
             return 1.0;
         }
@@ -78,7 +79,8 @@ public final class VariableRatePricing {
      * @param utilizationScaled the current utilization in thousandths of one percent (0-100000)
      * @return the interpolated multiplier
      */
-    public static double interpolatePiecewiseLinear(@NonNull final PiecewiseLinearCurve curve, final int utilizationScaled) {
+    public static double interpolatePiecewiseLinear(
+            @NonNull final PiecewiseLinearCurve curve, final int utilizationScaled) {
         final List<PiecewiseLinearPoint> points = curve.points();
 
         if (points == null || points.isEmpty()) {
@@ -147,4 +149,3 @@ public final class VariableRatePricing {
         return Math.round(adjustedFee);
     }
 }
-

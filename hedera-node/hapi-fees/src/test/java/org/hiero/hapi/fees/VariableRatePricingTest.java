@@ -23,9 +23,8 @@ class VariableRatePricingTest {
     @Test
     void calculateMultiplierLinearlyInterpolatesWhenNoCurve() {
         // max_multiplier of 4,000,000 means effective max = 1 + 4 = 5.0
-        final var definition = VariableRateDefinition.newBuilder()
-                .maxMultiplier(4_000_000)
-                .build();
+        final var definition =
+                VariableRateDefinition.newBuilder().maxMultiplier(4_000_000).build();
 
         // At 0% utilization, multiplier should be 1.0
         assertEquals(1.0, VariableRatePricing.calculateMultiplier(definition, 0), 0.001);
@@ -56,7 +55,8 @@ class VariableRatePricingTest {
                         .build());
 
         final var curve = PiecewiseLinearCurve.newBuilder().points(points).build();
-        final var pricingCurve = PricingCurve.newBuilder().piecewiseLinear(curve).build();
+        final var pricingCurve =
+                PricingCurve.newBuilder().piecewiseLinear(curve).build();
         final var definition = VariableRateDefinition.newBuilder()
                 .maxMultiplier(10_000_000) // max = 11.0 (won't be reached)
                 .pricingCurve(pricingCurve)
@@ -93,7 +93,8 @@ class VariableRatePricingTest {
                         .build());
 
         final var curve = PiecewiseLinearCurve.newBuilder().points(points).build();
-        final var pricingCurve = PricingCurve.newBuilder().piecewiseLinear(curve).build();
+        final var pricingCurve =
+                PricingCurve.newBuilder().piecewiseLinear(curve).build();
         final var definition = VariableRateDefinition.newBuilder()
                 .maxMultiplier(1_000_000) // max = 2.0
                 .pricingCurve(pricingCurve)
@@ -140,4 +141,3 @@ class VariableRatePricingTest {
         assertEquals(Long.MAX_VALUE, VariableRatePricing.applyMultiplier(Long.MAX_VALUE, 2.0));
     }
 }
-
