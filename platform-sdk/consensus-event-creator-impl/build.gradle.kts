@@ -5,7 +5,7 @@ plugins {
     id("org.hiero.gradle.feature.benchmark")
 }
 
-mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
+mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
 
 jmhModuleInfo {
     requires("com.swirlds.common")

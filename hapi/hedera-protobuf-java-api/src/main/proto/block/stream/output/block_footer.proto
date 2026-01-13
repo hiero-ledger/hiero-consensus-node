@@ -32,7 +32,11 @@ message BlockFooter {
      * Client systems SHOULD optimistically reject any block with a
      * `previous_block_proof_hash` that does not match the block hash of the
      * previous block and MAY assume the block stream has encountered data
-     * loss, data corruption, or unauthorized modification.
+     * loss, data corruption, or unauthorized modification.<br>
+     * For historical converted record stream blocks, this is the hash of the
+     * previous hashed converted block using block stream hashing algorithm.
+     * That means it is different from the original record stream block hash
+     * which is available from mirror node and hashscan.io.
      */
     bytes previous_block_root_hash = 1;
 
@@ -55,7 +59,10 @@ message BlockFooter {
      * for a block using the value present in the Block Footer of the
      * _following_ block.
      * Stateless (non-state-processing) clients MUST use this value to
-     * construct the block merkle tree.
+     * construct the block merkle tree.<br>
+     * For historical converted record stream blocks, this the state root hash
+     * was never recorded in the record stream at that time, so this field
+     * will be 48 bytes of zeros.
      */
     bytes start_of_block_state_root_hash = 3;
 }

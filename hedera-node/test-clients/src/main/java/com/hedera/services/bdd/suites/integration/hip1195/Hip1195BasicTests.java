@@ -60,10 +60,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
+import com.hedera.hapi.node.hooks.EvmHook;
 import com.hedera.hapi.node.hooks.EvmHookSpec;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookExtensionPoint;
-import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.contract.ContractService;
@@ -356,12 +356,12 @@ public class Hip1195BasicTests {
     @HapiTest
     final Stream<DynamicTest> cryptoCreateWithHooksFailureScenarios() {
         return hapiTest(
-                // 1) CryptoCreate with HookCreationDetails fails (lambda present but spec missing)
+                // 1) CryptoCreate with HookCreationDetails fails (EVM hook present but spec missing)
                 cryptoCreate("ccFail_missingSpec")
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(500L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
                 // 4) CryptoCreate with invalid hook contract_id (spec present but no contract_id set)
@@ -369,11 +369,11 @@ public class Hip1195BasicTests {
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(501L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                .evmHook(EvmHook.newBuilder()
                                         .spec(EvmHookSpec.newBuilder().build()))
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
-                // 5) CryptoCreate without hook bytecode (no lambda set)
+                // 5) CryptoCreate without hook bytecode (no EVM hook set)
                 cryptoCreate("ccFail_noLambda")
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(502L)
@@ -390,7 +390,7 @@ public class Hip1195BasicTests {
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(504L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
                 // 6) CryptoUpdate with invalid hook contract_id (spec present but no contract_id set)
@@ -398,7 +398,7 @@ public class Hip1195BasicTests {
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(505L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                .evmHook(EvmHook.newBuilder()
                                         .spec(EvmHookSpec.newBuilder().build()))
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
@@ -407,10 +407,10 @@ public class Hip1195BasicTests {
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(506L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
-                // 7) CryptoUpdate without hook bytecode (no lambda set)
+                // 7) CryptoUpdate without hook bytecode (no hook set)
                 cryptoUpdate("acctWithHook")
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(507L)
@@ -425,12 +425,12 @@ public class Hip1195BasicTests {
                 uploadInitCode("SimpleUpdate"),
                 uploadInitCode("CreateTrivial"),
 
-                // 1) ContractCreate with HookCreationDetails fails (lambda present but spec missing)
+                // 1) ContractCreate with HookCreationDetails fails (EVM hook present but spec missing)
                 contractCreate("SimpleUpdate")
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(520L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
                 // 4) ContractCreate with invalid hook contract_id (spec present but no contract_id set)
@@ -438,11 +438,11 @@ public class Hip1195BasicTests {
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(521L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                .evmHook(EvmHook.newBuilder()
                                         .spec(EvmHookSpec.newBuilder().build()))
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
-                // 5) ContractCreate without hook bytecode (no lambda set)
+                // 5) ContractCreate without hook bytecode (no EVM hook set)
                 contractCreate("SimpleUpdate")
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(522L)
@@ -459,7 +459,7 @@ public class Hip1195BasicTests {
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(524L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
                 // 6) ContractUpdate with invalid hook contract_id (spec present but no contract_id set)
@@ -467,7 +467,7 @@ public class Hip1195BasicTests {
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(525L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder()
+                                .evmHook(EvmHook.newBuilder()
                                         .spec(EvmHookSpec.newBuilder().build()))
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
@@ -476,10 +476,10 @@ public class Hip1195BasicTests {
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(526L)
                                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                                .lambdaEvmHook(LambdaEvmHook.newBuilder())
+                                .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
-                // 7) ContractUpdate without hook bytecode (no lambda set)
+                // 7) ContractUpdate without hook bytecode (no EVM hook set)
                 contractUpdate("SimpleUpdate")
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(527L)
@@ -662,6 +662,7 @@ public class Hip1195BasicTests {
                         .withPreHookFor("sender", 242L, 3 * HOOK_GAS_LIMIT, "")
                         .withPrePostHookFor("treasury", 241L, 2 * HOOK_GAS_LIMIT, "")
                         .payingWith("sender")
+                        .signedBy("sender")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("nftTransferFails"),
                 sourcingContextual(spec -> {
