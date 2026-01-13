@@ -56,7 +56,7 @@ public class FeeResult {
      */
     public void addNodeExtra(String name, long per_unit, long used, int included, long charged) {
         nodeExtras.add(new FeeDetail(name, per_unit, used, included, charged));
-        service = clampedAdd(service, per_unit * charged);
+        node = clampedAdd(node, per_unit * charged);
     }
 
     /** Add a network fee with details.
