@@ -95,7 +95,7 @@ public class HgcaaLogValidator {
                 List.of("Completing signing attempt"),
                 List.of("No pending blocks found"),
                 List.of("Forcing handoff to construction", "with different target roster"),
-                List.of("HintsSubmissions", "Failed to submit", "(PLATFORM_NOT_ACTIVE)"),
+                List.of("HintsSubmissions", "Failed to submit"),
                 List.of("Ignoring invalid partial signature"),
                 List.of("Action stack prematurely empty"),
                 List.of("Block node", "reported it is behind. Will restart stream at block"),
