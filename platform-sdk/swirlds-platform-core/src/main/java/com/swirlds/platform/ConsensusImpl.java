@@ -40,7 +40,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
@@ -344,8 +343,11 @@ public class ConsensusImpl implements Consensus {
             final EventImpl insertedEvent = iterator.next();
 
             if (rounds.isLastDecidedJudge(insertedEvent)
-                    && insertedEvent.getAllParents().stream().mapToLong(this::round).max()
-                    .orElse(ConsensusConstants.ROUND_NEGATIVE_INFINITY) == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
+                    && insertedEvent.getAllParents().stream()
+                                    .mapToLong(this::round)
+                                    .max()
+                                    .orElse(ConsensusConstants.ROUND_NEGATIVE_INFINITY)
+                            == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
                 // If an event was a judge in the last round decided AND is not a descendant of any other judge in
                 // this round, we leave all of its metadata intact. We know that it is not a descendant of any other
                 // judge in this round if all of its parents have a round of -infinity.
@@ -931,12 +933,12 @@ public class ConsensusImpl implements Consensus {
         return ancient(x.getSelfParent()) ? null : x.getSelfParent();
     }
 
-//    /**
-//     * @return the other-parent of event x, or ∅ if none or ancient
-//     */
-//    private @Nullable EventImpl otherParent(@NonNull final EventImpl x) {
-//        return ancient(x.getOtherParent()) ? null : x.getOtherParent();
-//    }
+    //    /**
+    //     * @return the other-parent of event x, or ∅ if none or ancient
+    //     */
+    //    private @Nullable EventImpl otherParent(@NonNull final EventImpl x) {
+    //        return ancient(x.getOtherParent()) ? null : x.getOtherParent();
+    //    }
 
     private @NonNull List<EventImpl> parents(@NonNull final EventImpl x) {
         return x.getAllParents().stream().filter(Predicate.not(this::ancient)).toList();
@@ -1005,12 +1007,13 @@ public class ConsensusImpl implements Consensus {
             if (creatorIndexEquals(x, mm)) {
                 x.setLastSee(mm, x);
             } else {
-//                final EventImpl lsop = lastSee(op, mm);
-//                final EventImpl lssp = lastSee(sp, mm);
-//                // Note: getDeGen() might return DeGen.GENERATION_UNDEFINED in some instances, this will be for events
-//                // that will not affect consensus, so it makes no difference
-//                final long lsopGen = lsop == null ? DeGen.GENERATION_UNDEFINED : lsop.getDeGen();
-//                final long lsspGen = lssp == null ? DeGen.GENERATION_UNDEFINED : lssp.getDeGen();
+                //                final EventImpl lsop = lastSee(op, mm);
+                //                final EventImpl lssp = lastSee(sp, mm);
+                //                // Note: getDeGen() might return DeGen.GENERATION_UNDEFINED in some instances, this
+                // will be for events
+                //                // that will not affect consensus, so it makes no difference
+                //                final long lsopGen = lsop == null ? DeGen.GENERATION_UNDEFINED : lsop.getDeGen();
+                //                final long lsspGen = lssp == null ? DeGen.GENERATION_UNDEFINED : lssp.getDeGen();
                 final List<EventImpl> parents = parents(x);
 
                 if (parents.isEmpty()) {
@@ -1029,7 +1032,7 @@ public class ConsensusImpl implements Consensus {
 
                         if ((round(candidateLastSeenEvent) > round(bestLastSeenEvent))
                                 || (candidateLastSeenEvent.getDeGen() > bestLastSeenEvent.getDeGen()
-                                && (firstSee(candidateLastSeenEvent, mm) == firstSee(bestLastSeenEvent, mm)))) {
+                                        && (firstSee(candidateLastSeenEvent, mm) == firstSee(bestLastSeenEvent, mm)))) {
                             bestLastSeenEvent = candidateLastSeenEvent;
                         }
                     }
@@ -1115,7 +1118,8 @@ public class ConsensusImpl implements Consensus {
                         weight += getWeight(m3);
                     }
                 }
-                if (Threshold.SUPER_MAJORITY.isSatisfiedBy(weight, rosterTotalWeight)) { // strongly see supermajority of
+                if (Threshold.SUPER_MAJORITY.isSatisfiedBy(
+                        weight, rosterTotalWeight)) { // strongly see supermajority of
                     // intermediates
                     x.setStronglySeeP(mm, st);
                 } else {
@@ -1305,14 +1309,14 @@ public class ConsensusImpl implements Consensus {
         return x;
 
         // calculate, memoize, and return the result
-//        if (round(x) > parentRound(x)) {
-//            x.setFirstWitnessS(x);
-//        } else if (round(x) == round(selfParent(x))) {
-//            x.setFirstWitnessS(firstWitnessS(selfParent(x)));
-//        } else {
-//            x.setFirstWitnessS(firstWitnessS(otherParent(x)));
-//        }
-//        return x.getFirstWitnessS();
+        //        if (round(x) > parentRound(x)) {
+        //            x.setFirstWitnessS(x);
+        //        } else if (round(x) == round(selfParent(x))) {
+        //            x.setFirstWitnessS(firstWitnessS(selfParent(x)));
+        //        } else {
+        //            x.setFirstWitnessS(firstWitnessS(otherParent(x)));
+        //        }
+        //        return x.getFirstWitnessS();
     }
 
     /**

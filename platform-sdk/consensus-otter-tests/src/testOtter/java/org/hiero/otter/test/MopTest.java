@@ -37,8 +37,7 @@ public class MopTest {
         final TimeManager timeManager = env.timeManager();
 
         // Setup simulation
-        network.withConfigValue(EventCreationConfig_.MAX_OTHER_PARENTS, 100)
-                .addNodes(4);
+        network.withConfigValue(EventCreationConfig_.MAX_OTHER_PARENTS, 100).addNodes(4);
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
@@ -65,8 +64,9 @@ public class MopTest {
         int maxParents = 0;
         int count = 0;
         double sum = 0;
-        try(final PcesMultiFileIterator pces = network.newPcesResults().pcesResults().getFirst().pcesEvents()){
-            while (pces.hasNext()){
+        try (final PcesMultiFileIterator pces =
+                network.newPcesResults().pcesResults().getFirst().pcesEvents()) {
+            while (pces.hasNext()) {
                 count++;
                 final int numParents = pces.next().getAllParents().size();
                 maxParents = Math.max(maxParents, numParents);
@@ -80,6 +80,5 @@ public class MopTest {
 
         assertThat(maxParents).isGreaterThan(2);
         assertThat(averageParents).isGreaterThan(2);
-
     }
 }
