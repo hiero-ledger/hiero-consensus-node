@@ -46,8 +46,7 @@ final class BucketMutation {
     void put(final Bytes keyBytes, final int keyHashCode, final long value) {
         BucketMutation mutation = this;
         while (true) {
-            if (mutation.keyBytes.equals(keyBytes)) {
-                assert (keyHashCode == 0) || (mutation.keyHashCode == keyHashCode);
+            if ((mutation.keyHashCode == keyHashCode) && mutation.keyBytes.equals(keyBytes)) {
                 mutation.value = value;
                 mutation.oldValue = INVALID_VALUE;
                 return;
@@ -63,8 +62,7 @@ final class BucketMutation {
     void putIfEqual(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
         BucketMutation mutation = this;
         while (true) {
-            if (mutation.keyBytes.equals(keyBytes)) {
-                assert (keyHashCode == 0) || (mutation.keyHashCode == keyHashCode);
+            if ((mutation.keyHashCode == keyHashCode) && mutation.keyBytes.equals(keyBytes)) {
                 if (mutation.value == oldValue) {
                     mutation.value = value;
                 }

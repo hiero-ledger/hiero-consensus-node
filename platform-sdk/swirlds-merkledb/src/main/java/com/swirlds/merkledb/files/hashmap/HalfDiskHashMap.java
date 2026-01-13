@@ -512,7 +512,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     void put(final Bytes keyBytes, final int keyHashCode, final long value) {
         final BucketMutation bucketMap = findBucketForUpdate(keyBytes, keyHashCode, INVALID_VALUE, value);
-        bucketMap.put(keyBytes, keyHashCode, value);
+        // Identity check: findBucketForUpdate() may have already added a bucket mutation for this
+        // key, in this case it doesn't make sense to call bucketMap.put()
+        if ((bucketMap.getKeyBytes() != keyBytes) || (bucketMap.getNext() != null)) {
+            bucketMap.put(keyBytes, keyHashCode, value);
+        }
     }
 
     /**
@@ -539,7 +543,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     void putIfEqual(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
         final BucketMutation bucketMap = findBucketForUpdate(keyBytes, keyHashCode, oldValue, value);
-        bucketMap.putIfEqual(keyBytes, keyHashCode, oldValue, value);
+        // Identity check: findBucketForUpdate() may have already added a bucket mutation for this
+        // key, in this case it doesn't make sense to call bucketMap.putIfEqual()
+        if ((bucketMap.getKeyBytes() != keyBytes) || (bucketMap.getNext() != null)) {
+            bucketMap.putIfEqual(keyBytes, keyHashCode, oldValue, value);
+        }
     }
 
     /**
