@@ -2,6 +2,7 @@
 package com.swirlds.platform.consensus;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
@@ -42,9 +43,9 @@ public class CoinRoundTest extends PlatformTest {
     void coinRound() throws IOException, ParseException {
         final PlatformContext context = createDefaultPlatformContext();
 
-        final Path dir = Path.of("/Users/lazarpetrovic/Downloads/PCES");
+        final Path dir = Path.of("/Users/kellygreco/Desktop/test_run/node0/preconsensus-events/");
         final Roster roster = Roster.JSON.parse(
-                new ReadableStreamingData(new FileInputStream("/Users/lazarpetrovic/Downloads/currentRoster.json")));
+                new ReadableStreamingData(new FileInputStream("/Users/kellygreco/Desktop/test_run/node0/currentRoster.json")));
         // this will compact files in advance. the PcesFileReader will do the same thing and the these files will be
         // in the gradle cache and break the test. this seems to bypass that issue.
         PcesUtilities.compactPreconsensusEventFiles(dir);
@@ -52,7 +53,13 @@ public class CoinRoundTest extends PlatformTest {
         final PcesFileTracker pcesFileTracker =
                 PcesFileReader.readFilesFromDisk(context.getConfiguration(), context.getRecycleBin(), dir, 0, false);
 
+        final Path consensusSnapshotPath = Path.of("/Users/kellygreco/Desktop/test_run/node0/consensusSnapshot.json");
+        final ConsensusSnapshot consensusSnapshot =
+                ConsensusSnapshot.JSON.parse(new ReadableStreamingData(new FileInputStream(consensusSnapshotPath.toFile())));
+
         final TestIntake intake = new TestIntake(context, roster);
+        intake.loadSnapshot(consensusSnapshot);
+
         final ConsensusOutput output = intake.getOutput();
 
         ConsensusRound latestRound = null;
