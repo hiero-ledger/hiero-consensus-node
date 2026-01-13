@@ -67,8 +67,9 @@ public class ExtractConsensusSnapshotStateCommand extends AbstractCommand {
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readState(statePath, platformContext,
-                        virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()));
+                SignedStateFileReader.readState(statePath,
+                        virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                        platformContext);
 
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
             final State state = reservedSignedState.get().getState();
