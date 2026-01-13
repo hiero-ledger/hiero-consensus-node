@@ -120,28 +120,26 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         final StateSavingResult stateSavingResult;
 
         // the state is reserved before it is handed to this method, and it is released when we are done
-        try (reservedSignedState) {
-            final SignedState signedState = reservedSignedState.get();
-            if (signedState.hasStateBeenSavedToDisk()) {
-                logger.info(
-                        EXCEPTION.getMarker(),
-                        "Not saving signed state for round {} to disk because it has already been saved.",
-                        signedState.getRound());
-                return null;
-            }
-            checkSignatures(signedState);
-            final boolean success = saveStateTask(signedState, getSignedStateDir(signedState.getRound()));
-            if (!success) {
-                return null;
-            }
-            signedState.stateSavedToDisk();
-            final long minBirthRound = deleteOldStates();
-            stateSavingResult = new StateSavingResult(
-                    signedState.getRound(),
-                    signedState.isFreezeState(),
-                    signedState.getConsensusTimestamp(),
-                    minBirthRound);
+        final SignedState signedState = reservedSignedState.get();
+        if (signedState.hasStateBeenSavedToDisk()) {
+            logger.info(
+                    EXCEPTION.getMarker(),
+                    "Not saving signed state for round {} to disk because it has already been saved.",
+                    signedState.getRound());
+            return null;
         }
+        checkSignatures(signedState);
+        final boolean success = saveStateTask(reservedSignedState, getSignedStateDir(signedState.getRound()));
+        if (!success) {
+            return null;
+        }
+        signedState.stateSavedToDisk();
+        final long minBirthRound = deleteOldStates();
+        stateSavingResult = new StateSavingResult(
+                signedState.getRound(),
+                signedState.isFreezeState(),
+                signedState.getConsensusTimestamp(),
+                minBirthRound);
         metrics.getStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
         metrics.getWriteStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
 
@@ -154,16 +152,15 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     @Override
     public void dumpStateTask(@NonNull final StateDumpRequest request) {
         // the state is reserved before it is handed to this method, and it is released when we are done
-        try (final ReservedSignedState reservedSignedState = request.reservedSignedState()) {
-            final SignedState signedState = reservedSignedState.get();
-            // states requested to be written out-of-band are always written to disk
-            saveStateTask(
-                    reservedSignedState.get(),
-                    signedStateFilePath
-                            .getSignedStatesBaseDirectory()
-                            .resolve(getReason(signedState).getDescription())
-                            .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
-        }
+        final ReservedSignedState reservedSignedState = request.reservedSignedState();
+        final SignedState signedState = reservedSignedState.get();
+        // states requested to be written out-of-band are always written to disk
+        saveStateTask(
+                reservedSignedState,
+                signedStateFilePath
+                        .getSignedStatesBaseDirectory()
+                        .resolve(getReason(signedState).getDescription())
+                        .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
         request.finishedCallback().run();
     }
 
@@ -172,16 +169,24 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         return Optional.ofNullable(state.getStateToDiskReason()).orElse(UNKNOWN);
     }
 
-    private boolean saveStateTask(@NonNull final SignedState state, @NonNull final Path directory) {
+    private boolean saveStateTask(
+            @NonNull final ReservedSignedState reservedSignedState, @NonNull final Path directory) {
+        final SignedState signedState = reservedSignedState.get();
+
         try {
             SignedStateFileWriter.writeSignedStateToDisk(
-                    platformContext, selfId, directory, getReason(state), state, stateLifecycleManager);
+                    platformContext,
+                    selfId,
+                    directory,
+                    getReason(signedState),
+                    reservedSignedState,
+                    stateLifecycleManager);
             return true;
         } catch (final Throwable e) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Unable to write signed state to disk for round {} to {}.",
-                    state.getRound(),
+                    signedState.getRound(),
                     directory,
                     e);
             return false;

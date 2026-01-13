@@ -227,6 +227,20 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     private VirtualDataSource dataSource;
 
     /**
+     * The target path for an asynchronous snapshot operation. This field is {@code null} unless
+     * an async snapshot has been requested via {@link #createSnapshotAsync(Path)}.
+     * When set along with the {@link #snapshotFuture}, the snapshot will be written to this path during the flush operation.
+     */
+    private Path snapshotTargetPath;
+
+    /**
+     * A future that completes when an asynchronous snapshot operation finishes. This field is
+     * {@code null} unless an async snapshot has been requested via {@link #createSnapshotAsync(Path)}.
+     * The future is completed in {@link #flush()} after the snapshot is successfully written.
+     */
+    private CompletableFuture<Void> snapshotFuture;
+
+    /**
      * A cache for virtual tree nodes. This cache is very specific for this use case. The elements
      * in the cache are those nodes that were modified by this root node, or any copy of this node, that have
      * not yet been written to disk. This cache is used for two purposes. First, we avoid writing to
@@ -940,6 +954,18 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         cache.release();
         final long end = System.currentTimeMillis();
         flushed.set(true);
+
+        // If an async snapshot was requested via createSnapshotAsync(), write the snapshot
+        // to the target path and signal completion. This must happen after the cache flush
+        // completes, so the data source contains all relevant data.
+        if (snapshotTargetPath != null && snapshotFuture != null) {
+            dataSourceBuilder.snapshot(snapshotTargetPath, dataSource);
+            snapshotFuture.complete(null);
+
+            snapshotTargetPath = null;
+            snapshotFuture = null;
+        }
+
         flushLatch.countDown();
         statistics.recordFlush(end - start);
         logger.debug(
@@ -1556,6 +1582,24 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 dataSourceCopy.close();
             }
         }
+    }
+
+    /**
+     * Initiates an asynchronous snapshot creation for this virtual map. Unlike {@link #createSnapshot(Path)},
+     * this method does not block and instead returns a future that completes when the snapshot is written.
+     *
+     * <p>The snapshot will be created during the next flush operation. This method enables flushing
+     * via {@link #enableFlush()} to ensure the snapshot is written.
+     *
+     * @param outputDirectory the target directory where the snapshot will be written
+     * @return a {@link CompletableFuture} that completes when the snapshot has been successfully written
+     *         to the specified directory
+     */
+    public CompletableFuture<Void> createSnapshotAsync(final @NonNull Path outputDirectory) {
+        snapshotTargetPath = outputDirectory;
+        snapshotFuture = new CompletableFuture<>();
+        enableFlush();
+        return snapshotFuture;
     }
 
     /**

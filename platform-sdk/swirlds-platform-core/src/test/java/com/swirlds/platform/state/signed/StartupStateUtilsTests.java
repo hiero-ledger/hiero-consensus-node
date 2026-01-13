@@ -130,9 +130,7 @@ public class StartupStateUtilsTests {
         final StateLifecycleManager stateLifecycleManager = createLifecycleManager();
         final MerkleNodeState state = signedState.getState();
         stateLifecycleManager.initState(state);
-        stateLifecycleManager.getMutableState().release();
-        // hash the state
-        state.getHash();
+        state.release();
 
         final Path savedStateDirectory =
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
@@ -141,7 +139,7 @@ public class StartupStateUtilsTests {
                 selfId,
                 savedStateDirectory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
-                signedState,
+                signedState.reserve("test"),
                 stateLifecycleManager);
 
         if (corrupted) {
@@ -152,7 +150,7 @@ public class StartupStateUtilsTests {
             writer.close();
         }
 
-        state.release();
+        stateLifecycleManager.getMutableState().release();
         return signedState;
     }
 

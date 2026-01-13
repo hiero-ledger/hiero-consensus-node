@@ -9,7 +9,6 @@ import static com.swirlds.platform.config.internal.PlatformConfigUtils.writeSett
 import static com.swirlds.platform.event.preconsensus.BestEffortPcesFileCopy.copyPcesFilesRetryOnFailure;
 import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
-import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.INIT_SIG_SET_FILE_VERSION;
@@ -22,6 +21,7 @@ import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
@@ -127,32 +127,33 @@ public final class SignedStateFileWriter {
      * @param platformContext the platform context
      * @param selfId          the id of the platform
      * @param directory       the directory where all files should be placed
+     * @param reservedSignedState the state, which should be written to a directory
      * @param stateLifecycleManager the state lifecycle manager
      */
     public static void writeSignedStateFilesToDirectory(
             @Nullable final PlatformContext platformContext,
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
-            @NonNull final SignedState signedState,
+            @NonNull final ReservedSignedState reservedSignedState,
             @NonNull final StateLifecycleManager stateLifecycleManager)
             throws IOException {
         requireNonNull(platformContext);
         requireNonNull(directory);
-        requireNonNull(signedState);
+        requireNonNull(reservedSignedState);
         requireNonNull(stateLifecycleManager);
 
-        final long round = roundOf(signedState.getState());
+        final SignedState signedState = reservedSignedState.get();
         try {
-            logger.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for {}", directory, round);
-            stateLifecycleManager.createSnapshot(signedState.getState(), directory);
-            logger.info(
-                    STATE_TO_DISK.getMarker(),
-                    "Successfully created a snapshot on demand in {}  for {}",
-                    directory,
-                    round);
+            final var snapshotAsync = stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
+            reservedSignedState.close();
+            snapshotAsync.get();
         } catch (final Throwable e) {
             logger.error(
-                    EXCEPTION.getMarker(), "Unable to write a snapshot on demand for {} to {}.", round, directory, e);
+                    EXCEPTION.getMarker(),
+                    "Unexpected error when writing a snapshot for round {} to {}: {}",
+                    signedState.getRound(),
+                    directory,
+                    e);
         }
 
         writeSignatureSetFile(directory, signedState);
@@ -195,6 +196,7 @@ public final class SignedStateFileWriter {
      * @param selfId              the id of the platform
      * @param savedStateDirectory the directory where the state will be stored
      * @param stateToDiskReason   the reason the state is being written to disk
+     * @param reservedSignedState the state, which should be written to a directory
      * @param stateLifecycleManager the state lifecycle manager
      */
     public static void writeSignedStateToDisk(
@@ -202,14 +204,16 @@ public final class SignedStateFileWriter {
             @Nullable final NodeId selfId,
             @NonNull final Path savedStateDirectory,
             @Nullable final StateToDiskReason stateToDiskReason,
-            @NonNull final SignedState signedState,
+            @NonNull final ReservedSignedState reservedSignedState,
             @NonNull final StateLifecycleManager stateLifecycleManager)
             throws IOException {
 
-        requireNonNull(signedState);
+        requireNonNull(reservedSignedState);
         requireNonNull(platformContext);
         requireNonNull(savedStateDirectory);
         requireNonNull(stateLifecycleManager);
+
+        final SignedState signedState = reservedSignedState.get();
 
         try {
             logger.info(
@@ -222,7 +226,7 @@ public final class SignedStateFileWriter {
             executeAndRename(
                     savedStateDirectory,
                     directory -> writeSignedStateFilesToDirectory(
-                            platformContext, selfId, directory, signedState, stateLifecycleManager),
+                            platformContext, selfId, directory, reservedSignedState, stateLifecycleManager),
                     platformContext.getConfiguration());
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(
