@@ -139,7 +139,7 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     public @NonNull TxStorageUsage getTxStorageUsage(final boolean includeChangedKeys) {
         final Map<ContractID, List<StorageAccess>> modifications = new TreeMap<>(CONTRACT_ID_COMPARATOR);
         final Set<SlotKey> changedKeys = includeChangedKeys ? new HashSet<>() : null;
-        writableEvmHookStore.getModifiedLambdaSlotKeys().forEach(slotKey -> {
+        writableEvmHookStore.getModifiedEvmHookSlotKeys().forEach(slotKey -> {
             final var access = StorageAccess.newWrite(
                     slotKey.key().equals(ZERO_KEY) ? UInt256.ZERO : pbjToTuweniUInt256(slotKey.key()),
                     valueOrZero(writableEvmHookStore.getOriginalSlotValue(slotKey)),
