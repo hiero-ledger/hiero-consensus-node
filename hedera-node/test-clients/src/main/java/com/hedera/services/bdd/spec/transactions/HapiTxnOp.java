@@ -832,6 +832,30 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
+    /**
+     * Marks this transaction as a high-volume transaction.
+     * High-volume transactions use separate throttle buckets with higher capacity
+     * and variable rate pricing based on throttle utilization.
+     * See HIP-1313 for details.
+     *
+     * @param isHighVolume true to mark as high-volume, false otherwise
+     * @return this operation for fluent chaining
+     */
+    public T highVolume(boolean isHighVolume) {
+        this.highVolume = isHighVolume;
+        return self();
+    }
+
+    /**
+     * Marks this transaction as a high-volume transaction.
+     * Equivalent to calling {@code highVolume(true)}.
+     *
+     * @return this operation for fluent chaining
+     */
+    public T highVolume() {
+        return highVolume(true);
+    }
+
     public T withTxnTransform(UnaryOperator<Transaction> func) {
         fiddler = Optional.of(func);
         return self();

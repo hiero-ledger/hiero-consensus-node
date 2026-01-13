@@ -1,0 +1,143 @@
+{
+  "buckets": [
+    {
+      "name": "ThroughputLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 20000,
+          "operations": [
+            "CryptoTransfer",
+            "CryptoUpdate",
+            "CryptoDelete",
+            "CryptoGetInfo",
+            "CryptoGetAccountRecords",
+            "CryptoApproveAllowance",
+            "CryptoDeleteAllowance",
+            "UtilPrng",
+            "ConsensusCreateTopic",
+            "ConsensusSubmitMessage",
+            "ConsensusUpdateTopic",
+            "ConsensusDeleteTopic",
+            "ConsensusGetTopicInfo",
+            "TokenGetInfo",
+            "TokenGetNftInfo",
+            "TokenGetNftInfos",
+            "TokenGetAccountNftInfos",
+            "ScheduleDelete",
+            "ScheduleGetInfo",
+            "FileGetContents",
+            "FileGetInfo",
+            "ContractUpdate",
+            "ContractDelete",
+            "ContractGetInfo",
+            "ContractGetBytecode",
+            "ContractGetRecords",
+            "ContractCallLocal",
+            "TransactionGetRecord",
+            "GetVersionInfo",
+            "NodeCreate",
+            "NodeUpdate",
+            "NodeDelete",
+            "AtomicBatch"
+          ]
+        },
+        {
+          "opsPerSec": 1000,
+          "operations": [
+            "ContractCall",
+            "ContractCreate",
+            "FileCreate",
+            "FileUpdate",
+            "FileAppend",
+            "FileDelete",
+            "EthereumTransaction"
+          ]
+        },
+        {
+          "opsPerSec": 6000,
+          "operations": [
+            "TokenDelete",
+            "TokenMint",
+            "TokenBurn",
+            "TokenPause",
+            "TokenUnpause",
+            "TokenUpdate",
+            "TokenFeeScheduleUpdate",
+            "TokenAssociateToAccount",
+            "TokenAccountWipe",
+            "TokenDissociateFromAccount",
+            "TokenFreezeAccount",
+            "TokenUnfreezeAccount",
+            "TokenGrantKycToAccount",
+            "TokenRevokeKycFromAccount",
+            "TokenUpdateNfts",
+            "TokenReject",
+            "TokenAirdrop",
+            "TokenClaimAirdrop",
+            "TokenCancelAirdrop"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "FreeQueryLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 1000000,
+          "operations": [
+            "CryptoGetAccountBalance",
+            "TransactionGetReceipt"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "NormalCreationLimits",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "opsPerSec": 2,
+          "operations": [
+            "CryptoCreate"
+          ]
+        },
+        {
+          "opsPerSec": 2,
+          "operations": [
+            "TokenCreate"
+          ]
+        },
+        {
+          "opsPerSec": 10000,
+          "operations": [
+            "TokenAssociateToAccount",
+            "ScheduleCreate",
+            "ScheduleSign"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "HighVolumeCreationLimits",
+      "burstPeriod": 1,
+      "highVolume": true,
+      "throttleGroups": [
+        {
+          "opsPerSec": 100,
+          "operations": [
+            "CryptoCreate"
+          ]
+        },
+        {
+          "opsPerSec": 100,
+          "operations": [
+            "TokenCreate"
+          ]
+        }
+      ]
+    }
+  ]
+}
+

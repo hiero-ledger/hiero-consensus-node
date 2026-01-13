@@ -128,6 +128,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
     protected OptionalDouble usdFee = OptionalDouble.empty();
     protected Optional<Integer> retryLimits = Optional.empty();
     protected boolean payingWithAlias = false;
+    protected boolean highVolume = false;
 
     @Nullable
     protected UnknownFieldLocation unknownFieldLocation = null;
@@ -275,6 +276,9 @@ public abstract class HapiSpecOperation implements SpecOperation {
             genRecord.ifPresent(builder::setGenerateRecord);
             memo.ifPresent(builder::setMemo);
             batchKey.ifPresent(k -> builder.setBatchKey(k.apply(spec)));
+            if (highVolume) {
+                builder.setHighVolume(true);
+            }
         };
     }
 
