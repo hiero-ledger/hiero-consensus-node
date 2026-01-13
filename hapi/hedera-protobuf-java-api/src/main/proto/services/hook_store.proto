@@ -11,16 +11,17 @@ import "services/basic_types.proto";
 import "services/hook_types.proto";
 
 /**
- * Adds or removes key/value pairs in the storage of a lambda. The lambda's owning key must sign the transaction.
+ * Adds or removes key/value pairs in the storage of an EVM hook.
+ * Either the hook owner's key, or its admin key, must sign the transaction.
  */
-message LambdaSStoreTransactionBody {
+message HookStoreTransactionBody {
   /**
-   * The id of the lambda EVM hook whose storage is being updated.
+   * The id of the EVM hook whose storage is being updated.
    */
   proto.HookId hook_id = 1;
 
   /**
-   * The updates to the storage of the lambda.
+   * The updates to the storage of the EVM hook.
    */
-  repeated LambdaStorageUpdate storage_updates = 2;
+  repeated EvmHookStorageUpdate storage_updates = 2;
 }

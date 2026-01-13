@@ -17,7 +17,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.state.contract.SlotKey;
-import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
+import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -117,9 +117,9 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
                     if (o instanceof SlotKey slotKey) {
                         return !changedKeys.contains(slotKey);
                     }
-                    if (o instanceof LambdaSlotKey lambdaSlotKey) {
+                    if (o instanceof EvmHookSlotKey evmHookSlotKey) {
                         return !changedKeys.contains(
-                                new SlotKey(idFactory.newContractId(HTS_HOOKS_CONTRACT_NUM), lambdaSlotKey.key()));
+                                new SlotKey(idFactory.newContractId(HTS_HOOKS_CONTRACT_NUM), evmHookSlotKey.key()));
                     }
                     return false;
                 });

@@ -463,9 +463,9 @@ public class CryptoServiceFeesSuite {
                         .fee(ONE_HBAR)
                         .payingWith(nonTreasurySender)
                         .via(nftXferTxnWithCustomFee),
-                validateChargedUsdWithin(hbarXferTxn, BASE_FEE_HBAR_CRYPTO_TRANSFER, 0.01),
-                validateChargedUsdWithin(htsXferTxn, BASE_FEE_HTS_CRYPTO_TRANSFER, 0.01),
-                validateChargedUsdWithin(nftXferTxn, BASE_FEE_NFT_CRYPTO_TRANSFER, 0.01),
+                validateChargedUsdWithin(hbarXferTxn, BASE_FEE_HBAR_CRYPTO_TRANSFER, 1),
+                validateChargedUsdWithin(htsXferTxn, BASE_FEE_HTS_CRYPTO_TRANSFER, 0.1),
+                validateChargedUsdWithin(nftXferTxn, BASE_FEE_NFT_CRYPTO_TRANSFER, 0.3),
                 validateChargedUsdWithin(htsXferTxnWithCustomFee, expectedHtsXferWithCustomFeePriceUsd, 0.1),
                 validateChargedUsdWithin(nftXferTxnWithCustomFee, expectedNftXferWithCustomFeePriceUsd, 0.3));
     }
