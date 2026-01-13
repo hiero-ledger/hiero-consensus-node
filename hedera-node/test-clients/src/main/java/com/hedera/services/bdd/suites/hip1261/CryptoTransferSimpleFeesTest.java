@@ -36,7 +36,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -146,1815 +145,1864 @@ public class CryptoTransferSimpleFeesTest {
     }
 
     @Nested
-    @DisplayName("Crypto Transfer Simple Fees Positive Tests")
-    class CryptoTransferSimpleFeesPositiveTests {
+    @DisplayName("Crypto Transfer Simple Fees Tests")
+    class CryptoTransferSimpleFeesTests {
 
         @Nested
-        @DisplayName("Crypto Transfer HBAR Simple Fees Positive Tests")
-        class CryptoTransferHBARSimpleFeesPositiveTests {
-            @HapiTest
-            @DisplayName("Crypto Transfer HBAR - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferHBAR_BaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-
-                        // transfer tokens
-                        cryptoTransfer(movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .fee(ONE_HBAR)
-                                .via("hbarTransferTxn"),
-                        validateChargedUsdWithin(
-                                "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(1, 0, 1, 0, 0), 0.001)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer HBAR - extra signature full charging")
-            final Stream<DynamicTest> cryptoTransferHBAR_ExtraSignatureFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-
-                        // transfer tokens
-                        cryptoTransfer(movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("hbarTransferTxn"),
-                        validateChargedUsdWithin(
-                                "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(2, 0, 1, 0, 0), 0.0001)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer HBAR - multiple movements, two unique accounts - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferHBAR_MultipleMovementToSameAccountBaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingHbar(2L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingHbar(3L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("hbarTransferTxn"),
-                        validateChargedUsdWithin(
-                                "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(2, 0, 2, 0, 0), 0.0001)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer HBAR - multiple movements, three unique accounts - accounts extras charging")
-            final Stream<DynamicTest> cryptoTransferHBAR_ThreeUniqueAccountsExtrasCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingHbar(2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("hbarTransferTxn"),
-                        validateChargedUsdWithin(
-                                "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(2, 0, 3, 0, 0), 0.0001)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer HBAR - multiple movements, three unique accounts and sender is payer - "
-                    + "accounts extra charging")
-            final Stream<DynamicTest> cryptoTransferHBAR_ThreeUniqueAccountsAndSenderIsPayerCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_THIRD))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .fee(ONE_HBAR)
-                                .via("hbarTransferTxn"),
-                        validateChargedUsdWithin(
-                                "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(1, 0, 3, 0, 0), 0.001)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer HBAR - multiple movements, three unique accounts and sender with zero net change"
-                            + " is not required to sign - accounts extra charging")
-            final Stream<DynamicTest>
-                    cryptoTransferHBAR_ThreeUniqueAccountsAndSenderWithZeroNetChangeAccountsExtrasCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingHbar(1L).between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_THIRD))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .fee(ONE_HBAR)
-                                .via("hbarTransferTxn"),
-                        validateChargedUsdWithin(
-                                "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(1, 0, 3, 0, 0), 0.001)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer HBAR - multiple movements, four unique accounts - accounts and signatures charging")
-            final Stream<DynamicTest> cryptoTransferHBAR_FourUniqueAccountsAndExtraSignaturesCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingHbar(1L).between(RECEIVER_ASSOCIATED_SECOND, RECEIVER_ASSOCIATED_THIRD))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER, RECEIVER_ASSOCIATED_SECOND)
-                                .fee(ONE_HBAR)
-                                .via("hbarTransferTxn"),
-                        validateChargedUsdWithin(
-                                "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(3, 0, 4, 0, 0), 0.0001)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer HBAR - multiple movements to unique accounts extra fees full charging")
-            final Stream<DynamicTest> cryptoTransferHBAR_MultipleMovementsToUniqueAccountsExtraFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingHbar(2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND),
-                                        movingHbar(3L).between(OWNER, RECEIVER_ASSOCIATED_THIRD))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("hbarTransferTxn"),
-                        validateChargedUsdWithin(
-                                "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(2, 0, 4, 0, 0), 0.001)));
-            }
-        }
-
-        @Nested
-        @DisplayName("Crypto Transfer Fungible Token Simple Fees Positive Tests")
-        class CryptoTransferFungibleTokenSimpleFeesPositiveTests {
-            @HapiTest
-            @DisplayName("Crypto Transfer Fungible Token - with one unique FT - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferOneUniqueFungibleTokenBaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-
-                        // transfer tokens
-                        cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0), 0.0001),
-                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer Fungible Token - with one unique FT - extra signature full charging")
-            final Stream<DynamicTest> cryptoTransferOneUniqueFungibleTokenExtraSignatureFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-
-                        // transfer tokens
-                        cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0), 0.0001),
-                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer Fungible Token - with two unique FT - extra FT charging")
-            final Stream<DynamicTest> cryptoTransferTwoUniqueFungibleTokenBaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_2, 200L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_2),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(20L, FUNGIBLE_TOKEN_2).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 2, 0), 0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN_2, 180L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 10L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN_2, 20L)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer Fungible Token - with two unique FT and three unique accounts - extra FT charging")
-            final Stream<DynamicTest>
-                    cryptoTransferTwoUniqueFungibleTokensAndThreeUniqueAccountsBaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_2, 200L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-                        tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN_2),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(20L, FUNGIBLE_TOKEN_2).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 3, 2, 0), 0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN_2, 180L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN_2, 20L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer Fungible Token - with two unique FT and four unique accounts - "
-                    + "extra FT and accounts charging")
-            final Stream<DynamicTest> cryptoTransferTwoUniqueFungibleTokensAndFourUniqueAccountsBaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_2, 200L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-                        tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN_2),
-                        tokenAssociate(RECEIVER_ASSOCIATED_THIRD, FUNGIBLE_TOKEN_2),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(20L, FUNGIBLE_TOKEN_2).between(OWNER, RECEIVER_ASSOCIATED_SECOND),
-                                        moving(30L, FUNGIBLE_TOKEN_2).between(OWNER, RECEIVER_ASSOCIATED_THIRD))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 4, 2, 0), 0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN_2, 150L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_THIRD).hasTokenBalance(FUNGIBLE_TOKEN_2, 30L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN_2, 20L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer Fungible Token - with similar FT movements base fees full charging")
-            final Stream<DynamicTest> cryptoTransferTwoSimilarFungibleTokenMovementsBaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0), 0.0001),
-                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 80L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 20L)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer Fungible Token - with one unique FT and three unique accounts - "
-                    + "account extras charging")
-            final Stream<DynamicTest> cryptoTransferOneUniqueFungibleTokenAndThreeUniqueAccountsExtrasCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-                        tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 3, 1, 0), 0.0001),
-                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 80L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer Fungible Token - with one unique FT and four unique accounts - "
-                    + "accounts extras charging")
-            final Stream<DynamicTest> cryptoTransferOneUniqueFungibleTokenAndFourUniqueAccountsBaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-                        tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
-                        tokenAssociate(RECEIVER_ASSOCIATED_THIRD, FUNGIBLE_TOKEN),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_SECOND),
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_THIRD))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 4, 1, 0), 0.0001),
-                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 70L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_THIRD).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
-        }
-
-        @Nested
-        @DisplayName("Crypto Transfer Non-Fungible Token Simple Fees Positive Tests")
-        class CryptoTransferNonFungibleTokenSimpleFeesPositiveTests {
-            @HapiTest
-            @DisplayName("Crypto Transfer Non-Fungible Token - with one serial base fees full charging")
-            final Stream<DynamicTest> cryptoTransferNFTOneSerialBaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .fee(ONE_HBAR)
-                                .via("nftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 0, 1), 0.0001),
-                        getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer Non-Fungible Token - with one serial and extra signature full charging")
-            final Stream<DynamicTest> cryptoTransferNFTOneSerialExtraSignatureFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("nftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 1), 0.0001),
-                        getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer Non-Fungible Token - two unique NFT with one serial, one account - extras charging")
-            final Stream<DynamicTest> cryptoTransferTwoUniqueNFTsExtrasCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN_2),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                        mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_2, 1L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("nftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 2), 0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 3L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer Non-Fungible Token - three unique NFT with one serial, one account - extras charging")
-            final Stream<DynamicTest> cryptoTransferThreeUniqueNFTsExtrasCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_3, OWNER, supplyKey, adminKey),
-                        tokenAssociate(
-                                RECEIVER_ASSOCIATED_FIRST,
-                                NON_FUNGIBLE_TOKEN,
-                                NON_FUNGIBLE_TOKEN_2,
-                                NON_FUNGIBLE_TOKEN_3),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                        mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
-                        mintNFT(NON_FUNGIBLE_TOKEN_3, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_2, 1L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_3, 1L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("nftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 3), 0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 3L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 3L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 1L)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer Non-Fungible Token - three unique NFT with two serials, three unique accounts - "
-                            + "tokens and accounts extras charging")
-            final Stream<DynamicTest> cryptoTransferThreeUniqueNFTsToThreeUniqueAccountsExtrasCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_3, OWNER, supplyKey, adminKey),
-                        tokenAssociate(
-                                RECEIVER_ASSOCIATED_FIRST,
-                                NON_FUNGIBLE_TOKEN,
-                                NON_FUNGIBLE_TOKEN_2,
-                                NON_FUNGIBLE_TOKEN_3),
-                        tokenAssociate(
-                                RECEIVER_ASSOCIATED_SECOND,
-                                NON_FUNGIBLE_TOKEN,
-                                NON_FUNGIBLE_TOKEN_2,
-                                NON_FUNGIBLE_TOKEN_3),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                        mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
-                        mintNFT(NON_FUNGIBLE_TOKEN_3, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_2, 1L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_2, 2L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_SECOND),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_3, 1L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_3, 2L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_SECOND))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("nftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 3, 0, 6), 0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 2L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 2L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 1L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_SECOND)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 1L)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer Non-Fungible Token - three unique NFT with three serials, four unique accounts - "
-                            + "max number of movements and extras charging")
-            final Stream<DynamicTest> cryptoTransferThreeUniqueNFTsToFourUniqueAccountsExtrasCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_3, OWNER, supplyKey, adminKey),
-                        tokenAssociate(
-                                RECEIVER_ASSOCIATED_FIRST,
-                                NON_FUNGIBLE_TOKEN,
-                                NON_FUNGIBLE_TOKEN_2,
-                                NON_FUNGIBLE_TOKEN_3),
-                        tokenAssociate(
-                                RECEIVER_ASSOCIATED_SECOND,
-                                NON_FUNGIBLE_TOKEN,
-                                NON_FUNGIBLE_TOKEN_2,
-                                NON_FUNGIBLE_TOKEN_3),
-                        tokenAssociate(
-                                RECEIVER_ASSOCIATED_THIRD,
-                                NON_FUNGIBLE_TOKEN,
-                                NON_FUNGIBLE_TOKEN_2,
-                                NON_FUNGIBLE_TOKEN_3),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                        mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
-                        mintNFT(NON_FUNGIBLE_TOKEN_3, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 3L).between(OWNER, RECEIVER_ASSOCIATED_THIRD),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_2, 1L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_2, 2L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_SECOND),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_2, 3L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_THIRD),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_3, 1L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_3, 2L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_SECOND),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_3, 3L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_THIRD),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_3, 4L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_THIRD))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("nftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 4, 0, 10), 0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 0L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 1L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_SECOND)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 1L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_THIRD)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 2L)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer Non-Fungible Token - movement with two serials - extras charging")
-            final Stream<DynamicTest> cryptoTransferNFTTwoSerialsMovementExtrasCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L)
-                                        .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("nftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 2), 0.0001),
-                        getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer Non-Fungible Token - two unique NFT movements with two serials, two accounts - "
-                            + "extras charging")
-            final Stream<DynamicTest> cryptoTransferTwoUniqueNFTsMovementsWithTwoSerialsExtrasCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN_2),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                        mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN_2, 1L, 2L)
-                                                .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("nftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 4), 0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 2L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 2L)));
-            }
-        }
-
-        @Nested
-        @DisplayName("Crypto Transfer HBAR, FT and NFT Simple Fees Positive Tests")
-        class CryptoTransferHBARAndFTAndNFTSimpleFeesPositiveTests {
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer FT and NFT - movements with one FT and one NFT serial - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferFTAndNFTOneSerialBaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTAndNFTFullFeeUsd(1, 0, 2, 1, 1), 0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer FT and NFT - movements with one FT and one NFT serial - extra signature full charging")
-            final Stream<DynamicTest> cryptoTransferFTAndNFTOneSerialExtraSignatureFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTAndNFTFullFeeUsd(2, 0, 2, 1, 1), 0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer HBAR, FT and NFT - movements with one FT and one NFT serial - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferHBARAndFTAndNFTOneSerialBaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn",
-                                expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 2, 1, 1),
-                                0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer HBAR, FT and NFT - movements with one FT and one NFT serial - extra signature full charging")
-            final Stream<DynamicTest> cryptoTransferHBARAndFTAndNFTOneSerialExtraSignatureFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                .payingWith(PAYER)
-                                .signedBy(OWNER, PAYER)
-                                .fee(ONE_HBAR)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn",
-                                expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 2, 1, 1),
-                                0.0001),
-                        getAccountBalance(OWNER)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
-        }
-
-        @Nested
-        @DisplayName(
-                "Crypto Transfer Unassociated Accounts, Auto-Associations and Auto-Account Creation Positive Tests")
-        class CryptoTransferUnassociatedAccountsAutoAssociationsAndAutoAccountCreationPositiveTests {
-            @HapiTest
-            @DisplayName("Crypto Transfer FT to Unassociated Account with unlimited Auto-associations - "
-                    + "base fees full charging")
-            final Stream<DynamicTest>
-                    cryptoTransferUnassociatedReceiverUnlimitedAutoAssociations_BaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-
-                        // transfer tokens
-                        cryptoTransfer(moving(1L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .fee(ONE_HBAR)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn",
-                                (expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0) + tokenAssociateFee),
-                                0.001)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer FT to Unassociated Accounts with unlimited and free Auto-associations - "
-                    + "base fees full charging")
-            final Stream<DynamicTest>
-                    cryptoTransferUnassociatedReceiverUnlimitedAndFreeAutoAssociations_ExtrasCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        moving(20L, FUNGIBLE_TOKEN)
-                                                .between(OWNER, RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L)
-                                                .between(OWNER, RECEIVER_FREE_AUTO_ASSOCIATIONS),
-                                        moving(10L, FUNGIBLE_TOKEN)
-                                                .between(
-                                                        RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS,
-                                                        RECEIVER_FREE_AUTO_ASSOCIATIONS))
-                                .payingWith(PAYER)
-                                .signedBy(PAYER, OWNER)
-                                .fee(ONE_HBAR)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn",
-                                (expectedCryptoTransferFTAndNFTFullFeeUsd(2, 0, 3, 1, 2) + tokenAssociateFee * 3),
-                                0.001)));
-            }
-
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer FT and NFT to Unassociated Accounts with unlimited and free Auto-associations - "
-                            + "base fees full charging")
-            final Stream<DynamicTest>
-                    cryptoTransferFTAndNFTToUnassociatedReceiverUnlimitedAndFreeAutoAssociations_ExtrasCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-
-                        // transfer tokens
-                        cryptoTransfer(
-                                        moving(20L, FUNGIBLE_TOKEN)
-                                                .between(OWNER, RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L)
-                                                .between(OWNER, RECEIVER_FREE_AUTO_ASSOCIATIONS),
-                                        moving(10L, FUNGIBLE_TOKEN)
-                                                .between(
-                                                        RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS,
-                                                        RECEIVER_FREE_AUTO_ASSOCIATIONS))
-                                .payingWith(PAYER)
-                                .signedBy(PAYER, OWNER)
-                                .fee(ONE_HBAR)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn",
-                                (expectedCryptoTransferFTAndNFTFullFeeUsd(2, 0, 3, 1, 2) + tokenAssociateFee * 3),
-                                0.001)));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer - Auto Create ED25519 Account with HBAR Transfer - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferHBAR_ED25519_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-
-                        // transfer tokens
-                        cryptoTransfer(movingHbar(10L).between(OWNER, VALID_ALIAS_ED25519))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn", (expectedCryptoTransferHbarFullFeeUsd(1, 0, 2, 0, 0)), 0.001),
-                        // validate auto-created account properties
-                        getAliasedAccountInfo(VALID_ALIAS_ED25519)
-                                .has(accountWith()
-                                        .key(VALID_ALIAS_ED25519)
-                                        .alias(VALID_ALIAS_ED25519)
-                                        .maxAutoAssociations(-1))));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer - Auto Create ECDSA Account with HBAR Transfer - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferHBAR_ECDSA_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-
-                        // transfer tokens
-                        cryptoTransfer(movingHbar(10L).between(OWNER, VALID_ALIAS_ECDSA))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn", (expectedCryptoTransferHbarFullFeeUsd(1, 0, 2, 0, 0)), 0.001),
-                        // validate auto-created account properties
-                        getAliasedAccountInfo(VALID_ALIAS_ECDSA)
-                                .has(accountWith()
-                                        .key(VALID_ALIAS_ECDSA)
-                                        .alias(VALID_ALIAS_ECDSA)
-                                        .maxAutoAssociations(-1))));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer - Auto Create Hollow Account with HBAR Transfer - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferHBAR_HollowAutoAccountCreationForReceiver_BaseFeesFullCharging() {
-
-                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
-
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
-
-                        // transfer tokens
-                        withOpContext((spec, log) -> {
-                            final var alias = evmAlias.get();
-
-                            final var cryptoTransferOp = cryptoTransfer(
-                                            movingHbar(10L).between(OWNER, alias))
-                                    .payingWith(OWNER)
-                                    .signedBy(OWNER)
-                                    .via("tokenTransferTxn");
-
-                            final var checkOpChargedUsd = validateChargedUsdWithin(
-                                    "tokenTransferTxn", (expectedCryptoTransferHbarFullFeeUsd(1, 0, 2, 0, 0)), 0.001);
-
-                            final var checkOpInfo = getAliasedAccountInfo(alias)
-                                    .isHollow()
-                                    .has(accountWith()
-                                            .hasEmptyKey()
-                                            .noAlias()
-                                            .balance(10L)
-                                            .maxAutoAssociations(-1));
-
-                            allRunFor(spec, cryptoTransferOp, checkOpChargedUsd, checkOpInfo);
-                        })));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer - Auto Create ED25519 Account with FT Transfer - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferFT_ED25519_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        // transfer tokens
-                        cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn",
-                                (expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0) + tokenAssociateFee),
-                                0.001),
-                        // validate balances
-                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
-                        // validate auto-created account properties
-                        getAliasedAccountInfo(VALID_ALIAS_ED25519)
-                                .hasToken(relationshipWith(FUNGIBLE_TOKEN))
-                                .has(accountWith()
-                                        .key(VALID_ALIAS_ED25519)
-                                        .alias(VALID_ALIAS_ED25519)
-                                        .maxAutoAssociations(-1))));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer - Auto Create ECDSA Account with FT Transfer - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferFT_ECDSA_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        // transfer tokens
-                        cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ECDSA))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn",
-                                (expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0) + tokenAssociateFee),
-                                0.001),
-                        // validate balances
-                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
-                        // validate auto-created account properties
-                        getAliasedAccountInfo(VALID_ALIAS_ECDSA)
-                                .hasToken(relationshipWith(FUNGIBLE_TOKEN))
-                                .has(accountWith()
-                                        .key(VALID_ALIAS_ECDSA)
-                                        .alias(VALID_ALIAS_ECDSA)
-                                        .maxAutoAssociations(-1))));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer - Auto Create Hollow Account with FT Transfer - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferFT_HollowAutoAccountCreationForReceiver_BaseFeesFullCharging() {
-
-                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
-
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
-
-                        // transfer tokens
-                        withOpContext((spec, log) -> {
-                            final var alias = evmAlias.get();
-
-                            final var cryptoTransferOp = cryptoTransfer(
-                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, alias))
-                                    .payingWith(OWNER)
-                                    .signedBy(OWNER)
-                                    .via("tokenTransferTxn");
-
-                            final var checkOpChargedUsd = validateChargedUsdWithin(
-                                    "tokenTransferTxn",
-                                    (expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0) + tokenAssociateFee),
-                                    0.001);
-
-                            final var checkOpInfo = getAliasedAccountInfo(alias)
-                                    .isHollow()
-                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
-                                    .has(accountWith()
-                                            .hasEmptyKey()
-                                            .noAlias()
-                                            .balance(0L)
-                                            .maxAutoAssociations(-1));
-
-                            final var checkOwnerBalance =
-                                    getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L);
-
-                            allRunFor(spec, cryptoTransferOp, checkOpChargedUsd, checkOpInfo, checkOwnerBalance);
-                        })));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer - Auto Create ED25519 Account with NFT Transfer - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferNFT_ED25519_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                        // transfer tokens
-                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, VALID_ALIAS_ED25519))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn",
-                                (expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 0, 1) + tokenAssociateFee),
-                                0.001),
-                        // validate balances
-                        getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
-                        // validate auto-created account properties
-                        getAliasedAccountInfo(VALID_ALIAS_ED25519)
-                                .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
-                                .has(accountWith()
-                                        .key(VALID_ALIAS_ED25519)
-                                        .alias(VALID_ALIAS_ED25519)
-                                        .maxAutoAssociations(-1))));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer - Auto Create ECDSA Account with NFT Transfer - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferNFT_ECDSA_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                        // transfer tokens
-                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, VALID_ALIAS_ECDSA))
-                                .payingWith(OWNER)
-                                .signedBy(OWNER)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn",
-                                (expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 0, 1) + tokenAssociateFee),
-                                0.001),
-                        // validate balances
-                        getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
-                        // validate auto-created account properties
-                        getAliasedAccountInfo(VALID_ALIAS_ECDSA)
-                                .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
-                                .has(accountWith()
-                                        .key(VALID_ALIAS_ECDSA)
-                                        .alias(VALID_ALIAS_ECDSA)
-                                        .maxAutoAssociations(-1))));
-            }
-
-            @HapiTest
-            @DisplayName("Crypto Transfer - Auto Create Hollow Account with NFT Transfer - base fees full charging")
-            final Stream<DynamicTest> cryptoTransferNFT_HollowAutoAccountCreationForReceiver_BaseFeesFullCharging() {
-
-                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
-
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
-
-                        // transfer tokens
-                        withOpContext((spec, log) -> {
-                            final var alias = evmAlias.get();
-
-                            final var cryptoTransferOp = cryptoTransfer(
-                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, alias))
-                                    .payingWith(OWNER)
-                                    .signedBy(OWNER)
-                                    .via("tokenTransferTxn");
-
-                            final var checkOpChargedUsd = validateChargedUsdWithin(
-                                    "tokenTransferTxn",
-                                    (expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 1, 0) + tokenAssociateFee),
-                                    0.001);
-
-                            final var checkOpInfo = getAliasedAccountInfo(alias)
-                                    .isHollow()
-                                    .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
-                                    .has(accountWith()
-                                            .hasEmptyKey()
-                                            .noAlias()
-                                            .balance(0L)
-                                            .maxAutoAssociations(-1));
-
-                            final var checkOwnerBalance =
-                                    getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L);
-
-                            allRunFor(spec, cryptoTransferOp, checkOpChargedUsd, checkOpInfo, checkOwnerBalance);
-                        })));
-            }
-
-            // mixed cases - auto-accounts creation and auto-associaions with FT/NFT transfers - all movings in one
-            // crypto transfer
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer - Auto Create Accounts with HBAR movings in one Transfer - with extra accounts charging")
-            final Stream<DynamicTest> cryptoTransferHbarAutoAccountCreationsForReceiverWithExtraAccountsCharging() {
-
-                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
-
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
-
-                        // transfer tokens
-                        withOpContext((spec, log) -> {
-                            final var alias = evmAlias.get();
-
-                            final var cryptoTransferOp = cryptoTransfer(
-                                            movingHbar(10L).between(OWNER, VALID_ALIAS_ED25519),
-                                            movingHbar(10L).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
-                                            movingHbar(10L).between(OWNER, alias))
+        @DisplayName("Crypto Transfer Simple Fees Positive Tests")
+        class CryptoTransferSimpleFeesPositiveTests {
+
+            @Nested
+            @DisplayName("Crypto Transfer HBAR Simple Fees Positive Tests")
+            class CryptoTransferHBARSimpleFeesPositiveTests {
+                @HapiTest
+                @DisplayName("Crypto Transfer HBAR - base fees full charging")
+                final Stream<DynamicTest> cryptoTransferHBAR_BaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+
+                            // transfer tokens
+                            cryptoTransfer(movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                                     .payingWith(OWNER)
                                     .signedBy(OWNER)
                                     .fee(ONE_HBAR)
-                                    .via("tokenTransferTxn");
+                                    .via("hbarTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(1, 0, 1, 0, 0), 0.001)));
+                }
 
-                            final var checkOpChargedUsd = validateChargedUsdWithin(
-                                    "tokenTransferTxn", (expectedCryptoTransferHbarFullFeeUsd(1, 0, 4, 0, 0)), 0.001);
+                @HapiTest
+                @DisplayName("Crypto Transfer HBAR - extra signature full charging")
+                final Stream<DynamicTest> cryptoTransferHBAR_ExtraSignatureFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
 
-                            final var checkOpInfoValidAliasED25519 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
-                                    .has(accountWith()
-                                            .key(VALID_ALIAS_ED25519)
-                                            .alias(VALID_ALIAS_ED25519)
-                                            .maxAutoAssociations(-1));
+                            // transfer tokens
+                            cryptoTransfer(movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("hbarTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(2, 0, 1, 0, 0), 0.0001)));
+                }
 
-                            final var checkOpInfoValidAliasECDSA = getAliasedAccountInfo(VALID_ALIAS_ECDSA_SECOND)
-                                    .has(accountWith()
-                                            .key(VALID_ALIAS_ECDSA_SECOND)
-                                            .alias(VALID_ALIAS_ECDSA_SECOND)
-                                            .maxAutoAssociations(-1));
+                @HapiTest
+                @DisplayName("Crypto Transfer HBAR - multiple movements, two unique accounts - base fees full charging")
+                final Stream<DynamicTest> cryptoTransferHBAR_MultipleMovementToSameAccountBaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
 
-                            final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
-                                    .isHollow()
-                                    .has(accountWith()
-                                            .hasEmptyKey()
-                                            .noAlias()
-                                            .balance(10L)
-                                            .maxAutoAssociations(-1));
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingHbar(2L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingHbar(3L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("hbarTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(2, 0, 2, 0, 0), 0.0001)));
+                }
 
-                            allRunFor(
-                                    spec,
-                                    cryptoTransferOp,
-                                    checkOpChargedUsd,
-                                    checkOpInfoValidAliasED25519,
-                                    checkOpInfoValidAliasECDSA,
-                                    checkHollowAccountInfo);
-                        })));
-            }
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer HBAR - multiple movements, three unique accounts - accounts extras charging")
+                final Stream<DynamicTest> cryptoTransferHBAR_ThreeUniqueAccountsExtrasCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
 
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer - Auto Create Accounts with FT movings in one Transfer - with extra FTs charging")
-            final Stream<DynamicTest> cryptoTransferFTAutoAccountCreationsForReceiverWithExtraTokenssCharging() {
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingHbar(2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("hbarTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(2, 0, 3, 0, 0), 0.0001)));
+                }
 
-                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+                @HapiTest
+                @DisplayName("Crypto Transfer HBAR - multiple movements, three unique accounts and sender is payer - "
+                        + "accounts extra charging")
+                final Stream<DynamicTest> cryptoTransferHBAR_ThreeUniqueAccountsAndSenderIsPayerCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
 
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_2, 100L, OWNER, adminKey),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_3, 100L, OWNER, adminKey),
-                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
-
-                        // transfer tokens
-                        withOpContext((spec, log) -> {
-                            final var alias = evmAlias.get();
-
-                            final var cryptoTransferOp = cryptoTransfer(
-                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519),
-                                            moving(10L, FUNGIBLE_TOKEN_2).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
-                                            moving(10L, FUNGIBLE_TOKEN_3).between(OWNER, alias))
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_THIRD))
                                     .payingWith(OWNER)
                                     .signedBy(OWNER)
-                                    .via("tokenTransferTxn");
+                                    .fee(ONE_HBAR)
+                                    .via("hbarTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(1, 0, 3, 0, 0), 0.001)));
+                }
 
-                            final var checkOpChargedUsd = validateChargedUsdWithin(
-                                    "tokenTransferTxn",
-                                    (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 4, 3, 0)
-                                            + tokenAssociateFee * 3),
-                                    0.001);
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer HBAR - multiple movements, three unique accounts and sender with zero net change"
+                                + " is not required to sign - accounts extra charging")
+                final Stream<DynamicTest>
+                        cryptoTransferHBAR_ThreeUniqueAccountsAndSenderWithZeroNetChangeAccountsExtrasCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
 
-                            final var checkOpInfoValidAliasED25519 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
-                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
-                                    .has(accountWith()
-                                            .key(VALID_ALIAS_ED25519)
-                                            .alias(VALID_ALIAS_ED25519)
-                                            .maxAutoAssociations(-1));
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingHbar(1L)
+                                                    .between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_THIRD))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .fee(ONE_HBAR)
+                                    .via("hbarTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(1, 0, 3, 0, 0), 0.001)));
+                }
 
-                            final var checkOpInfoValidAliasECDSASecond = getAliasedAccountInfo(VALID_ALIAS_ECDSA_SECOND)
-                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN_2))
-                                    .has(accountWith()
-                                            .key(VALID_ALIAS_ECDSA_SECOND)
-                                            .alias(VALID_ALIAS_ECDSA_SECOND)
-                                            .maxAutoAssociations(-1));
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer HBAR - multiple movements, four unique accounts - accounts and signatures charging")
+                final Stream<DynamicTest> cryptoTransferHBAR_FourUniqueAccountsAndExtraSignaturesCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
 
-                            final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
-                                    .isHollow()
-                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN_3))
-                                    .has(accountWith()
-                                            .hasEmptyKey()
-                                            .noAlias()
-                                            .balance(0L)
-                                            .maxAutoAssociations(-1));
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingHbar(1L)
+                                                    .between(RECEIVER_ASSOCIATED_SECOND, RECEIVER_ASSOCIATED_THIRD))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER, RECEIVER_ASSOCIATED_SECOND)
+                                    .fee(ONE_HBAR)
+                                    .via("hbarTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(3, 0, 4, 0, 0), 0.0001)));
+                }
 
-                            final var checkOwnerBalance = getAccountBalance(OWNER)
+                @HapiTest
+                @DisplayName("Crypto Transfer HBAR - multiple movements to unique accounts extra fees full charging")
+                final Stream<DynamicTest> cryptoTransferHBAR_MultipleMovementsToUniqueAccountsExtraFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingHbar(2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND),
+                                            movingHbar(3L).between(OWNER, RECEIVER_ASSOCIATED_THIRD))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("hbarTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(2, 0, 4, 0, 0), 0.001)));
+                }
+            }
+
+            @Nested
+            @DisplayName("Crypto Transfer Fungible Token Simple Fees Positive Tests")
+            class CryptoTransferFungibleTokenSimpleFeesPositiveTests {
+                @HapiTest
+                @DisplayName("Crypto Transfer Fungible Token - with one unique FT - base fees full charging")
+                final Stream<DynamicTest> cryptoTransferOneUniqueFungibleTokenBaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+
+                            // transfer tokens
+                            cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0), 0.0001),
+                            getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
+
+                @HapiTest
+                @DisplayName("Crypto Transfer Fungible Token - with one unique FT - extra signature full charging")
+                final Stream<DynamicTest> cryptoTransferOneUniqueFungibleTokenExtraSignatureFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+
+                            // transfer tokens
+                            cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0), 0.0001),
+                            getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
+
+                @HapiTest
+                @DisplayName("Crypto Transfer Fungible Token - with two unique FT - extra FT charging")
+                final Stream<DynamicTest> cryptoTransferTwoUniqueFungibleTokenBaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_2, 200L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_2),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(20L, FUNGIBLE_TOKEN_2).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 2, 0), 0.0001),
+                            getAccountBalance(OWNER)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
-                                    .hasTokenBalance(FUNGIBLE_TOKEN_2, 90L)
-                                    .hasTokenBalance(FUNGIBLE_TOKEN_3, 90L);
+                                    .hasTokenBalance(FUNGIBLE_TOKEN_2, 180L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 10L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN_2, 20L)));
+                }
 
-                            allRunFor(
-                                    spec,
-                                    cryptoTransferOp,
-                                    checkOpChargedUsd,
-                                    checkOpInfoValidAliasED25519,
-                                    checkOpInfoValidAliasECDSASecond,
-                                    checkHollowAccountInfo,
-                                    checkOwnerBalance);
-                        })));
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer Fungible Token - with two unique FT and three unique accounts - extra FT charging")
+                final Stream<DynamicTest>
+                        cryptoTransferTwoUniqueFungibleTokensAndThreeUniqueAccountsBaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_2, 200L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+                            tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN_2),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(20L, FUNGIBLE_TOKEN_2).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 3, 2, 0), 0.0001),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN_2, 180L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN_2, 20L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
+
+                @HapiTest
+                @DisplayName("Crypto Transfer Fungible Token - with two unique FT and four unique accounts - "
+                        + "extra FT and accounts charging")
+                final Stream<DynamicTest>
+                        cryptoTransferTwoUniqueFungibleTokensAndFourUniqueAccountsBaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_2, 200L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+                            tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN_2),
+                            tokenAssociate(RECEIVER_ASSOCIATED_THIRD, FUNGIBLE_TOKEN_2),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(20L, FUNGIBLE_TOKEN_2).between(OWNER, RECEIVER_ASSOCIATED_SECOND),
+                                            moving(30L, FUNGIBLE_TOKEN_2).between(OWNER, RECEIVER_ASSOCIATED_THIRD))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 4, 2, 0), 0.0001),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN_2, 150L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_THIRD).hasTokenBalance(FUNGIBLE_TOKEN_2, 30L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN_2, 20L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
+
+                @HapiTest
+                @DisplayName("Crypto Transfer Fungible Token - with similar FT movements base fees full charging")
+                final Stream<DynamicTest> cryptoTransferTwoSimilarFungibleTokenMovementsBaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0), 0.0001),
+                            getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 80L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 20L)));
+                }
+
+                @HapiTest
+                @DisplayName("Crypto Transfer Fungible Token - with one unique FT and three unique accounts - "
+                        + "account extras charging")
+                final Stream<DynamicTest> cryptoTransferOneUniqueFungibleTokenAndThreeUniqueAccountsExtrasCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+                            tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 3, 1, 0), 0.0001),
+                            getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 80L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
+
+                @HapiTest
+                @DisplayName("Crypto Transfer Fungible Token - with one unique FT and four unique accounts - "
+                        + "accounts extras charging")
+                final Stream<DynamicTest>
+                        cryptoTransferOneUniqueFungibleTokenAndFourUniqueAccountsBaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+                            tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
+                            tokenAssociate(RECEIVER_ASSOCIATED_THIRD, FUNGIBLE_TOKEN),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_SECOND),
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_THIRD))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(2, 0, 4, 1, 0), 0.0001),
+                            getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 70L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_THIRD).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
             }
 
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer - Auto Create Accounts with NFT movings in one Transfer - with extra NFTs charging")
-            final Stream<DynamicTest> cryptoTransferNFTAutoAccountCreationsForReceiverWithExtraTokenssCharging() {
+            @Nested
+            @DisplayName("Crypto Transfer Non-Fungible Token Simple Fees Positive Tests")
+            class CryptoTransferNonFungibleTokenSimpleFeesPositiveTests {
+                @HapiTest
+                @DisplayName("Crypto Transfer Non-Fungible Token - with one serial base fees full charging")
+                final Stream<DynamicTest> cryptoTransferNFTOneSerialBaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
 
-                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
-
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
-                        mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_3, OWNER, supplyKey, adminKey),
-                        mintNFT(NON_FUNGIBLE_TOKEN_3, 1, 5),
-                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
-
-                        // transfer tokens
-                        withOpContext((spec, log) -> {
-                            final var alias = evmAlias.get();
-
-                            final var cryptoTransferOp = cryptoTransfer(
-                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, VALID_ALIAS_ED25519),
-                                            movingUnique(NON_FUNGIBLE_TOKEN_2, 1L)
-                                                    .between(OWNER, VALID_ALIAS_ECDSA_SECOND),
-                                            movingUnique(NON_FUNGIBLE_TOKEN_3, 1L)
-                                                    .between(OWNER, alias))
+                            // transfer tokens
+                            cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                            .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                                     .payingWith(OWNER)
                                     .signedBy(OWNER)
-                                    .via("tokenTransferTxn");
+                                    .fee(ONE_HBAR)
+                                    .via("nftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 0, 1), 0.0001),
+                            getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
+                }
 
-                            final var checkOpChargedUsd = validateChargedUsdWithin(
-                                    "tokenTransferTxn",
-                                    (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 4, 0, 3)
-                                            + tokenAssociateFee * 3),
-                                    0.001);
+                @HapiTest
+                @DisplayName("Crypto Transfer Non-Fungible Token - with one serial and extra signature full charging")
+                final Stream<DynamicTest> cryptoTransferNFTOneSerialExtraSignatureFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
 
-                            final var checkOpInfoValidAliasED25519 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
-                                    .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
-                                    .has(accountWith()
-                                            .key(VALID_ALIAS_ED25519)
-                                            .alias(VALID_ALIAS_ED25519)
-                                            .maxAutoAssociations(-1));
+                            // transfer tokens
+                            cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                            .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("nftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 1), 0.0001),
+                            getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
+                }
 
-                            final var checkOpInfoValidAliasECDSASecond = getAliasedAccountInfo(VALID_ALIAS_ECDSA_SECOND)
-                                    .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN_2))
-                                    .has(accountWith()
-                                            .key(VALID_ALIAS_ECDSA_SECOND)
-                                            .alias(VALID_ALIAS_ECDSA_SECOND)
-                                            .maxAutoAssociations(-1));
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer Non-Fungible Token - two unique NFT with one serial, one account - extras charging")
+                final Stream<DynamicTest> cryptoTransferTwoUniqueNFTsExtrasCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN_2),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                            mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
 
-                            final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
-                                    .isHollow()
-                                    .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN_3))
-                                    .has(accountWith()
-                                            .hasEmptyKey()
-                                            .noAlias()
-                                            .balance(0L)
-                                            .maxAutoAssociations(-1));
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_2, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("nftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 2), 0.0001),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 3L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)));
+                }
 
-                            final var checkOwnerBalance = getAccountBalance(OWNER)
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer Non-Fungible Token - three unique NFT with one serial, one account - extras charging")
+                final Stream<DynamicTest> cryptoTransferThreeUniqueNFTsExtrasCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_3, OWNER, supplyKey, adminKey),
+                            tokenAssociate(
+                                    RECEIVER_ASSOCIATED_FIRST,
+                                    NON_FUNGIBLE_TOKEN,
+                                    NON_FUNGIBLE_TOKEN_2,
+                                    NON_FUNGIBLE_TOKEN_3),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                            mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
+                            mintNFT(NON_FUNGIBLE_TOKEN_3, 1, 5),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_2, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_3, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("nftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 3), 0.0001),
+                            getAccountBalance(OWNER)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 3L)
-                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 3L);
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 3L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 1L)));
+                }
 
-                            allRunFor(
-                                    spec,
-                                    cryptoTransferOp,
-                                    checkOpChargedUsd,
-                                    checkOpInfoValidAliasED25519,
-                                    checkOpInfoValidAliasECDSASecond,
-                                    checkHollowAccountInfo,
-                                    checkOwnerBalance);
-                        })));
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer Non-Fungible Token - three unique NFT with two serials, three unique accounts - "
+                                + "tokens and accounts extras charging")
+                final Stream<DynamicTest> cryptoTransferThreeUniqueNFTsToThreeUniqueAccountsExtrasCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_3, OWNER, supplyKey, adminKey),
+                            tokenAssociate(
+                                    RECEIVER_ASSOCIATED_FIRST,
+                                    NON_FUNGIBLE_TOKEN,
+                                    NON_FUNGIBLE_TOKEN_2,
+                                    NON_FUNGIBLE_TOKEN_3),
+                            tokenAssociate(
+                                    RECEIVER_ASSOCIATED_SECOND,
+                                    NON_FUNGIBLE_TOKEN,
+                                    NON_FUNGIBLE_TOKEN_2,
+                                    NON_FUNGIBLE_TOKEN_3),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                            mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
+                            mintNFT(NON_FUNGIBLE_TOKEN_3, 1, 5),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 2L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_SECOND),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_2, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_2, 2L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_SECOND),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_3, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_3, 2L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("nftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 3, 0, 6), 0.0001),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 2L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 2L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 1L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_SECOND)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 1L)));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer Non-Fungible Token - three unique NFT with three serials, four unique accounts - "
+                                + "max number of movements and extras charging")
+                final Stream<DynamicTest> cryptoTransferThreeUniqueNFTsToFourUniqueAccountsExtrasCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_3, OWNER, supplyKey, adminKey),
+                            tokenAssociate(
+                                    RECEIVER_ASSOCIATED_FIRST,
+                                    NON_FUNGIBLE_TOKEN,
+                                    NON_FUNGIBLE_TOKEN_2,
+                                    NON_FUNGIBLE_TOKEN_3),
+                            tokenAssociate(
+                                    RECEIVER_ASSOCIATED_SECOND,
+                                    NON_FUNGIBLE_TOKEN,
+                                    NON_FUNGIBLE_TOKEN_2,
+                                    NON_FUNGIBLE_TOKEN_3),
+                            tokenAssociate(
+                                    RECEIVER_ASSOCIATED_THIRD,
+                                    NON_FUNGIBLE_TOKEN,
+                                    NON_FUNGIBLE_TOKEN_2,
+                                    NON_FUNGIBLE_TOKEN_3),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                            mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
+                            mintNFT(NON_FUNGIBLE_TOKEN_3, 1, 5),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 2L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_SECOND),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 3L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_THIRD),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_2, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_2, 2L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_SECOND),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_2, 3L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_THIRD),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_3, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_3, 2L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_SECOND),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_3, 3L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_THIRD),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_3, 4L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_THIRD))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("nftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 4, 0, 10), 0.0001),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 0L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 1L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_SECOND)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 1L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_THIRD)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 2L)));
+                }
+
+                @HapiTest
+                @DisplayName("Crypto Transfer Non-Fungible Token - movement with two serials - extras charging")
+                final Stream<DynamicTest> cryptoTransferNFTTwoSerialsMovementExtrasCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+
+                            // transfer tokens
+                            cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L)
+                                            .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("nftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 2), 0.0001),
+                            getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer Non-Fungible Token - two unique NFT movements with two serials, two accounts - "
+                                + "extras charging")
+                final Stream<DynamicTest> cryptoTransferTwoUniqueNFTsMovementsWithTwoSerialsExtrasCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN_2),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                            mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN_2, 1L, 2L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("nftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 4), 0.0001),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 2L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 2L)));
+                }
             }
 
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer - Auto Create Accounts with HBAR, FT and NFT moving in one Transfer - with extras charging")
-            final Stream<DynamicTest> cryptoTransferAutoAccountCreationsForReceiverWithExtrasCharging() {
+            @Nested
+            @DisplayName("Crypto Transfer HBAR, FT and NFT Simple Fees Positive Tests")
+            class CryptoTransferHBARAndFTAndNFTSimpleFeesPositiveTests {
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer FT and NFT - movements with one FT and one NFT serial - base fees full charging")
+                final Stream<DynamicTest> cryptoTransferFTAndNFTOneSerialBaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
 
-                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
-
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
-
-                        // transfer tokens
-                        withOpContext((spec, log) -> {
-                            final var alias = evmAlias.get();
-
-                            final var cryptoTransferOp = cryptoTransfer(
-                                            movingHbar(10L).between(OWNER, VALID_ALIAS_ED25519),
-                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
-                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, alias))
+                            // transfer tokens
+                            cryptoTransfer(
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                                     .payingWith(OWNER)
                                     .signedBy(OWNER)
-                                    .via("tokenTransferTxn");
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTAndNFTFullFeeUsd(1, 0, 2, 1, 1), 0.0001),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
 
-                            final var checkOpChargedUsd = validateChargedUsdWithin(
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer FT and NFT - movements with one FT and one NFT serial - extra signature full charging")
+                final Stream<DynamicTest> cryptoTransferFTAndNFTOneSerialExtraSignatureFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTAndNFTFullFeeUsd(2, 0, 2, 1, 1), 0.0001),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer HBAR, FT and NFT - movements with one FT and one NFT serial - base fees full charging")
+                final Stream<DynamicTest> cryptoTransferHBARAndFTAndNFTOneSerialBaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn",
+                                    expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 2, 1, 1),
+                                    0.0001),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer HBAR, FT and NFT - movements with one FT and one NFT serial - extra signature full charging")
+                final Stream<DynamicTest> cryptoTransferHBARAndFTAndNFTOneSerialExtraSignatureFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .payingWith(PAYER)
+                                    .signedBy(OWNER, PAYER)
+                                    .fee(ONE_HBAR)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn",
+                                    expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 2, 1, 1),
+                                    0.0001),
+                            getAccountBalance(OWNER)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 90L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
+            }
+
+            @Nested
+            @DisplayName(
+                    "Crypto Transfer Unassociated Accounts, Auto-Associations and Auto-Account Creation Positive Tests")
+            class CryptoTransferUnassociatedAccountsAutoAssociationsAndAutoAccountCreationPositiveTests {
+                @HapiTest
+                @DisplayName("Crypto Transfer FT to Unassociated Account with unlimited Auto-associations - "
+                        + "base fees full charging")
+                final Stream<DynamicTest>
+                        cryptoTransferUnassociatedReceiverUnlimitedAutoAssociations_BaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+
+                            // transfer tokens
+                            cryptoTransfer(moving(1L, FUNGIBLE_TOKEN)
+                                            .between(OWNER, RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .fee(ONE_HBAR)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
                                     "tokenTransferTxn",
-                                    (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 4, 1, 1)
-                                            + tokenAssociateFee * 2),
-                                    0.001);
+                                    (expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0) + tokenAssociateFee),
+                                    0.001)));
+                }
 
-                            final var checkOpInfoValidAliasED25519 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                @HapiTest
+                @DisplayName("Crypto Transfer FT to Unassociated Accounts with unlimited and free Auto-associations - "
+                        + "base fees full charging")
+                final Stream<DynamicTest>
+                        cryptoTransferUnassociatedReceiverUnlimitedAndFreeAutoAssociations_ExtrasCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            moving(20L, FUNGIBLE_TOKEN)
+                                                    .between(OWNER, RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L)
+                                                    .between(OWNER, RECEIVER_FREE_AUTO_ASSOCIATIONS),
+                                            moving(10L, FUNGIBLE_TOKEN)
+                                                    .between(
+                                                            RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS,
+                                                            RECEIVER_FREE_AUTO_ASSOCIATIONS))
+                                    .payingWith(PAYER)
+                                    .signedBy(PAYER, OWNER)
+                                    .fee(ONE_HBAR)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "tokenTransferTxn",
+                                    (expectedCryptoTransferFTAndNFTFullFeeUsd(2, 0, 3, 1, 2) + tokenAssociateFee * 3),
+                                    0.001)));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer FT and NFT to Unassociated Accounts with unlimited and free Auto-associations - "
+                                + "base fees full charging")
+                final Stream<DynamicTest>
+                        cryptoTransferFTAndNFTToUnassociatedReceiverUnlimitedAndFreeAutoAssociations_ExtrasCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+
+                            // transfer tokens
+                            cryptoTransfer(
+                                            moving(20L, FUNGIBLE_TOKEN)
+                                                    .between(OWNER, RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L)
+                                                    .between(OWNER, RECEIVER_FREE_AUTO_ASSOCIATIONS),
+                                            moving(10L, FUNGIBLE_TOKEN)
+                                                    .between(
+                                                            RECEIVER_UNLIMITED_AUTO_ASSOCIATIONS,
+                                                            RECEIVER_FREE_AUTO_ASSOCIATIONS))
+                                    .payingWith(PAYER)
+                                    .signedBy(PAYER, OWNER)
+                                    .fee(ONE_HBAR)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "tokenTransferTxn",
+                                    (expectedCryptoTransferFTAndNFTFullFeeUsd(2, 0, 3, 1, 2) + tokenAssociateFee * 3),
+                                    0.001)));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer - Auto Create ED25519 Account with HBAR Transfer - base fees full charging")
+                final Stream<DynamicTest>
+                        cryptoTransferHBAR_ED25519_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+
+                            // transfer tokens
+                            cryptoTransfer(movingHbar(10L).between(OWNER, VALID_ALIAS_ED25519))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "tokenTransferTxn", (expectedCryptoTransferHbarFullFeeUsd(1, 0, 2, 0, 0)), 0.001),
+                            // validate auto-created account properties
+                            getAliasedAccountInfo(VALID_ALIAS_ED25519)
                                     .has(accountWith()
                                             .key(VALID_ALIAS_ED25519)
                                             .alias(VALID_ALIAS_ED25519)
-                                            .maxAutoAssociations(-1));
+                                            .maxAutoAssociations(-1))));
+                }
 
-                            final var checkOpInfoValidAliasECDSASecond = getAliasedAccountInfo(VALID_ALIAS_ECDSA_SECOND)
-                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
-                                    .has(accountWith()
-                                            .key(VALID_ALIAS_ECDSA_SECOND)
-                                            .alias(VALID_ALIAS_ECDSA_SECOND)
-                                            .maxAutoAssociations(-1));
+                @HapiTest
+                @DisplayName("Crypto Transfer - Auto Create ECDSA Account with HBAR Transfer - base fees full charging")
+                final Stream<DynamicTest>
+                        cryptoTransferHBAR_ECDSA_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
 
-                            final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
-                                    .isHollow()
-                                    .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
-                                    .has(accountWith()
-                                            .hasEmptyKey()
-                                            .noAlias()
-                                            .balance(0L)
-                                            .maxAutoAssociations(-1));
-
-                            final var checkOwnerBalance = getAccountBalance(OWNER)
-                                    .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
-                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L);
-
-                            allRunFor(
-                                    spec,
-                                    cryptoTransferOp,
-                                    checkOpChargedUsd,
-                                    checkOpInfoValidAliasED25519,
-                                    checkOpInfoValidAliasECDSASecond,
-                                    checkHollowAccountInfo,
-                                    checkOwnerBalance);
-                        })));
-            }
-
-            // finalize hollow account after auto-creation during crypto transfers
-            @HapiTest
-            @DisplayName("Finalize Hollow Account created with FT Crypto Transfer")
-            final Stream<DynamicTest> finalizeHollowAccountCreatedWithFTCryptoTransfer() {
-
-                final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
-
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                        registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
-
-                        // transfer tokens
-                        withOpContext((spec, log) -> {
-                            final var alias = evmAlias.get();
-
-                            final var cryptoTransferOp = cryptoTransfer(
-                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, alias))
+                            // transfer tokens
+                            cryptoTransfer(movingHbar(10L).between(OWNER, VALID_ALIAS_ECDSA))
                                     .payingWith(OWNER)
                                     .signedBy(OWNER)
-                                    .fee(ONE_HBAR)
-                                    .via("tokenTransferTxn");
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "tokenTransferTxn", (expectedCryptoTransferHbarFullFeeUsd(1, 0, 2, 0, 0)), 0.001),
+                            // validate auto-created account properties
+                            getAliasedAccountInfo(VALID_ALIAS_ECDSA)
+                                    .has(accountWith()
+                                            .key(VALID_ALIAS_ECDSA)
+                                            .alias(VALID_ALIAS_ECDSA)
+                                            .maxAutoAssociations(-1))));
+                }
 
-                            final var checkOpChargedUsd = validateChargedUsdWithin(
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer - Auto Create Hollow Account with HBAR Transfer - base fees full charging")
+                final Stream<DynamicTest>
+                        cryptoTransferHBAR_HollowAutoAccountCreationForReceiver_BaseFeesFullCharging() {
+
+                    final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+
+                            // transfer tokens
+                            withOpContext((spec, log) -> {
+                                final var alias = evmAlias.get();
+
+                                final var cryptoTransferOp = cryptoTransfer(
+                                                movingHbar(10L).between(OWNER, alias))
+                                        .payingWith(OWNER)
+                                        .signedBy(OWNER)
+                                        .via("tokenTransferTxn");
+
+                                final var checkOpChargedUsd = validateChargedUsdWithin(
+                                        "tokenTransferTxn",
+                                        (expectedCryptoTransferHbarFullFeeUsd(1, 0, 2, 0, 0)),
+                                        0.001);
+
+                                final var checkOpInfo = getAliasedAccountInfo(alias)
+                                        .isHollow()
+                                        .has(accountWith()
+                                                .hasEmptyKey()
+                                                .noAlias()
+                                                .balance(10L)
+                                                .maxAutoAssociations(-1));
+
+                                allRunFor(spec, cryptoTransferOp, checkOpChargedUsd, checkOpInfo);
+                            })));
+                }
+
+                @HapiTest
+                @DisplayName("Crypto Transfer - Auto Create ED25519 Account with FT Transfer - base fees full charging")
+                final Stream<DynamicTest>
+                        cryptoTransferFT_ED25519_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            // transfer tokens
+                            cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
                                     "tokenTransferTxn",
                                     (expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0) + tokenAssociateFee),
-                                    0.001);
-
-                            final var checkOpInfo = getAliasedAccountInfo(alias)
-                                    .isHollow()
+                                    0.001),
+                            // validate balances
+                            getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
+                            // validate auto-created account properties
+                            getAliasedAccountInfo(VALID_ALIAS_ED25519)
                                     .hasToken(relationshipWith(FUNGIBLE_TOKEN))
                                     .has(accountWith()
-                                            .hasEmptyKey()
-                                            .noAlias()
-                                            .balance(0L)
-                                            .maxAutoAssociations(-1));
+                                            .key(VALID_ALIAS_ED25519)
+                                            .alias(VALID_ALIAS_ED25519)
+                                            .maxAutoAssociations(-1))));
+                }
 
-                            final var checkOwnerBalance =
-                                    getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L);
-
-                            allRunFor(spec, cryptoTransferOp, checkOpChargedUsd, checkOpInfo, checkOwnerBalance);
-
-                            // Add the hollow account to the registry
-                            final var accountInfo =
-                                    getAliasedAccountInfo(evmAlias.get()).logged();
-                            allRunFor(spec, accountInfo);
-
-                            final var newAccountId = accountInfo
-                                    .getResponse()
-                                    .getCryptoGetInfo()
-                                    .getAccountInfo()
-                                    .getAccountID();
-                            spec.registry().saveAccountId(VALID_ALIAS_ECDSA, newAccountId);
-
-                            // finalize the hollow account
-                            final var finalizeHollowOp = cryptoTransfer(
-                                            moving(1L, FUNGIBLE_TOKEN).between(evmAlias.get(), OWNER))
+                @HapiTest
+                @DisplayName("Crypto Transfer - Auto Create ECDSA Account with FT Transfer - base fees full charging")
+                final Stream<DynamicTest> cryptoTransferFT_ECDSA_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            // transfer tokens
+                            cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ECDSA))
                                     .payingWith(OWNER)
-                                    .signedBy(OWNER, VALID_ALIAS_ECDSA)
-                                    .fee(ONE_HBAR)
-                                    .via("transferFromHollowAccount");
+                                    .signedBy(OWNER)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "tokenTransferTxn",
+                                    (expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0) + tokenAssociateFee),
+                                    0.001),
+                            // validate balances
+                            getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
+                            // validate auto-created account properties
+                            getAliasedAccountInfo(VALID_ALIAS_ECDSA)
+                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                    .has(accountWith()
+                                            .key(VALID_ALIAS_ECDSA)
+                                            .alias(VALID_ALIAS_ECDSA)
+                                            .maxAutoAssociations(-1))));
+                }
 
-                            final var checkFinalizeOpChargedUsd = validateChargedUsdWithin(
-                                    "transferFromHollowAccount",
-                                    (expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0)),
-                                    0.001);
+                @HapiTest
+                @DisplayName("Crypto Transfer - Auto Create Hollow Account with FT Transfer - base fees full charging")
+                final Stream<DynamicTest> cryptoTransferFT_HollowAutoAccountCreationForReceiver_BaseFeesFullCharging() {
 
-                            // validate finalized hollow account info
-                            final var finalisedAccountInfoCheck = getAccountInfo(VALID_ALIAS_ECDSA)
-                                    .isNotHollow()
-                                    .has(accountWith().key(VALID_ALIAS_ECDSA).maxAutoAssociations(-1))
-                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN));
+                    final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
-                            // validate owner's balance after receiving tokens back from finalized hollow account
-                            final var ownerBalanceCheck =
-                                    getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 91L);
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
 
-                            allRunFor(
-                                    spec,
-                                    finalizeHollowOp,
-                                    checkFinalizeOpChargedUsd,
-                                    finalisedAccountInfoCheck,
-                                    ownerBalanceCheck);
-                        })));
+                            // transfer tokens
+                            withOpContext((spec, log) -> {
+                                final var alias = evmAlias.get();
+
+                                final var cryptoTransferOp = cryptoTransfer(
+                                                moving(10L, FUNGIBLE_TOKEN).between(OWNER, alias))
+                                        .payingWith(OWNER)
+                                        .signedBy(OWNER)
+                                        .via("tokenTransferTxn");
+
+                                final var checkOpChargedUsd = validateChargedUsdWithin(
+                                        "tokenTransferTxn",
+                                        (expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0) + tokenAssociateFee),
+                                        0.001);
+
+                                final var checkOpInfo = getAliasedAccountInfo(alias)
+                                        .isHollow()
+                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                        .has(accountWith()
+                                                .hasEmptyKey()
+                                                .noAlias()
+                                                .balance(0L)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkOwnerBalance =
+                                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L);
+
+                                allRunFor(spec, cryptoTransferOp, checkOpChargedUsd, checkOpInfo, checkOwnerBalance);
+                            })));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer - Auto Create ED25519 Account with NFT Transfer - base fees full charging")
+                final Stream<DynamicTest>
+                        cryptoTransferNFT_ED25519_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                            // transfer tokens
+                            cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, VALID_ALIAS_ED25519))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "tokenTransferTxn",
+                                    (expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 0, 1) + tokenAssociateFee),
+                                    0.001),
+                            // validate balances
+                            getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
+                            // validate auto-created account properties
+                            getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                    .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
+                                    .has(accountWith()
+                                            .key(VALID_ALIAS_ED25519)
+                                            .alias(VALID_ALIAS_ED25519)
+                                            .maxAutoAssociations(-1))));
+                }
+
+                @HapiTest
+                @DisplayName("Crypto Transfer - Auto Create ECDSA Account with NFT Transfer - base fees full charging")
+                final Stream<DynamicTest>
+                        cryptoTransferNFT_ECDSA_AutoAccountCreationForReceiver_BaseFeesFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                            // transfer tokens
+                            cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(OWNER, VALID_ALIAS_ECDSA))
+                                    .payingWith(OWNER)
+                                    .signedBy(OWNER)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "tokenTransferTxn",
+                                    (expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 0, 1) + tokenAssociateFee),
+                                    0.001),
+                            // validate balances
+                            getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
+                            // validate auto-created account properties
+                            getAliasedAccountInfo(VALID_ALIAS_ECDSA)
+                                    .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
+                                    .has(accountWith()
+                                            .key(VALID_ALIAS_ECDSA)
+                                            .alias(VALID_ALIAS_ECDSA)
+                                            .maxAutoAssociations(-1))));
+                }
+
+                @HapiTest
+                @DisplayName("Crypto Transfer - Auto Create Hollow Account with NFT Transfer - base fees full charging")
+                final Stream<DynamicTest>
+                        cryptoTransferNFT_HollowAutoAccountCreationForReceiver_BaseFeesFullCharging() {
+
+                    final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                            registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+
+                            // transfer tokens
+                            withOpContext((spec, log) -> {
+                                final var alias = evmAlias.get();
+
+                                final var cryptoTransferOp = cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                .between(OWNER, alias))
+                                        .payingWith(OWNER)
+                                        .signedBy(OWNER)
+                                        .via("tokenTransferTxn");
+
+                                final var checkOpChargedUsd = validateChargedUsdWithin(
+                                        "tokenTransferTxn",
+                                        (expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 1, 0) + tokenAssociateFee),
+                                        0.001);
+
+                                final var checkOpInfo = getAliasedAccountInfo(alias)
+                                        .isHollow()
+                                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
+                                        .has(accountWith()
+                                                .hasEmptyKey()
+                                                .noAlias()
+                                                .balance(0L)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkOwnerBalance =
+                                        getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L);
+
+                                allRunFor(spec, cryptoTransferOp, checkOpChargedUsd, checkOpInfo, checkOwnerBalance);
+                            })));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer - Auto Create Accounts with HBAR movings in one Transfer - with extra accounts charging")
+                final Stream<DynamicTest> cryptoTransferHbarAutoAccountCreationsForReceiverWithExtraAccountsCharging() {
+
+                    final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+
+                            // transfer tokens
+                            withOpContext((spec, log) -> {
+                                final var alias = evmAlias.get();
+
+                                final var cryptoTransferOp = cryptoTransfer(
+                                                movingHbar(10L).between(OWNER, VALID_ALIAS_ED25519),
+                                                movingHbar(10L).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
+                                                movingHbar(10L).between(OWNER, alias))
+                                        .payingWith(OWNER)
+                                        .signedBy(OWNER)
+                                        .fee(ONE_HBAR)
+                                        .via("tokenTransferTxn");
+
+                                final var checkOpChargedUsd = validateChargedUsdWithin(
+                                        "tokenTransferTxn",
+                                        (expectedCryptoTransferHbarFullFeeUsd(1, 0, 4, 0, 0)),
+                                        0.001);
+
+                                final var checkOpInfoValidAliasED25519 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                        .has(accountWith()
+                                                .key(VALID_ALIAS_ED25519)
+                                                .alias(VALID_ALIAS_ED25519)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkOpInfoValidAliasECDSA = getAliasedAccountInfo(VALID_ALIAS_ECDSA_SECOND)
+                                        .has(accountWith()
+                                                .key(VALID_ALIAS_ECDSA_SECOND)
+                                                .alias(VALID_ALIAS_ECDSA_SECOND)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
+                                        .isHollow()
+                                        .has(accountWith()
+                                                .hasEmptyKey()
+                                                .noAlias()
+                                                .balance(10L)
+                                                .maxAutoAssociations(-1));
+
+                                allRunFor(
+                                        spec,
+                                        cryptoTransferOp,
+                                        checkOpChargedUsd,
+                                        checkOpInfoValidAliasED25519,
+                                        checkOpInfoValidAliasECDSA,
+                                        checkHollowAccountInfo);
+                            })));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer - Auto Create Accounts with FT movings in one Transfer - with extra FTs charging")
+                final Stream<DynamicTest> cryptoTransferFTAutoAccountCreationsForReceiverWithExtraTokenssCharging() {
+
+                    final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_2, 100L, OWNER, adminKey),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN_3, 100L, OWNER, adminKey),
+                            registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+
+                            // transfer tokens
+                            withOpContext((spec, log) -> {
+                                final var alias = evmAlias.get();
+
+                                final var cryptoTransferOp = cryptoTransfer(
+                                                moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ED25519),
+                                                moving(10L, FUNGIBLE_TOKEN_2).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
+                                                moving(10L, FUNGIBLE_TOKEN_3).between(OWNER, alias))
+                                        .payingWith(OWNER)
+                                        .signedBy(OWNER)
+                                        .via("tokenTransferTxn");
+
+                                final var checkOpChargedUsd = validateChargedUsdWithin(
+                                        "tokenTransferTxn",
+                                        (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 4, 3, 0)
+                                                + tokenAssociateFee * 3),
+                                        0.001);
+
+                                final var checkOpInfoValidAliasED25519 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                        .has(accountWith()
+                                                .key(VALID_ALIAS_ED25519)
+                                                .alias(VALID_ALIAS_ED25519)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkOpInfoValidAliasECDSASecond = getAliasedAccountInfo(
+                                                VALID_ALIAS_ECDSA_SECOND)
+                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN_2))
+                                        .has(accountWith()
+                                                .key(VALID_ALIAS_ECDSA_SECOND)
+                                                .alias(VALID_ALIAS_ECDSA_SECOND)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
+                                        .isHollow()
+                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN_3))
+                                        .has(accountWith()
+                                                .hasEmptyKey()
+                                                .noAlias()
+                                                .balance(0L)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkOwnerBalance = getAccountBalance(OWNER)
+                                        .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
+                                        .hasTokenBalance(FUNGIBLE_TOKEN_2, 90L)
+                                        .hasTokenBalance(FUNGIBLE_TOKEN_3, 90L);
+
+                                allRunFor(
+                                        spec,
+                                        cryptoTransferOp,
+                                        checkOpChargedUsd,
+                                        checkOpInfoValidAliasED25519,
+                                        checkOpInfoValidAliasECDSASecond,
+                                        checkHollowAccountInfo,
+                                        checkOwnerBalance);
+                            })));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer - Auto Create Accounts with NFT movings in one Transfer - with extra NFTs charging")
+                final Stream<DynamicTest> cryptoTransferNFTAutoAccountCreationsForReceiverWithExtraTokenssCharging() {
+
+                    final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
+                            mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_3, OWNER, supplyKey, adminKey),
+                            mintNFT(NON_FUNGIBLE_TOKEN_3, 1, 5),
+                            registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+
+                            // transfer tokens
+                            withOpContext((spec, log) -> {
+                                final var alias = evmAlias.get();
+
+                                final var cryptoTransferOp = cryptoTransfer(
+                                                movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                        .between(OWNER, VALID_ALIAS_ED25519),
+                                                movingUnique(NON_FUNGIBLE_TOKEN_2, 1L)
+                                                        .between(OWNER, VALID_ALIAS_ECDSA_SECOND),
+                                                movingUnique(NON_FUNGIBLE_TOKEN_3, 1L)
+                                                        .between(OWNER, alias))
+                                        .payingWith(OWNER)
+                                        .signedBy(OWNER)
+                                        .via("tokenTransferTxn");
+
+                                final var checkOpChargedUsd = validateChargedUsdWithin(
+                                        "tokenTransferTxn",
+                                        (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 4, 0, 3)
+                                                + tokenAssociateFee * 3),
+                                        0.001);
+
+                                final var checkOpInfoValidAliasED25519 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
+                                        .has(accountWith()
+                                                .key(VALID_ALIAS_ED25519)
+                                                .alias(VALID_ALIAS_ED25519)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkOpInfoValidAliasECDSASecond = getAliasedAccountInfo(
+                                                VALID_ALIAS_ECDSA_SECOND)
+                                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN_2))
+                                        .has(accountWith()
+                                                .key(VALID_ALIAS_ECDSA_SECOND)
+                                                .alias(VALID_ALIAS_ECDSA_SECOND)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
+                                        .isHollow()
+                                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN_3))
+                                        .has(accountWith()
+                                                .hasEmptyKey()
+                                                .noAlias()
+                                                .balance(0L)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkOwnerBalance = getAccountBalance(OWNER)
+                                        .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
+                                        .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 3L)
+                                        .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 3L);
+
+                                allRunFor(
+                                        spec,
+                                        cryptoTransferOp,
+                                        checkOpChargedUsd,
+                                        checkOpInfoValidAliasED25519,
+                                        checkOpInfoValidAliasECDSASecond,
+                                        checkHollowAccountInfo,
+                                        checkOwnerBalance);
+                            })));
+                }
+
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer - Auto Create Accounts with HBAR, FT and NFT moving in one Transfer - with extras charging")
+                final Stream<DynamicTest> cryptoTransferAutoAccountCreationsForReceiverWithExtrasCharging() {
+
+                    final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                            registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+
+                            // transfer tokens
+                            withOpContext((spec, log) -> {
+                                final var alias = evmAlias.get();
+
+                                final var cryptoTransferOp = cryptoTransfer(
+                                                movingHbar(10L).between(OWNER, VALID_ALIAS_ED25519),
+                                                moving(10L, FUNGIBLE_TOKEN).between(OWNER, VALID_ALIAS_ECDSA_SECOND),
+                                                movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                        .between(OWNER, alias))
+                                        .payingWith(OWNER)
+                                        .signedBy(OWNER)
+                                        .via("tokenTransferTxn");
+
+                                final var checkOpChargedUsd = validateChargedUsdWithin(
+                                        "tokenTransferTxn",
+                                        (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(1, 0, 4, 1, 1)
+                                                + tokenAssociateFee * 2),
+                                        0.001);
+
+                                final var checkOpInfoValidAliasED25519 = getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                        .has(accountWith()
+                                                .key(VALID_ALIAS_ED25519)
+                                                .alias(VALID_ALIAS_ED25519)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkOpInfoValidAliasECDSASecond = getAliasedAccountInfo(
+                                                VALID_ALIAS_ECDSA_SECOND)
+                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                        .has(accountWith()
+                                                .key(VALID_ALIAS_ECDSA_SECOND)
+                                                .alias(VALID_ALIAS_ECDSA_SECOND)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
+                                        .isHollow()
+                                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN))
+                                        .has(accountWith()
+                                                .hasEmptyKey()
+                                                .noAlias()
+                                                .balance(0L)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkOwnerBalance = getAccountBalance(OWNER)
+                                        .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
+                                        .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L);
+
+                                allRunFor(
+                                        spec,
+                                        cryptoTransferOp,
+                                        checkOpChargedUsd,
+                                        checkOpInfoValidAliasED25519,
+                                        checkOpInfoValidAliasECDSASecond,
+                                        checkHollowAccountInfo,
+                                        checkOwnerBalance);
+                            })));
+                }
+
+                // finalize hollow account after auto-creation during crypto transfers
+                @HapiTest
+                @DisplayName("Finalize Hollow Account created with FT Crypto Transfer")
+                final Stream<DynamicTest> finalizeHollowAccountCreatedWithFTCryptoTransfer() {
+
+                    final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
+
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
+                            registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
+
+                            // transfer tokens
+                            withOpContext((spec, log) -> {
+                                final var alias = evmAlias.get();
+
+                                final var cryptoTransferOp = cryptoTransfer(
+                                                moving(10L, FUNGIBLE_TOKEN).between(OWNER, alias))
+                                        .payingWith(OWNER)
+                                        .signedBy(OWNER)
+                                        .fee(ONE_HBAR)
+                                        .via("tokenTransferTxn");
+
+                                final var checkOpChargedUsd = validateChargedUsdWithin(
+                                        "tokenTransferTxn",
+                                        (expectedCryptoTransferFTFullFeeUsd(1, 0, 2, 1, 0) + tokenAssociateFee),
+                                        0.001);
+
+                                final var checkOpInfo = getAliasedAccountInfo(alias)
+                                        .isHollow()
+                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                        .has(accountWith()
+                                                .hasEmptyKey()
+                                                .noAlias()
+                                                .balance(0L)
+                                                .maxAutoAssociations(-1));
+
+                                final var checkOwnerBalance =
+                                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 90L);
+
+                                allRunFor(spec, cryptoTransferOp, checkOpChargedUsd, checkOpInfo, checkOwnerBalance);
+
+                                // Add the hollow account to the registry
+                                final var accountInfo =
+                                        getAliasedAccountInfo(evmAlias.get()).logged();
+                                allRunFor(spec, accountInfo);
+
+                                final var newAccountId = accountInfo
+                                        .getResponse()
+                                        .getCryptoGetInfo()
+                                        .getAccountInfo()
+                                        .getAccountID();
+                                spec.registry().saveAccountId(VALID_ALIAS_ECDSA, newAccountId);
+
+                                // finalize the hollow account
+                                final var finalizeHollowOp = cryptoTransfer(
+                                                moving(1L, FUNGIBLE_TOKEN).between(evmAlias.get(), OWNER))
+                                        .payingWith(OWNER)
+                                        .signedBy(OWNER, VALID_ALIAS_ECDSA)
+                                        .fee(ONE_HBAR)
+                                        .via("transferFromHollowAccount");
+
+                                final var checkFinalizeOpChargedUsd = validateChargedUsdWithin(
+                                        "transferFromHollowAccount",
+                                        (expectedCryptoTransferFTFullFeeUsd(2, 0, 2, 1, 0)),
+                                        0.001);
+
+                                // validate finalized hollow account info
+                                final var finalisedAccountInfoCheck = getAccountInfo(VALID_ALIAS_ECDSA)
+                                        .isNotHollow()
+                                        .has(accountWith()
+                                                .key(VALID_ALIAS_ECDSA)
+                                                .maxAutoAssociations(-1))
+                                        .hasToken(relationshipWith(FUNGIBLE_TOKEN));
+
+                                // validate owner's balance after receiving tokens back from finalized hollow account
+                                final var ownerBalanceCheck =
+                                        getAccountBalance(OWNER).hasTokenBalance(FUNGIBLE_TOKEN, 91L);
+
+                                allRunFor(
+                                        spec,
+                                        finalizeHollowOp,
+                                        checkFinalizeOpChargedUsd,
+                                        finalisedAccountInfoCheck,
+                                        ownerBalanceCheck);
+                            })));
+                }
             }
-        }
 
-        @Nested
-        @DisplayName("Crypto Transfer With Hooks - Simple Fees Positive Tests")
-        class CryptoTransferWithHooksSimpleFeesPositiveTests {
-            @HapiTest
-            @DisplayName("Crypto Transfer HBAR with hook execution - extra hook full charging")
-            final Stream<DynamicTest> cryptoTransferHBARWithOneHookExtraHookFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
+            @Nested
+            @DisplayName("Crypto Transfer With Hooks - Simple Fees Positive Tests")
+            class CryptoTransferWithHooksSimpleFeesPositiveTests {
+                @HapiTest
+                @DisplayName("Crypto Transfer HBAR with hook execution - extra hook full charging")
+                final Stream<DynamicTest> cryptoTransferHBARWithOneHookExtraHookFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
 
-                        // transfer tokens
-                        cryptoTransfer(movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST))
-                                .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
-                                .payingWith(PAYER_WITH_HOOK)
-                                .signedBy(PAYER_WITH_HOOK)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("hbarTransferTxn"),
-                        validateChargedUsdWithin(
-                                "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(1, 1, 2, 0, 0), 0.0001)));
-            }
+                            // transfer tokens
+                            cryptoTransfer(movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST))
+                                    .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
+                                    .payingWith(PAYER_WITH_HOOK)
+                                    .signedBy(PAYER_WITH_HOOK)
+                                    .fee(ONE_HUNDRED_HBARS)
+                                    .via("hbarTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "hbarTransferTxn", expectedCryptoTransferHbarFullFeeUsd(1, 1, 2, 0, 0), 0.0001)));
+                }
 
-            @HapiTest
-            @DisplayName("Crypto Transfer FT with hook execution - extra hook full charging")
-            final Stream<DynamicTest> cryptoTransferFTWithOneHookExtraHookFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_HOOK, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+                @HapiTest
+                @DisplayName("Crypto Transfer FT with hook execution - extra hook full charging")
+                final Stream<DynamicTest> cryptoTransferFTWithOneHookExtraHookFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_HOOK, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
 
-                        // transfer tokens
-                        cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST))
-                                .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
-                                .payingWith(PAYER_WITH_HOOK)
-                                .signedBy(PAYER_WITH_HOOK)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(1, 1, 2, 1, 0), 0.0001),
-                        getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
+                            // transfer tokens
+                            cryptoTransfer(moving(10L, FUNGIBLE_TOKEN)
+                                            .between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST))
+                                    .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
+                                    .payingWith(PAYER_WITH_HOOK)
+                                    .signedBy(PAYER_WITH_HOOK)
+                                    .fee(ONE_HUNDRED_HBARS)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(1, 1, 2, 1, 0), 0.0001),
+                            getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
 
-            @HapiTest
-            @DisplayName("Crypto Transfer FT with same hook executed twice - extra hook full charging")
-            final Stream<DynamicTest> cryptoTransferFTWithOneHookExecutedTwiceExtraHookFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_HOOK, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-                        tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
+                @HapiTest
+                @DisplayName("Crypto Transfer FT with same hook executed twice - extra hook full charging")
+                final Stream<DynamicTest> cryptoTransferFTWithOneHookExecutedTwiceExtraHookFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_HOOK, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+                            tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
 
-                        // transfer tokens
-                        cryptoTransfer(
-                                        moving(10L, FUNGIBLE_TOKEN).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(10L, FUNGIBLE_TOKEN)
-                                                .between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_SECOND))
-                                .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
-                                .payingWith(PAYER_WITH_HOOK)
-                                .signedBy(PAYER_WITH_HOOK)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(1, 1, 3, 1, 0), 0.0001),
-                        getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(FUNGIBLE_TOKEN, 80L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
+                            // transfer tokens
+                            cryptoTransfer(
+                                            moving(10L, FUNGIBLE_TOKEN)
+                                                    .between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(10L, FUNGIBLE_TOKEN)
+                                                    .between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_SECOND))
+                                    .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
+                                    .payingWith(PAYER_WITH_HOOK)
+                                    .signedBy(PAYER_WITH_HOOK)
+                                    .fee(ONE_HUNDRED_HBARS)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn", expectedCryptoTransferFTFullFeeUsd(1, 1, 3, 1, 0), 0.0001),
+                            getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(FUNGIBLE_TOKEN, 80L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
 
-            @HapiTest
-            @DisplayName("Crypto Transfer NFT with hook execution - extra hook full charging")
-            final Stream<DynamicTest> cryptoTransferNFTWithOneHookExtraHookFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(
-                                NON_FUNGIBLE_TOKEN, PAYER_WITH_HOOK, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                @HapiTest
+                @DisplayName("Crypto Transfer NFT with hook execution - extra hook full charging")
+                final Stream<DynamicTest> cryptoTransferNFTWithOneHookExtraHookFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(
+                                    NON_FUNGIBLE_TOKEN, PAYER_WITH_HOOK, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
 
-                        // transfer tokens
-                        cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
-                                        .between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST))
-                                .withNftSenderPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
-                                .payingWith(PAYER_WITH_HOOK)
-                                .signedBy(PAYER_WITH_HOOK)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("nftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(1, 1, 2, 0, 1), 0.0001),
-                        getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
-            }
+                            // transfer tokens
+                            cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                            .between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST))
+                                    .withNftSenderPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
+                                    .payingWith(PAYER_WITH_HOOK)
+                                    .signedBy(PAYER_WITH_HOOK)
+                                    .fee(ONE_HUNDRED_HBARS)
+                                    .via("nftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "nftTransferTxn", expectedCryptoTransferNFTFullFeeUsd(1, 1, 2, 0, 1), 0.0001),
+                            getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
+                }
 
-            @HapiTest
-            @DisplayName("Crypto Transfer HBAR and FT with hook execution - extra hooks full charging")
-            final Stream<DynamicTest> cryptoTransferHBARAndFtWithTwoHooksExtraHookFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_TWO_HOOKS, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
+                @HapiTest
+                @DisplayName("Crypto Transfer HBAR and FT with hook execution - extra hooks full charging")
+                final Stream<DynamicTest> cryptoTransferHBARAndFtWithTwoHooksExtraHookFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_TWO_HOOKS, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
 
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(10L, FUNGIBLE_TOKEN)
-                                                .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST))
-                                .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
-                                .withPreHookFor(PAYER_WITH_TWO_HOOKS, 2L, 5_000_000_000L, "")
-                                .payingWith(PAYER_WITH_HOOK)
-                                .signedBy(PAYER_WITH_HOOK, PAYER_WITH_TWO_HOOKS)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn", expectedCryptoTransferHBARAndFTFullFeeUsd(2, 2, 3, 1, 0), 0.0001),
-                        getAccountBalance(PAYER_WITH_TWO_HOOKS).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
-            }
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(10L, FUNGIBLE_TOKEN)
+                                                    .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST))
+                                    .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
+                                    .withPreHookFor(PAYER_WITH_TWO_HOOKS, 2L, 5_000_000_000L, "")
+                                    .payingWith(PAYER_WITH_HOOK)
+                                    .signedBy(PAYER_WITH_HOOK, PAYER_WITH_TWO_HOOKS)
+                                    .fee(ONE_HUNDRED_HBARS)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "tokenTransferTxn",
+                                    expectedCryptoTransferHBARAndFTFullFeeUsd(2, 2, 3, 1, 0),
+                                    0.0001),
+                            getAccountBalance(PAYER_WITH_TWO_HOOKS).hasTokenBalance(FUNGIBLE_TOKEN, 90L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FUNGIBLE_TOKEN, 10L)));
+                }
 
-            @HapiTest
-            @DisplayName("Crypto Transfer HBAR and NFT with hook execution - extra hooks full charging")
-            final Stream<DynamicTest> cryptoTransferHBARAndNFtWithOneHookExtraHookFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createNonFungibleTokenWithoutCustomFees(
-                                NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                @HapiTest
+                @DisplayName("Crypto Transfer HBAR and NFT with hook execution - extra hooks full charging")
+                final Stream<DynamicTest> cryptoTransferHBARAndNFtWithOneHookExtraHookFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createNonFungibleTokenWithoutCustomFees(
+                                    NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
 
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L)
-                                                .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST))
-                                .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
-                                .withNftSenderPreHookFor(PAYER_WITH_TWO_HOOKS, 2L, 5_000_000_000L, "")
-                                .payingWith(PAYER_WITH_HOOK)
-                                .signedBy(PAYER_WITH_HOOK, PAYER_WITH_TWO_HOOKS)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn", expectedCryptoTransferHBARAndNFTFullFeeUsd(2, 2, 3, 0, 1), 0.0001),
-                        getAccountBalance(PAYER_WITH_TWO_HOOKS).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
-            }
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                    .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST))
+                                    .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
+                                    .withNftSenderPreHookFor(PAYER_WITH_TWO_HOOKS, 2L, 5_000_000_000L, "")
+                                    .payingWith(PAYER_WITH_HOOK)
+                                    .signedBy(PAYER_WITH_HOOK, PAYER_WITH_TWO_HOOKS)
+                                    .fee(ONE_HUNDRED_HBARS)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "tokenTransferTxn",
+                                    expectedCryptoTransferHBARAndNFTFullFeeUsd(2, 2, 3, 0, 1),
+                                    0.0001),
+                            getAccountBalance(PAYER_WITH_TWO_HOOKS).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
+                }
 
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer HBAR, FT and NFT with hook execution - extra hooks and accounts full charging")
-            final Stream<DynamicTest> cryptoTransferHBARAndFtAndNFTWithTwoHooksExtraHooksAndAccountsFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_TWO_HOOKS, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
-                        createNonFungibleTokenWithoutCustomFees(
-                                NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_THIRD, NON_FUNGIBLE_TOKEN),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer HBAR, FT and NFT with hook execution - extra hooks and accounts full charging")
+                final Stream<DynamicTest> cryptoTransferHBARAndFtAndNFTWithTwoHooksExtraHooksAndAccountsFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_TWO_HOOKS, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
+                            createNonFungibleTokenWithoutCustomFees(
+                                    NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_THIRD, NON_FUNGIBLE_TOKEN),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
 
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(10L, FUNGIBLE_TOKEN)
-                                                .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_SECOND),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L)
-                                                .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD))
-                                .withPreHookFor(PAYER_WITH_TWO_HOOKS, 1L, 5_000_000_000L, "")
-                                .withNftSenderPreHookFor(PAYER_WITH_TWO_HOOKS, 2L, 5_000_000_000L, "")
-                                .payingWith(PAYER_WITH_HOOK)
-                                .signedBy(PAYER_WITH_HOOK, PAYER_WITH_TWO_HOOKS)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn",
-                                expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 2, 5, 1, 1),
-                                0.0001),
-                        getAccountBalance(PAYER_WITH_TWO_HOOKS)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_THIRD).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
-            }
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(10L, FUNGIBLE_TOKEN)
+                                                    .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_SECOND),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                    .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD))
+                                    .withPreHookFor(PAYER_WITH_TWO_HOOKS, 1L, 5_000_000_000L, "")
+                                    .withNftSenderPreHookFor(PAYER_WITH_TWO_HOOKS, 2L, 5_000_000_000L, "")
+                                    .payingWith(PAYER_WITH_HOOK)
+                                    .signedBy(PAYER_WITH_HOOK, PAYER_WITH_TWO_HOOKS)
+                                    .fee(ONE_HUNDRED_HBARS)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "tokenTransferTxn",
+                                    expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 2, 5, 1, 1),
+                                    0.0001),
+                            getAccountBalance(PAYER_WITH_TWO_HOOKS)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_THIRD).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
+                }
 
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer HBAR, FT and NFT with hook execution - extra hooks, tokens and accounts full charging")
-            final Stream<DynamicTest>
-                    cryptoTransferHBARAndFtAndNFTWithTwoHooksExtraHooksAndTokensAndAccountsFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_TWO_HOOKS, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
-                        createNonFungibleTokenWithoutCustomFees(
-                                NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
-                        tokenAssociate(RECEIVER_ASSOCIATED_THIRD, NON_FUNGIBLE_TOKEN),
-                        mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer HBAR, FT and NFT with hook execution - extra hooks, tokens and accounts full charging")
+                final Stream<DynamicTest>
+                        cryptoTransferHBARAndFtAndNFTWithTwoHooksExtraHooksAndTokensAndAccountsFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_TWO_HOOKS, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
+                            createNonFungibleTokenWithoutCustomFees(
+                                    NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
+                            tokenAssociate(RECEIVER_ASSOCIATED_THIRD, NON_FUNGIBLE_TOKEN),
+                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
 
-                        // transfer tokens
-                        cryptoTransfer(
-                                        movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
-                                        moving(10L, FUNGIBLE_TOKEN)
-                                                .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_SECOND),
-                                        movingUnique(NON_FUNGIBLE_TOKEN, 1L)
-                                                .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD))
-                                .withPreHookFor(PAYER_WITH_TWO_HOOKS, 1L, 5_000_000_000L, "")
-                                .withNftSenderPreHookFor(PAYER_WITH_TWO_HOOKS, 2L, 5_000_000_000L, "")
-                                .payingWith(PAYER_WITH_HOOK)
-                                .signedBy(PAYER_WITH_HOOK, PAYER_WITH_TWO_HOOKS)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenTransferTxn"),
-                        validateChargedUsdWithin(
-                                "tokenTransferTxn",
-                                expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 2, 5, 1, 1),
-                                0.0001),
-                        getAccountBalance(PAYER_WITH_TWO_HOOKS)
-                                .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
-                                .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
-                        getAccountBalance(RECEIVER_ASSOCIATED_THIRD).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
-            }
+                            // transfer tokens
+                            cryptoTransfer(
+                                            movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
+                                            moving(10L, FUNGIBLE_TOKEN)
+                                                    .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_SECOND),
+                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                                    .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD))
+                                    .withPreHookFor(PAYER_WITH_TWO_HOOKS, 1L, 5_000_000_000L, "")
+                                    .withNftSenderPreHookFor(PAYER_WITH_TWO_HOOKS, 2L, 5_000_000_000L, "")
+                                    .payingWith(PAYER_WITH_HOOK)
+                                    .signedBy(PAYER_WITH_HOOK, PAYER_WITH_TWO_HOOKS)
+                                    .fee(ONE_HUNDRED_HBARS)
+                                    .via("tokenTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "tokenTransferTxn",
+                                    expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 2, 5, 1, 1),
+                                    0.0001),
+                            getAccountBalance(PAYER_WITH_TWO_HOOKS)
+                                    .hasTokenBalance(FUNGIBLE_TOKEN, 90L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FUNGIBLE_TOKEN, 10L),
+                            getAccountBalance(RECEIVER_ASSOCIATED_THIRD).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)));
+                }
 
-            @HapiTest
-            @DisplayName(
-                    "Crypto Transfer - Auto Create Accounts with FT moving and with hook execution - extra hook full charging")
-            final Stream<DynamicTest> cryptoTransferFTAutoAccountCreationWithOneHookExtraHookFullCharging() {
-                return hapiTest(flattened(
-                        // create keys, tokens and accounts
-                        createAccountsAndKeys(),
-                        createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_HOOK, adminKey),
+                @HapiTest
+                @DisplayName(
+                        "Crypto Transfer - Auto Create Accounts with FT moving and with hook execution - extra hook full charging")
+                final Stream<DynamicTest> cryptoTransferFTAutoAccountCreationWithOneHookExtraHookFullCharging() {
+                    return hapiTest(flattened(
+                            // create keys, tokens and accounts
+                            createAccountsAndKeys(),
+                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_HOOK, adminKey),
 
-                        // transfer tokens
-                        cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(PAYER_WITH_HOOK, VALID_ALIAS_ED25519))
-                                .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
-                                .payingWith(PAYER_WITH_HOOK)
-                                .signedBy(PAYER_WITH_HOOK)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("ftTransferTxn"),
-                        validateChargedUsdWithin(
-                                "ftTransferTxn",
-                                expectedCryptoTransferFTFullFeeUsd(1, 1, 2, 1, 0) + tokenAssociateFee,
-                                0.0001),
-                        // validate auto-created account properties
-                        getAliasedAccountInfo(VALID_ALIAS_ED25519)
-                                .hasToken(relationshipWith(FUNGIBLE_TOKEN))
-                                .has(accountWith()
-                                        .key(VALID_ALIAS_ED25519)
-                                        .alias(VALID_ALIAS_ED25519)
-                                        .maxAutoAssociations(-1)),
-                        // validate balances
-                        getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(FUNGIBLE_TOKEN, 90L)));
+                            // transfer tokens
+                            cryptoTransfer(moving(10L, FUNGIBLE_TOKEN).between(PAYER_WITH_HOOK, VALID_ALIAS_ED25519))
+                                    .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000_000L, "")
+                                    .payingWith(PAYER_WITH_HOOK)
+                                    .signedBy(PAYER_WITH_HOOK)
+                                    .fee(ONE_HUNDRED_HBARS)
+                                    .via("ftTransferTxn"),
+                            validateChargedUsdWithin(
+                                    "ftTransferTxn",
+                                    expectedCryptoTransferFTFullFeeUsd(1, 1, 2, 1, 0) + tokenAssociateFee,
+                                    0.0001),
+                            // validate auto-created account properties
+                            getAliasedAccountInfo(VALID_ALIAS_ED25519)
+                                    .hasToken(relationshipWith(FUNGIBLE_TOKEN))
+                                    .has(accountWith()
+                                            .key(VALID_ALIAS_ED25519)
+                                            .alias(VALID_ALIAS_ED25519)
+                                            .maxAutoAssociations(-1)),
+                            // validate balances
+                            getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(FUNGIBLE_TOKEN, 90L)));
+                }
             }
         }
 
@@ -2846,7 +2894,7 @@ public class CryptoTransferSimpleFeesTest {
                                     .via("tokenTransferTxn")
                                     .hasKnownStatus(INVALID_NFT_ID),
                             validateChargedUsdWithin(
-                                    "tokenTransferTxn", expectedCryptoTransferNFTFullFeeUsd(2, 0, 2, 0, 1), 0.0001),
+                                    "tokenTransferTxn", expectedCryptoTransferNFTFullFeeUsd(1, 0, 2, 0, 1), 0.0001),
                             getAccountBalance(OWNER).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L)));
                 }
@@ -2934,7 +2982,7 @@ public class CryptoTransferSimpleFeesTest {
                                     expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 2, 1, 1),
                                     0.0001),
                             getAccountBalance(OWNER)
-                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L)
+                                    .hasTokenBalance(NON_FUNGIBLE_TOKEN, 2L)
                                     .hasTokenBalance(FUNGIBLE_TOKEN, 10L),
                             getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
                                     .hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L)
@@ -3346,7 +3394,7 @@ public class CryptoTransferSimpleFeesTest {
                             .withHook(accountAllowanceHook(1L, HOOK_CONTRACT))
                             .withHook(accountAllowanceHook(2L, HOOK_CONTRACT))
                             .withHook(accountAllowanceHook(3L, HOOK_CONTRACT)),
-                    cryptoCreate(OWNER).balance(ONE_BILLION_HBARS),
+                    cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(HBAR_OWNER_INSUFFICIENT_BALANCE).balance(ONE_HBAR / 100000),
                     cryptoCreate(RECEIVER_ASSOCIATED_FIRST).balance(ONE_HBAR),
                     cryptoCreate(RECEIVER_ASSOCIATED_SECOND).balance(ONE_HBAR),
