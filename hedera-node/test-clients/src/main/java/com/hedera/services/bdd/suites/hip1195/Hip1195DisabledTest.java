@@ -5,7 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -58,8 +58,8 @@ public class Hip1195DisabledTest {
 
     @HapiTest
     @Tag(MATS)
-    final Stream<DynamicTest> cannotUseLambdaSStoreWhenHooksDisabled() {
-        return hapiTest(accountLambdaSStore(DEFAULT_PAYER, 123L)
+    final Stream<DynamicTest> cannotUseHookStoreWhenHooksDisabled() {
+        return hapiTest(accountEvmHookStore(DEFAULT_PAYER, 123L)
                 .putSlot(Bytes.EMPTY, Bytes.EMPTY)
                 .hasPrecheck(HOOKS_NOT_ENABLED));
     }
