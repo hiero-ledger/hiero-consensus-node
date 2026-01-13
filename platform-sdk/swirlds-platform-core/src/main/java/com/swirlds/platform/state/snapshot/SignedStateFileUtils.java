@@ -17,6 +17,9 @@ public final class SignedStateFileUtils {
      */
     public static final String CURRENT_ROSTER_FILE_NAME = "currentRoster.json";
 
+    /** The name of the file that contains the human-readable consensus snapshot in the saved state */
+    public static final String CONSENSUS_SNAPSHOT_FILE_NAME = "consensusSnapshot.json";
+
     /**
      * The initial version of the signature set file
      */

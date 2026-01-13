@@ -11,6 +11,7 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
+import com.swirlds.platform.config.StateConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
@@ -32,6 +33,8 @@ public class HappyPathTest {
     void testHappyPath(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
+
+        network.withConfigValue(StateConfig_.SAVE_STATE_PERIOD, 2);
 
         // Setup simulation
         network.addNodes(4);

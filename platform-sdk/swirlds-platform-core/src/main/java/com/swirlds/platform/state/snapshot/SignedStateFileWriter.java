@@ -10,6 +10,7 @@ import static com.swirlds.platform.event.preconsensus.BestEffortPcesFileCopy.cop
 import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
+import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.INIT_SIG_SET_FILE_VERSION;
@@ -17,11 +18,15 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
@@ -162,6 +167,7 @@ public final class SignedStateFileWriter {
         writeEmergencyRecoveryFile(directory, signedState);
         final Roster currentRoster = signedState.getRoster();
         writeRosterFile(directory, currentRoster);
+        writeConsensusSnapshotFile(directory, signedState.getState());
         writeSettingsUsed(directory, platformContext.getConfiguration());
 
         if (selfId != null) {
@@ -171,6 +177,22 @@ public final class SignedStateFileWriter {
                     directory,
                     ancientThresholdOf(signedState.getState()),
                     signedState.getRound());
+        }
+    }
+
+    private static void writeConsensusSnapshotFile(@NonNull final Path directory, @NonNull final MerkleNodeState state)
+            throws IOException {
+        final ReadablePlatformStateStore readablePlatformStateStore = new ReadablePlatformStateStore(
+                state.getReadableStates(PlatformStateService.NAME));
+        final ConsensusSnapshot consensusSnapshot = readablePlatformStateStore.getSnapshot();
+        if (consensusSnapshot == null) {
+            logger.error(EXCEPTION.getMarker(), "No consensus snapshot found in state being written to {}!", directory);
+            return;
+        }
+        final Path consensusSnapshotFile = directory.resolve(CONSENSUS_SNAPSHOT_FILE_NAME);
+
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(consensusSnapshotFile.toFile()))) {
+            writer.write(ConsensusSnapshot.JSON.toJSON(consensusSnapshot));
         }
     }
 
