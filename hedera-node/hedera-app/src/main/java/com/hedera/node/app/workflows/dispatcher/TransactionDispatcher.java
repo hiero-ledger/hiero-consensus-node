@@ -36,6 +36,26 @@ public class TransactionDispatcher {
     public static final String SYSTEM_DELETE_WITHOUT_ID_CASE = "SystemDelete without IdCase";
     public static final String SYSTEM_UNDELETE_WITHOUT_ID_CASE = "SystemUndelete without IdCase";
 
+    /**
+     * No-op handler to simplify externalizing informational system txs in the consensus stream.
+     */
+    private static final TransactionHandler NOOP_HANDLER = new TransactionHandler() {
+        @Override
+        public void preHandle(@NonNull PreHandleContext context) {
+            // No-op
+        }
+
+        @Override
+        public void pureChecks(@NonNull PureChecksContext context) {
+            // No-op
+        }
+
+        @Override
+        public void handle(@NonNull HandleContext context) throws HandleException {
+            // No-op
+        }
+    };
+
     protected final TransactionHandlers handlers;
     protected final FeeManager feeManager;
 
@@ -267,6 +287,7 @@ public class TransactionDispatcher {
                     case FILE_ID -> handlers.fileSystemUndeleteHandler();
                     default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
                 };
+            case LEDGER_ID_PUBLICATION -> NOOP_HANDLER;
 
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };

@@ -326,25 +326,31 @@ public class HandleWorkflow {
         } catch (Exception e) {
             logger.error("{} Failed to reward active nodes", ALERT_MESSAGE, e);
         }
-        if (setLedgerId.get()) {
-            try {
-                final var ledgerId = requireNonNull(state.getReadableStates(HistoryService.NAME)
-                                .<ProtoBytes>getSingleton(V059HistorySchema.LEDGER_ID_STATE_ID)
-                                .get())
-                        .value();
-                systemTransactions.externalizeLedgerId(
-                        state, lastUsedConsTime.plusNanos(6), ledgerId, Bytes.wrap(historyService.getServiceName()));
-                transactionsDispatched = true;
-            } catch (Exception e) {
-                logger.error("{} Failed to externalize ledger id", ALERT_MESSAGE, e);
-            }
-        }
         try {
             final int receiptEntriesBatchSize = configProvider
                     .getConfiguration()
                     .getConfigData(BlockStreamConfig.class)
                     .receiptEntriesBatchSize();
             transactionsDispatched |= handleEvents(state, round, receiptEntriesBatchSize, stateSignatureTxnCallback);
+            if (setLedgerId.get()) {
+                try {
+                    final var ledgerId = requireNonNull(state.getReadableStates(HistoryService.NAME)
+                                    .<ProtoBytes>getSingleton(V059HistorySchema.LEDGER_ID_STATE_ID)
+                                    .get())
+                            .value();
+                    logger.info("Externalizing ledger id {}", ledgerId.toHex());
+                    // Since we must have handled a TSS tx to trigger setting the ledger id, we
+                    // know the last-used consensus time has advanced since the last system tx
+                    systemTransactions.externalizeLedgerId(
+                            state,
+                            lastUsedConsTime.plusNanos(2),
+                            ledgerId,
+                            Bytes.wrap(historyService.getServiceName()));
+                    transactionsDispatched = true;
+                } catch (Exception e) {
+                    logger.error("{} Failed to externalize ledger id", ALERT_MESSAGE, e);
+                }
+            }
 
             // Inform the BlockRecordManager that the round is complete, so it can update running hashes in state
             // from results computed in background threads. The running hash has to be included in state, but we want

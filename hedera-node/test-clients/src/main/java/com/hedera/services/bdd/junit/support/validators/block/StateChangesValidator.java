@@ -9,6 +9,7 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTERS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTER_STATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
+import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
@@ -143,6 +144,8 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     @Nullable
     private Bytes ledgerId;
+
+    private boolean sawLedgerIdPublication = false;
 
     /**
      * Initialized to the weights in the genesis roster, and updated to the weights in the active
@@ -455,6 +458,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                                     op.message().toString().substring(0, 8),
                                     all);
                         }
+                    } else if (parts.function() == LEDGER_ID_PUBLICATION) {
+                        sawLedgerIdPublication = true;
                     }
                 }
             }
@@ -551,6 +556,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                         .append(actualRootMnemonic);
             }
             Assertions.fail(errorMsg.toString());
+        }
+
+        if (historyLibrary != null) {
+            assertTrue(sawLedgerIdPublication, "Ledger id not published despite TSS history enabled");
         }
     }
 

@@ -42,6 +42,7 @@ import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -62,6 +63,7 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
+import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
@@ -794,7 +796,17 @@ public class SystemTransactions {
                                 .nonce(nextDispatchNonce++)
                                 .build());
                 spec.accept(builder);
-                dispatch(builder.build(), 0, triggerStakePeriodSideEffects);
+                final var body = builder.build();
+                final var output = dispatch(body, 0, triggerStakePeriodSideEffects);
+                final var statuses = output.preferringBlockRecordSource().identifiedReceipts().stream()
+                        .map(RecordSource.IdentifiedReceipt::receipt)
+                        .map(TransactionReceipt::status)
+                        .toList();
+                if (!SUCCESSES.containsAll(statuses)) {
+                    log.warn("Failed to dispatch system transaction {} - {}", body, statuses);
+                } else {
+                    log.info("Successfully dispatched admin transaction {}", body);
+                }
             }
 
             @Override
@@ -835,7 +847,7 @@ public class SystemTransactions {
                 return nextConsTime.get();
             }
 
-            private void dispatch(
+            private HandleOutput dispatch(
                     @NonNull final TransactionBody body,
                     final long entityNum,
                     @NonNull final TriggerStakePeriodSideEffects triggerStakePeriodSideEffects) {
@@ -866,6 +878,7 @@ public class SystemTransactions {
                 if (streamMode != RECORDS) {
                     handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
                 }
+                return handleOutput;
             }
         };
     }
