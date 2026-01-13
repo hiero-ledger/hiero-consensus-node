@@ -175,7 +175,7 @@ public class ContractUpdateHandler implements TransactionHandler {
             // If there are creations, the updated account's first hook id is the first creation no matter what
             // deletions
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
-            builder.numberLambdaStorageSlots(account.numberLambdaStorageSlots() + slotsDelta);
+            builder.numberEvmHookStorageSlots(account.numberEvmHookStorageSlots() + slotsDelta);
         } else if (!op.hookIdsToDelete().isEmpty()) {
             // Otherwise the first hook id is the head after deletions; or zero if none are left
             builder.firstHookId(headAfterDeletes == null ? 0 : headAfterDeletes);
