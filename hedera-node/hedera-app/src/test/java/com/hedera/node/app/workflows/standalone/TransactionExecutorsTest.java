@@ -196,10 +196,12 @@ public class TransactionExecutorsTest {
         assertThat(creationReceipt.contractIDOrThrow()).isEqualTo(EXPECTED_CONTRACT_ID);
 
         // Now execute a ContractCall against the contract, with an extra StandardJsonTracer whose output we
-        // capture in a StringWriter for later inspection
+        // capture in a StringWriter for later inspection. We wrap it in an OperationTracerAdapter since
+        // the executor now expects ActionSidecarContentTracer instances.
         final var stringWriter = new StringWriter();
         final var printWriter = new PrintWriter(stringWriter);
-        final var addOnTracer = new StandardJsonTracer(printWriter, false, false, false, false);
+        final var jsonTracer = new StandardJsonTracer(printWriter, false, false, false, false);
+        final var addOnTracer = new OperationTracerAdapter(jsonTracer);
         final var callOutput = executor.execute(contractCallMultipurposePickFunction(), Instant.EPOCH, addOnTracer);
         final var callRecord = callOutput.getFirst().transactionRecord();
         final var callResult = callRecord.contractCallResultOrThrow().contractCallResult();
