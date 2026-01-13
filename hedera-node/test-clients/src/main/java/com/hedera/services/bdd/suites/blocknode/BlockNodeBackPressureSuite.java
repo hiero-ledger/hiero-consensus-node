@@ -178,7 +178,7 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode", "GRPC"
                         })
             })
-    @Order(2)
+    @Order(3)
     final Stream<DynamicTest> backPressureAllNodesCheckingScenario() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
