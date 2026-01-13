@@ -66,7 +66,7 @@ public class ClprClientImpl implements ClprClient {
     private static final Logger log = LogManager.getLogger(ClprClientImpl.class);
 
     private static final PbjGrpcClientConfig clientConfig = new PbjGrpcClientConfig(
-            Duration.ofSeconds(10),
+            Duration.ofSeconds(1),
             Tls.builder().enabled(false).build(),
             Optional.empty(),
             ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO);
@@ -119,30 +119,25 @@ public class ClprClientImpl implements ClprClient {
     }
 
     @Override
-    public ClprLedgerConfiguration getConfiguration() {
-        // create query payload with header and missing ledger id
+    public StateProof getConfiguration() {
         final var queryBody = ClprGetLedgerConfigurationQuery.newBuilder()
                 .header(QueryHeader.newBuilder().build())
                 .build();
-        // create query transaction
         final var queryTxn =
                 Query.newBuilder().getClprLedgerConfiguration(queryBody).build();
-        // send query to remote CLPR Endpoint
         final var response = clprServiceClient.getLedgerConfiguration(queryTxn);
         if (response.hasClprLedgerConfiguration()) {
-            // unwrap response and extract configuration from state proof
             final var stateProof =
                     Objects.requireNonNull(response.clprLedgerConfiguration()).ledgerConfigurationProof();
-            if (stateProof != null && ClprStateProofUtils.validateStateProof(stateProof)) {
-                return ClprStateProofUtils.extractConfiguration(stateProof);
+            if (stateProof != null) {
+                return stateProof;
             }
         }
         return null;
     }
 
     @Override
-    public @Nullable ClprLedgerConfiguration getConfiguration(@NonNull final ClprLedgerId ledgerId) {
-        // create query payload with header and specified ledger id
+    public @Nullable StateProof getConfiguration(@NonNull final ClprLedgerId ledgerId) {
         final var queryBody = ClprGetLedgerConfigurationQuery.newBuilder()
                 .header(QueryHeader.newBuilder().build())
                 .ledgerId(ledgerId)
@@ -152,11 +147,10 @@ public class ClprClientImpl implements ClprClient {
                 Query.newBuilder().getClprLedgerConfiguration(queryBody).build();
         final var response = clprServiceClient.getLedgerConfiguration(queryTxn);
         if (response.hasClprLedgerConfiguration()) {
-            // extract configuration from state proof
             final var stateProof =
                     Objects.requireNonNull(response.clprLedgerConfiguration()).ledgerConfigurationProof();
-            if (stateProof != null && ClprStateProofUtils.validateStateProof(stateProof)) {
-                return org.hiero.interledger.clpr.ClprStateProofUtils.extractConfiguration(stateProof);
+            if (stateProof != null) {
+                return stateProof;
             }
         }
         return null;
@@ -172,16 +166,13 @@ public class ClprClientImpl implements ClprClient {
     public @NonNull ResponseCodeEnum setConfiguration(
             @NonNull final AccountID payerAccountId,
             @NonNull final AccountID nodeAccountId,
-            @NonNull final ClprLedgerConfiguration clprLedgerConfiguration) {
+            @NonNull final StateProof ledgerConfigurationProof) {
+        Objects.requireNonNull(ledgerConfigurationProof);
         try {
-            var stateProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(clprLedgerConfiguration);
-            if (stateProof == null || stateProof.paths().isEmpty()) {
-                stateProof = devModeLedgerConfigStateProof(clprLedgerConfiguration);
-            }
             final var txnBody = TransactionBody.newBuilder()
                     .transactionID(newTransactionId(payerAccountId))
                     .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
-                            .ledgerConfigurationProof(stateProof)
+                            .ledgerConfigurationProof(ledgerConfigurationProof)
                             .build())
                     .transactionFee(1L)
                     .transactionValidDuration(com.hedera.hapi.node.base.Duration.newBuilder()
@@ -201,11 +192,7 @@ public class ClprClientImpl implements ClprClient {
             final var response = clprServiceClient.setLedgerConfiguration(transaction);
             return response.nodeTransactionPrecheckCode();
         } catch (final Exception e) {
-            log.error(
-                    "CLPR client failed to submit configuration for payer {} and ledger {}",
-                    payerAccountId,
-                    clprLedgerConfiguration.ledgerIdOrElse(org.hiero.hapi.interledger.state.clpr.ClprLedgerId.DEFAULT),
-                    e);
+            log.error("CLPR client failed to submit configuration for payer {}", payerAccountId, e);
             return ResponseCodeEnum.FAIL_INVALID;
         }
     }

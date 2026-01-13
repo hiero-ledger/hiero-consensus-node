@@ -56,6 +56,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.state.StateLifecycleManager;
 import java.time.InstantSource;
 import java.util.ArrayDeque;
 import java.util.List;
@@ -137,6 +138,7 @@ class IngestComponentTest {
         final var state = new FakeState();
         final var networkInfo = mock(NetworkInfo.class);
         final var selfNodeAccountIdManagerImpl = new SelfNodeAccountIdManagerImpl(configProvider, networkInfo, state);
+        final var stateLifecycleManager = mock(StateLifecycleManager.class);
         app = DaggerHederaInjectionComponent.builder()
                 .appContext(appContext)
                 .configProviderImpl(configProvider)
@@ -147,6 +149,7 @@ class IngestComponentTest {
                 .scheduleService(new ScheduleServiceImpl(appContext))
                 .initTrigger(InitTrigger.GENESIS)
                 .platform(platform)
+                .stateLifecycleManager(stateLifecycleManager)
                 .transactionPool(transactionPool)
                 .self(selfNodeInfo)
                 .currentPlatformStatus(() -> PlatformStatus.ACTIVE)

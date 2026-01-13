@@ -45,6 +45,7 @@ import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
+import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.client.ClprClient;
 import org.hiero.interledger.clpr.impl.client.ClprClientImpl;
 import org.junit.jupiter.api.BeforeAll;
@@ -61,9 +62,6 @@ public class ClprSuite implements LifecycleTest {
     private static final long NODE_ID_TO_REMOVE = 3L;
     private static final long REPLACEMENT_NODE_ID = 4L;
     private static final String REPLACEMENT_NODE_NAME = CLASSIC_NODE_NAMES[(int) REPLACEMENT_NODE_ID];
-    private static final long SECOND_NODE_ID_TO_REMOVE = 2L;
-    private static final long SECOND_REPLACEMENT_NODE_ID = 5L;
-    private static final String SECOND_REPLACEMENT_NODE_NAME = CLASSIC_NODE_NAMES[(int) SECOND_REPLACEMENT_NODE_ID];
     private static final Map<String, String> PUBLICIZE_DISABLED = Map.of("clpr.publicizeNetworkAddresses", "false");
     private static final Map<String, String> PUBLICIZE_ENABLED = Map.of("clpr.publicizeNetworkAddresses", "true");
 
@@ -72,23 +70,57 @@ public class ClprSuite implements LifecycleTest {
         testLifecycle.overrideInClass(CLPR_OVERRIDES);
     }
 
+    @DisplayName("Genesis publishes CLPR ledger configuration")
+    @HapiTest
     @Order(1)
+    final Stream<DynamicTest> genesisPublishesLedgerConfig() {
+        /*
+         * Minimal smoke test that queries a single node for the genesis CLPR configuration.
+         *
+         * Likely failure scenarios:
+         * - Genesis bootstrap skipped because the roster/roster hash is unavailable, so no CLPR_SET is dispatched.
+         * - State proof verification/parsing fails because CLPR state IDs drift from key/value field numbers.
+         * - CLPR state changes were not committed at genesis, leaving no proof to fetch.
+         */
+        return customizedHapiTest(Map.of(), withOpContext((spec, opLog) -> {
+            final var nodes = List.copyOf(spec.subProcessNetworkOrThrow().nodes());
+            assertThat(nodes)
+                    .as("Network must provide at least one node for CLPR genesis bootstrap")
+                    .isNotEmpty();
+            final var node = nodes.get(0);
+            final var config = fetchLedgerConfiguration(List.of(node));
+            assertThat(config.getLedgerId().getLedgerId())
+                    .as("Genesis CLPR ledger id must be populated")
+                    .isNotEmpty();
+            assertThat(config.getEndpointsList())
+                    .as("Genesis CLPR ledger configuration must include endpoints")
+                    .isNotEmpty()
+                    .allSatisfy(endpoint -> assertThat(endpoint.getSigningCertificate())
+                            .as("CLPR endpoints must advertise signing certificates")
+                            .isNotEmpty());
+        }));
+    }
+
     @DisplayName("Roster change upgrade refreshes CLPR ledger configuration")
     @HapiTest
+    @Order(2)
     final Stream<DynamicTest> rosterChangeUpgradeRefreshesLedgerConfig() {
         /*
          * What this test explicitly verifies:
          * 1) With clpr.publicizeNetworkAddresses=true (default), the fetched CLPR ledger configuration
-         *    includes one endpoint per roster node, each with a network address and the node’s gRPC
+         *    includes one endpoint per roster node, each with a network address and the node's gRPC
          *    gateway port (not the gossip port). Certificates must be present and consistent.
-         * 2) Remove one node and add a new node (with a fresh certificate); set
-         *    clpr.publicizeNetworkAddresses=false on all nodes; perform a freeze/upgrade; then fetch
-         *    the configuration. Expectations: same ledgerId, advanced timestamp, roster size is
+         * 2) Toggle clpr.publicizeNetworkAddresses=false without a roster change; perform a freeze/upgrade;
+         *    then fetch the configuration. Expectations: same ledgerId, advanced timestamp, roster size is
          *    unchanged, and all endpoints omit network addresses/ports when publicize=false.
-         * 3) Remove another node and add a new node; set clpr.publicizeNetworkAddresses=true;
-         *    perform another freeze/upgrade; then fetch the configuration. Expectations: same ledgerId,
-         *    advanced timestamp, roster size is unchanged, endpoints contain network addresses/ports
-         *    matching the gRPC gateways for the current roster nodes, and certificates remain stable.
+         * 3) Remove one node and add a new node (with a fresh certificate); keep
+         *    clpr.publicizeNetworkAddresses=false; perform a freeze/upgrade; then fetch the configuration.
+         *    Expectations: same ledgerId, advanced timestamp, roster size is unchanged, and all endpoints
+         *    omit network addresses/ports when publicize=false.
+         * 4) With no roster change, set clpr.publicizeNetworkAddresses=true; perform another freeze/upgrade;
+         *    then fetch the configuration. Expectations: same ledgerId, advanced timestamp, roster unchanged,
+         *    endpoints contain network addresses/ports matching the gRPC gateways for the current roster nodes,
+         *    and certificates remain stable.
          */
 
         final AtomicReference<List<HederaNode>> activeNodes = new AtomicReference<>();
@@ -118,6 +150,33 @@ public class ClprSuite implements LifecycleTest {
                             .as("Expected CLPR endpoint for node {}", node.getNodeId())
                             .anySatisfy(endpoint -> assertEndpointMatchesNode(endpoint, node)));
                 }),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(PUBLICIZE_DISABLED),
+                withOpContext((spec, opLog) -> {
+                    final var nodes =
+                            List.copyOf(spec.subProcessNetworkOrThrow().nodes());
+                    activeNodes.set(nodes);
+                    final var baseline = requireNonNull(baselineConfig.get(), "Baseline configuration required");
+                    final var baselineTimestamp = configTimestamp(baseline);
+                    final var config = fetchLedgerConfiguration(
+                            nodes,
+                            candidate -> configTimestamp(candidate).isAfter(baselineTimestamp),
+                            "advance after publicize toggle");
+                    assertLedgerIdStable(baseline, config);
+                    assertTimestampAdvanced(baseline, config);
+                    assertThat(config.getEndpointsList())
+                            .as("CLPR endpoints should omit network addresses when publicize=false")
+                            .hasSize(nodes.size())
+                            .allSatisfy(endpoint -> {
+                                assertThat(endpoint.getSigningCertificate())
+                                        .as("CLPR endpoints must retain certificates")
+                                        .isNotEmpty();
+                                assertThat(endpoint.hasEndpoint())
+                                        .as("publicize=false should omit service endpoints")
+                                        .isFalse();
+                            });
+                    latestConfig.set(config);
+                }),
                 nodeDelete(Long.toString(NODE_ID_TO_REMOVE)),
                 nodeCreate(REPLACEMENT_NODE_NAME, classicFeeCollectorIdFor(REPLACEMENT_NODE_ID))
                         .adminKey(HapiSuite.DEFAULT_PAYER)
@@ -145,14 +204,14 @@ public class ClprSuite implements LifecycleTest {
                             .doesNotContain(NODE_ID_TO_REMOVE)
                             .contains(REPLACEMENT_NODE_ID);
                     activeNodes.set(nodes);
-                    final var baseline = requireNonNull(baselineConfig.get(), "Baseline configuration required");
-                    final var baselineTimestamp = configTimestamp(baseline);
+                    final var priorConfig = requireNonNull(latestConfig.get(), "Latest configuration required");
+                    final var priorTimestamp = configTimestamp(priorConfig);
                     final var config = fetchLedgerConfiguration(
                             nodes,
-                            candidate -> configTimestamp(candidate).isAfter(baselineTimestamp),
+                            candidate -> configTimestamp(candidate).isAfter(priorTimestamp),
                             "advance after roster change");
-                    assertLedgerIdStable(baseline, config);
-                    assertTimestampAdvanced(baseline, config);
+                    assertLedgerIdStable(priorConfig, config);
+                    assertTimestampAdvanced(priorConfig, config);
                     assertThat(config.getEndpointsList())
                             .as("CLPR endpoints should omit network addresses when publicize=false")
                             .hasSize(nodes.size())
@@ -166,34 +225,20 @@ public class ClprSuite implements LifecycleTest {
                             });
                     latestConfig.set(config);
                 }),
-                nodeDelete(Long.toString(SECOND_NODE_ID_TO_REMOVE)),
-                nodeCreate(SECOND_REPLACEMENT_NODE_NAME, classicFeeCollectorIdFor(SECOND_REPLACEMENT_NODE_ID))
-                        .adminKey(HapiSuite.DEFAULT_PAYER)
-                        .description(SECOND_REPLACEMENT_NODE_NAME)
-                        .withAvailableSubProcessPorts()
-                        .gossipCaCertificate(gossipCaCertificateForNodeId(SECOND_REPLACEMENT_NODE_ID)),
                 prepareFakeUpgrade(),
-                validateCandidateRoster(addressBook -> assertThat(nodeIdsFrom(addressBook))
-                        .as("Roster should replace node {}/{}", SECOND_NODE_ID_TO_REMOVE, SECOND_REPLACEMENT_NODE_ID)
-                        .contains(0L, 1L, REPLACEMENT_NODE_ID, SECOND_REPLACEMENT_NODE_ID)
-                        .doesNotContain(NODE_ID_TO_REMOVE, SECOND_NODE_ID_TO_REMOVE)),
-                upgradeToNextConfigVersion(
-                        PUBLICIZE_ENABLED,
-                        FakeNmt.removeNode(byNodeId(SECOND_NODE_ID_TO_REMOVE)),
-                        FakeNmt.addNode(SECOND_REPLACEMENT_NODE_ID)),
+                upgradeToNextConfigVersion(PUBLICIZE_ENABLED),
                 withOpContext((spec, opLog) -> {
                     final var nodes =
                             List.copyOf(spec.subProcessNetworkOrThrow().nodes());
                     assertThat(nodes)
                             .as("Publicize enablement should keep the four-node roster intact")
                             .hasSize(4);
+                    final var priorNodes = requireNonNull(activeNodes.get(), "Prior node metadata required");
                     assertThat(nodes.stream().map(HederaNode::getNodeId).toList())
-                            .as(
-                                    "Node {} should remain replaced by {}",
-                                    SECOND_NODE_ID_TO_REMOVE,
-                                    SECOND_REPLACEMENT_NODE_ID)
-                            .doesNotContain(NODE_ID_TO_REMOVE, SECOND_NODE_ID_TO_REMOVE)
-                            .contains(REPLACEMENT_NODE_ID, SECOND_REPLACEMENT_NODE_ID);
+                            .as("Roster should be unchanged when only toggling publicize")
+                            .containsExactlyInAnyOrderElementsOf(priorNodes.stream()
+                                    .map(HederaNode::getNodeId)
+                                    .toList());
                     activeNodes.set(nodes);
                     final var priorConfig = requireNonNull(latestConfig.get(), "Latest configuration required");
                     final var priorTimestamp = configTimestamp(priorConfig);
@@ -215,7 +260,7 @@ public class ClprSuite implements LifecycleTest {
     }
 
     @DisplayName("Update message queue metadata works")
-    @Order(2)
+    @Order(3)
     @HapiTest
     final Stream<DynamicTest> handleMessageQueue() {
         /*
@@ -250,7 +295,7 @@ public class ClprSuite implements LifecycleTest {
     }
 
     @DisplayName("Process message bundle works")
-    @Order(3)
+    @Order(4)
     @HapiTest
     final Stream<DynamicTest> handleProcessMessageBundle() {
         /*
@@ -342,15 +387,21 @@ public class ClprSuite implements LifecycleTest {
     }
 
     private static ClprLedgerConfiguration tryFetchLedgerConfiguration(final HederaNode node) {
-        try (final var client = createClient(node)) {
-            final var pbjConfig = client.getConfiguration();
-            if (pbjConfig == null) {
-                return null;
+        try {
+            try (final var client = createClient(node)) {
+                final var proof = client.getConfiguration();
+                if (proof == null) {
+                    return null;
+                }
+                final var pbjConfig = ClprStateProofUtils.extractConfiguration(proof);
+                final var configBytes =
+                        org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(pbjConfig);
+                return ClprLedgerConfiguration.parseFrom(configBytes.toByteArray());
             }
-            final var configBytes =
-                    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(pbjConfig);
-            return ClprLedgerConfiguration.parseFrom(configBytes.toByteArray());
-        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+        } catch (UnknownHostException
+                | com.google.protobuf.InvalidProtocolBufferException
+                | IllegalArgumentException
+                | IllegalStateException e) {
             throw new IllegalStateException("Unable to fetch CLPR ledger configuration", e);
         }
     }

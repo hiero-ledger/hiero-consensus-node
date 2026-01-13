@@ -3,42 +3,38 @@ package com.hedera.node.app.state;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class BlockProvenStateAccessorTest {
 
     private BlockProvenStateAccessor subject;
+    private StateLifecycleManager stateLifecycleManager;
 
     @BeforeEach
     void setUp() {
-        subject = new BlockProvenStateAccessor();
+        stateLifecycleManager = mock(StateLifecycleManager.class);
+        subject = new BlockProvenStateAccessor(stateLifecycleManager);
     }
 
     @Test
-    void latestSnapshotEmptyUntilUpdated() {
+    void latestSnapshotEmptyWhenLifecycleManagerNotInitialized() {
+        when(stateLifecycleManager.getLatestImmutableState()).thenThrow(new IllegalStateException("Not initialized"));
         assertThat(subject.latestSnapshot()).isEmpty();
         assertThat(subject.latestState()).isEmpty();
     }
 
     @Test
-    void updateStoresSnapshot() {
-        final var firstState = mock(MerkleNodeState.class);
-        final var secondState = mock(MerkleNodeState.class);
-
-        subject.update(firstState);
-
+    void latestSnapshotReturnsStateFromLifecycleManager() {
+        final var state = mock(MerkleNodeState.class);
+        when(stateLifecycleManager.getLatestImmutableState()).thenReturn(state);
         final BlockProvenSnapshot snapshot = subject.latestSnapshot().orElseThrow();
-        assertThat(snapshot.merkleState()).isSameAs(firstState);
-        assertThat(subject.latestState()).contains(firstState);
-
-        subject.update(secondState);
-
-        final BlockProvenSnapshot updatedSnapshot = subject.latestSnapshot().orElseThrow();
-        assertThat(updatedSnapshot.merkleState()).isSameAs(secondState);
-        assertThat(subject.latestState()).contains(secondState);
+        assertThat(snapshot.merkleState()).isSameAs(state);
+        assertThat(subject.latestState()).contains(state);
     }
 }

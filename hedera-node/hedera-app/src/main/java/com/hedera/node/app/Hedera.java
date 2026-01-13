@@ -1012,8 +1012,12 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         final var creatorInfo =
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
         final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, ignored) -> {
-            final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
-            stateSignatureTxnCallback.accept(scopedTxn);
+            // The transaction here may be null if the short circuit is tripped with a non-state signature transaction
+            // type (In that case no action is required)
+            if (txn != null) {
+                final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
+                stateSignatureTxnCallback.accept(scopedTxn);
+            }
         };
         final var transactions = new ArrayList<Transaction>(1000);
         event.forEachTransaction(transactions::add);
@@ -1283,6 +1287,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .softwareVersion(version)
                 .self(networkInfo.selfNodeInfo())
                 .platform(platform)
+                .stateLifecycleManager(stateLifecycleManager)
                 .transactionPool(transactionPool)
                 .currentPlatformStatus(new CurrentPlatformStatusImpl(platform))
                 .servicesRegistry(servicesRegistry)
