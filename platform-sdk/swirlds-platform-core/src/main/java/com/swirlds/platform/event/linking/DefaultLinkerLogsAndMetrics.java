@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.internal.EventImpl;
@@ -14,6 +13,7 @@ import java.time.Duration;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 
@@ -59,6 +59,9 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
                                 "Parent child relationships where child time created wasn't strictly after parent time created"));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void childHasMissingParent(
             @NonNull final PlatformEvent child, @NonNull final EventDescriptorWrapper parentDescriptor) {
@@ -70,6 +73,9 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
         missingParentAccumulator.update(1);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void parentHasIncorrectBirthRound(
             @NonNull final PlatformEvent child,
@@ -86,6 +92,9 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
         birthRoundMismatchAccumulator.update(1);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void childTimeIsNotAfterSelfParentTime(
             @NonNull final PlatformEvent child,

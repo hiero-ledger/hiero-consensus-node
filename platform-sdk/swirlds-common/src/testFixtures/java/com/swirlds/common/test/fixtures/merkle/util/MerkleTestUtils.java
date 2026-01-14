@@ -2,7 +2,7 @@
 package com.swirlds.common.test.fixtures.merkle.util;
 
 import static com.swirlds.common.merkle.copy.MerkleInitialize.initializeTreeAfterCopy;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,7 +11,6 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
@@ -20,10 +19,6 @@ import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyCustomReconnectRoot;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleExternalLeaf;
@@ -32,9 +27,6 @@ import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal2;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf2;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleNode;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -56,6 +48,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
+import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 
 /**
  * Utility methods for testing merkle trees.
@@ -1057,11 +1055,8 @@ public final class MerkleTestUtils {
                                         true);
                             }
                         };
-                final PlatformContext platformContext =
-                        TestPlatformContextBuilder.create().build();
                 teacher =
                         new TeachingSynchronizer(
-                                platformContext.getConfiguration(),
                                 Time.getCurrent(),
                                 getStaticThreadManager(),
                                 streams.getTeacherInput(),
@@ -1105,11 +1100,8 @@ public final class MerkleTestUtils {
                                         true);
                             }
                         };
-                final PlatformContext platformContext =
-                        TestPlatformContextBuilder.create().build();
                 teacher =
                         new LaggingTeachingSynchronizer(
-                                platformContext,
                                 streams.getTeacherInput(),
                                 streams.getTeacherOutput(),
                                 desiredTree,

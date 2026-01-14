@@ -4,10 +4,12 @@ package com.hedera.node.app.service.consensus.impl;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusCreateTopicFeeCalculator;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusDeleteTopicFeeCalculator;
+import com.hedera.node.app.service.consensus.impl.calculator.ConsensusGetTopicInfoFeeCalculator;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusSubmitMessageFeeCalculator;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusUpdateTopicFeeCalculator;
 import com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema;
 import com.hedera.node.app.spi.RpcService;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,8 +36,11 @@ public final class ConsensusServiceImpl implements ConsensusService {
                 new ConsensusCreateTopicFeeCalculator(),
                 new ConsensusDeleteTopicFeeCalculator(),
                 new ConsensusUpdateTopicFeeCalculator(),
-                // TODO: add calculator for ConsensusCreateTopicWithCustomFees
-                // TODO: add calculator for ConsensusSubmitMessageWithCustomFees
                 new ConsensusSubmitMessageFeeCalculator());
+    }
+
+    @Override
+    public Set<QueryFeeCalculator> queryFeeCalculators() {
+        return Set.of(new ConsensusGetTopicInfoFeeCalculator());
     }
 }

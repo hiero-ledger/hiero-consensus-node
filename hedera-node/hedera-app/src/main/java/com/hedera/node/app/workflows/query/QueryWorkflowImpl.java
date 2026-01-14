@@ -10,6 +10,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_STATE_PROOF;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER_STATE_PROOF;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.tinycentsToTinybars;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -42,6 +44,7 @@ import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.ingest.SubmissionManager;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.MalformedProtobufException;
 import com.hedera.pbj.runtime.ParseException;
@@ -231,8 +234,19 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             }
 
                             // 3.iv Calculate costs
-                            final var queryFees = handler.computeFees(context).totalFee();
-                            final var txFees = queryChecker.estimateTxFees(
+                            long queryFees = 0;
+                            if (shouldUseSimpleFees(context)) {
+                                final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
+                                        .calculateQueryFee(context.query(), context);
+                                queryFees = tinycentsToTinybars(
+                                        queryFeeTinyCents,
+                                        fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
+                            } else {
+                                queryFees = handler.computeFees(context).totalFee();
+                            }
+
+                            // The fee for the crypto transfer that pays the fee
+                            final var cryptoTransferTxnFee = queryChecker.estimateTxFees(
                                     storeFactory,
                                     consensusTime,
                                     checkerResult.txnInfoOrThrow(),
@@ -241,7 +255,11 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                             // 3.v Check account balances
                             queryChecker.validateAccountBalances(
-                                    accountStore, checkerResult.txnInfoOrThrow(), payer, queryFees, txFees);
+                                    accountStore,
+                                    checkerResult.txnInfoOrThrow(),
+                                    payer,
+                                    queryFees,
+                                    cryptoTransferTxnFee);
 
                             // 3.vi Submit payment to platform
                             submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow());
@@ -276,7 +294,16 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                 if (handler.needsAnswerOnlyCost(responseType)) {
                     // 6.i Estimate costs
-                    final var queryFees = handler.computeFees(context).totalFee();
+                    long queryFees = 0;
+                    if (shouldUseSimpleFees(context)) {
+                        final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
+                                .calculateQueryFee(context.query(), context);
+                        queryFees = tinycentsToTinybars(
+                                queryFeeTinyCents,
+                                fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
+                    } else {
+                        queryFees = handler.computeFees(context).totalFee();
+                    }
 
                     final var header = createResponseHeader(responseType, OK, queryFees);
                     response = handler.createEmptyResponse(header);
@@ -312,6 +339,23 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         }
 
         workflowMetrics.updateDuration(function, (int) (System.nanoTime() - queryStart));
+    }
+
+    private boolean shouldUseSimpleFees(QueryContext context) {
+        if (!context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            return false;
+        }
+        return switch (context.query().query().kind()) {
+            case CONSENSUS_GET_TOPIC_INFO,
+                    SCHEDULE_GET_INFO,
+                    FILE_GET_CONTENTS,
+                    FILE_GET_INFO,
+                    TOKEN_GET_INFO,
+                    TOKEN_GET_NFT_INFO,
+                    CRYPTO_GET_INFO,
+                    CRYPTO_GET_ACCOUNT_RECORDS -> true;
+            default -> false;
+        };
     }
 
     private Query parseQuery(Bytes requestBuffer) {

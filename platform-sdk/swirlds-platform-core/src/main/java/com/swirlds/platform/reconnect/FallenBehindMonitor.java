@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,23 +15,26 @@ import java.util.Set;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import javax.annotation.concurrent.GuardedBy;
+import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Detects when this node has fallen behind the network.
  * <p>This monitor tracks reports from peer nodes by comparing event windows' ancient and
- * expired thresholds. When the number of reporting peers exceeds a configurable threshold
- * (as a proportion of total peers), all interested clients are notified.
+ * expired thresholds. When the number of reporting peers exceeds a configurable threshold (as a proportion of total
+ * peers), all interested clients are notified.
  *
  * <p>The monitor can be queried if a particular peer reported this node as behind and it also provides
- * a blocking {@link #awaitFallenBehind()} method that suspends calling threads until the fallen-behind
- * condition is detected that allow interested parties to be notified without the need of polling for the information.
+ * a blocking {@link #awaitFallenBehind()} method that suspends calling threads until the fallen-behind condition is
+ * detected that allow interested parties to be notified without the need of polling for the information.
  */
 public class FallenBehindMonitor {
 
     private final Lock lock = new ReentrantLock();
     private final Condition fallenBehindCondition = lock.newCondition();
+    private final Condition gossipSyncPausedCondition = lock.newCondition();
 
     /**
      * the number of peers in the roster
@@ -44,8 +46,14 @@ public class FallenBehindMonitor {
      */
     private final Set<NodeId> reportFallenBehind = new HashSet<>();
 
+    @GuardedBy("lock")
     private final double fallenBehindThreshold;
+
+    @GuardedBy("lock")
     private boolean isBehind;
+
+    @GuardedBy("lock")
+    private boolean pausedNotificationReceived;
 
     public FallenBehindMonitor(
             @NonNull final Roster roster, @NonNull final Configuration config, @NonNull final Metrics metrics) {
@@ -167,8 +175,8 @@ public class FallenBehindMonitor {
     }
 
     /**
-     * This method blocks the thread until the monitor detects that the local node has fallen behind.
-     * It releases all waiting threads as soon as the condition becomes true.
+     * This method blocks the thread until the monitor detects that the local node has fallen behind. It releases all
+     * waiting threads as soon as the condition becomes true.
      */
     public void awaitFallenBehind() throws InterruptedException {
         lock.lock();
@@ -184,9 +192,9 @@ public class FallenBehindMonitor {
     /**
      * Checks if we have fallen behind with respect to this peer and updates the internal status accordingly.
      *
-     * @param self local node event window
+     * @param self  local node event window
      * @param other peer's event window
-     * @param peer node id against which we have fallen behind
+     * @param peer  node id against which we have fallen behind
      * @return status about who has fallen behind
      */
     public FallenBehindStatus check(
@@ -202,5 +210,37 @@ public class FallenBehindMonitor {
             clear(peer);
         }
         return status;
+    }
+
+    /**
+     * Inform thread listening on {@link #awaitGossipPaused()} that gossip was already fully paused. Supports notifying
+     * only a single thread, but can be executed before, after or concurrently with the await call.
+     */
+    public void notifySyncProtocolPaused() {
+        lock.lock();
+        try {
+            gossipSyncPausedCondition.signal();
+            pausedNotificationReceived = true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Blocks the thread until {@link #notifySyncProtocolPaused()} is called. Supports notification before, after or
+     * concurrently with await, but each method has to be called only once from each side.
+     *
+     * @throws InterruptedException if the wait was interrupted
+     */
+    public void awaitGossipPaused() throws InterruptedException {
+        lock.lock();
+        try {
+            while (!pausedNotificationReceived) {
+                gossipSyncPausedCondition.await();
+            }
+            pausedNotificationReceived = false;
+        } finally {
+            lock.unlock();
+        }
     }
 }

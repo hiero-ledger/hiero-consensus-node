@@ -3,6 +3,7 @@ package com.hedera.statevalidation.blockstream;
 
 import static com.hedera.statevalidation.ApplyBlocksCommand.DEFAULT_TARGET_ROUND;
 import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
+import static com.swirlds.platform.state.signed.StartupStateUtils.copyInitialSignedState;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
@@ -13,7 +14,7 @@ import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
 import com.hedera.statevalidation.util.PlatformContextHelper;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -66,8 +68,13 @@ public class BlockStreamRecoveryWorkflow {
         } catch (ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
-        final MerkleNodeState state =
-                deserializedSignedState.reservedSignedState().get().getState();
+
+        final SignedState signedState =
+                deserializedSignedState.reservedSignedState().get();
+        // need to create copy of the loaded state to make it mutable
+        final HashedReservedSignedState hashedSignedState =
+                copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
+        final MerkleNodeState state = hashedSignedState.state().get().getState();
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
                 new BlockStreamRecoveryWorkflow(state, targetRound, outputPath, expectedHash);
@@ -144,7 +151,7 @@ public class BlockStreamRecoveryWorkflow {
 
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
-                CryptoStatic::verifySignature,
+                ConsensusCryptoUtils::verifySignature,
                 state,
                 "BlockStreamWorkflow.applyBlocks()",
                 false,
@@ -154,7 +161,8 @@ public class BlockStreamRecoveryWorkflow {
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                vm -> new VirtualMapState(vm, platformContext.getMetrics()));
+                vm -> new VirtualMapState(vm, platformContext.getMetrics()),
+                platformContext.getConfiguration());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
                     platformContext, selfId, outputPath, signedState, stateLifecycleManager);

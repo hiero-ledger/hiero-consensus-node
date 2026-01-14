@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
-import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
@@ -28,11 +29,21 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
     protected final FeeSchedule feeSchedule;
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
+    private final Map<Query.QueryOneOfType, QueryFeeCalculator> queryFeeCalculators;
 
     public SimpleFeeCalculatorImpl(FeeSchedule feeSchedule, Set<ServiceFeeCalculator> serviceFeeCalculators) {
+        this(feeSchedule, serviceFeeCalculators, Set.of());
+    }
+
+    public SimpleFeeCalculatorImpl(
+            FeeSchedule feeSchedule,
+            Set<ServiceFeeCalculator> serviceFeeCalculators,
+            Set<QueryFeeCalculator> queryFeeCalculators) {
         this.feeSchedule = feeSchedule;
         this.serviceFeeCalculators = serviceFeeCalculators.stream()
                 .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
+        this.queryFeeCalculators = queryFeeCalculators.stream()
+                .collect(Collectors.toMap(QueryFeeCalculator::getQueryType, Function.identity()));
     }
 
     /**
@@ -49,7 +60,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             final long used = ref.name() == SIGNATURES ? signatures : 0;
             if (used > ref.includedCount()) {
                 final long overage = used - ref.includedCount();
-                final long unitFee = lookupExtraFee(feeSchedule, ref.name()).fee();
+                final long unitFee = getExtraFee(ref.name());
 
                 result.addNodeFee(overage, unitFee);
             }
@@ -84,6 +95,15 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         return result;
     }
 
+    @Override
+    public long getExtraFee(Extra extra) {
+        return feeSchedule.extras().stream()
+                .filter(feeDefinition -> feeDefinition.name() == extra)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Extra fee not found: " + extra))
+                .fee();
+    }
+
     /**
      * Utility: Counts all keys including nested ones in threshold/key lists.
      * Useful for calculating KEYS extra fees per HIP-1261.
@@ -110,14 +130,15 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Default implementation for query fee calculation.
      *
      * @param query The query to calculate fees for
-     * @param feeContext fee context
+     * @param queryContext the query context
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
     @Override
-    @NonNull
-    public FeeResult calculateQueryFee(@NonNull final Query query, @Nullable final FeeContext feeContext) {
-        throw new UnsupportedOperationException(
-                "Query fee calculation not supported for " + getClass().getSimpleName());
+    public long calculateQueryFee(@NonNull final Query query, @NonNull final QueryContext queryContext) {
+        final var result = new FeeResult();
+        final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
+        queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
+        return result.total();
     }
 }

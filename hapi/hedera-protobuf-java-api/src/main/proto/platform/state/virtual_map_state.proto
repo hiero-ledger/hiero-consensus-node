@@ -48,6 +48,7 @@ import "services/state/token/account.proto";
 import "services/state/token/account_pending_airdrop.proto";
 import "services/state/token/network_staking_rewards.proto";
 import "services/state/token/node_rewards.proto";
+import "services/state/token/node_payments.proto";
 import "services/state/token/nft.proto";
 import "services/state/token/staking_node_info.proto";
 import "services/state/token/token.proto";
@@ -259,9 +260,9 @@ message StateKey {
     proto.HookId ContractService_I_EVM_HOOK_STATES = 51;
 
     /**
-     * A state identifier for lambda storage.
+     * A state identifier for EVM hook storage.
      */
-    com.hedera.hapi.node.state.hooks.LambdaSlotKey ContractService_I_LAMBDA_STORAGE = 52;
+    com.hedera.hapi.node.state.hooks.EvmHookSlotKey ContractService_I_EVM_HOOK_STORAGE = 52;
 
     /**
      * A state identifier for account to node relationships.
@@ -602,9 +603,9 @@ message StateValue {
     com.hedera.hapi.node.state.hooks.EvmHookState ContractService_I_EVM_HOOK_STATES = 51;
 
     /**
-     * A state identifier for lambda storage.
+     * A state identifier for EVM hook storage.
      */
-    proto.SlotValue ContractService_I_LAMBDA_STORAGE = 52;
+    proto.SlotValue ContractService_I_EVM_HOOK_STORAGE = 52;
 
     /**
      * A state identifier for account to node relationships.
@@ -615,6 +616,11 @@ message StateValue {
      * A state identifier for WRAPS message histories used in a roster transition proof.
      */
     com.hedera.hapi.node.state.history.WrapsMessageHistory HistoryService_I_WRAPS_MESSAGE_HISTORIES = 54;
+
+    /**
+     * A state identifier for the node payments. Singleton state.
+     */
+    com.hedera.hapi.node.state.token.NodePayments TokenService_I_NODE_PAYMENTS = 55;
 
     /**
      * Metadata of the round receipts queue.
@@ -794,6 +800,11 @@ enum SingletonType {
    * A state identifier for the node rewards. Singleton state.
    */
   TokenService_I_NODE_REWARDS = 50;
+
+  /**
+   * A state identifier for the node payments. Singleton state.
+   */
+  TokenService_I_NODE_PAYMENTS = 55;
 
   // Queue metadata
 

@@ -13,10 +13,6 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.common.test.fixtures.set.RandomAccessHashSet;
@@ -40,6 +36,10 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Stream;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
+import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -227,6 +227,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
 
             if (operation > 0 && operation % config.operationsPerCopy() == 0) {
                 copiesQueue.add(teacherMap);
+                teacherMap.enableFlush();
                 teacherMap = teacherMap.copy();
                 if (copiesQueue.size() > config.maxCopiesInMemory()) {
                     final VirtualMap oldestCopy = copiesQueue.remove();
@@ -332,7 +333,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                 metricsConfig);
         learnerMap.registerMetrics(metrics);
 
-        Metric sizeMetric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_size_Test");
+        Metric sizeMetric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_size_state");
         assertNotNull(sizeMetric);
         assertEquals(0L, sizeMetric.get(ValueType.VALUE));
 

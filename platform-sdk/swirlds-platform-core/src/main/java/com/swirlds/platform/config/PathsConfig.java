@@ -2,7 +2,6 @@
 package com.swirlds.platform.config;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
@@ -16,7 +15,6 @@ import java.nio.file.Path;
  *                                 settings.txt exists
  * @param keysDirPath              path to data/keys/
  * @param appsDirPath              path to data/apps/
- * @param logPath                  path to log4j2.xml (which might not exist)
  * @param markerFilesDir           path to the directory where marker files are written.
  * @param writePlatformMarkerFiles whether to write marker files or not
  */
@@ -25,7 +23,6 @@ public record PathsConfig(
         @ConfigProperty(defaultValue = ".") String settingsUsedDir,
         @ConfigProperty(defaultValue = "data/keys") String keysDirPath,
         @ConfigProperty(defaultValue = "data/apps") String appsDirPath,
-        @ConfigProperty(defaultValue = "log4j2.xml") String logPath,
         @ConfigProperty(defaultValue = "data/saved/marker_files") String markerFilesDir,
         @ConfigProperty(defaultValue = "false") boolean writePlatformMarkerFiles) {
 
@@ -54,15 +51,6 @@ public record PathsConfig(
      */
     public Path getAppsDirPath() {
         return getAbsolutePath(appsDirPath);
-    }
-
-    /**
-     * path to log4j2.xml (which might not exist)
-     *
-     * @return absolute path to log4j2.xml
-     */
-    public Path getLogPath() {
-        return rethrowIO(() -> getAbsolutePath(logPath));
     }
 
     /**

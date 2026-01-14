@@ -18,16 +18,15 @@ testModuleInfo {
 }
 
 timingSensitiveModuleInfo {
-    requires("com.hedera.pbj.runtime")
     requires("com.swirlds.base")
     requires("com.swirlds.common")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions.test.fixtures")
-    requires("com.swirlds.fchashmap")
     requires("com.swirlds.merkle.test.fixtures")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.concurrent")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

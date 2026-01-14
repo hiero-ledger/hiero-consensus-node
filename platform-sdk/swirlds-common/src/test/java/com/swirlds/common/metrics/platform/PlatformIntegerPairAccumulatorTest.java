@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics.platform;
 
-import static com.swirlds.common.metrics.IntegerPairAccumulator.AVERAGE;
 import static com.swirlds.metrics.api.Metric.DataType.STRING;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.hiero.consensus.metrics.IntegerPairAccumulator.AVERAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
 import com.swirlds.metrics.impl.DefaultIntegerGauge;
 import java.util.List;
 import java.util.function.BiFunction;
+import org.hiero.consensus.metrics.IntegerPairAccumulator;
+import org.hiero.consensus.metrics.platform.PlatformIntegerPairAccumulator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

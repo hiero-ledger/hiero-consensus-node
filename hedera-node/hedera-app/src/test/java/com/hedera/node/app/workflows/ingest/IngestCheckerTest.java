@@ -176,7 +176,7 @@ class IngestCheckerTest extends AppTestBase {
 
         transactionInfo = new TransactionInfo(
                 signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), UNCHECKED_SUBMIT, serializedTx);
-        when(transactionChecker.parseAndCheck(serializedTx, maxBytes)).thenReturn(transactionInfo);
+        when(transactionChecker.parseAndCheck(serializedTx)).thenReturn(transactionInfo);
 
         final var configProvider = HederaTestConfigBuilder.createConfigProvider();
         this.deduplicationCache = new DeduplicationCacheImpl(configProvider, instantSource);
@@ -317,7 +317,7 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("If the transaction fails TransactionChecker, a failure response is returned with the right error")
         void onsetFailsWithPreCheckException(ResponseCodeEnum failureReason) throws PreCheckException {
             // Given a TransactionChecker that will throw a PreCheckException with the given failure reason
-            when(transactionChecker.parseAndCheck(any(), eq(maxBytes))).thenThrow(new PreCheckException(failureReason));
+            when(transactionChecker.parseAndCheck(any())).thenThrow(new PreCheckException(failureReason));
 
             // When the transaction is checked
             assertThatThrownBy(
@@ -331,8 +331,7 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("If some random exception is thrown from TransactionChecker, the exception is bubbled up")
         void randomException() throws PreCheckException {
             // Given a WorkflowOnset that will throw a RuntimeException
-            when(transactionChecker.parseAndCheck(any(), eq(maxBytes)))
-                    .thenThrow(new RuntimeException("check exception"));
+            when(transactionChecker.parseAndCheck(any())).thenThrow(new RuntimeException("check exception"));
 
             // When the transaction is submitted, then the exception is bubbled up
             assertThatThrownBy(
@@ -407,7 +406,7 @@ class IngestCheckerTest extends AppTestBase {
                     cryptoAddLiveHashTx.bodyBytes(),
                     CRYPTO_ADD_LIVE_HASH,
                     serializedCryptoAddLiveHashTx);
-            when(transactionChecker.parseAndCheck(serializedCryptoAddLiveHashTx, maxBytes))
+            when(transactionChecker.parseAndCheck(serializedCryptoAddLiveHashTx))
                     .thenReturn(cryptoAddLiveHashTransactionInfo);
 
             assertThatThrownBy(() -> subject.runAllChecks(
@@ -434,7 +433,7 @@ class IngestCheckerTest extends AppTestBase {
 
             final var freezeTransactionInfo = new TransactionInfo(
                     signedTx, freezeTxBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), FREEZE, serializedSignedTx);
-            when(transactionChecker.parseAndCheck(serializedSignedTx, maxBytes)).thenReturn(freezeTransactionInfo);
+            when(transactionChecker.parseAndCheck(serializedSignedTx)).thenReturn(freezeTransactionInfo);
 
             assertThatThrownBy(() ->
                             subject.runAllChecks(state, serializedSignedTx, configuration, new IngestChecker.Result()))
@@ -632,7 +631,7 @@ class IngestCheckerTest extends AppTestBase {
                     mySignedTx.bodyBytes(),
                     UNCHECKED_SUBMIT,
                     mySerializedSignedTx);
-            when(transactionChecker.parseAndCheck(serializedTx, maxBytes)).thenReturn(myTransactionInfo);
+            when(transactionChecker.parseAndCheck(serializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);
@@ -688,7 +687,7 @@ class IngestCheckerTest extends AppTestBase {
                     mySignedTx.bodyBytes(),
                     UNCHECKED_SUBMIT,
                     mySerializedSignedTx);
-            when(transactionChecker.parseAndCheck(mySerializedTx, maxBytes)).thenReturn(myTransactionInfo);
+            when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);
@@ -744,7 +743,7 @@ class IngestCheckerTest extends AppTestBase {
                     myTx.signedTransactionBytes(),
                     UNCHECKED_SUBMIT,
                     mySerializedTx);
-            when(transactionChecker.parseAndCheck(mySerializedTx, maxBytes)).thenReturn(myTransactionInfo);
+            when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);
@@ -797,7 +796,7 @@ class IngestCheckerTest extends AppTestBase {
             final var mySerializedTx = Transaction.PROTOBUF.toBytes(myTx);
             final var myTransactionInfo = new TransactionInfo(
                     mySignedTx, myTxBody, MOCK_SIGNATURE_MAP, mySignedTx.bodyBytes(), UNCHECKED_SUBMIT, mySerializedTx);
-            when(transactionChecker.parseAndCheck(mySerializedTx, maxBytes)).thenReturn(myTransactionInfo);
+            when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
             final var verificationResultAlice = mock(SignatureVerification.class);

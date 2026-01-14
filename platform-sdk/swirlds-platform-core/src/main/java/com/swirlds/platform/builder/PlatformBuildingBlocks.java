@@ -8,10 +8,7 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.freeze.FreezeCheckHolder;
-import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResult;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -19,9 +16,7 @@ import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
@@ -29,9 +24,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesFileTracker;
 import org.hiero.consensus.roster.RosterHistory;
 
 /**
@@ -57,8 +56,7 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param intakeEventCounter                     counts events that have been received by gossip but not yet inserted
  *                                               into gossip event storage, per peer
  * @param secureRandomSupplier                   a source of secure random number generator instances
- * @param freezeCheckHolder                      a reference to a predicate that determines if a timestamp is in the
- *                                               freeze period
+ * @param freezeChecker                          a predicate that determines if a timestamp is in the freeze period
  * @param latestImmutableStateProviderReference  a reference to a method that supplies the latest immutable state. Input
  *                                               argument is a string explaining why we are getting this state (for
  *                                               debugging). Return value may be null (implementation detail of
@@ -80,7 +78,6 @@ import org.hiero.consensus.roster.RosterHistory;
  *                                               needs to be done, long term plan is to stop using static variables)
  * @param execution                              the instance of the execution layer, which allows consensus to interact
  *                                               with the execution layer
- * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
  * @param fallenBehindMonitor                    an instance of the fallenBehind Monitor which tracks if the node has fallen behind
  * @param reservedSignedStateResultPromise             a shared data structure that Gossip and the ReconnectController will use provide
  *                                               and obtain a reference to a ReservedSignedState
@@ -101,7 +98,7 @@ public record PlatformBuildingBlocks(
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
         @NonNull Supplier<SecureRandom> secureRandomSupplier,
-        @NonNull FreezeCheckHolder freezeCheckHolder,
+        @NonNull FreezePeriodChecker freezeChecker,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
         @NonNull PcesFileTracker initialPcesFiles,
         @NonNull String consensusEventStreamName,
@@ -113,9 +110,8 @@ public record PlatformBuildingBlocks(
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull ExecutionLayer execution,
-        @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
         @NonNull FallenBehindMonitor fallenBehindMonitor,
-        @NonNull ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
+        @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise) {
     public PlatformBuildingBlocks {
         requireNonNull(platformComponents);
         requireNonNull(platformContext);
@@ -130,7 +126,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(applicationCallbacks);
         requireNonNull(intakeEventCounter);
         requireNonNull(secureRandomSupplier);
-        requireNonNull(freezeCheckHolder);
+        requireNonNull(freezeChecker);
         requireNonNull(latestImmutableStateProviderReference);
         requireNonNull(initialPcesFiles);
         requireNonNull(consensusEventStreamName);
@@ -141,7 +137,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(getLatestCompleteStateReference);
         requireNonNull(consensusStateEventHandler);
         requireNonNull(execution);
-        requireNonNull(createStateFromVirtualMap);
         requireNonNull(fallenBehindMonitor);
         requireNonNull(reservedSignedStateResultPromise);
     }

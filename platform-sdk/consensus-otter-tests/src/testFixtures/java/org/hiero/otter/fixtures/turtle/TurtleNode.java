@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
@@ -37,6 +37,8 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -56,7 +58,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProfilerEvent;
@@ -65,6 +67,7 @@ import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
+import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
@@ -134,6 +137,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * @param logging the logging instance for the node
      * @param outputDirectory the output directory for the node
      * @param networkConfiguration the network configuration
+     * @param consensusRoundPool the shared pool for deduplicating consensus rounds
      */
     public TurtleNode(
             @NonNull final Randotron randotron,
@@ -143,7 +147,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory,
-            @NonNull final NetworkConfiguration networkConfiguration) {
+            @NonNull final NetworkConfiguration networkConfiguration,
+            @NonNull final ConsensusRoundPool consensusRoundPool) {
         super(selfId, keysAndCerts, networkConfiguration);
         try (final LoggingContextScope ignored = installNodeContext()) {
             this.outputDirectory = requireNonNull(outputDirectory);
@@ -155,7 +160,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(
                     () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
-            this.resultsCollector = new NodeResultsCollector(selfId);
+            this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
         }
     }
 
@@ -223,6 +228,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withRecycleBin(recycleBin)
                     .build();
 
+            final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                    metrics,
+                    timeManager.time(),
+                    virtualMap -> new VirtualMapState(virtualMap, metrics),
+                    currentConfiguration);
+
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
                     .deterministic()
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
@@ -238,7 +249,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterApp.SWIRLD_NAME,
                     selfId,
                     platformContext,
-                    virtualMap -> new VirtualMapState(virtualMap, metrics));
+                    stateLifecycleManager);
 
             final ReservedSignedState initialState = reservedState.state();
             final MerkleNodeState state = initialState.get().getState();
@@ -246,9 +257,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             // Set the active roster
             final ReadablePlatformStateStore store =
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-            RosterUtils.setActiveRoster(state, roster(), store.getRound() + 1);
+            RosterStateUtils.setActiveRoster(state, roster(), store.getRound() + 1);
 
-            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+            final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
             final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(
@@ -263,7 +274,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             selfId,
                             eventStreamLoc,
                             rosterHistory,
-                            virtualMap -> new VirtualMapState(virtualMap, metrics))
+                            stateLifecycleManager)
                     .withPlatformContext(platformContext)
                     .withConfiguration(currentConfiguration)
                     .withKeysAndCerts(keysAndCerts)

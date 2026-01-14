@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.platform;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -32,6 +32,8 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -45,7 +47,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 
@@ -114,6 +116,8 @@ public class ConsensusNodeManager {
 
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), platformConfig);
 
         otterApp = new OtterApp(platformConfig, version);
 
@@ -125,16 +129,16 @@ public class ConsensusNodeManager {
                 OtterApp.SWIRLD_NAME,
                 selfId,
                 platformContext,
-                virtualMap -> new VirtualMapState(virtualMap, metrics));
+                stateLifecycleManager);
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
 
         // Set active the roster
         final ReadablePlatformStateStore store =
                 new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-        RosterUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
+        RosterStateUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
 
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
@@ -145,7 +149,7 @@ public class ConsensusNodeManager {
                         selfId,
                         Long.toString(selfId.id()),
                         rosterHistory,
-                        virtualMap -> new VirtualMapState(virtualMap, metrics))
+                        stateLifecycleManager)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)

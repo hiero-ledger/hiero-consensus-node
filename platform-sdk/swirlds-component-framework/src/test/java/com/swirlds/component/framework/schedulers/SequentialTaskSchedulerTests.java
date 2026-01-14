@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.AssertionUtils;
 import com.swirlds.component.framework.TestWiringModelBuilder;
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
@@ -41,6 +40,7 @@ import org.hiero.base.concurrent.test.fixtures.ConsumerWithCompletionControl;
 import org.hiero.base.concurrent.test.fixtures.FunctionWithExecutionControl;
 import org.hiero.base.concurrent.test.fixtures.Gate;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -513,7 +513,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
 
         // negative values are values that have been passed around the loop
         // Don't pass them on again, or else we will get an infinite loop
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x3 -> {
             if (x3 > 0) {
                 countA.set(hash32(x3, countA.get()));
                 return x3;
@@ -525,17 +525,17 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
             }
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x2 -> {
             countB.set(hash32(x2, countB.get()));
             return x2;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unblocked(x1 -> {
             countC.set(hash32(x1, countC.get()));
             return x1;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerD = FunctionWithExecutionControl.unBlocked(x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerD = FunctionWithExecutionControl.unblocked(x -> {
             countD.set(hash32(x, countD.get()));
             if (x % 7 == 0) {
                 return -x;
@@ -772,7 +772,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final BindableInputWire<Integer, Void> channelB = taskSchedulerB.buildInputWire("channelB");
         taskSchedulerA.getOutputWire().solderTo(channelB);
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x1 -> {
             wireValueA.set(hash32(wireValueA.get(), -x1));
             return x1;
         });
@@ -1185,17 +1185,17 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             return x3;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             return x2;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unblocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             return x1;
         });
@@ -1265,17 +1265,17 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final AtomicInteger lambdaSum = new AtomicInteger();
         taskSchedulerB.getOutputWire().solderTo("lambda", "lambda input", lambdaSum::getAndAdd);
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             return x3;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             return x2;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unblocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             return x1;
         });
@@ -1355,32 +1355,32 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
 
         final AtomicInteger countA = new AtomicInteger();
         final AtomicBoolean invertA = new AtomicBoolean();
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x4 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x4 -> {
             final int possiblyInvertedValue1 = x4 * (invertA.get() ? -1 : 1);
             countA.set(hash32(countA.get(), possiblyInvertedValue1));
             return possiblyInvertedValue1;
         });
 
         final FunctionWithExecutionControl<Boolean, Integer> handlerInvertA =
-                FunctionWithExecutionControl.unBlocked(x3 -> {
+                FunctionWithExecutionControl.unblocked(x3 -> {
                     invertA.set(x3);
                     return null;
                 });
 
         final AtomicInteger countX = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerX = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerX = FunctionWithExecutionControl.unblocked(x2 -> {
             countX.set(hash32(countX.get(), x2));
             return x2;
         });
 
         final AtomicInteger countY = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerY = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerY = FunctionWithExecutionControl.unblocked(x1 -> {
             countY.set(hash32(countY.get(), x1));
             return x1;
         });
 
         final AtomicInteger countZ = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerZ = FunctionWithExecutionControl.unBlocked(x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerZ = FunctionWithExecutionControl.unblocked(x -> {
             countZ.set(hash32(countZ.get(), x));
             return x;
         });
@@ -1472,13 +1472,13 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         taskSchedulerB.getOutputWire().solderTo(inC, SolderType.INJECT); // ignores capacity
 
         final AtomicInteger countA = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x2 -> {
             countA.set(hash32(countA.get(), x2));
             return x2;
         });
 
         final AtomicInteger countB = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x1 -> {
             countB.set(hash32(countB.get(), x1));
             return x1;
         });
@@ -1581,7 +1581,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             if (x3 % 3 == 0) {
                 return null;
@@ -1589,7 +1589,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
             return x3;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             if (x2 % 5 == 0) {
                 return null;
@@ -1597,7 +1597,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
             return x2;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unblocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             if (x1 % 7 == 0) {
                 return null;
@@ -1702,17 +1702,17 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             return x3;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unblocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             return x2;
         });
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unblocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             return x1;
         });
@@ -1769,7 +1769,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         aOutBoolean.solderTo(bInBoolean);
         aOutString.solderTo(bInString);
 
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x1 -> {
             if (x1 % 2 == 0) {
                 aOutBoolean.forward(x1 % 3 == 0);
             }
@@ -2072,7 +2072,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
         schedulerA.getOutputWire().solderTo(inputB, SolderType.OFFER);
 
         final AtomicInteger countA = new AtomicInteger();
-        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unblocked(x1 -> {
             countA.set(hash32(countA.get(), x1));
             return x1;
         });

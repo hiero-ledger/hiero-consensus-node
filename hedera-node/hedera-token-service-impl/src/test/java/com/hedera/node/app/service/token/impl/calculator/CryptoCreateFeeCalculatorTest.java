@@ -301,7 +301,7 @@ class CryptoCreateFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.HOOKS, 10000000L),
+                        makeExtraDef(Extra.HOOK_UPDATES, 10000000L),
                         makeExtraDef(Extra.BYTES, 110L))
                 .services(makeService(
                         "CryptoService",
@@ -310,7 +310,7 @@ class CryptoCreateFeeCalculatorTest {
                                 499000000L,
                                 makeExtraIncluded(Extra.SIGNATURES, 1),
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.HOOKS, 0))))
+                                makeExtraIncluded(Extra.HOOK_UPDATES, 0))))
                 .build();
     }
 
@@ -318,11 +318,11 @@ class CryptoCreateFeeCalculatorTest {
         final var spec = EvmHookSpec.newBuilder()
                 .contractId(ContractID.newBuilder().contractNum(321).build())
                 .build();
-        final var lambda = LambdaEvmHook.newBuilder().spec(spec).build();
+        final var evmHook = EvmHook.newBuilder().spec(spec).build();
         return HookCreationDetails.newBuilder()
                 .hookId(id)
                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                .lambdaEvmHook(lambda)
+                .evmHook(evmHook)
                 .build();
     }
 }

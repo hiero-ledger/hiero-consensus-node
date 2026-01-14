@@ -4,12 +4,10 @@ package com.swirlds.benchmark;
 import com.swirlds.benchmark.config.BenchmarkConfig;
 import com.swirlds.benchmark.reconnect.BenchmarkMerkleInternal;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.export.ConfigExport;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import java.io.IOException;
@@ -24,6 +22,7 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
@@ -120,8 +119,6 @@ public abstract class BaseBench {
                     new ClassConstructorPair(BenchmarkMerkleInternal.class, BenchmarkMerkleInternal::new));
             registry.registerConstructable(new ClassConstructorPair(BenchmarkKey.class, BenchmarkKey::new));
             registry.registerConstructable(new ClassConstructorPair(BenchmarkValue.class, BenchmarkValue::new));
-            registry.registerConstructable(new ClassConstructorPair(
-                    MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
         } catch (ConstructableRegistryException ex) {
             logger.error("Failed to construct registry", ex);
         }

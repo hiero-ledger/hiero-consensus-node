@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadStateFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -23,9 +23,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -35,6 +33,7 @@ import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
@@ -48,6 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -127,13 +127,12 @@ public class StartupStateUtilsTests {
         final SignedState signedState =
                 new RandomSignedStateGenerator(random).setRound(round).build();
 
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM);
-        stateLifecycleManager.initState(signedState.getState(), true);
+        final StateLifecycleManager stateLifecycleManager = createLifecycleManager();
+        final MerkleNodeState state = signedState.getState();
+        stateLifecycleManager.initState(state);
         stateLifecycleManager.getMutableState().release();
-        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
-        TestMerkleCryptoFactory.getInstance()
-                .digestTreeSync(signedState.getState().getRoot());
+        // hash the state
+        state.getHash();
 
         final Path savedStateDirectory =
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
@@ -146,15 +145,20 @@ public class StartupStateUtilsTests {
                 stateLifecycleManager);
 
         if (corrupted) {
-            final Path stateFilePath = savedStateDirectory.resolve("SignedState.swh");
-            Files.delete(stateFilePath);
-            final BufferedWriter writer = Files.newBufferedWriter(stateFilePath);
+            final Path metadataFilePath = savedStateDirectory.resolve("data/state/table_metadata.pbj");
+            Files.delete(metadataFilePath);
+            final BufferedWriter writer = Files.newBufferedWriter(metadataFilePath);
             writer.write("this is not a real state file");
             writer.close();
         }
 
-        signedState.getState().release();
+        state.release();
         return signedState;
+    }
+
+    private static StateLifecycleManager createLifecycleManager() {
+        return new StateLifecycleManagerImpl(
+                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, CONFIGURATION);
     }
 
     @Test
@@ -169,9 +173,9 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
-                        platformContext)
+                        platformContext,
+                        createLifecycleManager())
                 .getNullable();
 
         assertNull(loadedState);
@@ -198,9 +202,9 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
-                        platformContext)
+                        platformContext,
+                        createLifecycleManager())
                 .get();
 
         loadedState.getState().throwIfImmutable();
@@ -232,9 +236,9 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
-                        platformContext)
+                        platformContext,
+                        createLifecycleManager())
                 .get());
     }
 
@@ -277,9 +281,9 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
-                        platformContext)
+                        platformContext,
+                        createLifecycleManager())
                 .getNullable();
 
         if (latestUncorruptedState != null) {

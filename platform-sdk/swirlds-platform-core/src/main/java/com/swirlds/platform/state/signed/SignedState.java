@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
-import static com.swirlds.common.utility.Threshold.MAJORITY;
-import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.isGenesisStateOf;
@@ -11,6 +9,8 @@ import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAc
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RELEASE;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RESERVE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.Threshold.MAJORITY;
+import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -18,10 +18,8 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.ReferenceCounter;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
-import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.state.MerkleNodeState;
@@ -37,8 +35,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Signature;
+import org.hiero.base.utility.Threshold;
+import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -111,13 +110,6 @@ public class SignedState {
      * out of band do not affect this value.
      */
     private boolean hasBeenSavedToDisk;
-
-    /**
-     * Indicates if this state is a special state used to jumpstart emergency recovery. This will only be true for a
-     * state that has a root hash that exactly matches the current epoch hash. A recovery state is considered to be
-     * "completely signed" regardless of its actual signatures.
-     */
-    private boolean recoveryState;
 
     /**
      * Used to track the lifespan of this signed state.
@@ -285,15 +277,6 @@ public class SignedState {
      */
     public boolean isPcesRound() {
         return pcesRound;
-    }
-
-    /**
-     * Mark this state as a recovery state. A recovery state is a state with a root hash that exactly matches the
-     * current hash epoch. Recovery states are always considered to be "completely signed" regardless of their actual
-     * signatures.
-     */
-    public void markAsRecoveryState() {
-        recoveryState = true;
     }
 
     /**
@@ -531,21 +514,18 @@ public class SignedState {
 
     /**
      * Check if this object contains a complete set of signatures with respect to an address book.
-     * <p>
-     * Note that there is a special edge case during emergency state recovery. A state with a root hash that matches the
-     * current epoch hash is considered to be complete regardless of the signatures it has collected.
      *
      * @return does this contain signatures from members with greater than 2/3 of the total weight?
      */
     public boolean isComplete() {
-        return recoveryState | signedBy(SUPER_MAJORITY);
+        return signedBy(SUPER_MAJORITY);
     }
 
     /**
      * @return true if the state has enough signatures so that it can be trusted to be valid
      */
     public boolean isVerifiable() {
-        return recoveryState | signedBy(MAJORITY);
+        return signedBy(MAJORITY);
     }
 
     /**
@@ -610,35 +590,6 @@ public class SignedState {
         signingWeight += rosterEntry.weight();
 
         return isComplete();
-    }
-
-    /**
-     * Check if a signature is valid.  If a node has no weight, we consider the signature to be invalid.
-     *
-     * @param address   the address of the signer, or null if there is no signing address
-     * @param signature the signature to check
-     * @return true if the signature is valid, false otherwise
-     */
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean isSignatureValid(@Nullable final Address address, @NonNull final Signature signature) {
-        if (address == null) {
-            // Signing node is not in the address book.
-            return false;
-        }
-
-        if (address.getWeight() == 0) {
-            // Signing node has no weight.
-            return false;
-        }
-
-        if (address.getSigPublicKey() == null) {
-            // If the address does not have a valid public key, the signature is invalid.
-            // https://github.com/hashgraph/hedera-services/issues/16648
-            return false;
-        }
-
-        return signatureVerifier.verifySignature(
-                state.getHash().getBytes(), signature.getBytes(), address.getSigPublicKey());
     }
 
     /**

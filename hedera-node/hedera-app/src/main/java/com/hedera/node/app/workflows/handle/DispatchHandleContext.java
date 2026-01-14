@@ -37,6 +37,7 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
@@ -213,7 +214,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                                     accountId,
                                     this,
                                     ValidationResult.newSuccess(creatorInfo.accountId()),
-                                    new Fees(0, amount, 0))
+                                    new Fees(0, 0, amount))
                             .totalFee()
                     == amount;
         }
@@ -300,6 +301,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 subType,
                 false,
                 storeFactory.asReadOnly());
+    }
+
+    @Override
+    public SimpleFeeCalculator getSimpleFeeCalculator() {
+        return feeManager.getSimpleFeeCalculator();
     }
 
     @NonNull

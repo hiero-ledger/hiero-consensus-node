@@ -35,7 +35,8 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "100") @Min(1) @NodeProperty int maxConsecutiveScheduleSecondsToProbe,
         @ConfigProperty(defaultValue = "1s") @Min(1) @NodeProperty Duration quiescedHeartbeatInterval,
         @ConfigProperty(defaultValue = "512") @NodeProperty int maxReadDepth,
-        @ConfigProperty(defaultValue = "500000000") @NodeProperty int maxReadBytesSize) {
+        @ConfigProperty(defaultValue = "500000000") @NodeProperty int maxReadBytesSize,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enableStateProofs) {
 
     /**
      * Whether to stream to block nodes.

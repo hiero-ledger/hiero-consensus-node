@@ -11,6 +11,10 @@ import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
+import com.hedera.node.app.utils.TestCaseLoggerExtension;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -19,11 +23,8 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ThreadLocalRandom;
 import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
@@ -33,10 +34,12 @@ import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.ResendBlock;
 import org.hiero.block.api.PublishStreamResponse.SkipBlock;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Base class for tests that involve block node communication.
  */
+@ExtendWith(TestCaseLoggerExtension.class)
 public abstract class BlockNodeCommunicationTestBase {
 
     @NonNull
@@ -170,24 +173,6 @@ public abstract class BlockNodeCommunicationTestBase {
         return BlockItem.newBuilder().blockProof(proof).build();
     }
 
-    protected static List<BlockItem> newRandomBlockItems(final long blockNumber, final int maxBytesPerItem) {
-        final List<BlockItem> items = new ArrayList<>();
-        final ThreadLocalRandom random = ThreadLocalRandom.current();
-
-        // first item should always be the block header
-        items.add(newBlockHeaderItem(blockNumber));
-
-        final int numItems = random.nextInt(1, 250);
-        for (int i = 0; i < numItems; ++i) {
-            final int bytes = random.nextInt(10, maxBytesPerItem);
-            items.add(newBlockTxItem(bytes));
-        }
-
-        // last item should always be the block proof
-        items.add(newBlockProofItem(blockNumber, random.nextInt(10, maxBytesPerItem)));
-        return items;
-    }
-
     protected static BlockNodeConfiguration newBlockNodeConfig(final int port, final int priority) {
         return newBlockNodeConfig("localhost", port, priority);
     }
@@ -198,8 +183,8 @@ public abstract class BlockNodeCommunicationTestBase {
                 address,
                 port,
                 priority,
-                BlockNodeConnectionManager.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES,
-                BlockNodeConnectionManager.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
+                BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES,
+                BlockNodeConfiguration.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
     }
 
     protected static BlockNodeConfiguration newBlockNodeConfig(
@@ -208,12 +193,33 @@ public abstract class BlockNodeCommunicationTestBase {
             final int priority,
             final long messageSoftLimitBytes,
             final long messageHardLimitBytes) {
+        return newBlockNodeConfig(
+                address,
+                port,
+                priority,
+                messageSoftLimitBytes,
+                messageHardLimitBytes,
+                BlockNodeHelidonHttpConfiguration.DEFAULT,
+                BlockNodeHelidonGrpcConfiguration.DEFAULT);
+    }
+
+    protected static BlockNodeConfiguration newBlockNodeConfig(
+            final String address,
+            final int port,
+            final int priority,
+            final long messageSoftLimitBytes,
+            final long messageHardLimitBytes,
+            final BlockNodeHelidonHttpConfiguration clientHttpConfig,
+            final BlockNodeHelidonGrpcConfiguration clientGrpcConfig) {
         return BlockNodeConfiguration.newBuilder()
                 .address(address)
-                .port(port)
+                .streamingPort(port)
+                .servicePort(port)
                 .priority(priority)
                 .messageSizeSoftLimitBytes(messageSoftLimitBytes)
                 .messageSizeHardLimitBytes(messageHardLimitBytes)
+                .clientHttpConfig(clientHttpConfig)
+                .clientGrpcConfig(clientGrpcConfig)
                 .build();
     }
 }

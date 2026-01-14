@@ -55,15 +55,16 @@ import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.constructable.ConstructableUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -80,6 +81,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * Utility for loading and initializing state from disk. Manages the complete initialization
@@ -105,13 +107,16 @@ public final class StateUtils {
 
             final PlatformContext platformContext = getPlatformContext();
             final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
+            final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                    platformContext.getMetrics(),
+                    platformContext.getTime(),
+                    virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                    platformContext.getConfiguration());
 
             serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState));
 
-            deserializedSignedState = readState(
-                    Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(),
-                    virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
-                    platformContext);
+            deserializedSignedState =
+                    readState(Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(), platformContext, stateLifecycleManager);
 
             initServiceMigrator(getState(), platformContext, serviceRegistry);
 

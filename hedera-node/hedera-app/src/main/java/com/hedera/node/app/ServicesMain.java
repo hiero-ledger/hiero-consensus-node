@@ -3,7 +3,6 @@ package com.hedera.node.app;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
@@ -21,6 +20,7 @@ import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -53,7 +53,6 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.Browser;
 import com.swirlds.platform.CommandLineArgs;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.builder.PlatformBuilder;
@@ -70,8 +69,8 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.InstantSource;
@@ -80,7 +79,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -92,7 +90,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 
 /**
@@ -157,15 +155,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
 
     /**
      * {@inheritDoc}
-     * Specifically, {@link VirtualMapState}.
-     */
-    @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
-        return hederaOrThrow().stateRootFromVirtualMap(metrics);
-    }
-
-    /**
-     * {@inheritDoc}
      */
     @Override
     public ConsensusStateEventHandler<MerkleNodeState> newConsensusStateEvenHandler() {
@@ -185,34 +174,57 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         hederaOrThrow().submitStateSignature(transaction);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hasBufferedSignatureTransactions() {
         return hederaOrThrow().hasBufferedSignatureTransactions();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return hederaOrThrow().getTransactionsForEvent();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void reportUnhealthyDuration(@NonNull final Duration duration) {
         hederaOrThrow().reportUnhealthyDuration(duration);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         hederaOrThrow().newPlatformStatus(platformStatus);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NonNull TransactionLimits getTransactionLimits() {
         return hederaOrThrow().getTransactionLimits();
     }
 
     /**
-     * Launches Services directly, without use of the "app browser" from {@link Browser}. The
-     * approximate startup sequence is:
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public StateLifecycleManager getStateLifecycleManager() {
+        return hederaOrThrow().getStateLifecycleManager();
+    }
+
+    /**
+     * Launches Services: the approximate startup sequence is:
      * <ol>
      *     <li>Scan the classpath for {@link RuntimeConstructable} classes,
      *     registering their no-op constructors as the default factories for their
@@ -343,7 +355,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 Hedera.SWIRLD_NAME,
                 selfId,
                 platformContext,
-                hedera.stateRootFromVirtualMap(metrics));
+                hedera.getStateLifecycleManager());
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
         if (genesisNetwork.get() == null) {
@@ -352,7 +364,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         hedera.setInitialStateHash(reservedState.hash());
 
         // --- Create the platform context and initialize the cryptography ---
-        final var rosterHistory = RosterUtils.createRosterHistory(state);
+        final var rosterHistory = RosterStateUtils.createRosterHistory(state);
         final var currentRoster = rosterHistory.getCurrentRoster();
         // For now we convert to a legacy representation of the roster for convenience
         final var addressBook = requireNonNull(buildAddressBook(currentRoster));
@@ -377,7 +389,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                                 // Otherwise derive if from the node's id in state or
                                 .orElseGet(() -> canonicalEventStreamLoc(selfId.id(), state)),
                         rosterHistory,
-                        hedera.stateRootFromVirtualMap(metrics))
+                        hedera.getStateLifecycleManager())
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
@@ -466,7 +478,9 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
                 TssBlockHashSigner::new,
+                configuration,
                 metrics,
+                time,
                 () -> new VirtualMapState(configuration, metrics));
     }
 
