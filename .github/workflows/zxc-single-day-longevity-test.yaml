@@ -494,7 +494,7 @@ jobs:
         uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-
+          token: gh-citr-performance-svcs-bot
           certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
