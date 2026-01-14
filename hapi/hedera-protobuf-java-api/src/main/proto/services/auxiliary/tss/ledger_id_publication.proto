@@ -43,4 +43,32 @@ message LedgerIdPublicationTransactionBody {
    * from this ledger id.
    */
   bytes history_proof_verification_key = 2;
+
+  /**
+   * The node-specific contributions made to the new ledger id.
+   */
+  repeated LedgerIdNodeContribution node_contributions = 3;
+}
+
+/**
+ * A record of the proof key a node had in a particular address
+ * book. Necessary to keep at each point history so that nodes
+ * can verify the correct key was used to sign in transitions
+ * starting from the current address book; no matter how keys
+ * have been rotated from the time the address book was created.
+ */
+message LedgerIdNodeContribution {
+  /**
+   * The node id.
+   */
+  uint64 node_id = 1;
+  /**
+   * The node's consensus weight when the ledger id was published.
+   */
+  uint64 weight = 2;
+  /**
+   * The public key the node used to contribute to history proofs when the
+   * ledger id was published.
+   */
+  bytes history_proof_key = 3;
 }
