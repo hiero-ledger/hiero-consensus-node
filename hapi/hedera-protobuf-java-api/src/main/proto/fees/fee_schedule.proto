@@ -312,14 +312,15 @@ message PiecewiseLinearCurve {
  */
 message PiecewiseLinearPoint {
   /**
-   * The utilization percentage for this point, in thousandths of one percent.
-   * This value must be between 0 and 100,000, inclusive.
+   * The utilization percentage for this point, in hundreds of one percent.
+   * This value must be between 0 and 10,000, inclusive.
    */
-  uint32 utilization_percentage = 1;
+  uint32 utilization_basis_points = 1;
 
   /**
    * The multiplier to apply at this utilization percentage.
-   * This value is divided by 1,000,000 then added to 1.
+   * This value SHOULD be greater than or equal to 1.
+   * This value SHOULD be between 1 and 1000
    */
   uint32 multiplier = 2;
 }
