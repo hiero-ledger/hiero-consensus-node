@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -10,10 +12,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.io.ResourceLoader;
-import com.swirlds.platform.ConsensusImpl;
-import com.swirlds.platform.config.legacy.LegacyConfigProperties;
-import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
+import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
@@ -24,25 +23,28 @@ import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.security.KeyStoreException;
+import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.roster.RosterRetriever;
-import org.junit.jupiter.api.Disabled;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 public class CoinRoundTest extends PlatformTest {
 
@@ -55,7 +57,7 @@ public class CoinRoundTest extends PlatformTest {
      * </ol>
      */
     @Test
-    void coinRound() throws IOException, ParseException {
+    void coinRound() throws IOException, ParseException, KeyStoreException, ExecutionException, InterruptedException {
         final PlatformContext context = createDefaultPlatformContext();
 
         final Path dir = Path.of("/Users/kellygreco/Desktop/test_run/node0/preconsensus-events/");
@@ -69,25 +71,26 @@ public class CoinRoundTest extends PlatformTest {
         final PcesFileTracker pcesFileTracker =
                 PcesFileReader.readFilesFromDisk(context.getConfiguration(), context.getRecycleBin(), dir, 0, false);
 
-        final Path consensusSnapshotPath = Path.of("/Users/kellygreco/Desktop/test_run/node0/consensusSnapshot.json");
-        final ConsensusSnapshot consensusSnapshot =
-                ConsensusSnapshot.JSON.parse(
-                        new ReadableStreamingData(new FileInputStream(consensusSnapshotPath.toFile())));
+//        final Path consensusSnapshotPath = Path.of("/Users/kellygreco/Desktop/test_run/node0/consensusSnapshot.json");
+//        final ConsensusSnapshot consensusSnapshot =
+//                ConsensusSnapshot.JSON.parse(
+//                        new ReadableStreamingData(new FileInputStream(consensusSnapshotPath.toFile())));
 
         final TestIntake intake = new TestIntake(context, roster);
-        intake.loadSnapshot(consensusSnapshot);
+//        intake.loadSnapshot(consensusSnapshot);
 
         final ConsensusOutput output = intake.getOutput();
 
         ConsensusRound latestRound = null;
         final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);
 
-        final Map<Long, PlatformSigner> signers = generateSigners();
+        final List<NodeId> nodeIds =
+                IntStream.range(0, 7).mapToObj(NodeId::of).toList();
+        final Map<NodeId, KeysAndCerts> keysAndCertsMap = CryptoStatic.generateKeysAndCerts(nodeIds, null);
+        final Map<NodeId, PlatformSigner> signers = generateSigners(keysAndCertsMap);
         // TODO write this to disk
-        final Roster newRoster = generateRoster(signers);
+        final Roster newRoster = generateRoster(keysAndCertsMap);
         final List<PlatformEvent> migratedEvents = migrateEvents(eventIterator, signers);
-
-
 
         for (final PlatformEvent event : migratedEvents) {
             intake.addEvent(event);
@@ -100,7 +103,7 @@ public class CoinRoundTest extends PlatformTest {
     }
 
     private List<PlatformEvent> migrateEvents(@NonNull final PcesMultiFileIterator eventIterator,
-            final Map<Long, PlatformSigner> signers) throws IOException {
+            final Map<NodeId, PlatformSigner> signers) throws IOException {
         final List<PlatformEvent> migratedEvents = new ArrayList<>();
         final Map<Bytes, EventDescriptor> migratedParents = new HashMap<>();
 
@@ -161,7 +164,7 @@ public class CoinRoundTest extends PlatformTest {
             final Hash newHash = eventHasher.hashEvent(newEventCore, parents, Collections.emptyList());
 
             // sign new hash
-            final PlatformSigner signer = signers.get(newEventCore.creatorNodeId());
+            final PlatformSigner signer = signers.get(event.getCreatorId());
             final Signature signature = signer.sign(newHash.getBytes().toByteArray());
 
             // Build the migrated GossipEvent
@@ -188,22 +191,47 @@ public class CoinRoundTest extends PlatformTest {
     }
 
     /**
-     * Create a Roster for the given signers
-     *
-     * @return
-     */
-    private Roster generateRoster(final Map<Long, PlatformSigner> signers) {
-        // TODO
-        return null;
-    }
-
-    /**
      * Creates platform signers for 7 nodes
      *
      * @return
      */
-    private Map<Long, PlatformSigner> generateSigners() {
-        // TODO
-        return null;
+    private Map<NodeId, PlatformSigner> generateSigners(final Map<NodeId, KeysAndCerts> keysAndCertsMap){
+        final Map<NodeId, PlatformSigner> signers = new HashMap<>();
+        keysAndCertsMap.forEach((nodeId, keysAndCerts) -> signers.put(nodeId, new PlatformSigner(keysAndCerts)));
+        return signers;
     }
+
+    /**
+     * Create a Roster for the given signers
+     *
+     * @return
+     */
+    private Roster generateRoster(@NonNull final Map<NodeId, KeysAndCerts> signers) {
+        final List<RosterEntry> rosterEntries = new ArrayList<>();
+        for (final Entry<NodeId, KeysAndCerts> signer : signers.entrySet()) {
+            rosterEntries.add(createRosterEntry(signer.getKey(), signer.getValue()));
+        }
+        rosterEntries.sort(Comparator.comparingLong(RosterEntry::nodeId));
+        return Roster.newBuilder().rosterEntries(rosterEntries).build();
+    }
+
+    private RosterEntry createRosterEntry(final NodeId nodeId, final KeysAndCerts keysAndCerts) {
+        try {
+            final long id = nodeId.id();
+            final byte[] certificate =
+                    keysAndCerts.sigCert().getEncoded();
+            return RosterEntry.newBuilder()
+                    .nodeId(id)
+                    .weight(500)
+                    .gossipCaCertificate(Bytes.wrap(certificate))
+                    .gossipEndpoint(ServiceEndpoint.newBuilder()
+                            .domainName(String.format("node-%d", id))
+                            .port(8082)
+                            .build())
+                    .build();
+        } catch (final CertificateEncodingException e) {
+            throw new RuntimeException("Exception while creating roster entry", e);
+        }
+    }
+
 }
