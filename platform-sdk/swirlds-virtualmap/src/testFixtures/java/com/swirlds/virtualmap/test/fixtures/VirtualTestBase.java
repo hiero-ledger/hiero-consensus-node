@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.test.fixtures;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.hash;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleInternal;
@@ -10,7 +9,6 @@ import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import org.hiero.base.constructable.ClassConstructorPair;

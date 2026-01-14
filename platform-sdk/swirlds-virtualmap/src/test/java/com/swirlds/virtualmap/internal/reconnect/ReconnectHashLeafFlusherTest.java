@@ -18,7 +18,6 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
-import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.nio.ByteBuffer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;

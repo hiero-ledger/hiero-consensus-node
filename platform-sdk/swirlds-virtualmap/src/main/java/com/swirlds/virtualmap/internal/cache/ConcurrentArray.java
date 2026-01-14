@@ -302,24 +302,6 @@ final class ConcurrentArray<T> {
         }
     }
 
-    public void set(final int index, final T element) {
-        if (index >= size()) {
-            throw new IndexOutOfBoundsException();
-        }
-        int arrIndex = 0;
-        SubArray<T> cur = head;
-        while (true) {
-            final T[] array = cur.array;
-            final int size = cur.size.get();
-            if (arrIndex + size > index) {
-                array[index - arrIndex] = element;
-                break;
-            }
-            arrIndex += size;
-            cur = cur.next;
-        }
-    }
-
     /**
      * Gets (estimated) memory overhead of this concurrent array. The overhead is from Java arrays
      * used by SubArray objects to store elements of this array. Even when this array is empty, a
