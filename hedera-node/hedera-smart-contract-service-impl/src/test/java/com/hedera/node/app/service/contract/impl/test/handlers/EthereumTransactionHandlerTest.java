@@ -548,6 +548,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP7702);
             given(ethTxDataReturned.authorizationList()).willReturn(new byte[1]);
             given(ethTxDataReturned.authorizationListAsRlp()).willReturn(new Object[0]);
+            given(ethTxDataReturned.authorizationListAsRlp()).willReturn(new Object[] {});
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
             assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());

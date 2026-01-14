@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
@@ -12,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasN
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static java.math.BigInteger.ZERO;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.ByteUtils.leftPad32;
 import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Tuple;
