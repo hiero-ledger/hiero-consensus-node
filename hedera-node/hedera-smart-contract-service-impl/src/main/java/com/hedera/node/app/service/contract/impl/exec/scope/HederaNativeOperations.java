@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -276,4 +277,13 @@ public interface HederaNativeOperations {
      * @return the {@link Configuration}
      */
     Configuration configuration();
+
+    /**
+     * Creates a new child record builder for the given functionality.
+     * @param recordBuilderClass the class of the record builder to create
+     * @param functionality the Hedera functionality for which the record builder is created
+     *
+     * @return The new record builder
+     */
+    <T> T createNewChildRecordBuilder(@NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality);
 }

@@ -150,19 +150,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             return outcome;
         }
 
-        // For EIP-7702: Check sender's nonce BEFORE processing code delegations
-        // (code delegations may increment the sender's nonce if they're also an authority)
-        if (hevmTransaction.isEthereumTransaction()
-                && contractsConfig.evmPectraEnabled()
-                && hevmTransaction.codeDelegations() != null) {
-            final var sender = rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId());
-            if (sender != null && hevmTransaction.nonce() != sender.getNonce()) {
-                throw new HandleException(WRONG_NONCE);
-            }
-        }
-
-        possiblyProcessCodeDelegations(hevmTransaction);
-
         final ThrottleAdviser throttleAdviser =
                 rootProxyWorldUpdater.enhancement().operations().getThrottleAdviser();
         final var opsDurationThrottleEnabled =
@@ -283,7 +270,18 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         try {
             final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
             validatePayloadLength(hevmTransaction);
-            return hevmTransaction;
+
+            // For EIP-7702: Check sender's nonce BEFORE processing code delegations
+            // (code delegations may increment the sender's nonce if they're also an authority)
+            if (hevmTransaction.isEthereumTransaction()
+                    && contractsConfig.evmPectraEnabled()
+                    && hevmTransaction.codeDelegations() != null) {
+                final var sender = rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId());
+                if (sender != null && hevmTransaction.nonce() != sender.getNonce()) {
+                    throw new HandleException(WRONG_NONCE);
+                }
+            }
+            return possiblyProcessCodeDelegations(hevmTransaction);
         } catch (IllegalArgumentException e1) {
             return hevmTransactionFactory.fromContractTxException(
                     context.body(), new HandleException(INVALID_TRANSACTION));
@@ -346,10 +344,12 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         return hydratedEthTxData == null ? null : hydratedEthTxData.ethTxData();
     }
 
-    private void possiblyProcessCodeDelegations(@NonNull final HederaEvmTransaction hevmTransaction) {
+    private HederaEvmTransaction possiblyProcessCodeDelegations(@NonNull final HederaEvmTransaction hevmTransaction) {
         if ((hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                 && contractsConfig.evmPectraEnabled()) {
-            codeDelegationProcessor.process(rootProxyWorldUpdater, hevmTransaction);
+            final var codeDelegationResult = codeDelegationProcessor.process(rootProxyWorldUpdater, hevmTransaction);
+            return hevmTransaction.fromCodeDelegationResult(codeDelegationResult);
         }
+        return hevmTransaction;
     }
 }

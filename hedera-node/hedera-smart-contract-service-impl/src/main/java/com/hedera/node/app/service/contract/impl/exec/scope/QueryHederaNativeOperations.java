@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -188,5 +189,11 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
     @Override
     public Configuration configuration() {
         return context.configuration();
+    }
+
+    @Override
+    public <T> T createNewChildRecordBuilder(
+            @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality) {
+        throw new UnsupportedOperationException("Cannot create child record builder in query context");
     }
 }

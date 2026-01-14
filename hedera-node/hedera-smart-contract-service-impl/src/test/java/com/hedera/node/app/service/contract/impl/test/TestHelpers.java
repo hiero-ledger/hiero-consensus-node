@@ -578,7 +578,9 @@ public class TestHelpers {
             ContractCreateTransactionBody.DEFAULT,
             null,
             null,
-            null);
+            null,
+            0,
+            0);
     public static final HederaEvmTransaction HEVM_Exception = new HederaEvmTransaction(
             SENDER_ID,
             null,
@@ -593,7 +595,9 @@ public class TestHelpers {
             null,
             null,
             new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID),
-            null);
+            null,
+            0,
+            0);
 
     public static final HederaEvmTransaction HEVM_OversizeException = new HederaEvmTransaction(
             SENDER_ID,
@@ -609,7 +613,9 @@ public class TestHelpers {
             null,
             null,
             new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE),
-            null);
+            null,
+            0,
+            0);
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT = explicitSuccessFrom(
             GAS_LIMIT / 2,
@@ -839,7 +845,9 @@ public class TestHelpers {
                 null,
                 null,
                 null,
-                null);
+                null,
+                0,
+                0);
     }
 
     public static HederaEvmTransaction wellKnownHapiCreate() {
@@ -870,7 +878,9 @@ public class TestHelpers {
                 ContractCreateTransactionBody.DEFAULT,
                 null,
                 null,
-                null);
+                null,
+                0,
+                0);
     }
 
     public static HederaEvmContext wellKnownContextWith(

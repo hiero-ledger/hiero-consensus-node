@@ -195,7 +195,9 @@ class TransactionProcessorTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                0,
+                0);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
         assertAbortsWith(invalidCreation, INVALID_CONTRACT_ID);
     }
@@ -219,7 +221,9 @@ class TransactionProcessorTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                0,
+                0);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
@@ -247,7 +251,8 @@ class TransactionProcessorTest {
                         tracer,
                         messageCallProcessor,
                         contractCreationProcessor,
-                        CHARGING_RESULT))
+                        CHARGING_RESULT,
+                        0))
                 .willReturn(SUCCESS_RESULT);
 
         final var result =
@@ -277,7 +282,9 @@ class TransactionProcessorTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                0,
+                0);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
@@ -305,7 +312,8 @@ class TransactionProcessorTest {
                         tracer,
                         messageCallProcessor,
                         contractCreationProcessor,
-                        CHARGING_RESULT))
+                        CHARGING_RESULT,
+                        0))
                 .willReturn(SUCCESS_RESULT);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
                 .willReturn(true);
@@ -337,7 +345,9 @@ class TransactionProcessorTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                0,
+                0);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
@@ -365,7 +375,8 @@ class TransactionProcessorTest {
                         tracer,
                         messageCallProcessor,
                         contractCreationProcessor,
-                        CHARGING_RESULT))
+                        CHARGING_RESULT,
+                        0))
                 .willReturn(SUCCESS_RESULT);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
                 .willReturn(true);
@@ -393,7 +404,9 @@ class TransactionProcessorTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                0,
+                0);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(null);
 
@@ -420,7 +433,9 @@ class TransactionProcessorTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                0,
+                0);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
         given(worldUpdater.getHederaAccount(INVALID_CONTRACT_ADDRESS)).willThrow(IllegalArgumentException.class);
@@ -482,7 +497,8 @@ class TransactionProcessorTest {
                         tracer,
                         messageCallProcessor,
                         contractCreationProcessor,
-                        CHARGING_RESULT))
+                        CHARGING_RESULT,
+                        0))
                 .willReturn(SUCCESS_RESULT);
         final var parsedAccount =
                 Account.newBuilder().accountId(senderAccount.hederaId()).build();
@@ -516,7 +532,8 @@ class TransactionProcessorTest {
                         tracer,
                         messageCallProcessor,
                         contractCreationProcessor,
-                        CHARGING_RESULT);
+                        CHARGING_RESULT,
+                        0);
         inOrder.verify(gasCharging)
                 .maybeRefundGiven(
                         GAS_LIMIT - SUCCESS_RESULT.gasUsed(),
@@ -565,7 +582,8 @@ class TransactionProcessorTest {
                         tracer,
                         messageCallProcessor,
                         contractCreationProcessor,
-                        NO_ALLOWANCE_CHARGING_RESULT))
+                        NO_ALLOWANCE_CHARGING_RESULT,
+                        0))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
 
@@ -595,7 +613,8 @@ class TransactionProcessorTest {
                         tracer,
                         messageCallProcessor,
                         contractCreationProcessor,
-                        NO_ALLOWANCE_CHARGING_RESULT);
+                        NO_ALLOWANCE_CHARGING_RESULT,
+                        0);
         inOrder.verify(gasCharging)
                 .maybeRefundGiven(GAS_LIMIT - SUCCESS_RESULT.gasUsed(), 0, senderAccount, null, context, worldUpdater);
         inOrder.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
@@ -642,7 +661,8 @@ class TransactionProcessorTest {
                         eq(tracer),
                         any(),
                         eq(contractCreationProcessor),
-                        eq(CHARGING_RESULT)))
+                        eq(CHARGING_RESULT),
+                        eq(0L)))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
 
@@ -671,7 +691,8 @@ class TransactionProcessorTest {
                         tracer,
                         messageCallProcessor,
                         contractCreationProcessor,
-                        CHARGING_RESULT);
+                        CHARGING_RESULT,
+                        0);
         inOrder.verify(gasCharging)
                 .maybeRefundGiven(
                         GAS_LIMIT - SUCCESS_RESULT.gasUsed(),
@@ -723,7 +744,8 @@ class TransactionProcessorTest {
                         eq(tracer),
                         any(),
                         eq(contractCreationProcessor),
-                        eq(CHARGING_RESULT)))
+                        eq(CHARGING_RESULT),
+                        eq(0L)))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
@@ -755,7 +777,8 @@ class TransactionProcessorTest {
                         tracer,
                         messageCallProcessor,
                         contractCreationProcessor,
-                        CHARGING_RESULT);
+                        CHARGING_RESULT,
+                        0);
         inOrder.verify(gasCharging)
                 .maybeRefundGiven(
                         GAS_LIMIT - SUCCESS_RESULT.gasUsed(),
@@ -804,7 +827,8 @@ class TransactionProcessorTest {
                         eq(tracer),
                         any(),
                         eq(contractCreationProcessor),
-                        eq(CHARGING_RESULT)))
+                        eq(CHARGING_RESULT),
+                        eq(0L)))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
 
@@ -816,6 +840,80 @@ class TransactionProcessorTest {
                 subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
         assertResourceExhaustion(INSUFFICIENT_BALANCES_FOR_RENEWAL_FEES, result);
+    }
+
+    @Test
+    void ethCallWithCodeDelegationGasRefundPassesRefundToFrameRunner() {
+        final var codeDelegationGasRefund = 25_000L;
+
+        givenSenderAccount();
+        givenRelayerAccount();
+        givenReceiverAccount();
+        givenAccessTracker(mock(StorageAccessTracker.class));
+
+        final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator, recordBuilder);
+        final var transaction = new HederaEvmTransaction(
+                SENDER_ID,
+                RELAYER_ID,
+                CALLED_CONTRACT_ID,
+                NONCE,
+                CALL_DATA,
+                MAINNET_CHAIN_ID,
+                VALUE,
+                GAS_LIMIT,
+                USER_OFFERED_GAS_PRICE,
+                MAX_GAS_ALLOWANCE,
+                null,
+                null,
+                null,
+                null,
+                0,
+                codeDelegationGasRefund);
+
+        given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
+                .willReturn(CHARGING_RESULT);
+        given(senderAccount.getAddress()).willReturn(EIP_1014_ADDRESS);
+        given(senderAccount.getNonce()).willReturn(NONCE);
+        given(receiverAccount.getAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        given(frameBuilder.buildInitialFrameWith(
+                        transaction,
+                        worldUpdater,
+                        context,
+                        config,
+                        opsDurationCounter,
+                        featureFlags,
+                        EIP_1014_ADDRESS,
+                        NON_SYSTEM_LONG_ZERO_ADDRESS,
+                        CHARGING_RESULT.intrinsicGas(),
+                        CODE_FACTORY,
+                        GAS_CALCULATOR))
+                .willReturn(initialFrame);
+        given(frameRunner.runToCompletion(
+                        eq(transaction.gasLimit()),
+                        eq(SENDER_ID),
+                        eq(initialFrame),
+                        eq(tracer),
+                        any(),
+                        eq(contractCreationProcessor),
+                        eq(CHARGING_RESULT),
+                        eq(codeDelegationGasRefund)))
+                .willReturn(SUCCESS_RESULT);
+        given(initialFrame.getSelfDestructs()).willReturn(Set.of());
+
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+
+        verify(frameRunner)
+                .runToCompletion(
+                        transaction.gasLimit(),
+                        SENDER_ID,
+                        initialFrame,
+                        tracer,
+                        messageCallProcessor,
+                        contractCreationProcessor,
+                        CHARGING_RESULT,
+                        codeDelegationGasRefund);
+        assertEquals(SUCCESS_RESULT.withTxStorageUsage(new TxStorageUsage(List.of(), null)), result);
     }
 
     private void assertResourceExhaustion(

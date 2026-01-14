@@ -155,7 +155,8 @@ public class TransactionProcessor {
                 tracer,
                 messageCall,
                 contractCreation,
-                gasCharges);
+                gasCharges,
+                transaction.codeDelegationGasRefund());
 
         // Maybe refund some of the charged fees before committing if not a hook dispatch
         // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once

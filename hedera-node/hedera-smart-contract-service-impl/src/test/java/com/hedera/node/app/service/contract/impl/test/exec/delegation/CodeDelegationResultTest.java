@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec.delegation;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
+import static org.hyperledger.besu.datatypes.CodeDelegation.PER_AUTH_BASE_COST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 class CodeDelegationResultTest {
 
-    private final CodeDelegationResult subject = new CodeDelegationResult();
+    private final CodeDelegationResult subject = new CodeDelegationResult(100000L);
 
     @Test
     void testConstructorAndAccessors() {
@@ -21,5 +22,10 @@ class CodeDelegationResultTest {
 
         subject.incrementAlreadyExistingDelegators();
         assertEquals(1L, subject.alreadyExistingDelegators());
+        assertEquals(PER_AUTH_BASE_COST, subject.getGetRefund());
+
+        assertEquals(100000L, subject.getAvailableGas());
+        subject.deductGas(30000L);
+        assertEquals(70000L, subject.getAvailableGas());
     }
 }

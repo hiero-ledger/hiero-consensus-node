@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.delegation;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -20,6 +21,7 @@ import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationP
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +50,9 @@ class CodeDelegationProcessorTest {
 
     @Mock
     private ProxyWorldUpdater proxyWorldUpdater;
+
+    @Mock
+    private CryptoCreateStreamBuilder cryptoCreateStreamBuilder;
 
     private static final long CHAIN_ID = 298L;
     private static final BigInteger HALF_ORDER =
@@ -194,6 +199,7 @@ class CodeDelegationProcessorTest {
         final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr);
 
         when(tx.codeDelegations()).thenReturn(List.of(del));
+        when(tx.gasLimit()).thenReturn(100000L);
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(BigInteger.ONE);
@@ -202,6 +208,7 @@ class CodeDelegationProcessorTest {
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null, acct);
+        when(proxyWorldUpdater.lazyCreationCostInGas(authAddr)).thenReturn(25000L);
         when(proxyWorldUpdater.createAccountWithCodeDelegation(authAddr, contractAddr))
                 .thenReturn(true);
 
@@ -217,6 +224,46 @@ class CodeDelegationProcessorTest {
             verify(proxyWorldUpdater).createAccountWithCodeDelegation(authAddr, contractAddr);
             verify(acct).incrementNonce();
             verify(proxyWorldUpdater).commit();
+            // Gas should be reduced by the lazy creation cost
+            assertEquals(75000L, result.getAvailableGas());
+        }
+    }
+
+    @Test
+    void createsProducesRecordWhenInsufficientGas() {
+        final var acct = mock(MutableAccount.class);
+
+        final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AA");
+        final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
+        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr);
+
+        when(tx.codeDelegations()).thenReturn(List.of(del));
+        when(tx.gasLimit()).thenReturn(20000L);
+        when(del.getChainId()).thenReturn(CHAIN_ID);
+        when(del.nonce()).thenReturn(0L);
+        when(del.getS()).thenReturn(BigInteger.ONE);
+        when(del.getYParity()).thenReturn(1);
+        when(del.address()).thenReturn(contractAddr.toArray());
+        when(world.updater()).thenReturn(proxyWorldUpdater);
+
+        when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null, acct);
+        when(proxyWorldUpdater.lazyCreationCostInGas(authAddr)).thenReturn(25000L);
+        when(proxyWorldUpdater.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CONTRACT_CREATE))
+                .thenReturn(cryptoCreateStreamBuilder);
+
+        try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
+            final var sig = mockAuthorityWithAddress(authAddr);
+            mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(sig);
+
+            final var p = new CodeDelegationProcessor(CHAIN_ID);
+            final var result = p.process(world, tx);
+
+            assertNotNull(result);
+            verify(proxyWorldUpdater).getAccount(authAddr);
+            verify(proxyWorldUpdater).createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CONTRACT_CREATE);
+            verify(proxyWorldUpdater).commit();
+            // Gas should not be reduced since there was insufficient gas for lazy creation
+            assertEquals(20000L, result.getAvailableGas());
         }
     }
 

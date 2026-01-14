@@ -40,6 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -390,5 +391,21 @@ class HandleHederaNativeOperationsTest {
         given(context.keyVerifier()).willReturn(keyVerifier);
         given(keyVerifier.authorizingSimpleKeys()).willReturn(keys);
         assertSame(keys, subject.authorizingSimpleKeys());
+    }
+
+    @Test
+    void createNewChildRecordBuilderUsesSavepointStack() {
+        @SuppressWarnings("unchecked")
+        final var savepointStack = mock(com.hedera.node.app.spi.workflows.HandleContext.SavepointStack.class);
+        given(context.savepointStack()).willReturn(savepointStack);
+        given(savepointStack.addChildRecordBuilder(CryptoCreateStreamBuilder.class, HederaFunctionality.CRYPTO_CREATE))
+                .willReturn(cryptoCreateRecordBuilder);
+
+        final var result =
+                subject.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, HederaFunctionality.CRYPTO_CREATE);
+
+        assertSame(cryptoCreateRecordBuilder, result);
+        verify(savepointStack)
+                .addChildRecordBuilder(CryptoCreateStreamBuilder.class, HederaFunctionality.CRYPTO_CREATE);
     }
 }

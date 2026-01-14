@@ -11,6 +11,7 @@ import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
@@ -253,5 +254,14 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public Configuration configuration() {
         return context.configuration();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public <T> T createNewChildRecordBuilder(
+            @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality) {
+        return context.savepointStack().addChildRecordBuilder(recordBuilderClass, functionality);
     }
 }
