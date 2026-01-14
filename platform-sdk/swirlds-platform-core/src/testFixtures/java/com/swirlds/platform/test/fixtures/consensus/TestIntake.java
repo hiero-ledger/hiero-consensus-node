@@ -27,6 +27,9 @@ import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
+import com.swirlds.platform.gui.GuiEventStorage;
+import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
+import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -56,12 +59,18 @@ public class TestIntake {
     private final int roundsNonAncient;
     private final FreezeCheckHolder freezeCheckHolder;
     private final FakeTime time = new FakeTime(Duration.of(1, ChronoUnit.SECONDS));
+    private final PlatformContext platformContext;
+    private final Roster roster;
+    final DefaultConsensusEngine consensusEngine;
 
     /**
      * @param platformContext the platform context used to configure this intake.
      * @param roster     the roster used by this intake
      */
     public TestIntake(@NonNull final PlatformContext platformContext, @NonNull final Roster roster) {
+        this.platformContext = platformContext;
+        this.roster = roster;
+
         final NodeId selfId = NodeId.of(0);
         roundsNonAncient = platformContext
                 .getConfiguration()
@@ -88,8 +97,8 @@ public class TestIntake {
 
         freezeCheckHolder = new FreezeCheckHolder();
         freezeCheckHolder.setFreezeCheckRef(i -> false);
-        final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(platformContext, roster, selfId, freezeCheckHolder);
+
+        consensusEngine = new DefaultConsensusEngine(platformContext, roster, selfId, freezeCheckHolder);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
@@ -185,5 +194,15 @@ public class TestIntake {
                 // if we throw the exception, it will be caught by it and will not fail the test
                 .withUncaughtExceptionHandler((t, e) -> componentExceptions.add(e))
                 .build();
+    }
+
+    @SuppressWarnings("unused") // useful for debugging
+    public StandardGuiSource createGuiSource() {
+        return new StandardGuiSource(
+                roster, new GuiEventStorage(consensusEngine.getConsensus(), consensusEngine.getLinker(), platformContext.getConfiguration()));
+    }
+
+    public DefaultConsensusEngine getConsensusEngine() {
+        return consensusEngine;
     }
 }
