@@ -201,4 +201,8 @@ public class TestIntake {
         return new StandardGuiSource(
                 roster, new GuiEventStorage(consensusEngine.getConsensus(), consensusEngine.getLinker(), platformContext.getConfiguration()));
     }
+
+    public DefaultConsensusEngine getConsensusEngine() {
+        return consensusEngine;
+    }
 }

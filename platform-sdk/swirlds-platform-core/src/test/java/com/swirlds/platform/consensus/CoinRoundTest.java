@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
+import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
@@ -18,10 +19,17 @@ import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.test.fixtures.gui.HashgraphGuiRunner;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.awt.FlowLayout;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.roster.RosterRetriever;
@@ -71,11 +79,13 @@ public class CoinRoundTest extends PlatformTest {
 
         long eventCount = 0;
 
-        while (eventIterator.hasNext()) {
+        final int numEventsBeforeGui = 69300;
+
+        while (eventIterator.hasNext() && eventCount < numEventsBeforeGui) {
             final PlatformEvent event = eventIterator.next();
-            if(event.getBirthRound() == 79681){
-                continue;
-            }
+//            if(event.getBirthRound() == 79681){
+//                continue;
+//            }
             intake.addEvent(event);
             if(!output.getConsensusRounds().isEmpty()){
                 latestRound = output.getConsensusRounds().getLast();
@@ -93,6 +103,41 @@ public class CoinRoundTest extends PlatformTest {
         System.out.println("Latest round: " + (latestRound != null ? latestRound.getRoundNum() : "none"));
         System.out.println("Total events processed: " + eventCount);
 
-        HashgraphGuiRunner.runHashgraphGui(intake.createGuiSource(),  null);
+        HashgraphGuiRunner.runHashgraphGui(intake.createGuiSource(),  controls(
+                intake.getConsensusEngine().getConsensus(),
+                eventIterator,
+                intake));
+    }
+
+    public static @NonNull JPanel controls(
+            final Consensus consensus,
+            final PcesMultiFileIterator eventIterator,
+            final TestIntake intake) {
+        // Fame decided below
+        final JLabel fameDecidedBelow = new JLabel("N/A");
+        final Runnable updateFameDecidedBelow = () -> fameDecidedBelow.setText(
+                "fame decided below: " + consensus.getFameDecidedBelow());
+        updateFameDecidedBelow.run();
+        // Next events
+        final JButton nextEvent = new JButton("Next event");
+        nextEvent.addActionListener(e -> {
+            try {
+                if(eventIterator.hasNext()){
+                    intake.addEvent(eventIterator.next());
+                }else {
+                    System.out.println("No more events");
+                }
+            } catch (final IOException ex) {
+                throw new RuntimeException(ex);
+            }
+            updateFameDecidedBelow.run();
+        });
+
+        // create JPanel
+        final JPanel controls = new JPanel(new FlowLayout());
+        controls.add(nextEvent);
+        controls.add(fameDecidedBelow);
+
+        return controls;
     }
 }
