@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
-import com.hedera.node.app.service.contract.impl.exec.processors.MessageProcessorImpl;
+import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
+import com.hedera.node.app.service.contract.impl.exec.processors.PublicContractCreationProcessor;
+import com.hedera.node.app.service.contract.impl.exec.processors.PublicMessageCallProcessor;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.operation.OperationRegistry;
-import org.hyperledger.besu.evm.processor.AbstractMessageProcessor;
 
 public class HEVM extends EVM {
-    public MessageProcessorImpl _call, _create;
+    public PublicMessageCallProcessor _call;
+    public PublicContractCreationProcessor _create;
 
     public HEVM(
             OperationRegistry operations,
@@ -20,7 +22,7 @@ public class HEVM extends EVM {
         super(operations, gasCalculator, evmConfiguration, evmSpecVersion);
     }
 
-    public void setProcessors( MessageProcessorImpl call, MessageProcessorImpl create ) {
+    public void setProcessors( PublicMessageCallProcessor call, PublicContractCreationProcessor create ) {
         _call = call;
         _create = create;
     }

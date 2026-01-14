@@ -95,6 +95,7 @@ public class Memory {
 
     // Just wrap as a Bytes array
     Bytes asBytes(int off, int len) {
+        if( len==0 ) return Bytes.EMPTY;
         return Bytes.wrap(_mem,off,len);
     }
 

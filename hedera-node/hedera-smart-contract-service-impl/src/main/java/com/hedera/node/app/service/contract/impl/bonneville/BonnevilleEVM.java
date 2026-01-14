@@ -8,8 +8,7 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCreateOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeSizeOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
-import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
-import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
+import com.hedera.node.app.service.contract.impl.exec.processors.*;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
@@ -52,6 +51,7 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 public class BonnevilleEVM extends HEVM {
     @NonNull final FeatureFlags _flags;
+    final boolean _hasOpers;    // Only required because EVM is BESU-private
 
     public BonnevilleEVM(
             @NonNull OperationRegistry operations,
@@ -61,12 +61,13 @@ public class BonnevilleEVM extends HEVM {
             @NonNull FeatureFlags featureFlags) {
         super(operations, gasCalc, evmConfiguration, evmSpecVersion );
         _flags = featureFlags;
+        _hasOpers = operations != null;
     }
 
     @Override
     public void runToHalt(@NotNull MessageFrame frame, @NotNull OperationTracer tracing) {
         // Run the contract bytecodes
-        new BEVM(this,frame,tracing,getOperationsUnsafe()).run();
+        new BEVM(this,frame,tracing,_hasOpers ? getOperationsUnsafe() : null).run();
     }
 
 
@@ -88,11 +89,12 @@ public class BonnevilleEVM extends HEVM {
         if( op == 0xF5 ) return "Crt2";
         if( op == 0xFA ) return "sCal";
         if( op == 0xFD ) return "revert ";
+        if( op == 0xFE ) return "invalid ";
         if( op == 0xFF ) return "self-destruct ";
         return String.format("%x",op);
     }
     private static final String[] OPNAMES = new String[]{
-        /* 00 */ "stop", "add ", "mul ", "sub ", "div ", "05  ", "06  ", "07  ", "08  ", "09  ", "exp ", "sign", "0C  ", "0D  ", "0E  ", "0F  ",
+        /* 00 */ "stop", "add ", "mul ", "sub ", "div ", "sdiv", "mod ", "smod", "amod", "mmod", "exp ", "sign", "0C  ", "0D  ", "0E  ", "0F  ",
         /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "18  ", "not ", "1A  ", "shl ", "shr ", "1D  ", "1E  ", "1F  ",
         /* 20 */ "kecc", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
         /* 30 */ "addr", "31  ", "orig", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "gasP", "3C  ", "retZ", "retC", "hash",
@@ -190,27 +192,26 @@ class BEVM {
         _mem = new Memory();
 
         // Hedera custom sidecar
-        _isSidecarEnabled = _flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
+        _isSidecarEnabled = bevm._hasOpers && _flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
         // Hedera optional tracking first SLOAD
         _tracker = FrameUtils.accessTrackerFor(frame);
 
         // Address Check
-        CustomExtCodeSizeOperation cExt = (CustomExtCodeSizeOperation)operations[0x3B];
-        _adrChk = cExt.addressChecks;
+        CustomExtCodeSizeOperation cExt = bevm._hasOpers ? (CustomExtCodeSizeOperation)operations[0x3B] : null;
+        _adrChk = bevm._hasOpers ? cExt.addressChecks : null;
         //if( cExt.enableEIP3540 )
         //    throw new TODO();   // Assumed never in customExtCodeSize
 
         // Custom Contract Creation Processor
-        _cccp = (CustomCreateOperation)operations[0xF0];
+        _cccp = bevm._hasOpers ? (CustomCreateOperation)operations[0xF0] : null;
         // Custom Self-Destruct hook
-        _selfDestruct = (CustomSelfDestructOperation)operations[0xFF];
+        _selfDestruct = bevm._hasOpers ? (CustomSelfDestructOperation)operations[0xFF] : null;
 
 
         // Preload input data
         _callData = _frame.getInputData().toArrayUnsafe();
 
-        var worldUpdater = FrameUtils.proxyUpdaterFor(_frame);
-        _contractId = worldUpdater.getHederaContractId(_frame.getRecipientAddress());
+        _contractId = bevm._hasOpers ? FrameUtils.proxyUpdaterFor(_frame).getHederaContractId(_frame.getRecipientAddress()) : null;
 
         _tracing = tracing;
     }
@@ -358,16 +359,17 @@ class BEVM {
     ExceptionalHaltReason _run() {
         if( _codes.length==0 )
             return stop();
-        SB trace = new SB();
+        SB trace = null; // new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null )
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
-
 
         int pc = 0;
         ExceptionalHaltReason halt = null;
 
         while( halt==null ) {
+            if( pc == _codes.length )
+                { halt = stop(); break; }
             int op = _codes[pc] & 0xFF;
             preTrace(trace,pc,op);
             pc++;
@@ -381,6 +383,11 @@ class BEVM {
             case 0x02 -> mul();
             case 0x03 -> sub();
             case 0x04 -> div();
+            case 0x05 -> sdiv();
+            case 0x06 -> mod();
+            case 0x07 -> smod();
+            case 0x08 -> addmod();
+            case 0x09 -> mulmod();
             case 0x0A -> exp();
             case 0x0B -> sign();
             case 0x10 -> ult();
@@ -471,8 +478,7 @@ class BEVM {
             case 0xFD -> revert();
             case 0xFF -> customSelfDestruct();
 
-            default ->
-                throw new TODO(String.format("Unhandled bytecode 0x%02X",op));
+            default ->   ExceptionalHaltReason.INVALID_OPERATION;
             };
 
             if( trace != null ) {
@@ -600,6 +606,7 @@ class BEVM {
     // computed but ignored.
     private static boolean overflowSub( long x, long y, long sum ) { return ((x^~y) & (x^sum)) < 0; }
 
+    // Unsigned divide
     private ExceptionalHaltReason div() {
         var halt = useGas(_gasCalc.getLowTierGasCost());
         if( halt!=null ) return halt;
@@ -609,21 +616,10 @@ class BEVM {
         // Divide by 0,1,2^n shortcuts
         if( (lhs1 | lhs2 | lhs3)==0 ) {
             if( lhs0==0 ) return push0();
-            if( lhs0==1 ) return push(rhs0,rhs1,rhs2,rhs3);
         }
         if( (rhs1 | rhs2 | rhs3)==0 ) {
             if( rhs0==0 ) return push0();
             if( rhs0==1 ) return push(lhs0,lhs1,lhs2,lhs3);
-        }
-
-        int lbc0 = Long.bitCount(lhs0), lbc1 = Long.bitCount(lhs1), lbc2 = Long.bitCount(lhs2), lbc3 = Long.bitCount(lhs3);
-        if( lbc0+lbc1+lbc2+lbc3 == 1 ) {
-            int shf;
-            if( lbc0==1 )      shf =     Long.numberOfTrailingZeros(lhs0);
-            else if( lbc1==1 ) shf =  64+Long.numberOfTrailingZeros(lhs1);
-            else if( lbc2==1 ) shf = 128+Long.numberOfTrailingZeros(lhs2);
-            else               shf = 192+Long.numberOfTrailingZeros(lhs3);
-            return shr(shf,rhs0,rhs1,rhs2,rhs3);
         }
         int rbc0 = Long.bitCount(rhs0), rbc1 = Long.bitCount(rhs1), rbc2 = Long.bitCount(rhs2), rbc3 = Long.bitCount(rhs3);
         if( rbc0+rbc1+rbc2+rbc3 == 1 ) {
@@ -637,6 +633,29 @@ class BEVM {
 
         throw new TODO();
     }
+
+    private ExceptionalHaltReason sdiv() {
+        return ExceptionalHaltReason.INVALID_OPERATION;
+    }
+
+    private ExceptionalHaltReason mod() {
+        var halt = useGas(_gasCalc.getLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        return ExceptionalHaltReason.INVALID_OPERATION;
+    }
+    private ExceptionalHaltReason smod() {
+        return ExceptionalHaltReason.INVALID_OPERATION;
+    }
+    private ExceptionalHaltReason addmod() {
+        return ExceptionalHaltReason.INVALID_OPERATION;
+    }
+    private ExceptionalHaltReason mulmod() {
+        return ExceptionalHaltReason.INVALID_OPERATION;
+    }
+
 
     // Exponent
     private ExceptionalHaltReason exp() {
@@ -991,12 +1010,14 @@ class BEVM {
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         var address = popAddress();
         // Special behavior for long-zero addresses below 0.0.1001
-        if( _adrChk.isNonUserAccount(address) )
-            return push0();
-        if( FrameUtils.contractRequired(_frame, address, _flags) && !_adrChk.isPresent(address, _frame) ) {
-        //    //FrameUtils.invalidAddressContext(_frame).set(address, InvalidAddressContext.InvalidAddressType.NonCallTarget);
-        //    //return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
-            throw new TODO();
+        if( _adrChk!=null ) {
+            if( _adrChk.isNonUserAccount(address) )
+                return push0();
+            if( FrameUtils.contractRequired(_frame, address, _flags) && !_adrChk.isPresent(address, _frame) ) {
+                //    //FrameUtils.invalidAddressContext(_frame).set(address, InvalidAddressContext.InvalidAddressType.NonCallTarget);
+                //    //return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+                throw new TODO();
+            }
         }
         return extCodeSize(address);
     }
@@ -1027,12 +1048,14 @@ class BEVM {
         var gas = copyCost(doff,len,0)+ _gasCalc.getColdAccountAccessCost();
         if( _gas < gas ) return ExceptionalHaltReason.INSUFFICIENT_GAS;
         // Special behavior for long-zero addresses below 0.0.1001
-        if( _adrChk.isNonUserAccount(address) )
-            return push0();
-        if( FrameUtils.contractRequired(_frame, address, _flags) && !_adrChk.isPresent(address, _frame) ) {
-            //FrameUtils.invalidAddressContext(_frame).set(address, InvalidAddressContext.InvalidAddressType.NonCallTarget);
-            //return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
-            throw new TODO();
+        if( _adrChk!=null ) {
+            if( _adrChk.isNonUserAccount(address) )
+                return push0();
+            if( FrameUtils.contractRequired(_frame, address, _flags) && !_adrChk.isPresent(address, _frame) ) {
+                //    //FrameUtils.invalidAddressContext(_frame).set(address, InvalidAddressContext.InvalidAddressType.NonCallTarget);
+                //    //return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+                throw new TODO();
+            }
         }
         return extCodeCopy(address,doff,soff,len);
     }
@@ -1060,12 +1083,14 @@ class BEVM {
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         var address = popAddress();
         // Special behavior for long-zero addresses below 0.0.1001
-        if( _adrChk.isNonUserAccount(address) )
-            return push0();
-        if( FrameUtils.contractRequired(_frame, address, _flags) && !_adrChk.isPresent(address, _frame) ) {
-        //    //FrameUtils.invalidAddressContext(_frame).set(address, InvalidAddressContext.InvalidAddressType.NonCallTarget);
-        //    //return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
-            throw new TODO();
+        if( _adrChk!=null ) {
+            if( _adrChk.isNonUserAccount(address) )
+                return push0();
+            if( FrameUtils.contractRequired(_frame, address, _flags) && !_adrChk.isPresent(address, _frame) ) {
+                //    //FrameUtils.invalidAddressContext(_frame).set(address, InvalidAddressContext.InvalidAddressType.NonCallTarget);
+                //    //return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+                throw new TODO();
+            }
         }
         return extCodeHash(address);
     }
@@ -1204,7 +1229,7 @@ class BEVM {
         long dst  = popLong();
         long cond = popLong();
         if( cond == 0 ) return nextpc; // No jump is jump-to-nextpc
-        return dst < 0 || dst > _codes.length || !jumpValid((int)dst)
+        return dst < 0 || dst >= _codes.length || !jumpValid((int)dst)
             ? -1                // Error
             : (int)dst;         // Target
     }
@@ -1213,7 +1238,7 @@ class BEVM {
         if( _sp < 1 ) return -3;
         if( useGas(_gasCalc.getMidTierGasCost())!=null ) return -2;
         long dst = popLong();
-        return dst < 0 || dst > _codes.length || !jumpValid((int)dst)
+        return dst < 0 || dst >= _codes.length || !jumpValid((int)dst)
             ? -1                // Error
             : (int)dst;         // Target
     }
@@ -1606,7 +1631,7 @@ class BEVM {
         _frame.setState(MessageFrame.State.CODE_SUSPENDED);
 
         // Frame lifetime management
-        CustomContractCreationProcessor msg = (CustomContractCreationProcessor)_bevm._create;
+        PublicContractCreationProcessor msg = _bevm._create;
         assert child.getState() == MessageFrame.State.NOT_STARTED;
         _tracing.traceContextEnter(child);
         msg.start(child, _tracing);
@@ -1733,7 +1758,7 @@ class BEVM {
 
         Code code = CodeV0.EMPTY_CODE;
         // Pre-compiled system contracts have no code
-        HederaSystemContract hsys = _bevm._call.systemContractsRead(contract);
+        HederaSystemContract hsys = _bevm._call instanceof CustomMessageCallProcessor cmcp ? cmcp.systemContractsRead(contract) : null;
         if( hsys == null ) {
             // No account, so child frame always returns success
             if( contractAccount==null )
@@ -1771,10 +1796,10 @@ class BEVM {
             .build();
         _frame.setState(MessageFrame.State.CODE_SUSPENDED);
 
-        // Frame lifetime management
-        CustomMessageCallProcessor msg = (CustomMessageCallProcessor)_bevm._call;
+        // Frame lifetime managementQ
         assert child.getState() == MessageFrame.State.NOT_STARTED;
         _tracing.traceContextEnter(child);
+        PublicMessageCallProcessor msg = _bevm._call;
         msg.start(child, _tracing);
 
         if( hsys != null ) {
@@ -1790,7 +1815,7 @@ class BEVM {
         switch( child.getState() ) {
         case MessageFrame.State.CODE_SUSPENDED:    throw new TODO("Should not reach here");
         case MessageFrame.State.CODE_SUCCESS:      msg.codeSuccess(child, _tracing);  break; // Sets COMPLETED_SUCCESS
-        case MessageFrame.State.EXCEPTIONAL_HALT:  msg.exceptionalHalt1(child); break;
+        case MessageFrame.State.EXCEPTIONAL_HALT:  FrameUtils.exceptionalHalt(child); break;
         case MessageFrame.State.REVERT:            msg.revert(child);  break;
         case MessageFrame.State.COMPLETED_SUCCESS: break; // Precompiled sys contracts hit here
         case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
@@ -1819,6 +1844,7 @@ class BEVM {
     private boolean mustBePresent( Address to, boolean hasValue ) {
         return !ConversionUtils.isLongZero(to)
             && hasValue
+            && _adrChk!=null
             && !_adrChk.isPresent(to, _frame)
             && _flags.isImplicitCreationEnabled()
             // Let system accounts calls or if configured to allow calls to

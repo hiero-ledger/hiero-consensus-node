@@ -32,7 +32,6 @@ import java.util.Objects;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.operation.Operation;
@@ -52,7 +51,7 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
  * Note these only require changing {@link MessageCallProcessor#start(MessageFrame, OperationTracer)},
  * and the core {@link MessageCallProcessor#process(MessageFrame, OperationTracer)} logic we inherit.
  */
-public class CustomMessageCallProcessor extends MessageCallProcessor implements MessageProcessorImpl {
+public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
     private final FeatureFlags featureFlags;
     private final AddressChecks addressChecks;
     private final PrecompileContractRegistry precompiles;
@@ -170,17 +169,6 @@ public class CustomMessageCallProcessor extends MessageCallProcessor implements 
 
         frame.setState(MessageFrame.State.CODE_EXECUTING);
     }
-
-    @Override
-    public void codeSuccess(@NonNull MessageFrame frame, @NonNull OperationTracer tracer) {
-        super.codeSuccess(frame,tracer);
-    }
-
-    @Override
-    public void revert(@NonNull MessageFrame frame) {
-        super.revert(frame);
-    }
-
 
     /**
      * Checks if the message frame is not executing a hook dispatch and if the contract address is not
@@ -384,7 +372,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor implements 
         }
     }
 
-    @Override public HederaSystemContract systemContractsRead(Address key) {
+    public HederaSystemContract systemContractsRead(Address key) {
         return systemContracts.get(key);
     }
 }
