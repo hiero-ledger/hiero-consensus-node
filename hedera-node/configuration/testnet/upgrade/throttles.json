@@ -406,12 +406,12 @@
     {
       "burstPeriod": 0,
       "burstPeriodMs": 15000,
-      "name": "HighVolumeTotalThrottles",
+      "name": "HVTotalThrottles",
       "highVolume": true,
       "throttleGroups": [
         {
           "opsPerSec": 0,
-          "milliOpsPerSec": 235500000,
+          "milliOpsPerSec": 31500000,
           "operations": [
             "CryptoCreate",
             "CryptoApproveAllowance",
