@@ -57,11 +57,11 @@ class CryptoGetInfoFeeCalculatorTest {
             final var query = Query.newBuilder().cryptoGetInfo(cryptoGetInfo).build();
 
             // When
-            final var result = feeCalculator.calculateQueryFee(query, null, EstimationMode.INTRINSIC);
+            final var result = feeCalculator.calculateQueryFee(query, null, EstimationMode.STATEFUL);
 
             // Then: service=1000000 ($0.0001 USD)
             assertThat(result).isNotNull();
-            assertThat(result).isEqualTo(1000000L);
+            assertThat(result.total()).isEqualTo(1000000L);
         }
 
         @Test
@@ -75,10 +75,10 @@ class CryptoGetInfoFeeCalculatorTest {
             final var query = Query.newBuilder().cryptoGetInfo(cryptoGetInfo).build();
 
             // When
-            final var result = feeCalculator.calculateQueryFee(query, null, EstimationMode.INTRINSIC);
+            final var result = feeCalculator.calculateQueryFee(query, null, EstimationMode.STATEFUL);
 
             // Then: Same fees - context is optional
-            assertThat(result).isEqualTo(1000000L);
+            assertThat(result.total()).isEqualTo(1000000L);
         }
     }
 
