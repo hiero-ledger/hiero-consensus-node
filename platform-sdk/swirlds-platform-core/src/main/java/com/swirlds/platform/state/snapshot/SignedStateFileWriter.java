@@ -144,8 +144,17 @@ public final class SignedStateFileWriter {
 
         final SignedState signedState = reservedSignedState.get();
         try {
+            // Creating the snapshot asynchronously is the optimization which allows it to be created faster within the
+            // `VirtualMap#flush`,
+            // because it is done without one extra data source snapshot as data source and cache are already in place,
+            // so the only thing needed is an actual data source snapshot.
+            // Sync method would be slower here, and it would block the VirtualPipeline until it is done, causing the
+            // backpressure.
             final var snapshotAsync = stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
+            // Release the state reference so that current snapshot creation can be unblocked in `VirtualMap#flush`,
+            // because the copy becomes destroyed and thus can be flushed.
             reservedSignedState.close();
+            // Block until the snapshot is created.
             snapshotAsync.get();
         } catch (final Throwable e) {
             logger.error(

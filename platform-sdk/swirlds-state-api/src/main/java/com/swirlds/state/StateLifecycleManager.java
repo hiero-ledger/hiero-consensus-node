@@ -5,7 +5,7 @@ import com.swirlds.common.merkle.MerkleNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 
 /**
  * Implementations of this interface are responsible for managing the state lifecycle:
@@ -81,7 +81,7 @@ public interface StateLifecycleManager {
      * @param targetPath The path to save the snapshot.
      * @return a future that completes when the snapshot has been written
      */
-    CompletableFuture<Void> createSnapshotAsync(@NonNull MerkleNodeState merkleNodeState, @NonNull Path targetPath);
+    Future<Void> createSnapshotAsync(@NonNull MerkleNodeState merkleNodeState, @NonNull Path targetPath);
 
     /**
      * Loads a snapshot of a state.

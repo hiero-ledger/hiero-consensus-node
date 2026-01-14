@@ -20,7 +20,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -246,8 +246,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      * {@inheritDoc}
      */
     @Override
-    public CompletableFuture<Void> createSnapshotAsync(
-            final @NonNull MerkleNodeState state, final @NonNull Path targetPath) {
+    public Future<Void> createSnapshotAsync(final @NonNull MerkleNodeState state, final @NonNull Path targetPath) {
         state.throwIfMutable();
         state.throwIfDestroyed();
 

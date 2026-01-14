@@ -77,14 +77,12 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
             v.setRound(PlatformStateAccessor.GENESIS_ROUND);
             v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot());
         });
-        {
-            System.out.printf("Resetting the RosterService state %n");
-            final State state = reservedSignedState.get().getState();
-            final WritableStates writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
-            final WritableRosterStore writableRosterStore = new WritableRosterStore(writableStates);
-            writableRosterStore.resetRosters();
-            ((CommittableWritableStates) writableStates).commit();
-        }
+        System.out.printf("Resetting the RosterService state %n");
+        final State state = reservedSignedState.get().getState();
+        final WritableStates writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
+        final WritableRosterStore writableRosterStore = new WritableRosterStore(writableStates);
+        writableRosterStore.resetRosters();
+        ((CommittableWritableStates) writableStates).commit();
         System.out.printf("Hashing state %n");
         platformContext
                 .getMerkleCryptography()

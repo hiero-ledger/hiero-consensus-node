@@ -230,15 +230,17 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * The target path for an asynchronous snapshot operation. This field is {@code null} unless
      * an async snapshot has been requested via {@link #createSnapshotAsync(Path)}.
      * When set along with the {@link #snapshotFuture}, the snapshot will be written to this path during the flush operation.
+     * Set/read from multiple threads.
      */
-    private Path snapshotTargetPath;
+    private final AtomicReference<Path> snapshotTargetPath = new AtomicReference<>();
 
     /**
      * A future that completes when an asynchronous snapshot operation finishes. This field is
      * {@code null} unless an async snapshot has been requested via {@link #createSnapshotAsync(Path)}.
      * The future is completed in {@link #flush()} after the snapshot is successfully written.
+     * Set/read from multiple threads.
      */
-    private CompletableFuture<Void> snapshotFuture;
+    private final AtomicReference<CompletableFuture<Void>> snapshotFuture = new AtomicReference<>();
 
     /**
      * A cache for virtual tree nodes. This cache is very specific for this use case. The elements
@@ -958,12 +960,14 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         // If an async snapshot was requested via createSnapshotAsync(), write the snapshot
         // to the target path and signal completion. This must happen after the cache flush
         // completes, so the data source contains all relevant data.
-        if (snapshotTargetPath != null && snapshotFuture != null) {
-            dataSourceBuilder.snapshot(snapshotTargetPath, dataSource);
-            snapshotFuture.complete(null);
+        final Path targetPath = snapshotTargetPath.get();
+        final CompletableFuture<Void> future = snapshotFuture.get();
+        if (targetPath != null && future != null) {
+            dataSourceBuilder.snapshot(targetPath, dataSource);
+            future.complete(null);
 
-            snapshotTargetPath = null;
-            snapshotFuture = null;
+            snapshotTargetPath.set(null);
+            snapshotFuture.set(null);
         }
 
         flushLatch.countDown();
@@ -1596,10 +1600,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      *         to the specified directory
      */
     public CompletableFuture<Void> createSnapshotAsync(final @NonNull Path outputDirectory) {
-        snapshotTargetPath = outputDirectory;
-        snapshotFuture = new CompletableFuture<>();
+        snapshotTargetPath.set(outputDirectory);
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+        snapshotFuture.set(future);
         enableFlush();
-        return snapshotFuture;
+        return future;
     }
 
     /**
