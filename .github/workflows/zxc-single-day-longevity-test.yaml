@@ -118,6 +118,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -126,7 +127,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -494,6 +495,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -502,7 +504,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.longevity-tests-start.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -639,6 +641,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
         id: auth-k8s
@@ -647,7 +650,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.longevity-tests-start.outputs.kubernetes-cluster }}
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
         id: google-auth
