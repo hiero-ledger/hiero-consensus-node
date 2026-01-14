@@ -54,7 +54,7 @@ public class CoinRoundTest extends PlatformTest {
     void coinRound() throws IOException, ParseException {
         final PlatformContext context = createDefaultPlatformContext();
 
-        final Path dir = Path.of("/Users/lazarpetrovic/Downloads/pces3");
+        final Path dir = Path.of("/Users/lazarpetrovic/Downloads/pces0");
         final Roster roster = Roster.JSON.parse(
                 new ReadableStreamingData(new FileInputStream("/Users/lazarpetrovic/Downloads/currentRoster.json")));
         // this will compact files in advance. the PcesFileReader will do the same thing and the these files will be
@@ -81,7 +81,7 @@ public class CoinRoundTest extends PlatformTest {
 
         long eventCount = 0;
 
-        final int numEventsBeforeGui = 69300;
+        final int numEventsBeforeGui = 69340;
 
         while (eventIterator.hasNext() && eventCount < numEventsBeforeGui) {
             final PlatformEvent event = eventIterator.next();
@@ -125,15 +125,26 @@ public class CoinRoundTest extends PlatformTest {
                 "fame decided below: " + consensus.getFameDecidedBelow());
         updateFameDecidedBelow.run();
         // Next events
-        final JButton nextEvent = new JButton("Next event");
+        final int defaultNumEvents = 1;
+        final int numEventsMinimum = 1;
+        final int numEventsStep = 1;
+        final JSpinner numEvents = new JSpinner(new SpinnerNumberModel(
+                Integer.valueOf(defaultNumEvents),
+                Integer.valueOf(numEventsMinimum),
+                Integer.valueOf(Integer.MAX_VALUE),
+                Integer.valueOf(numEventsStep)));
+        final JButton nextEvent = new JButton("Next events");
         nextEvent.addActionListener(e -> {
             try {
-                if(eventIterator.hasNext()){
-                    final PlatformEvent event = eventIterator.next();
-                    intake.addEvent(event);
-                    guiSource.getEventStorage().updateMaxGen(event);
-                }else {
-                    System.out.println("No more events");
+                final int numToAdd = numEvents.getValue() instanceof final Integer value ? value : defaultNumEvents;
+                for (int i = 0; i < numToAdd; i++) {
+                    if(eventIterator.hasNext()){
+                        final PlatformEvent event = eventIterator.next();
+                        intake.addEvent(event);
+                        guiSource.getEventStorage().updateMaxGen(event);
+                    }else {
+                        System.out.println("No more events");
+                    }
                 }
             } catch (final IOException ex) {
                 throw new RuntimeException(ex);
@@ -144,6 +155,7 @@ public class CoinRoundTest extends PlatformTest {
         // create JPanel
         final JPanel controls = new JPanel(new FlowLayout());
         controls.add(nextEvent);
+        controls.add(numEvents);
         controls.add(fameDecidedBelow);
 
         return controls;
