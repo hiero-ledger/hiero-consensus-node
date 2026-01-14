@@ -94,6 +94,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.ByteUtils;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.log.Log;
 
@@ -622,7 +623,7 @@ public class BaseTranslator {
                         final var builder = StorageChange.newBuilder().valueRead(read.readValue());
                         if (read.hasIndex()) {
                             final var writtenKey = writes.get(read.indexOrThrow());
-                            final var slotKey = new SlotKey(contractId, HookUtils.leftPad32(writtenKey));
+                            final var slotKey = new SlotKey(contractId, ByteUtils.leftPad32(writtenKey));
                             Bytes value = null;
                             for (final var nextScopedEvmTraceData : followingScopedEvmTraces) {
                                 final var nextEvmTraceData = nextScopedEvmTraceData.evmTraceDataOrThrow();
@@ -844,7 +845,7 @@ public class BaseTranslator {
                     .forEach(traceData -> traceData.logs().forEach(log -> {
                         final var besuLog = asBesuLog(
                                 log,
-                                log.topics().stream().map(HookUtils::leftPad32).toList());
+                                log.topics().stream().map(ByteUtils::leftPad32).toList());
                         besuLogs.add(besuLog);
                         verboseLogs.add(asContractLogInfo(log, besuLog));
                     }));
@@ -881,7 +882,7 @@ public class BaseTranslator {
                 .contractID(log.contractIdOrThrow())
                 .bloom(bloomFor(besuLog))
                 .data(log.data())
-                .topic(log.topics().stream().map(HookUtils::leftPad32).toList())
+                .topic(log.topics().stream().map(ByteUtils::leftPad32).toList())
                 .build();
     }
 
