@@ -12,6 +12,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.preconsensus.CommonPcesWriter;
@@ -72,6 +73,7 @@ public class PcesGraphSlicer extends PlatformTest {
      *     <li>supplied-dir/events/*.pces</li>
      * </ol>
      */
+    @Test
     void sliceGraph() throws IOException, ParseException, KeyStoreException, ExecutionException, InterruptedException {
         final PlatformContext context = createDefaultPlatformContext();
 
@@ -107,12 +109,13 @@ public class PcesGraphSlicer extends PlatformTest {
             for (final PlatformEvent bufferedEvents : events) {
                 final var migrated = migrateEvent(bufferedEvents, signers, eventHasher, migratedParents);
                 if (migrated != null) {
-                    migratedEvents.add(event);
+                    migratedEvents.add(migrated);
                 }
             }
         }
         buffer.clear();
         writeEvents(context, migratedEvents);
+
     }
 
     private void writeRoster(final Roster newRoster) {
@@ -136,30 +139,45 @@ public class PcesGraphSlicer extends PlatformTest {
 
         switch ((int) event.getCreatorId().id()) {
             case 0, 5: {
+                if (event.getNGen() == 23886){
+                    System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound() );
+                }
                 if (event.getNGen() < 23886) {
                     return null;
                 }
                 break;
             }
             case 1, 3: {
+                if (event.getNGen() == 23887){
+                    System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound() );
+                }
                 if (event.getNGen() < 23887) {
                     return null;
                 }
                 break;
             }
             case 2: {
+                if (event.getNGen() == 23888){
+                    System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound() );
+                }
                 if (event.getNGen() < 23888) {
                     return null;
                 }
                 break;
             }
             case 4: {
+                if (event.getNGen() == 23890){
+                    System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound() );
+                }
                 if (event.getNGen() < 23890) {
                     return null;
                 }
                 break;
             }
             case 6: {
+                if (event.getNGen() == 23892){
+                    System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound() );
+                }
                 if (event.getNGen() < 23892) {
                     return null;
                 }
@@ -174,7 +192,7 @@ public class PcesGraphSlicer extends PlatformTest {
         final EventCore oldEventCore = event.getEventCore();
         final EventCore newEventCore = oldEventCore
                 .copyBuilder()
-                .birthRound(oldEventCore.birthRound() - 79680)
+                .birthRound(Long.max(oldEventCore.birthRound() - 79679, 1))
                 .build();
 
         // Get the updated parent descriptors
@@ -225,7 +243,7 @@ public class PcesGraphSlicer extends PlatformTest {
             }
             pcesWriter.closeCurrentMutableFile();
         } catch (Exception e) {
-            throw new RuntimeException();
+            System.err.println(e);
         }
     }
 
