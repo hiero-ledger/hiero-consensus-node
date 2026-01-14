@@ -24,6 +24,7 @@ public class FeeResult {
     public long network = 0;
 
     public int networkMultiplier = 0;
+    public int congestionMultiplier = 1;
 
     /** Add a service fee with details.
      * @param cost the actual computed cost of this service fee in tinycents.
