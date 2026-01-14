@@ -108,6 +108,10 @@ public class GuiEventStorage {
         linker.setEventWindow(rounds.getLast().getEventWindow());
     }
 
+    public synchronized void updateMaxGen(@NonNull final PlatformEvent event) {
+        maxGeneration = Math.max(maxGeneration, event.getNGen());
+    }
+
     /**
      * Handle a consensus snapshot override (i.e. what happens when we start from a node state at restart/reconnect
      * boundaries).

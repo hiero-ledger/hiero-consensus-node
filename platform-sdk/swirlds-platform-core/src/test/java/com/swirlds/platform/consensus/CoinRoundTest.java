@@ -15,6 +15,8 @@ import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import com.swirlds.platform.event.preconsensus.PcesUtilities;
+import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
+import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
 import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
@@ -103,16 +105,20 @@ public class CoinRoundTest extends PlatformTest {
         System.out.println("Latest round: " + (latestRound != null ? latestRound.getRoundNum() : "none"));
         System.out.println("Total events processed: " + eventCount);
 
-        HashgraphGuiRunner.runHashgraphGui(intake.createGuiSource(),  controls(
+        final StandardGuiSource guiSource = intake.createGuiSource();
+
+        HashgraphGuiRunner.runHashgraphGui(guiSource,  controls(
                 intake.getConsensusEngine().getConsensus(),
                 eventIterator,
-                intake));
+                intake,
+                guiSource));
     }
 
     public static @NonNull JPanel controls(
             final Consensus consensus,
             final PcesMultiFileIterator eventIterator,
-            final TestIntake intake) {
+            final TestIntake intake,
+            final StandardGuiSource guiSource) {
         // Fame decided below
         final JLabel fameDecidedBelow = new JLabel("N/A");
         final Runnable updateFameDecidedBelow = () -> fameDecidedBelow.setText(
@@ -123,7 +129,9 @@ public class CoinRoundTest extends PlatformTest {
         nextEvent.addActionListener(e -> {
             try {
                 if(eventIterator.hasNext()){
-                    intake.addEvent(eventIterator.next());
+                    final PlatformEvent event = eventIterator.next();
+                    intake.addEvent(event);
+                    guiSource.getEventStorage().updateMaxGen(event);
                 }else {
                     System.out.println("No more events");
                 }

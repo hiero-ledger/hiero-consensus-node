@@ -197,7 +197,7 @@ public class TestIntake {
     }
 
     @SuppressWarnings("unused") // useful for debugging
-    public HashgraphGuiSource createGuiSource() {
+    public StandardGuiSource createGuiSource() {
         return new StandardGuiSource(
                 roster, new GuiEventStorage(consensusEngine.getConsensus(), consensusEngine.getLinker(), platformContext.getConfiguration()));
     }
