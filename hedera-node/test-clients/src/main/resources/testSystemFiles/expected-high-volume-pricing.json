@@ -1,0 +1,102 @@
+{
+  "description": "Expected high-volume pricing curves from HIP-1313 specification",
+  "baseCurve": {
+    "description": "Base curve applied to all transaction types - maps rate multiplier to price multiplier",
+    "points": [
+      { "rateMultiplier": 1.0, "priceMultiplier": 4 },
+      { "rateMultiplier": 1.5, "priceMultiplier": 8 },
+      { "rateMultiplier": 2.5, "priceMultiplier": 10 },
+      { "rateMultiplier": 3.5, "priceMultiplier": 15 },
+      { "rateMultiplier": 5.0, "priceMultiplier": 20 },
+      { "rateMultiplier": 7.5, "priceMultiplier": 30 },
+      { "rateMultiplier": 10.0, "priceMultiplier": 40 },
+      { "rateMultiplier": 25.0, "priceMultiplier": 60 },
+      { "rateMultiplier": 50.0, "priceMultiplier": 80 },
+      { "rateMultiplier": 100.0, "priceMultiplier": 100 },
+      { "rateMultiplier": 250.0, "priceMultiplier": 150 },
+      { "rateMultiplier": 500.0, "priceMultiplier": 200 },
+      { "rateMultiplier": 5000.0, "priceMultiplier": 200 }
+    ]
+  },
+  "transactionTypes": [
+    {
+      "name": "CryptoCreate",
+      "baseRate": 2,
+      "maxTps": 10000,
+      "basePrice": 0.05
+    },
+    {
+      "name": "ConsensusCreateTopic",
+      "baseRate": 5,
+      "maxTps": 25000,
+      "basePrice": 0.01
+    },
+    {
+      "name": "ScheduleCreate",
+      "baseRate": 100,
+      "maxTps": 10000,
+      "basePrice": 0.02
+    },
+    {
+      "name": "CryptoApproveAllowance",
+      "baseRate": 10000,
+      "maxTps": 10000,
+      "basePrice": 0.03
+    },
+    {
+      "name": "FileCreate",
+      "baseRate": 2,
+      "maxTps": 10000,
+      "basePrice": 0.05
+    },
+    {
+      "name": "FileAppend",
+      "baseRate": 10,
+      "maxTps": 50000,
+      "basePrice": 0.05
+    },
+    {
+      "name": "ContractCreate",
+      "baseRate": 350,
+      "maxTps": 17500,
+      "basePrice": 1.00
+    },
+    {
+      "name": "LambdaSStore",
+      "baseRate": 10,
+      "maxTps": 50000,
+      "basePrice": 0.005
+    },
+    {
+      "name": "TokenAssociateToAccount",
+      "baseRate": 100,
+      "maxTps": 10000,
+      "basePrice": 0.05
+    },
+    {
+      "name": "TokenAirdrop",
+      "baseRate": 100,
+      "maxTps": 10000,
+      "basePrice": 0.10
+    },
+    {
+      "name": "TokenClaimAirdrop",
+      "baseRate": 3000,
+      "maxTps": 10500,
+      "basePrice": 0.001
+    },
+    {
+      "name": "TokenMint",
+      "baseRate": 50,
+      "maxTps": 12500,
+      "basePrice": 0.02
+    },
+    {
+      "name": "TokenCreate",
+      "baseRate": 100,
+      "maxTps": 10000,
+      "basePrice": 0.10
+    }
+  ]
+}
+
