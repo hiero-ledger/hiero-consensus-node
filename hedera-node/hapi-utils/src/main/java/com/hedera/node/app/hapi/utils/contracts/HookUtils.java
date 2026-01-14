@@ -14,6 +14,7 @@ import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.utility.ByteUtils;
 
 public class HookUtils {
     /**
@@ -49,27 +50,11 @@ public class HookUtils {
             @NonNull final LambdaMappingEntry entry) {
         final com.hedera.pbj.runtime.io.buffer.Bytes hK;
         if (entry.hasKey()) {
-            hK = leftPad32(entry.keyOrThrow());
+            hK = ByteUtils.leftPad32(entry.keyOrThrow());
         } else {
             hK = keccak256DigestOf(entry.preimageOrThrow());
         }
         return keccak256DigestOf(hK.append(leftPaddedMappingSlot));
-    }
-
-    /**
-     * Pads the given bytes to 32 bytes by left-padding with zeros.
-     * @param bytes the bytes to pad
-     * @return the left-padded bytes, or the original bytes if they are already 32 bytes long
-     */
-    public static Bytes leftPad32(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        requireNonNull(bytes);
-        final int n = (int) bytes.length();
-        if (n == 32) {
-            return bytes;
-        }
-        final var padded = new byte[32];
-        bytes.getBytes(0, padded, 32 - n, n);
-        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(padded);
     }
 
     /**

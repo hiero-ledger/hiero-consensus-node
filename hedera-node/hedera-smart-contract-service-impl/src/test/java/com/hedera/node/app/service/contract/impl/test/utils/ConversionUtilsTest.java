@@ -56,7 +56,6 @@ import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
-import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -68,6 +67,7 @@ import java.util.stream.IntStream;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
+import org.hiero.base.utility.ByteUtils;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.log.LogsBloomFilter;
 import org.junit.jupiter.api.Test;
@@ -93,7 +93,7 @@ class ConversionUtilsTest {
         final var start = n == 0
                 ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY
                 : com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("00".repeat(n));
-        final var padded = HookUtils.leftPad32(start);
+        final var padded = ByteUtils.leftPad32(start);
         assertEquals(FULL_32, padded);
     }
 
@@ -116,7 +116,7 @@ class ConversionUtilsTest {
                 .mapToObj(i -> com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("12".repeat(i)))
                 .toList();
         final List<com.hedera.pbj.runtime.io.buffer.Bytes> somePaddedTopics =
-                someStrippedTopics.stream().map(HookUtils::leftPad32).toList();
+                someStrippedTopics.stream().map(ByteUtils::leftPad32).toList();
         final var data = com.hedera.pbj.runtime.io.buffer.Bytes.wrap("DATA");
         final var conciseLog = new EvmTransactionLog(CALLED_CONTRACT_ID, data, someStrippedTopics);
         final var besuLog = ConversionUtils.asBesuLog(conciseLog, somePaddedTopics);
