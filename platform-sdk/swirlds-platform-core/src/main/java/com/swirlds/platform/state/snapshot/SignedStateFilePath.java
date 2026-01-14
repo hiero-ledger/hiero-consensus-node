@@ -2,14 +2,11 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -199,26 +196,6 @@ public class SignedStateFilePath {
                 for (final Path subDir : dirs) {
                     try {
                         final long round = Long.parseLong(subDir.getFileName().toString());
-                        final Path vmMetadataPath = subDir.resolve(VirtualMap.OLD_METADATA_FILENAME);
-                        final Path stateFile = subDir.resolve(SIGNED_STATE_FILE_NAME);
-                        final boolean oldFormat = VirtualMap.isOldFormat(subDir);
-                        if (oldFormat) {
-                            // FUTURE WORK: this should result in an exception afer 0.71 release
-                            // see https://github.com/hiero-ledger/hiero-consensus-node/issues/22448
-                            logger.warn(
-                                    STARTUP.getMarker(),
-                                    "State to load from disk is in the old format. This is expected when upgrading to 0.70.x");
-
-                            if (!exists(vmMetadataPath)) {
-                                logger.warn(
-                                        EXCEPTION.getMarker(),
-                                        "Saved state file ({}) not found, but directory exists '{}'",
-                                        stateFile.getFileName(),
-                                        subDir.toAbsolutePath());
-                                continue;
-                            }
-                        }
-
                         final Path stateMetadataPath = subDir.resolve(SavedStateMetadata.FILE_NAME);
                         final SavedStateMetadata metadata;
                         try {

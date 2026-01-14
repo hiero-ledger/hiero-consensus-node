@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
-import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -17,7 +16,6 @@ import com.swirlds.config.api.source.ConfigSource;
 import com.swirlds.config.extensions.export.ConfigExport;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.config.extensions.sources.YamlConfigSource;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.platform.JVMPauseDetectorThread;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
@@ -50,7 +48,6 @@ import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
@@ -143,20 +140,6 @@ public final class BootstrapUtils {
     public static void setupConstructableRegistry() {
         try {
             ConstructableRegistry.getInstance().registerConstructables("");
-        } catch (final ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Add all classes to the constructable registry which need the configuration.
-     */
-    public static void setupConstructableRegistryWithConfiguration(final Configuration configuration) {
-        try {
-            ConstructableRegistry.getInstance()
-                    .registerConstructable(new ClassConstructorPair(
-                            MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
-            registerVirtualMapConstructables(configuration);
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
