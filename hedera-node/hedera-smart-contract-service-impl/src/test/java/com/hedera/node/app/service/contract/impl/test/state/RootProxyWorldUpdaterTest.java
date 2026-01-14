@@ -115,10 +115,14 @@ class RootProxyWorldUpdaterTest {
 
         final var frameState = subject.getEvmFrameState();
 
-        assertSame(originalValue, frameState.getStorageValue(contractId, storageKey),
+        assertSame(
+                originalValue,
+                frameState.getStorageValue(contractId, storageKey),
                 "Should be able to read storage value via EvmFrameState");
 
-        assertSame(originalValue, frameState.getOriginalStorageValue(contractId, storageKey),
+        assertSame(
+                originalValue,
+                frameState.getOriginalStorageValue(contractId, storageKey),
                 "Should be able to read original storage value for tracing");
 
         frameState.setStorageValue(contractId, storageKey, newValue);
