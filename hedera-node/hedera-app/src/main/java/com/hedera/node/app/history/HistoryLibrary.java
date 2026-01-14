@@ -258,12 +258,6 @@ public interface HistoryLibrary {
             @NonNull Set<Long> signers);
 
     /**
-     * Verifies a WRAPS proof.
-     * @return true if the proof is valid; false otherwise
-     */
-    boolean isValidWraps(byte[] compressedProof);
-
-    /**
      * Returns whether the library is ready to be used.
      */
     boolean wrapsProverReady();
