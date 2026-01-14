@@ -44,7 +44,7 @@ public class CoinRoundTest extends PlatformTest {
     void coinRound() throws IOException, ParseException {
         final PlatformContext context = createDefaultPlatformContext();
 
-        final Path dir = Path.of("/Users/lazarpetrovic/Downloads/pces2");
+        final Path dir = Path.of("/Users/lazarpetrovic/Downloads/pces3");
         final Roster roster = Roster.JSON.parse(
                 new ReadableStreamingData(new FileInputStream("/Users/lazarpetrovic/Downloads/currentRoster.json")));
         // this will compact files in advance. the PcesFileReader will do the same thing and the these files will be
@@ -64,12 +64,18 @@ public class CoinRoundTest extends PlatformTest {
         final ConsensusOutput output = intake.getOutput();
 
         ConsensusRound latestRound = null;
-        final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);
+        final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(
+                consensusSnapshot.minimumJudgeInfoList().getFirst().minimumJudgeBirthRound(),
+                consensusSnapshot.round()
+        );
 
         long eventCount = 0;
 
         while (eventIterator.hasNext()) {
             final PlatformEvent event = eventIterator.next();
+            if(event.getBirthRound() == 79681){
+                continue;
+            }
             intake.addEvent(event);
             if(!output.getConsensusRounds().isEmpty()){
                 latestRound = output.getConsensusRounds().getLast();
