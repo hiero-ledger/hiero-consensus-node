@@ -204,4 +204,12 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         futureEventBuffer.updateEventWindow(eventWindow);
         consensus.loadSnapshot(snapshot);
     }
+
+    public ConsensusLinker getLinker() {
+        return linker;
+    }
+
+    public Consensus getConsensus() {
+        return consensus;
+    }
 }
