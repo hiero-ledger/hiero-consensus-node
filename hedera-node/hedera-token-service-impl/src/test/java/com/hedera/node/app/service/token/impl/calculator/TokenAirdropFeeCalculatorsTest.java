@@ -92,7 +92,7 @@ class TokenAirdropFeeCalculatorsTest {
                         .build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.INTRINSIC);
+        final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
 
         assertThat(result).isNotNull();
         assertThat(result.node).isEqualTo(1000L);
