@@ -92,6 +92,7 @@ import java.time.InstantSource;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -1150,10 +1151,10 @@ class QueryWorkflowImplTest extends AppTestBase {
                     .runAllChecks(any(), any(), any(), any());
 
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator
-                            .calculateQueryFee(query, queryContext, EstimationMode.STATEFUL)
-                            .total())
-                    .willReturn(100000L);
+            final var result = new FeeResult();
+            result.addNodeBase(100000L);
+            given(simpleFeeCalculator.calculateQueryFee(query, queryContext, EstimationMode.STATEFUL))
+                    .willReturn(result);
 
             mockTopicGetInfoHandler(query, queryHeader, payment);
 
@@ -1162,7 +1163,7 @@ class QueryWorkflowImplTest extends AppTestBase {
             workflow.handleQuery(requestBuffer, responseBuffer);
 
             // Then: Should use simple fee calculator
-            verify(simpleFeeCalculator).calculateQueryFee(eq(query), any(), EstimationMode.STATEFUL);
+            verify(simpleFeeCalculator).calculateQueryFee(eq(query), any(), eq(EstimationMode.STATEFUL));
         }
 
         @Test
