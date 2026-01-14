@@ -492,6 +492,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         }
         // store key and value in transaction cache
         final int bucketIndex = computeBucketIndex(keyHashCode);
+        // For most buckets, there will be just one key/path mapping update. Sometimes, two.
+        // A short array list of 2 elements should work fine here. In the worst case, when
+        // there are many updates to a single bucket, the list will be resized
         return oneTransactionsData.getIfAbsentPut(bucketIndex, () -> new ArrayList<>(2));
     }
 
