@@ -167,6 +167,8 @@ jobs:
           echo "Pretty-printed matrix:"
           echo "GEN_MATRIX" | jq .
           
+          $GEN_MATRIX="This is a string test"
+          
           # Set the output (simplified name)
           echo "matrix=$GEN_MATRIX" >> $GITHUB_OUTPUT
 
