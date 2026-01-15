@@ -53,4 +53,8 @@ message AggregatedNodeSignatures {
    * In ascending order, the ids of the nodes that contributed signatures.
    */
   repeated uint64 signing_node_ids = 2;
+  /**
+   * The hinTS key that this signature witnesses.
+   */
+  bytes verification_key = 3;
 }
