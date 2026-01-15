@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
@@ -247,25 +245,20 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
         teacherMap.remove(C_KEY);
         teacherMap.put(D_KEY, DOG, TestValueCodec.INSTANCE);
 
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final VirtualMap copy = teacherMap.copy();
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+        teacherMap.reserve();
+        learnerMap.reserve();
 
         // reconnect happening
-        DummyMerkleInternal afterSyncLearnerTree =
-                MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
-
-        // not sure what is the better way to get the embedded Virtual map
-        DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
-        VirtualMap afterMap = node.getChild(3);
+        VirtualMap afterMap = MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
 
         assertEquals(DOG, afterMap.get(D_KEY, TestValueCodec.INSTANCE), "After sync, should have D_KEY available");
         assertNull(afterMap.get(C_KEY, TestValueCodec.INSTANCE), "After sync, should not have C_KEY anymore");
 
-        afterSyncLearnerTree.release();
+        afterMap.release();
+        teacherMap.release();
+        learnerMap.release();
         copy.release();
-        teacherTree.release();
-        learnerTree.release();
     }
 
     static Stream<Arguments> provideSmallTreePermutations() {

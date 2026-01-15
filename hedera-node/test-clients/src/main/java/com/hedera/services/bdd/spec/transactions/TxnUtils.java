@@ -35,8 +35,8 @@ import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
+import com.hedera.hapi.node.hooks.EvmHook;
 import com.hedera.hapi.node.hooks.HookExtensionPoint;
-import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
@@ -175,7 +175,7 @@ public class TxnUtils {
             return com.hedera.hapi.node.hooks.HookCreationDetails.newBuilder()
                     .hookId(hookId)
                     .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                    .lambdaEvmHook(LambdaEvmHook.newBuilder().spec(hookSpec))
+                    .evmHook(EvmHook.newBuilder().spec(hookSpec))
                     .build();
         };
     }
