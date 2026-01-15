@@ -12,8 +12,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.common.test.fixtures.set.RandomAccessHashSet;
 import com.swirlds.common.test.fixtures.set.RandomAccessSet;
@@ -132,43 +130,28 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     }
 
     private static Stream<Arguments> buildArguments() {
-        final List<RandomOperationsConfig> operationsConfigs = new ArrayList<>();
-
-        operationsConfigs.add(
-                new RandomOperationsConfig("Small tree, random operations", 100, 200, 100, 10, 3, 1, 1, 1));
-
-        operationsConfigs.add(
-                new RandomOperationsConfig("Medium tree, random operations", 1_000, 2_000, 1_000, 100, 3, 1, 1, 1));
-
-        operationsConfigs.add(
-                new RandomOperationsConfig("Medium tree, many insertions", 1_000, 2_000, 1_000, 100, 3, 2, 1, 1));
-
-        operationsConfigs.add(
-                new RandomOperationsConfig("Medium tree, many updates", 1_000, 2_000, 1_000, 100, 3, 1, 2, 1));
-
-        operationsConfigs.add(
-                new RandomOperationsConfig("Large tree, random operations", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 1));
-
-        operationsConfigs.add(
-                new RandomOperationsConfig("Large tree, many deletions", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 2));
-
-        operationsConfigs.add(new RandomOperationsConfig(
-                "Large tree, mostly just deletions", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 10));
-
         List<Arguments> arguments = new ArrayList<>();
-        for (Boolean vmAsRoot : List.of(false, true)) {
-            for (RandomOperationsConfig operationsConfig : operationsConfigs) {
-                arguments.add(Arguments.of(vmAsRoot, operationsConfig));
-            }
-        }
-
+        arguments.add(Arguments.of(
+                new RandomOperationsConfig("Small tree, random operations", 100, 200, 100, 10, 3, 1, 1, 1)));
+        arguments.add(Arguments.of(
+                new RandomOperationsConfig("Medium tree, random operations", 1_000, 2_000, 1_000, 100, 3, 1, 1, 1)));
+        arguments.add(Arguments.of(
+                new RandomOperationsConfig("Medium tree, many insertions", 1_000, 2_000, 1_000, 100, 3, 2, 1, 1)));
+        arguments.add(Arguments.of(
+                new RandomOperationsConfig("Medium tree, many updates", 1_000, 2_000, 1_000, 100, 3, 1, 2, 1)));
+        arguments.add(Arguments.of(new RandomOperationsConfig(
+                "Large tree, random operations", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 1)));
+        arguments.add(Arguments.of(
+                new RandomOperationsConfig("Large tree, many deletions", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 2)));
+        arguments.add(Arguments.of(new RandomOperationsConfig(
+                "Large tree, mostly just deletions", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 10)));
         return arguments.stream();
     }
 
     @ParameterizedTest
     @MethodSource("buildArguments")
     @DisplayName("Random Operations Reconnect Test")
-    void randomOperationsReconnectTest(final Boolean vmAsRoot, final RandomOperationsConfig config) throws Exception {
+    void randomOperationsReconnectTest(final RandomOperationsConfig config) throws Exception {
         final Random random = getRandomPrintSeed();
 
         // validation of input variables
@@ -236,33 +219,12 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             }
         }
 
-        final VirtualMap afterMap;
-        final MerkleInternal teacherTree;
-        final VirtualMap copy;
-        final MerkleInternal learnerTree;
-        DummyMerkleInternal afterSyncLearnerTree = null;
-        if (vmAsRoot) {
-            teacherTree = teacherMap;
-            copy = teacherMap.copy(); // ensure teacherMap is immutable
-            learnerTree = learnerMap;
+        final VirtualMap copy = teacherMap.copy(); // ensure teacherMap is immutable
+        teacherMap.reserve();
+        learnerMap.reserve();
 
-            learnerTree.reserve();
-            teacherTree.reserve();
-
-            // reconnect happening
-            afterMap = MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
-        } else {
-            teacherTree = createTreeForMap(teacherMap);
-            copy = teacherMap.copy(); // ensure teacherMap is immutable
-            learnerTree = createTreeForMap(learnerMap);
-
-            // reconnect happening
-            afterSyncLearnerTree =
-                    MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
-
-            final DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
-            afterMap = node.getChild(3);
-        }
+        // reconnect happening
+        final VirtualMap afterMap = MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
 
         for (final String key : removedKeys) {
             try {
@@ -281,14 +243,10 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             copiesQueue.remove().release();
         }
 
-        if (afterSyncLearnerTree != null) {
-            afterSyncLearnerTree.release();
-        } else {
-            afterMap.release();
-        }
+        afterMap.release();
+        teacherMap.release();
+        learnerMap.release();
         copy.release();
-        teacherTree.release();
-        learnerTree.release();
     }
 
     /**
@@ -297,26 +255,22 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     @Test
     @DisplayName("#5926 regression test")
     void regression05926() throws Exception {
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final VirtualMap copy = teacherMap.copy();
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+        teacherMap.reserve();
+        learnerMap.reserve();
 
-        final DummyMerkleInternal afterSyncLearnerTree =
-                MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
-
-        final DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
-        final VirtualMap afterMap = node.getChild(3);
+        final VirtualMap afterMap = MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
 
         // Create a copy of the resulting map
         final VirtualMap afterCopy = afterMap.copy();
         // Enforce computing the hash of its root node
         assertNotNull(afterCopy.getHash());
 
-        afterSyncLearnerTree.release();
         copy.release();
+        teacherMap.release();
+        learnerMap.release();
+        afterMap.release();
         afterCopy.release();
-        teacherTree.release();
-        learnerTree.release();
     }
 
     @Test
@@ -342,18 +296,16 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         learnerMap.put(zeroKey, new TestValue("value0"), TestValueCodec.INSTANCE);
         assertEquals(1L, sizeMetric.get(ValueType.VALUE));
 
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final Bytes key = TestKey.longToKey(123);
         teacherMap.put(key, new TestValue("value123"), TestValueCodec.INSTANCE);
 
         final VirtualMap teacherCopy = teacherMap.copy();
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+        teacherMap.reserve();
+        learnerMap.reserve();
 
-        final DummyMerkleInternal afterSyncLearnerTree =
-                MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+        final VirtualMap afterLearnerMap =
+                MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
 
-        final DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
-        final VirtualMap afterLearnerMap = node.getChild(3);
         final VirtualMap afterCopy = afterLearnerMap.copy();
 
         assertTrue(afterCopy.containsKey(key));
@@ -365,9 +317,9 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         assertEquals(3L, sizeMetric.get(ValueType.VALUE));
 
         teacherCopy.release();
+        teacherMap.release();
+        learnerMap.release();
         afterCopy.release();
-        teacherTree.release();
-        learnerTree.release();
         afterLearnerMap.release();
     }
 }
