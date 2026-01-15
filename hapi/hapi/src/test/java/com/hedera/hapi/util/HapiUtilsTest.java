@@ -29,9 +29,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 final class HapiUtilsTest {
 
     @ParameterizedTest
-    @CsvSource(
-            textBlock =
-                    """
+    @CsvSource(textBlock = """
             2007-12-03T10:15:30.00Z, 2007-12-03T10:15:30.01Z
             2007-12-31T23:59:59.99Z, 2008-01-01T00:00:00.00Z
             """)
@@ -43,9 +41,7 @@ final class HapiUtilsTest {
     }
 
     @ParameterizedTest
-    @CsvSource(
-            textBlock =
-                    """
+    @CsvSource(textBlock = """
             2007-12-03T10:15:30.01Z, 2007-12-03T10:15:30.00Z
             2008-01-01T00:00:00.00Z, 2007-12-31T23:59:59.99Z
             """)
@@ -57,9 +53,7 @@ final class HapiUtilsTest {
     }
 
     @ParameterizedTest
-    @CsvSource(
-            textBlock =
-                    """
+    @CsvSource(textBlock = """
             2007-12-03T10:15:30.00Z, 2007-12-03T10:15:30.00Z
             2007-12-31T23:59:59.99Z, 2007-12-31T23:59:59.99Z
             2008-01-01T00:00:00.00Z, 2008-01-01T00:00:00.00Z

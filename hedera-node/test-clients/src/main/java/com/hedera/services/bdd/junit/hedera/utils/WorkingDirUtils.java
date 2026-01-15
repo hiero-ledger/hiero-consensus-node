@@ -193,9 +193,7 @@ public class WorkingDirUtils {
         final var path = workingDir.resolve(LOG4J2_XML);
         final var log4j2Xml = readStringUnchecked(path);
         final var updatedLog4j2Xml = log4j2Xml
-                .replace(
-                        "</Appenders>\n" + "  <Loggers>",
-                        """
+                .replace("</Appenders>\n" + "  <Loggers>", """
                                   <RollingFile name="TestClientRollingFile" fileName="output/test-clients.log"
                                     filePattern="output/test-clients-%d{yyyy-MM-dd}-%i.log.gz">
                                     <PatternLayout>

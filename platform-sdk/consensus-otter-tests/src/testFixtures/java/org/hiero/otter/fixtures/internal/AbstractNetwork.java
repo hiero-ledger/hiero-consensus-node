@@ -1332,5 +1332,6 @@ public abstract class AbstractNetwork implements Network {
         }
     }
 
-    private record LatencyOverride(@NonNull Duration latency, @NonNull Percentage jitter) {}
+    private record LatencyOverride(
+            @NonNull Duration latency, @NonNull Percentage jitter) {}
 }
