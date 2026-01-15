@@ -459,10 +459,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         requireNonNull(dataSourceBuilder);
         requireNonNull(dataSource);
 
-        if (cache == null) {
-            cache = new VirtualNodeCache(virtualMapConfig, dataSource::loadHashChunk);
-        }
         final int hashChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
+        if (cache == null) {
+            cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, dataSource::loadHashChunk);
+        }
         this.records = new RecordAccessor(this.metadata, hashChunkHeight, cache, dataSource);
 
         if (statistics == null) {
@@ -1647,7 +1647,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             throws IOException {
         dataSourceBuilder = in.readSerializable();
         dataSource = dataSourceBuilder.build(LABEL, inputFile.getParent(), true, false);
-        cache = new VirtualNodeCache(virtualMapConfig, dataSource::loadHashChunk, in.readLong());
+        cache = new VirtualNodeCache(
+                virtualMapConfig, virtualMapConfig.virtualHasherChunkHeight(), dataSource::loadHashChunk);
         metadata = virtualMapMetadata;
     }
 

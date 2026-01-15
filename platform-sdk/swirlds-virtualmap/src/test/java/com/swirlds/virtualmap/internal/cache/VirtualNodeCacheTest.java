@@ -158,7 +158,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         assertFalse(chunkLoader.getChunkIds().contains(1L)); // chunk path==3
         chunkLoader.reset();
 
-        final Set<VirtualHashChunk> dirtyHashChunks0 = cache0.dirtyHashesForFlush(4).collect(Collectors.toSet());
+        final Set<VirtualHashChunk> dirtyHashChunks0 =
+                cache0.dirtyHashesForFlush(4).collect(Collectors.toSet());
         validateDirtyHashChunkPaths(Set.of(0L), dirtyHashChunks0);
         validateDirtyHash(appleLeaf0.path(), appleLeaf0intHash, dirtyHashChunks0);
         validateDirtyHash(cherryLeaf0.path(), cherryLeaf0intHash, dirtyHashChunks0);
@@ -231,14 +232,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
         cache1.seal();
 
-        validateLeaves(
-                cache1,
-                asList(
-                        cherryLeaf0,
-                        bananaLeaf1,
-                        dateLeaf1,
-                        appleLeaf1,
-                        eggplantLeaf1));
+        validateLeaves(cache1, asList(cherryLeaf0, bananaLeaf1, dateLeaf1, appleLeaf1, eggplantLeaf1));
 
         // Chunk 0 is already in the cache, no need to load it from disk
         assertFalse(chunkLoader.getChunkIds().contains(0L)); // chunk path==0
@@ -246,7 +240,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         assertFalse(chunkLoader.getChunkIds().contains(2L)); // chunk path==4
         chunkLoader.reset();
 
-        final Set<VirtualHashChunk> dirtyHashChunks1 = cache1.dirtyHashesForFlush(8).collect(Collectors.toSet());
+        final Set<VirtualHashChunk> dirtyHashChunks1 =
+                cache1.dirtyHashesForFlush(8).collect(Collectors.toSet());
         validateDirtyHashChunkPaths(Set.of(0L, 3L), dirtyHashChunks1);
         validateDirtyHash(cherryLeaf0.path(), cherryLeaf0intHash, dirtyHashChunks1); // 4
         validateDirtyHash(bananaLeaf1.path(), bananaLeaf1intHash, dirtyHashChunks1); // 5
@@ -332,15 +327,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache2.seal();
 
         validateLeaves(
-                cache2,
-                asList(
-                        dateLeaf1,
-                        appleLeaf1,
-                        eggplantLeaf1,
-                        cherryLeaf2,
-                        figLeaf2,
-                        bananaLeaf2,
-                        grapeLeaf2));
+                cache2, asList(dateLeaf1, appleLeaf1, eggplantLeaf1, cherryLeaf2, figLeaf2, bananaLeaf2, grapeLeaf2));
 
         assertFalse(chunkLoader.getChunkIds().contains(0L)); // chunk path==0
         assertFalse(chunkLoader.getChunkIds().contains(1L)); // chunk path==3
@@ -349,7 +336,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         assertFalse(chunkLoader.getChunkIds().contains(4L)); // chunk path==6
         chunkLoader.reset();
 
-        final Set<VirtualHashChunk> dirtyHashChunks2 = cache2.dirtyHashesForFlush(12).collect(Collectors.toSet());
+        final Set<VirtualHashChunk> dirtyHashChunks2 =
+                cache2.dirtyHashesForFlush(12).collect(Collectors.toSet());
         validateDirtyHashChunkPaths(Set.of(4L, 5L), dirtyHashChunks2);
         validateDirtyHash(cherryLeaf2.path(), cherryLeaf2intHash, dirtyHashChunks2); // 9
         validateDirtyHash(figLeaf2.path(), figLeaf2intHash, dirtyHashChunks2); // 10
@@ -484,7 +472,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         assertFalse(chunkLoader.getChunkIds().contains(4L)); // chunk path==6
         chunkLoader.reset();
 
-        final Set<VirtualHashChunk> dirtyHashChunks3 = cache3.dirtyHashesForFlush(12).collect(Collectors.toSet());
+        final Set<VirtualHashChunk> dirtyHashChunks3 =
+                cache3.dirtyHashesForFlush(12).collect(Collectors.toSet());
         validateDirtyHashChunkPaths(Set.of(0L, 3L, 4L, 5L), dirtyHashChunks3);
         validateDirtyHash(dogLeaf3.path(), dogLeaf3intHash, dirtyHashChunks3); // 6
         validateDirtyHash(grapeLeaf3.path(), grapeLeaf3intHash, dirtyHashChunks3); // 7
@@ -505,24 +494,9 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         final VirtualNodeCache cache4 = cache;
 
         validateLeaves(cache0, asList(bananaLeaf0, appleLeaf0, cherryLeaf0));
+        validateLeaves(cache1, asList(cherryLeaf0, bananaLeaf1, dateLeaf1, appleLeaf1, eggplantLeaf1));
         validateLeaves(
-                cache1,
-                asList(
-                        cherryLeaf0,
-                        bananaLeaf1,
-                        dateLeaf1,
-                        appleLeaf1,
-                        eggplantLeaf1));
-        validateLeaves(
-                cache2,
-                asList(
-                        dateLeaf1,
-                        appleLeaf1,
-                        eggplantLeaf1,
-                        cherryLeaf2,
-                        figLeaf2,
-                        bananaLeaf2,
-                        grapeLeaf2));
+                cache2, asList(dateLeaf1, appleLeaf1, eggplantLeaf1, cherryLeaf2, figLeaf2, bananaLeaf2, grapeLeaf2));
         validateLeaves(
                 cache3,
                 asList(
@@ -551,14 +525,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.release();
         assertEventuallyDoesNotThrow(
                 () -> {
-                    validateLeaves(
-                            cache1,
-                            asList(
-                                    null,
-                                    bananaLeaf1,
-                                    dateLeaf1,
-                                    appleLeaf1,
-                                    eggplantLeaf1));
+                    validateLeaves(cache1, asList(null, bananaLeaf1, dateLeaf1, appleLeaf1, eggplantLeaf1));
                 },
                 Duration.ofSeconds(1),
                 "expected cache1 to eventually become clean");
@@ -612,16 +579,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache1.release();
         assertEventuallyDoesNotThrow(
                 () -> {
-                    validateLeaves(
-                            cache2,
-                            asList(
-                                    null,
-                                    null,
-                                    null,
-                                    cherryLeaf2,
-                                    figLeaf2,
-                                    bananaLeaf2,
-                                    grapeLeaf2));
+                    validateLeaves(cache2, asList(null, null, null, cherryLeaf2, figLeaf2, bananaLeaf2, grapeLeaf2));
                 },
                 Duration.ofSeconds(1),
                 "expected cache2 to eventually become clean");
@@ -756,9 +714,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         chunk0.setHashAtPath(LEFT_PATH, leftInternalHash);
         original.putHashChunk(chunk0);
         assertEquals(
-                leftInternalHash,
-                original.lookupHashByPath(LEFT_PATH),
-                "value that was found should equal original");
+                leftInternalHash, original.lookupHashByPath(LEFT_PATH), "value that was found should equal original");
         assertEquals(
                 leftInternalHash, latest.lookupHashByPath(LEFT_PATH), "value that was found should equal original");
     }
@@ -1538,7 +1494,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     void puttingANullInternalLeadsToNPE() {
         final VirtualNodeCache cache0 = cache;
         nextRound();
-        assertThrows(NullPointerException.class, () -> cache0.putHashChunk(null), "null shouldn't be accepted into cache");
+        assertThrows(
+                NullPointerException.class, () -> cache0.putHashChunk(null), "null shouldn't be accepted into cache");
     }
 
     @Test
@@ -1553,9 +1510,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         rootChunk.setHashAtPath(LEFT_PATH, leftHash);
         cache0.putHashChunk(rootChunk);
         assertEquals(
-                leftHash,
-                cache0.lookupHashByPath(LEFT_PATH),
-                "value that was looked up should match original value");
+                leftHash, cache0.lookupHashByPath(LEFT_PATH), "value that was looked up should match original value");
     }
 
     @Test
@@ -1570,14 +1525,10 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         rootChunk.setHashAtPath(LEFT_PATH, leftHash);
         cache0.putHashChunk(rootChunk);
         assertEquals(
-                leftHash,
-                cache0.lookupHashByPath(LEFT_PATH),
-                "value that was looked up should match original value");
+                leftHash, cache0.lookupHashByPath(LEFT_PATH), "value that was looked up should match original value");
         cache0.putHashChunk(rootChunk);
         assertEquals(
-                leftHash,
-                cache0.lookupHashByPath(LEFT_PATH),
-                "value that was looked up should match original value");
+                leftHash, cache0.lookupHashByPath(LEFT_PATH), "value that was looked up should match original value");
     }
 
     @Test
@@ -1598,9 +1549,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.putHashChunk(chunk2);
 
         assertEquals(
-                leftHash2,
-                cache0.lookupHashByPath(LEFT_PATH),
-                "value that was looked up should match original value");
+                leftHash2, cache0.lookupHashByPath(LEFT_PATH), "value that was looked up should match original value");
     }
 
     @Test
@@ -1649,13 +1598,9 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         nextRound();
 
         assertEquals(
-                rightHash,
-                cache1.lookupHashByPath(RIGHT_PATH),
-                "value that was looked up should match original value");
+                rightHash, cache1.lookupHashByPath(RIGHT_PATH), "value that was looked up should match original value");
         assertEquals(
-                rightHash,
-                cache2.lookupHashByPath(RIGHT_PATH),
-                "value that was looked up should match original value");
+                rightHash, cache2.lookupHashByPath(RIGHT_PATH), "value that was looked up should match original value");
         assertEquals(
                 cache1.lookupHashByPath(RIGHT_PATH),
                 cache2.lookupHashByPath(RIGHT_PATH),
@@ -2429,7 +2374,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and none are deleted")
     void dirtyLeaves_allInSameVersionNoneDeleted() {
-        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2450,7 +2396,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and some are deleted")
     void dirtyLeaves_allInSameVersionSomeDeleted() {
-        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2473,7 +2420,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and all are deleted")
     void dirtyLeaves_allInSameVersionAllDeleted() {
-        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2512,7 +2460,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and some paths have hosted multiple leaves")
     void dirtyLeaves_allInSameVersionSomeDeletedPathConflict() {
-        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2545,7 +2494,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("dirtyLeaves where mutations are across versions and none are deleted")
     void dirtyLeaves_differentVersionsNoneDeleted() {
         // NOTE: In all these tests I don't bother with clearLeafPath since I'm not getting leave paths
-        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.putLeaf(appleLeaf(1));
 
         final VirtualNodeCache cache1 = cache0.copy();
@@ -2575,7 +2525,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where mutations are across versions and some are deleted")
     void dirtyLeaves_differentVersionsSomeDeleted() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.putLeaf(appleLeaf(1));
 
         final VirtualNodeCache cache1 = cache0.copy();
@@ -2613,7 +2564,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where mutations are across versions and all are deleted")
     void dirtyLeaves_differentVersionsAllDeleted() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.putLeaf(appleLeaf(1));
         cache0.putLeaf(bananaLeaf(2));
         cache0.putLeaf(appleLeaf(3));
@@ -2650,7 +2602,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Test
     @DisplayName("dirtyHashes where all mutations are in the same version")
     void dirtyHashes_allInSameVersion() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.copy();
         cache0.prepareForHashing();
 
@@ -2688,7 +2641,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Test
     @DisplayName("dirtyHashes where mutations are across versions")
     void dirtyHashes_differentVersions() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         final VirtualNodeCache cache1 = cache0.copy();
 
         cache0.prepareForHashing();
@@ -2739,7 +2693,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyInternals")})
     @DisplayName("dirtyInternals where mutations are across versions and all are deleted")
     void dirtyInternals_differentVersionsAllDeleted() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         final VirtualNodeCache cache1 = cache0.copy();
 
         cache0.prepareForHashing();
@@ -2781,7 +2736,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves for hashing and flushes do not affect each other")
     void dirtyLeaves_flushesAndHashing() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.putLeaf(appleLeaf(1));
         cache0.putLeaf(bananaLeaf(2));
 
@@ -2813,7 +2769,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Test
     @DisplayName("Check merged node cache memory overhead")
     void mergedCachesMemoryOverhead() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, chunkLoader);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(
+                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.putLeaf(appleLeaf(1));
         final long cache0EstimatedSize = cache0.getEstimatedSize();
 
@@ -2904,18 +2861,13 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         }
     }
 
-    private void validateDirtyHashChunkPaths(
-            final Set<Long> chunkPaths,
-            final Set<VirtualHashChunk> dirtyChunks) {
+    private void validateDirtyHashChunkPaths(final Set<Long> chunkPaths, final Set<VirtualHashChunk> dirtyChunks) {
         final Set<Long> dirtyChunkPaths = new HashSet<>();
         dirtyChunks.forEach(c -> dirtyChunkPaths.add(c.path()));
         assertEquals(chunkPaths, dirtyChunkPaths);
     }
 
-    private void validateDirtyHash(
-            final long path,
-            final Hash hash,
-            final Set<VirtualHashChunk> dirtyChunks) {
+    private void validateDirtyHash(final long path, final Hash hash, final Set<VirtualHashChunk> dirtyChunks) {
         for (final VirtualHashChunk chunk : dirtyChunks) {
             try {
                 final Hash dirtyHash = chunk.getHashAtPath(path);
@@ -2928,9 +2880,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         fail("No dirty hash chunk for path " + path);
     }
 
-    private void validateNoDirtyHash(
-            final long path,
-            final Set<VirtualHashChunk> dirtyChunks) {
+    private void validateNoDirtyHash(final long path, final Set<VirtualHashChunk> dirtyChunks) {
         validateDirtyHash(path, NO_HASH, dirtyChunks);
     }
 
