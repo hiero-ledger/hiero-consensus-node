@@ -8,7 +8,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_R
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
 import static com.hedera.node.app.hapi.utils.EntityType.HOOK;
 import static com.hedera.node.app.hapi.utils.EntityType.LAMBDA_STORAGE;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.LAMBDA_STORAGE_STATE_ID;
@@ -18,6 +17,7 @@ import static com.hedera.node.app.service.contract.impl.state.StorageAccess.Stor
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.ZERO_INTO_EMPTY_SLOT;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.ByteUtils.leftPad32;
 
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.hooks.HookCreation;

@@ -30,13 +30,13 @@ import com.hedera.node.app.blocks.impl.contexts.SubmitOpContext;
 import com.hedera.node.app.blocks.impl.contexts.SupplyChangeOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TokenOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
-import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.hiero.base.utility.ByteUtils;
 import org.hyperledger.besu.evm.log.Log;
 
 /**
@@ -250,7 +250,7 @@ public class BlockItemsTranslator {
             final List<ContractLoginfo> verboseLogs = new ArrayList<>(logs.size());
             for (final var log : logs) {
                 final var paddedTopics =
-                        log.topics().stream().map(HookUtils::leftPad32).toList();
+                        log.topics().stream().map(ByteUtils::leftPad32).toList();
                 final var besuLog = asBesuLog(log, paddedTopics);
                 besuLogs.add(besuLog);
                 verboseLogs.add(ContractLoginfo.newBuilder()

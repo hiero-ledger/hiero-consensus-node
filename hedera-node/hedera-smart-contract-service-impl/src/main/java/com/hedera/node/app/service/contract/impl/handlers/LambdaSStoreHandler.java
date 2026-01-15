@@ -12,13 +12,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_STORAGE_IN_PRICE_RE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE_UPDATES;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.ByteUtils.leftPad32;
 
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
