@@ -170,62 +170,6 @@ public class StandaloneFeeCalculatorTest {
         json.keyValue("total", result.total());
         json.closeObject();
         return json.toString();
-        /*
-                {
-          "network": {
-            "multiplier": 9,
-            "subtotal": 900000
-          },
-
-          * node needs base fee and extras
-          * service needs base fee and extras
-          * network needs multiplier and subtotal, not base fee or extras
-          * extra needs
-            * name of the extra
-            * fee per unit
-            * how many are included for free
-            * how many were actually charged for
-            * what was charged
-
-          "node": {
-            "baseFee": 100000,
-            "extras": [
-              {
-                "charged": 0,
-                "count": 150,
-                "fee_per_unit": 10000,
-                "included": 1024,
-                "name": "Bytes",
-                "subtotal": 0
-              },
-              {
-                "charged": 1,
-                "count": 2,
-                "fee_per_unit": 100000,
-                "included": 1,
-                "name": "Signatures",
-                "subtotal": 0
-              }
-            ]
-          },
-          "notes": [],
-          "service": {
-            "baseFee": 499000000,
-            "extras": [
-              {
-                "charged": 0,
-                "count": 1,
-                "fee_per_unit": 10000000,
-                "included": 1,
-                "name": "Keys",
-                "subtotal": 0
-              }
-            ]
-          },
-          "total": 500000000
-        }
-
-                 */
     }
 
     private void outputExtra(JsonBuilder json, FeeResult.FeeDetail detail) {

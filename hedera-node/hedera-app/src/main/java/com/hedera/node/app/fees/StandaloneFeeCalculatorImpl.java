@@ -27,7 +27,6 @@ import org.jspecify.annotations.Nullable;
 
 public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
-    private TestFeeContextImpl feeContext = new TestFeeContextImpl();
 
     private final SimpleFeeCalculator calc;
 
@@ -50,6 +49,7 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
     @Override
     public FeeResult calculate(Transaction transaction, EstimationMode mode) throws ParseException {
+        TestFeeContextImpl feeContext = new TestFeeContextImpl();
         final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(
                 BufferedData.wrap(transaction.signedTransactionBytes().toByteArray()));
         if (signedTransaction.hasSigMap()) {
