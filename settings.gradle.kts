@@ -56,7 +56,7 @@ javaModules {
     directory("hiero-observability") {
         group = "org.hiero.observability"
 
-        module("hiero-metrics-core") { artifact = "hiero-metrics-core" }
+        module("hiero-metrics") { artifact = "hiero-metrics" }
     }
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }

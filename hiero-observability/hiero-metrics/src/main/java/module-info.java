@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-module org.hiero.metrics.core {
+module org.hiero.metrics {
     uses org.hiero.metrics.core.MetricsRegistrationProvider;
     uses org.hiero.metrics.core.MetricsExporterFactory;
 

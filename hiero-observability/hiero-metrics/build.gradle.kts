@@ -4,4 +4,4 @@ plugins {
     id("org.hiero.gradle.feature.publish-artifactregistry")
 }
 
-description = "Hiero Metrics Core"
+description = "Hiero Metrics"
