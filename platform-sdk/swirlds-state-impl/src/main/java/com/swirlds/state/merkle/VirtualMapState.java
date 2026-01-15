@@ -20,7 +20,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Reservable;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -317,10 +316,10 @@ public class VirtualMapState implements MerkleNodeState {
     }
 
     /**
-     * Get the virtual map behind {@link VirtualMapState}.
-     * For more detailed docs, see {@code MerkleNodeState#getRoot()}.
+     * Get the virtual map behind {@link VirtualMapState}. For more detailed docs, see
+     * {@code MerkleNodeState#getRoot()}.
      */
-    public MerkleNode getRoot() {
+    public VirtualMap getRoot() {
         return virtualMap;
     }
 
