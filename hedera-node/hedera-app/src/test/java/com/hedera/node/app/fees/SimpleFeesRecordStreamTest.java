@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -84,7 +87,8 @@ public class SimpleFeesRecordStreamTest {
                 .state(state)
                 .appProperties(overrides)
                 .build();
-        final StandaloneFeeCalculator calc = new StandaloneFeeCalculatorImpl(state, properties);
+        final StandaloneFeeCalculator calc =
+                new StandaloneFeeCalculatorImpl(state, properties, new AppEntityIdFactory(DEFAULT_CONFIG));
 
         final String records_dir = "../../temp/";
 

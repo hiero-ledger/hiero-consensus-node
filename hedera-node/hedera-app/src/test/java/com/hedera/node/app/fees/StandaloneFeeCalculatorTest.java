@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode.INTRINSIC;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
@@ -17,6 +18,7 @@ import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -40,7 +42,8 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         // make the calculator
-        final StandaloneFeeCalculator calc = new StandaloneFeeCalculatorImpl(state, properties);
+        final StandaloneFeeCalculator calc =
+                new StandaloneFeeCalculatorImpl(state, properties, new AppEntityIdFactory(DEFAULT_CONFIG));
 
         // make an example transaction
         final var body = TransactionBody.newBuilder()
@@ -252,7 +255,8 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         // make the calculator
-        final StandaloneFeeCalculator calc = new StandaloneFeeCalculatorImpl(state, properties);
+        final StandaloneFeeCalculator calc =
+                new StandaloneFeeCalculatorImpl(state, properties, new AppEntityIdFactory(DEFAULT_CONFIG));
         return calc;
     }
 

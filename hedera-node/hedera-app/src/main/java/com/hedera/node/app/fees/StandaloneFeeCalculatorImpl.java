@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -9,7 +8,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -32,9 +31,8 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
     private final SimpleFeeCalculator calc;
 
-    public StandaloneFeeCalculatorImpl(State state, TransactionExecutors.Properties properties) {
-        // make an entity id factory
-        final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
+    public StandaloneFeeCalculatorImpl(
+            State state, TransactionExecutors.Properties properties, EntityIdFactory entityIdFactory) {
         // load a new executor component
         final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(
                 properties.state(),
