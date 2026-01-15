@@ -24,7 +24,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
@@ -36,7 +35,6 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
-import com.hedera.node.app.state.ConsensusStateEventHandlerImpl;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
@@ -64,10 +62,8 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Set;
@@ -83,14 +79,13 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.roster.RosterStateUtils;
-import org.hiero.consensus.transaction.TransactionLimits;
 
 /**
  * Main entry point.
  *
  * <p>This class simply delegates to {@link Hedera}.
  */
-public class ServicesMain implements SwirldMain<MerkleNodeState> {
+public class ServicesMain {
     private static final Logger logger = LogManager.getLogger(ServicesMain.class);
 
     /**
@@ -114,106 +109,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * The {@link Metrics} to use.
      */
     private static Metrics metrics;
-
-    public ServicesMain() {
-        // No-op, everything must be initialized in the main() entrypoint
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public SemanticVersion getSemanticVersion() {
-        return hederaOrThrow().getSemanticVersion();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void init(@NonNull final Platform platform, @NonNull final NodeId nodeId) {
-        requireNonNull(platform);
-        requireNonNull(nodeId);
-        hederaOrThrow().init(platform, nodeId);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull MerkleNodeState newStateRoot() {
-        return hederaOrThrow().newStateRoot();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public ConsensusStateEventHandler<MerkleNodeState> newConsensusStateEvenHandler() {
-        return new ConsensusStateEventHandlerImpl(hederaOrThrow());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void run() {
-        hederaOrThrow().run();
-    }
-
-    @Override
-    public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
-        hederaOrThrow().submitStateSignature(transaction);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean hasBufferedSignatureTransactions() {
-        return hederaOrThrow().hasBufferedSignatureTransactions();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
-        return hederaOrThrow().getTransactionsForEvent();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void reportUnhealthyDuration(@NonNull final Duration duration) {
-        hederaOrThrow().reportUnhealthyDuration(duration);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        hederaOrThrow().newPlatformStatus(platformStatus);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull TransactionLimits getTransactionLimits() {
-        return hederaOrThrow().getTransactionLimits();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    public StateLifecycleManager getStateLifecycleManager() {
-        return hederaOrThrow().getStateLifecycleManager();
-    }
 
     /**
      * Launches Services: the approximate startup sequence is:
@@ -320,7 +215,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
-        ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
+        final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler =
+                hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
         final HashedReservedSignedState reservedState = loadInitialState(
@@ -406,7 +302,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                     new ReadableEntityIdStoreImpl(root.getReadableStates(EntityIdService.NAME)));
             final var accountId = requireNonNull(nodeStore.get(nodeId)).accountIdOrThrow();
             return canonicalEventStreamLoc(accountId);
-        } catch (Exception ignore) {
+        } catch (final Exception ignore) {
             // If this node id was not in the state address book, as a final fallback assume
             // we are restarting from round zero state and try to use genesis startup assets,
             // which are not archived until at least one round has been handled

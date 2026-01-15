@@ -6,10 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.mockStatic;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.system.SystemExitUtils;
