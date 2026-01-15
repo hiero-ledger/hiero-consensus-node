@@ -58,47 +58,4 @@ javaModules {
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 
-    @Suppress("UnstableApiUsage")
-    gradle.lifecycle.beforeProject {
-        plugins.withId("org.hiero.gradle.base.jpms-modules") {
-            configure<org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension> {
-                // besu now requires the consensys' fork of the tuweni libraries
-                // (new Coordinates, same Module Names)
-                module("io.consensys.tuweni:tuweni-units", "tuweni.units")
-                module("io.consensys.tuweni:tuweni-bytes", "tuweni.bytes")
-                // new transitive dependency to Automatic-Module
-                module("io.vertx:vertx-core", "io.vertx.core")
-                // due to https://github.com/hyperledger/besu-native/issues/274 merge all
-                // besu-native
-                // Jars required. They are integrated in 'org.hyperledger.besu.nativelib.secp256k1'
-                // as that is the only module we require directly.
-                module(
-                    "org.hyperledger.besu:secp256k1",
-                    "org.hyperledger.besu.nativelib.secp256k1",
-                ) {
-                    exportAllPackages()
-                    requireAllDefinedDependencies()
-                    mergeJar("org.hyperledger.besu:gnark")
-                    mergeJar("org.hyperledger.besu:secp256r1")
-                    mergeJar("org.hyperledger.besu:arithmetic")
-                }
-            }
-            configure<
-                org.gradlex.jvm.dependency.conflict.resolution.JvmDependencyConflictsExtension
-            > {
-                // Because all natives are summarized in the 'secp256k1' Jar,
-                // all other native dependencies need to be removed
-                patch {
-                    module("org.hyperledger.besu.internal:algorithms") {
-                        removeDependency("org.hyperledger.besu:secp256r1")
-                    }
-                    module("org.hyperledger.besu:evm") {
-                        removeDependency("org.hyperledger.besu:arithmetic")
-                        removeDependency("org.hyperledger.besu:gnark")
-                        addRuntimeOnlyDependency("org.hyperledger.besu:secp256k1")
-                    }
-                }
-            }
-        }
-    }
 }
