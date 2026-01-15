@@ -76,6 +76,14 @@ public interface FeeContext {
     int numTxnSignatures();
 
     /**
+     * Returns the size of the transaction in bytes.
+     * This is the length of the serialized signed transaction bytes.
+     * <p>NOTE: this property should not be used for queries</p>
+     * @return the transaction size in bytes
+     */
+    int numTxnBytes();
+
+    /**
      * Dispatches the computation of fees for the given transaction body and synthetic payer ID.
      * @param txBody the transaction body
      * @param syntheticPayerId the synthetic payer ID

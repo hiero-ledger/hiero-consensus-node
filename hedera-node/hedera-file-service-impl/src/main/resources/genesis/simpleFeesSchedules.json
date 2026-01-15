@@ -3,6 +3,9 @@
     "baseFee": 100000,
     "extras": [
       {
+        "name": "BYTES", "includedCount": 1024
+      },
+      {
         "name": "SIGNATURES", "includedCount": 1
       }
     ]

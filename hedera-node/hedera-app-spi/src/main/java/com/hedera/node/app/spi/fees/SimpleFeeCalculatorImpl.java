@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import static org.hiero.hapi.support.fees.Extra.BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.hapi.node.base.Key;
@@ -52,12 +53,21 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      *
      * @param result the fee result to accumulate fees into
      * @param extras the list of extra fee references from the fee schedule
-     * @param signatures the number of signatures
+     * @param signatures the number of signatures (payer signatures for node fee)
+     * @param bytes the transaction size in bytes
      */
     private void addNodeExtras(
-            @NonNull final FeeResult result, @NonNull final Iterable<ExtraFeeReference> extras, final long signatures) {
+            @NonNull final FeeResult result,
+            @NonNull final Iterable<ExtraFeeReference> extras,
+            final long signatures,
+            final long bytes) {
         for (final ExtraFeeReference ref : extras) {
-            final long used = ref.name() == SIGNATURES ? signatures : 0;
+            final long used =
+                    switch (ref.name()) {
+                        case SIGNATURES -> signatures;
+                        case BYTES -> bytes;
+                        default -> 0;
+                    };
             if (used > ref.includedCount()) {
                 final long overage = used - ref.includedCount();
                 final long unitFee = getExtraFee(ref.name());
@@ -68,11 +78,12 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     }
 
     /**
-     * Calculates fees for CryptoDelete transactions per HIP-1261.
-     * CryptoDelete uses only SIGNATURES extra for the service fee.
+     * Calculates fees for transactions per HIP-1261.
+     * Node fee includes BYTES and SIGNATURES extras.
+     * Service fee is transaction-specific.
      *
      * @param txnBody the transaction body
-     * @param feeContext the fee context containing signature count
+     * @param feeContext the fee context containing signature count and transaction bytes
      * @return the calculated fee result
      */
     @NonNull
@@ -80,11 +91,12 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
         // Extract primitive counts (no allocations)
         final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
+        final long bytes = feeContext != null ? feeContext.numTxnBytes() : 0;
         final var result = new FeeResult();
 
-        // Add node base and extras
+        // Add node base and extras (bytes and payer signatures)
         result.addNodeFee(1, feeSchedule.node().baseFee());
-        addNodeExtras(result, feeSchedule.node().extras(), signatures);
+        addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
         result.addNetworkFee(result.node * multiplier);
