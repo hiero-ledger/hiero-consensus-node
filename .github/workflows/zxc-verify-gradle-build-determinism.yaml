@@ -134,7 +134,7 @@ jobs:
       - name: Set OS Matrix
         id: set-matrix
         run: |
-          COMMON_RUNNERS=(
+          ALWAYS_RUN=(
             "ubuntu-24.04"
             "ubuntu-22.04"
             "hiero-network-node-linux-medium"
@@ -145,32 +145,32 @@ jobs:
             "hiero-network-node-linux-debian-12-large"
           )
           
-          PUBLIC_ONLY_RUNNERS=(
+          PUBLIC_ONLY=(
             "windows-2022"
             "windows-2025"
           )
-
+          
           if [[ "${{ github.event.repository.private }}" == "true" ]]; then
-            ALL_RUNNERS=("${COMMON_RUNNERS}")
+            ALL_RUNNERS=("${ALWAYS_RUN[@]}")
+            echo "Using Linux runners only (private repo)"
           else
-            ALL_RUNNERS=("${COMMON_RUNNERS}" "${PUBLIC_ONLY_RUNNERS}")
+            ALL_RUNNERS=("${ALWAYS_RUN[@]}" "${PUBLIC_ONLY[@]}")
+            echo "Using all runners including Windows (public repo)"
           fi
           
-          printf -v joined '"%s",' "${ALL_RUNNERS}"
-          GEN_MATRIX="{\"os\":[${joined%,}]}"
+          printf -v joined '"%s",' "${ALL_RUNNERS[@]}"
+          MATRIX="{\"os\":[${joined%,}]}"
           
-          # Print to console
-          echo "Matrix configuration:"
-          echo "GEN_MATRIX"
-          
-          # Or for pretty-printed JSON (if jq is available)
-          echo "Pretty-printed matrix:"
-          echo "GEN_MATRIX" | jq .
-          
-          # GEN_MATRIX="This is a string test"
+          echo "----------------------------------------"
+          echo "Selected runners (${#ALL_RUNNERS[@]} total):"
+          printf ' - %s\n' "${ALL_RUNNERS[@]}"
+          echo "----------------------------------------"
+          echo "Matrix JSON:"
+          echo "$MATRIX"
+          echo "----------------------------------------"
           
           # Set the output (simplified name)
-          echo "os-matrix=$GEN_MATRIX" >> $GITHUB_OUTPUT
+          echo "os-matrix=$MATRIX" >> $GITHUB_OUTPUT
 
   verify-output:
     name: Verify Matrix Output
