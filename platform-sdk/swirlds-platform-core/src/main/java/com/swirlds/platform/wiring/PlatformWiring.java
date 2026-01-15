@@ -21,7 +21,6 @@ import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
-import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
@@ -86,12 +85,6 @@ public class PlatformWiring {
         components
                 .eventIntakeModule()
                 .validatedEventsOutputWire()
-                .solderTo(components
-                        .eventSignatureValidatorWiring()
-                        .getInputWire(EventSignatureValidator::validateSignature));
-        components
-                .eventSignatureValidatorWiring()
-                .getOutputWire()
                 .solderTo(components.orphanBufferWiring().getInputWire(OrphanBuffer::handleEvent, "unordered events"));
         final OutputWire<PlatformEvent> splitOrphanBufferOutput =
                 components.orphanBufferWiring().getSplitOutput();
@@ -410,12 +403,6 @@ public class PlatformWiring {
     public static void wireMetrics(
             @NonNull final PlatformComponents components, @Nullable final EventPipelineTracker pipelineTracker) {
         if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("verification");
-            components
-                    .eventSignatureValidatorWiring()
-                    .getOutputWire()
-                    .solderForMonitoring(platformEvent ->
-                            pipelineTracker.recordEvent("verification", platformEvent.getTimeReceived()));
             pipelineTracker.registerMetric("orphanBuffer");
             components
                     .orphanBufferWiring()
@@ -452,9 +439,6 @@ public class PlatformWiring {
                 components.eventWindowManagerWiring().getOutputWire();
 
         eventWindowOutputWire.solderTo(components.eventIntakeModule().eventWindowInputWire(), INJECT);
-        eventWindowOutputWire.solderTo(
-                components.eventSignatureValidatorWiring().getInputWire(EventSignatureValidator::setEventWindow),
-                INJECT);
         eventWindowOutputWire.solderTo(
                 components.orphanBufferWiring().getInputWire(OrphanBuffer::setEventWindow, "event window"), INJECT);
         eventWindowOutputWire.solderTo(components.gossipWiring().getEventWindowInput(), INJECT);
@@ -503,7 +487,6 @@ public class PlatformWiring {
         components.consensusEngineWiring().getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
         components.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
         components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
-        components.eventSignatureValidatorWiring().getInputWire(EventSignatureValidator::updateRosterHistory);
         components.eventWindowManagerWiring().getInputWire(EventWindowManager::updateEventWindow);
         components.orphanBufferWiring().getInputWire(OrphanBuffer::clear);
         components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::registerDiscontinuity);
