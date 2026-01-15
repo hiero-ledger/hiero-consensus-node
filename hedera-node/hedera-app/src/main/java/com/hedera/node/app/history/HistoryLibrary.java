@@ -36,7 +36,10 @@ public interface HistoryLibrary {
      * @param publicKeys the public keys of the nodes in the address book
      * @param nodeIds the node ids
      */
-    record AddressBook(@NonNull long[] weights, @NonNull byte[][] publicKeys, @NonNull long[] nodeIds) {
+    record AddressBook(
+            @NonNull long[] weights,
+            @NonNull byte[][] publicKeys,
+            @NonNull long[] nodeIds) {
         public AddressBook {
             requireNonNull(weights);
             requireNonNull(publicKeys);
