@@ -89,10 +89,15 @@ public final class LongCounter extends SettableMetric<LongSupplier, LongCounter.
          * Sets the default initial value for the counter measurements created by this metric.
          *
          * @param defaultInitValue the initial value
+         * @throws IllegalArgumentException if the given value is negative
          * @return this builder
          */
         @NonNull
         public Builder setDefaultInitValue(long defaultInitValue) {
+            if (defaultInitValue < 0L) {
+                throw new IllegalArgumentException(
+                        "Default initial value for counter must be non-negative, but was: " + defaultInitValue);
+            }
             return setDefaultInitializer(MetricUtils.asSupplier(defaultInitValue));
         }
 

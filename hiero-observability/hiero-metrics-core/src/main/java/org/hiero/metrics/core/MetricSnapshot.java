@@ -78,4 +78,16 @@ public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSna
     public Iterator<MeasurementSnapshot> iterator() {
         return measurementSnapshots.iterator();
     }
+
+    @Override
+    public String toString() {
+        return "MetricSnapshot{" + "name='"
+                + name() + '\'' + ", type="
+                + type() + ", unit='"
+                + unit() + '\'' + ", description='"
+                + description() + '\'' + ", staticLabels="
+                + staticLabels() + ", dynamicLabelNames="
+                + dynamicLabelNames() + ", measurementSnapshots="
+                + measurementSnapshots + '}';
+    }
 }

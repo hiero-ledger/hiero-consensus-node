@@ -65,6 +65,12 @@ public final class MetricRegistry implements Closeable {
                     this.globalLabels);
         }
     }
+    /**
+     * @return {@code true} if this registry has an associated {@link MetricsExporter}, {@code false} otherwise
+     */
+    public boolean hasMetricsExporter() {
+        return exporter != null;
+    }
 
     /**
      * @return a new {@link Builder} for constructing {@link MetricRegistry} instance.

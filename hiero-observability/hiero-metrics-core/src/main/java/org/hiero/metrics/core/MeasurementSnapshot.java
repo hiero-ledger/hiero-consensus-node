@@ -26,9 +26,23 @@ public abstract class MeasurementSnapshot {
     }
 
     /**
+     * Returns the number of dynamic label values in this measurement snapshot.
+     *
+     * @return the number of dynamic label values
+     */
+    public final int getLabelValuesCount() {
+        return dynamicLabelValues.size();
+    }
+
+    /**
      * Update the snapshot with the latest measurement value.
      * <p>
      * This method is package private, because it is called by the metric system internally each time collecting metrics snapshots.
      */
     abstract void update();
+
+    @Override
+    public String toString() {
+        return "labelValues=" + dynamicLabelValues;
+    }
 }

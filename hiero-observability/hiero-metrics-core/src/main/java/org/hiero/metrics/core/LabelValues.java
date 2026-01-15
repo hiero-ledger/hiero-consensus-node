@@ -18,7 +18,7 @@ public final class LabelValues {
     /**
      * Create label values instance with where values are provided together with label names as single array of pairs.
      */
-    public LabelValues(String... namesAndValues) {
+    LabelValues(String... namesAndValues) {
         this.namesAndValues = namesAndValues;
     }
 
@@ -76,7 +76,7 @@ public final class LabelValues {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder(size() * 16);
-        sb.append("LabelsValues[");
+        sb.append('[');
         for (int i = 0; i < size(); i++) {
             if (i > 0) {
                 sb.append(',');

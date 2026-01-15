@@ -317,7 +317,7 @@ public abstract class Metric implements MetricInfo {
          */
         @NonNull
         public final B addStaticLabels(@NonNull Label... labels) {
-            Objects.requireNonNull(labels, "label must not be null");
+            Objects.requireNonNull(labels, "labels must not be null");
 
             for (Label label : labels) {
                 validateLabelNameNoEqualMetricName(label.name());

@@ -166,11 +166,11 @@ public final class LongAccumulatorGauge extends SettableMetric<LongSupplier, Lon
         }
 
         long get() {
-            return accumulator.getThenReset();
+            return accumulator.get();
         }
 
         long getAndReset() {
-            return accumulator.get();
+            return accumulator.getThenReset();
         }
 
         void reset() {

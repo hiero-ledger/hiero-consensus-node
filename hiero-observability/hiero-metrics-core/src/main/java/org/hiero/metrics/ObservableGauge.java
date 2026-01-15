@@ -16,15 +16,15 @@ import org.hiero.metrics.core.MeasurementSnapshot;
 import org.hiero.metrics.core.Metric;
 import org.hiero.metrics.core.MetricKey;
 import org.hiero.metrics.core.MetricType;
-import org.hiero.metrics.core.NumberSupplier;
 
 /**
  * A metric of type {@link MetricType#GAUGE}, which doesn't hold measurements providing methods to update the values,
  * but instead holds observable value suppliers per unique combination of dynamic labels.
  * <p>
  * Value suppliers are provided per dynamic label values during metric construction using
- * {@link Builder#observe(NumberSupplier, String...)}, or could be added later after metric creation
- * using {@link #observeValue(NumberSupplier, String...)}.
+ * {@link Builder#observe(LongSupplier, String...)}, {@link Builder#observe(DoubleSupplier, String...)}
+ * or could be added later after metric creation using {@link #observe(LongSupplier, String...)}
+ * or {@link #observe(DoubleSupplier, String...)}.
  */
 public final class ObservableGauge extends Metric {
 
@@ -35,7 +35,7 @@ public final class ObservableGauge extends Metric {
 
         final int size = builder.valuesSuppliers.size();
         for (int i = 0; i < size; i++) {
-            observeValue(builder.valuesSuppliers.get(i), builder.labelNamesAndValues.get(i));
+            observeInternal(builder.valuesSuppliers.get(i), builder.labelNamesAndValues.get(i));
         }
     }
 
@@ -75,8 +75,19 @@ public final class ObservableGauge extends Metric {
     }
 
     @NonNull
-    public ObservableGauge observeValue(@NonNull NumberSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
-        Objects.requireNonNull(valueSupplier, "Value supplier must not be null");
+    public ObservableGauge observe(@NonNull LongSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
+        observeInternal(valueSupplier, labelNamesAndValues);
+        return this;
+    }
+
+    @NonNull
+    public ObservableGauge observe(@NonNull DoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
+        observeInternal(valueSupplier, labelNamesAndValues);
+        return this;
+    }
+
+    private void observeInternal(@NonNull Object valueSupplier, @NonNull String... labelNamesAndValues) {
+        Objects.requireNonNull(valueSupplier, "value supplier must not be null");
 
         LabelValues labelValues = createLabelValues(labelNamesAndValues);
         if (!labelValuesSet.add(labelValues)) {
@@ -85,7 +96,6 @@ public final class ObservableGauge extends Metric {
         }
 
         addMeasurementSnapshot(createSnapshot(valueSupplier, labelValues));
-        return this;
     }
 
     @Override
@@ -93,11 +103,14 @@ public final class ObservableGauge extends Metric {
         // No-op for observable gauge
     }
 
-    private MeasurementSnapshot createSnapshot(NumberSupplier measurement, LabelValues dynamicLabelValues) {
-        if (measurement.isFloatingSupplier()) {
-            return new DoubleMeasurementSnapshot(dynamicLabelValues, measurement.getDoubleSupplier());
+    private MeasurementSnapshot createSnapshot(Object valuesSupplier, LabelValues dynamicLabelValues) {
+        if (valuesSupplier instanceof LongSupplier castedSupplier) {
+            return new LongMeasurementSnapshot(dynamicLabelValues, castedSupplier);
+        } else if (valuesSupplier instanceof DoubleSupplier castedSupplier) {
+            return new DoubleMeasurementSnapshot(dynamicLabelValues, castedSupplier);
         } else {
-            return new LongMeasurementSnapshot(dynamicLabelValues, measurement.getLongSupplier());
+            throw new IllegalArgumentException("Unsupported value supplier type: "
+                    + valuesSupplier.getClass().getName());
         }
     }
 
@@ -107,7 +120,7 @@ public final class ObservableGauge extends Metric {
     public static final class Builder extends Metric.Builder<Builder, ObservableGauge> {
 
         private final List<String[]> labelNamesAndValues = new ArrayList<>();
-        private final List<NumberSupplier> valuesSuppliers = new ArrayList<>();
+        private final List<Object> valuesSuppliers = new ArrayList<>();
 
         private Builder(MetricKey<ObservableGauge> key) {
             super(MetricType.GAUGE, key);
@@ -121,7 +134,7 @@ public final class ObservableGauge extends Metric {
          * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
          * <p>
          * All requirements for labels above are validated during metric construction
-         * (when {@link ObservableGauge#observeValue(NumberSupplier, String...)} is called),
+         * (when {@link ObservableGauge#observe(LongSupplier, String...)} is called),
          * due to builder usage pattern, when dynamic labels can be registered after observed values.
          *
          * @param valueSupplier the supplier to get the {@code long} value
@@ -130,7 +143,8 @@ public final class ObservableGauge extends Metric {
          */
         @NonNull
         public Builder observe(@NonNull LongSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
-            return observe(new NumberSupplier(valueSupplier), labelNamesAndValues);
+            observeInternal(valueSupplier, labelNamesAndValues);
+            return this;
         }
 
         /**
@@ -141,7 +155,7 @@ public final class ObservableGauge extends Metric {
          * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
          * <p>
          * All requirements for labels above are validated during metric construction
-         * (when {@link ObservableGauge#observeValue(NumberSupplier, String...)} is called),
+         * (when {@link ObservableGauge#observe(DoubleSupplier, String...)} is called),
          * due to builder usage pattern, when dynamic labels can be registered after observed values.
          *
          * @param valueSupplier the supplier to get the {@code double} value
@@ -150,15 +164,17 @@ public final class ObservableGauge extends Metric {
          */
         @NonNull
         public Builder observe(@NonNull DoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
-            return observe(new NumberSupplier(valueSupplier), labelNamesAndValues);
+            observeInternal(valueSupplier, labelNamesAndValues);
+            return this;
         }
 
-        @NonNull
-        private Builder observe(@NonNull NumberSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
-            // labels will be validated during metric construction
+        private void observeInternal(@NonNull Object valueSupplier, @NonNull String... labelNamesAndValues) {
+            Objects.requireNonNull(valueSupplier, "value supplier must not be null");
+            Objects.requireNonNull(labelNamesAndValues, "Label names and values must not be null");
+
+            // dynamic labels names validation will happen during metric construction due to builder usage pattern
             valuesSuppliers.add(valueSupplier);
             this.labelNamesAndValues.add(labelNamesAndValues);
-            return this;
         }
 
         /**

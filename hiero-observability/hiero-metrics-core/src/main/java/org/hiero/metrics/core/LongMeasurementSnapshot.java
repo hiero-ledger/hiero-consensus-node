@@ -15,6 +15,7 @@ public final class LongMeasurementSnapshot extends MeasurementSnapshot {
     public LongMeasurementSnapshot(@NonNull LabelValues dynamicLabelValues, LongSupplier valueSupplier) {
         super(dynamicLabelValues);
         this.valueSupplier = valueSupplier;
+        update();
     }
 
     /**
@@ -27,5 +28,10 @@ public final class LongMeasurementSnapshot extends MeasurementSnapshot {
     @Override
     void update() {
         value = valueSupplier.getAsLong();
+    }
+
+    @Override
+    public String toString() {
+        return "{" + super.toString() + ", value=" + value + "}";
     }
 }

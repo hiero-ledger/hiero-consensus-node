@@ -15,6 +15,7 @@ public final class DoubleMeasurementSnapshot extends MeasurementSnapshot {
     public DoubleMeasurementSnapshot(@NonNull LabelValues dynamicLabelValues, DoubleSupplier valueSupplier) {
         super(dynamicLabelValues);
         this.valueSupplier = valueSupplier;
+        update();
     }
 
     /**
@@ -27,5 +28,10 @@ public final class DoubleMeasurementSnapshot extends MeasurementSnapshot {
     @Override
     void update() {
         value = valueSupplier.getAsDouble();
+    }
+
+    @Override
+    public String toString() {
+        return "{" + super.toString() + ", value=" + value + "}";
     }
 }

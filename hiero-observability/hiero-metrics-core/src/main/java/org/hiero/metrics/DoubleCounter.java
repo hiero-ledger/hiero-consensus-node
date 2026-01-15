@@ -92,10 +92,15 @@ public final class DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCo
          * Set the initial value for the gauge and any measurement within this metric.
          *
          * @param defaultInitValue the initial value for any measurement within this metric
+         * @throws IllegalArgumentException if the given value is negative
          * @return this builder
          */
         @NonNull
         public Builder setDefaultInitValue(double defaultInitValue) {
+            if (defaultInitValue < ZERO) {
+                throw new IllegalArgumentException(
+                        "Default initial value for counter must be non-negative, but was: " + defaultInitValue);
+            }
             return setDefaultInitializer(MetricUtils.asSupplier(defaultInitValue));
         }
 
