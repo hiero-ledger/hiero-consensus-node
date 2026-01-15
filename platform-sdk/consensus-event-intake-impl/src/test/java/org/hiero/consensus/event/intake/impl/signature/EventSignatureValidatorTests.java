@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.validation;
+package org.hiero.consensus.event.intake.impl.signature;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -14,9 +14,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.metrics.api.Metrics;
 import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
@@ -260,9 +258,6 @@ class EventSignatureValidatorTests {
     @Test
     @DisplayName("Ancient events are discarded")
     void ancientEvent() {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-
         final EventSignatureValidator validator =
                 new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
 
