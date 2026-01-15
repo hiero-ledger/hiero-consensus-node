@@ -137,8 +137,8 @@ class MerkleDbDataSourceTest {
                 final int rank = com.swirlds.virtualmap.internal.Path.getRank(i);
                 if (isLeaf || (rank % hashChunkHeight == 0)) {
                     final var hash = VirtualMapTestUtils.loadHash(dataSource, i, hashChunkHeight);
-                    assertEquals(hash(i), hash,
-                            "The hash for [" + i + "] should not have changed since it was created");
+                    assertEquals(
+                            hash(i), hash, "The hash for [" + i + "] should not have changed since it was created");
                 }
             }
 
@@ -166,21 +166,12 @@ class MerkleDbDataSourceTest {
         // 0 initial capacity
         assertThrows(IllegalStateException.class, () -> TestType.variable_variable
                 .dataType()
-                .createDataSource(
-                        Path.of("badInitialCapacityZero" + nextInt()),
-                        "badInitialZero",
-                        0,
-                        false,
-                        false));
+                .createDataSource(Path.of("badInitialCapacityZero" + nextInt()), "badInitialZero", 0, false, false));
         // negative initial capacity
         assertThrows(IllegalStateException.class, () -> TestType.variable_variable
                 .dataType()
                 .createDataSource(
-                        Path.of("badInitialCapacityNegative" + nextInt()),
-                        "badInitialNeg",
-                        -1,
-                        false,
-                        false));
+                        Path.of("badInitialCapacityNegative" + nextInt()), "badInitialNeg", -1, false, false));
     }
 
     @ParameterizedTest
@@ -208,8 +199,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     testSize,
                     testSize * 2,
-                    createHashChunkStream(
-                            testSize / 10 + 1, testSize * 2, i -> i * 10, chunkHeight),
+                    createHashChunkStream(testSize / 10 + 1, testSize * 2, i -> i * 10, chunkHeight),
                     Stream.empty(),
                     Stream.empty(),
                     false);
@@ -274,8 +264,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     firstLeafPath,
                     lastLeafPath,
-                    createHashChunkStream(
-                            firstLeafPath, lastLeafPath, i -> i, dataSource.getHashChunkHeight()),
+                    createHashChunkStream(firstLeafPath, lastLeafPath, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(firstLeafPath, lastLeafPath + 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty(),
@@ -283,7 +272,8 @@ class MerkleDbDataSourceTest {
             // check all the leaf data
             IntStream.range(firstLeafPath, lastLeafPath + 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // update all to i+10,000 in a random order
-            final int[] randomInts = shuffle(RANDOM, IntStream.range(firstLeafPath, lastLeafPath + 1).toArray());
+            final int[] randomInts = shuffle(
+                    RANDOM, IntStream.range(firstLeafPath, lastLeafPath + 1).toArray());
             dataSource.saveRecords(
                     firstLeafPath,
                     lastLeafPath,

@@ -173,9 +173,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         assertEquals(expected, rootHash, "Hash value does not match expected");
 
         // Make sure the saver saw each dirty node exactly once.
-        final Set<Long> savedChunks = listener.unsortedChunks().stream()
-                .map(VirtualHashChunk::path)
-                .collect(Collectors.toSet());
+        final Set<Long> savedChunks =
+                listener.unsortedChunks().stream().map(VirtualHashChunk::path).collect(Collectors.toSet());
         final Set<VirtualHashChunk> seenChunks = new HashSet<>();
         for (final Long dirtyPath : dirtyPaths) {
             final long chunkPath = VirtualHashChunk.pathToChunkPath(dirtyPath, CHUNK_HEIGHT);

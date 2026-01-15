@@ -33,10 +33,8 @@ public class VirtualHashChunkTest {
             // Check chunk path / chunk height
             assertDoesNotThrow(() -> new VirtualHashChunk(0, height, hashData));
             assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(1, height, hashData));
-            assertDoesNotThrow(
-                    () -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height), height, hashData));
-            assertDoesNotThrow(
-                    () -> new VirtualHashChunk(Path.getRightGrandChildPath(0, height), height, hashData));
+            assertDoesNotThrow(() -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height), height, hashData));
+            assertDoesNotThrow(() -> new VirtualHashChunk(Path.getRightGrandChildPath(0, height), height, hashData));
             assertThrows(
                     IllegalArgumentException.class,
                     () -> new VirtualHashChunk(Path.getLeftGrandChildPath(0, height + 1), height, hashData));
@@ -55,10 +53,8 @@ public class VirtualHashChunkTest {
             final byte[] hashDataMinusOne = new byte[hashLen * chunkSize - 1];
             final byte[] hashDataPlusOne = new byte[hashLen * chunkSize + 1];
             assertDoesNotThrow(() -> new VirtualHashChunk(0, height, hashData));
-            assertThrows(IllegalArgumentException.class,
-                    () -> new VirtualHashChunk(0, height, hashDataMinusOne));
-            assertThrows(IllegalArgumentException.class,
-                    () -> new VirtualHashChunk(0, height, hashDataPlusOne));
+            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, hashDataMinusOne));
+            assertThrows(IllegalArgumentException.class, () -> new VirtualHashChunk(0, height, hashDataPlusOne));
         }
     }
 
@@ -175,9 +171,7 @@ public class VirtualHashChunkTest {
     void getPathIndexInChunkTest2() {
         // Chunk at path 0
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(0, 0, 2));
-//        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(1, 0, 2));
         assertEquals(0, VirtualHashChunk.getPathIndexInChunk(1, 0, 2));
-//        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(2, 0, 2));
         assertEquals(2, VirtualHashChunk.getPathIndexInChunk(2, 0, 2));
         assertEquals(0, VirtualHashChunk.getPathIndexInChunk(3, 0, 2));
         assertEquals(1, VirtualHashChunk.getPathIndexInChunk(4, 0, 2));
@@ -189,9 +183,7 @@ public class VirtualHashChunkTest {
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(2, 3, 2));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(3, 3, 2));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(4, 3, 2));
-//        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(7, 3, 2));
         assertEquals(0, VirtualHashChunk.getPathIndexInChunk(7, 3, 2));
-//        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(8, 3, 2));
         assertEquals(2, VirtualHashChunk.getPathIndexInChunk(8, 3, 2));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(9, 3, 2));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(14, 3, 2));
@@ -209,9 +201,7 @@ public class VirtualHashChunkTest {
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(17, 17, 2));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(18, 17, 2));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(34, 17, 2));
-//        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(35, 17, 2));
         assertEquals(0, VirtualHashChunk.getPathIndexInChunk(35, 17, 2));
-//        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(36, 17, 2));
         assertEquals(2, VirtualHashChunk.getPathIndexInChunk(36, 17, 2));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(37, 17, 2));
         assertEquals(0, VirtualHashChunk.getPathIndexInChunk(71, 17, 2));
@@ -231,16 +221,12 @@ public class VirtualHashChunkTest {
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(12, 12, 3));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(13, 12, 3));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(24, 12, 3));
-//        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(25, 12, 3));
         assertEquals(0, VirtualHashChunk.getPathIndexInChunk(25, 12, 3));
         assertEquals(4, VirtualHashChunk.getPathIndexInChunk(26, 12, 3));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(27, 12, 3));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(50, 12, 3));
-//        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(51, 12, 3));
         assertEquals(0, VirtualHashChunk.getPathIndexInChunk(51, 12, 3));
-//        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(52, 12, 3));
         assertEquals(2, VirtualHashChunk.getPathIndexInChunk(52, 12, 3));
-//        assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(54, 12, 3));
         assertEquals(6, VirtualHashChunk.getPathIndexInChunk(54, 12, 3));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(55, 12, 3));
         assertThrows(IllegalArgumentException.class, () -> VirtualHashChunk.getPathIndexInChunk(102, 12, 3));
@@ -382,10 +368,14 @@ public class VirtualHashChunkTest {
     @Test
     void calcHashTest36() {
         final VirtualHashChunk chunk = new VirtualHashChunk(0, 2);
-        final Hash hash3 = new Hash("345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8));
-        final Hash hash4 = new Hash("456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8));
-        final Hash hash5 = new Hash("567890123456789012345678901234567890123456789012".getBytes(StandardCharsets.UTF_8));
-        final Hash hash6 = new Hash("678901234567890123456789012345678901234567890123".getBytes(StandardCharsets.UTF_8));
+        final Hash hash3 =
+                new Hash("345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8));
+        final Hash hash4 =
+                new Hash("456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8));
+        final Hash hash5 =
+                new Hash("567890123456789012345678901234567890123456789012".getBytes(StandardCharsets.UTF_8));
+        final Hash hash6 =
+                new Hash("678901234567890123456789012345678901234567890123".getBytes(StandardCharsets.UTF_8));
         chunk.setHashAtPath(3, hash3);
         chunk.setHashAtPath(4, hash4);
         chunk.setHashAtPath(5, hash5);
@@ -407,9 +397,12 @@ public class VirtualHashChunkTest {
     @Test
     void calcHashTest24() {
         final VirtualHashChunk chunk = new VirtualHashChunk(0, 2);
-        final Hash hash2 = new Hash("234567890123456789012345678901234567890123456789".getBytes(StandardCharsets.UTF_8));
-        final Hash hash3 = new Hash("345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8));
-        final Hash hash4 = new Hash("456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8));
+        final Hash hash2 =
+                new Hash("234567890123456789012345678901234567890123456789".getBytes(StandardCharsets.UTF_8));
+        final Hash hash3 =
+                new Hash("345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8));
+        final Hash hash4 =
+                new Hash("456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8));
         chunk.setHashAtPath(2, hash2);
         chunk.setHashAtPath(3, hash3);
         chunk.setHashAtPath(4, hash4);
@@ -427,7 +420,8 @@ public class VirtualHashChunkTest {
     @Test
     void calcHashTest11() {
         final VirtualHashChunk chunk = new VirtualHashChunk(0, 1);
-        final Hash hash1 = new Hash("123456789012345678901234567890123456789012345678".getBytes(StandardCharsets.UTF_8));
+        final Hash hash1 =
+                new Hash("123456789012345678901234567890123456789012345678".getBytes(StandardCharsets.UTF_8));
         chunk.setHashAtPath(1, hash1);
         assertEquals(hash1, chunk.calcHash(1, 1, 1));
         final Hash hash2 = new Hash();

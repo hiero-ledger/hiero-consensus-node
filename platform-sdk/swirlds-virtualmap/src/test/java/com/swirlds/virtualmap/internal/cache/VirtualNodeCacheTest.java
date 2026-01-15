@@ -2374,8 +2374,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and none are deleted")
     void dirtyLeaves_allInSameVersionNoneDeleted() {
-        final VirtualNodeCache cache = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2396,8 +2396,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and some are deleted")
     void dirtyLeaves_allInSameVersionSomeDeleted() {
-        final VirtualNodeCache cache = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2420,8 +2420,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and all are deleted")
     void dirtyLeaves_allInSameVersionAllDeleted() {
-        final VirtualNodeCache cache = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2460,8 +2460,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and some paths have hosted multiple leaves")
     void dirtyLeaves_allInSameVersionSomeDeletedPathConflict() {
-        final VirtualNodeCache cache = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2494,8 +2494,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("dirtyLeaves where mutations are across versions and none are deleted")
     void dirtyLeaves_differentVersionsNoneDeleted() {
         // NOTE: In all these tests I don't bother with clearLeafPath since I'm not getting leave paths
-        final VirtualNodeCache cache0 = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache0 =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.putLeaf(appleLeaf(1));
 
         final VirtualNodeCache cache1 = cache0.copy();
@@ -2525,8 +2525,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where mutations are across versions and some are deleted")
     void dirtyLeaves_differentVersionsSomeDeleted() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache0 =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.putLeaf(appleLeaf(1));
 
         final VirtualNodeCache cache1 = cache0.copy();
@@ -2564,8 +2564,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where mutations are across versions and all are deleted")
     void dirtyLeaves_differentVersionsAllDeleted() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache0 =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.putLeaf(appleLeaf(1));
         cache0.putLeaf(bananaLeaf(2));
         cache0.putLeaf(appleLeaf(3));
@@ -2602,8 +2602,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Test
     @DisplayName("dirtyHashes where all mutations are in the same version")
     void dirtyHashes_allInSameVersion() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache0 =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.copy();
         cache0.prepareForHashing();
 
@@ -2641,8 +2641,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Test
     @DisplayName("dirtyHashes where mutations are across versions")
     void dirtyHashes_differentVersions() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache0 =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         final VirtualNodeCache cache1 = cache0.copy();
 
         cache0.prepareForHashing();
@@ -2693,8 +2693,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyInternals")})
     @DisplayName("dirtyInternals where mutations are across versions and all are deleted")
     void dirtyInternals_differentVersionsAllDeleted() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache0 =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         final VirtualNodeCache cache1 = cache0.copy();
 
         cache0.prepareForHashing();
@@ -2736,8 +2736,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves for hashing and flushes do not affect each other")
     void dirtyLeaves_flushesAndHashing() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache0 =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.putLeaf(appleLeaf(1));
         cache0.putLeaf(bananaLeaf(2));
 
@@ -2769,8 +2769,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Test
     @DisplayName("Check merged node cache memory overhead")
     void mergedCachesMemoryOverhead() {
-        final VirtualNodeCache cache0 = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
+        final VirtualNodeCache cache0 =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), chunkLoader);
         cache0.putLeaf(appleLeaf(1));
         final long cache0EstimatedSize = cache0.getEstimatedSize();
 
