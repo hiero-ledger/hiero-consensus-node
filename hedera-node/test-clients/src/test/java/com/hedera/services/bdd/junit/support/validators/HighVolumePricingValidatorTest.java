@@ -50,11 +50,11 @@ class HighVolumePricingValidatorTest {
                       "name": "CryptoCreate",
                       "baseFee": 499000000,
                       "highVolumeRates": {
-                        "maxMultiplier": 199000000,
+                        "maxMultiplier": 200000,
                         "pricingCurve": {
                           "piecewiseLinear": {
                             "points": [
-                              { "utilizationPercentage": 20, "multiplier": 9999999 }
+                              { "utilizationBasisPoints": 2, "multiplier": 9999999 }
                             ]
                           }
                         }

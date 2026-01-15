@@ -47,23 +47,23 @@
             { "name": "HOOK_UPDATES", "includedCount": 0 }
           ],
           "highVolumeRates": {
-            "maxMultiplier": 199000000,
+            "maxMultiplier": 200000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 20, "multiplier": 3000000 },
-                  { "utilizationPercentage": 30, "multiplier": 7000000 },
-                  { "utilizationPercentage": 50, "multiplier": 9000000 },
-                  { "utilizationPercentage": 70, "multiplier": 14000000 },
-                  { "utilizationPercentage": 100, "multiplier": 19000000 },
-                  { "utilizationPercentage": 150, "multiplier": 29000000 },
-                  { "utilizationPercentage": 200, "multiplier": 39000000 },
-                  { "utilizationPercentage": 500, "multiplier": 59000000 },
-                  { "utilizationPercentage": 1000, "multiplier": 79000000 },
-                  { "utilizationPercentage": 2000, "multiplier": 99000000 },
-                  { "utilizationPercentage": 5000, "multiplier": 149000000 },
-                  { "utilizationPercentage": 10000, "multiplier": 199000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 199000000 }
+                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
                 ]
               }
             }
@@ -103,11 +103,11 @@
             { "name": "ALLOWANCES", "includedCount": 1 }
           ],
           "highVolumeRates": {
-            "maxMultiplier": 3000000,
+            "maxMultiplier": 4000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 100000, "multiplier": 3000000 }
+                  { "utilizationBasisPoints": 10000, "multiplier": 4000 }
                 ]
               }
             }
@@ -133,23 +133,23 @@
             { "name": "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE", "includedCount": 0 }
           ],
           "highVolumeRates": {
-            "maxMultiplier": 199000000,
+            "maxMultiplier": 200000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 20, "multiplier": 3000000 },
-                  { "utilizationPercentage": 30, "multiplier": 7000000 },
-                  { "utilizationPercentage": 50, "multiplier": 9000000 },
-                  { "utilizationPercentage": 70, "multiplier": 14000000 },
-                  { "utilizationPercentage": 100, "multiplier": 19000000 },
-                  { "utilizationPercentage": 150, "multiplier": 29000000 },
-                  { "utilizationPercentage": 200, "multiplier": 39000000 },
-                  { "utilizationPercentage": 500, "multiplier": 59000000 },
-                  { "utilizationPercentage": 1000, "multiplier": 79000000 },
-                  { "utilizationPercentage": 2000, "multiplier": 99000000 },
-                  { "utilizationPercentage": 5000, "multiplier": 149000000 },
-                  { "utilizationPercentage": 10000, "multiplier": 199000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 199000000 }
+                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
                 ]
               }
             }
@@ -204,23 +204,23 @@
             { "name": "BYTES", "includedCount": 1000}
           ],
           "highVolumeRates": {
-            "maxMultiplier": 199000000,
+            "maxMultiplier": 200000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 20, "multiplier": 3000000 },
-                  { "utilizationPercentage": 30, "multiplier": 7000000 },
-                  { "utilizationPercentage": 50, "multiplier": 9000000 },
-                  { "utilizationPercentage": 70, "multiplier": 14000000 },
-                  { "utilizationPercentage": 100, "multiplier": 19000000 },
-                  { "utilizationPercentage": 150, "multiplier": 29000000 },
-                  { "utilizationPercentage": 200, "multiplier": 39000000 },
-                  { "utilizationPercentage": 500, "multiplier": 59000000 },
-                  { "utilizationPercentage": 1000, "multiplier": 79000000 },
-                  { "utilizationPercentage": 2000, "multiplier": 99000000 },
-                  { "utilizationPercentage": 5000, "multiplier": 149000000 },
-                  { "utilizationPercentage": 10000, "multiplier": 199000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 199000000 }
+                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
                 ]
               }
             }
@@ -241,23 +241,23 @@
             { "name": "BYTES", "includedCount": 1000}
           ],
           "highVolumeRates": {
-            "maxMultiplier": 199000000,
+            "maxMultiplier": 200000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 20, "multiplier": 3000000 },
-                  { "utilizationPercentage": 30, "multiplier": 7000000 },
-                  { "utilizationPercentage": 50, "multiplier": 9000000 },
-                  { "utilizationPercentage": 70, "multiplier": 14000000 },
-                  { "utilizationPercentage": 100, "multiplier": 19000000 },
-                  { "utilizationPercentage": 150, "multiplier": 29000000 },
-                  { "utilizationPercentage": 200, "multiplier": 39000000 },
-                  { "utilizationPercentage": 500, "multiplier": 59000000 },
-                  { "utilizationPercentage": 1000, "multiplier": 79000000 },
-                  { "utilizationPercentage": 2000, "multiplier": 99000000 },
-                  { "utilizationPercentage": 5000, "multiplier": 149000000 },
-                  { "utilizationPercentage": 10000, "multiplier": 199000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 199000000 }
+                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
                 ]
               }
             }
@@ -293,20 +293,20 @@
             {"name": "TOKEN_CREATE_WITH_CUSTOM_FEE", "includedCount": 0 }
           ],
           "highVolumeRates": {
-            "maxMultiplier": 99000000,
+            "maxMultiplier": 100000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 1000, "multiplier": 3000000 },
-                  { "utilizationPercentage": 1500, "multiplier": 7000000 },
-                  { "utilizationPercentage": 2500, "multiplier": 9000000 },
-                  { "utilizationPercentage": 3500, "multiplier": 14000000 },
-                  { "utilizationPercentage": 5000, "multiplier": 19000000 },
-                  { "utilizationPercentage": 7500, "multiplier": 29000000 },
-                  { "utilizationPercentage": 10000, "multiplier": 39000000 },
-                  { "utilizationPercentage": 25000, "multiplier": 59000000 },
-                  { "utilizationPercentage": 50000, "multiplier": 79000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 99000000 }
+                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
                 ]
               }
             }
@@ -319,21 +319,21 @@
             {"name": "TOKEN_MINT_NFT", "includedCount": 0 }
           ],
           "highVolumeRates": {
-            "maxMultiplier": 149000000,
+            "maxMultiplier": 150000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 400, "multiplier": 3000000 },
-                  { "utilizationPercentage": 600, "multiplier": 7000000 },
-                  { "utilizationPercentage": 1000, "multiplier": 9000000 },
-                  { "utilizationPercentage": 1400, "multiplier": 14000000 },
-                  { "utilizationPercentage": 2000, "multiplier": 19000000 },
-                  { "utilizationPercentage": 3000, "multiplier": 29000000 },
-                  { "utilizationPercentage": 4000, "multiplier": 39000000 },
-                  { "utilizationPercentage": 10000, "multiplier": 59000000 },
-                  { "utilizationPercentage": 20000, "multiplier": 79000000 },
-                  { "utilizationPercentage": 40000, "multiplier": 99000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 149000000 }
+                  { "utilizationBasisPoints": 40, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 60, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 140, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 300, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 400, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 2000, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 4000, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 150000 }
                 ]
               }
             }
@@ -382,20 +382,20 @@
           "baseFee": 500000000,
           "extras": [],
           "highVolumeRates": {
-            "maxMultiplier": 99000000,
+            "maxMultiplier": 100000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 1000, "multiplier": 3000000 },
-                  { "utilizationPercentage": 1500, "multiplier": 7000000 },
-                  { "utilizationPercentage": 2500, "multiplier": 9000000 },
-                  { "utilizationPercentage": 3500, "multiplier": 14000000 },
-                  { "utilizationPercentage": 5000, "multiplier": 19000000 },
-                  { "utilizationPercentage": 7500, "multiplier": 29000000 },
-                  { "utilizationPercentage": 10000, "multiplier": 39000000 },
-                  { "utilizationPercentage": 25000, "multiplier": 59000000 },
-                  { "utilizationPercentage": 50000, "multiplier": 79000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 99000000 }
+                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
                 ]
               }
             }
@@ -408,20 +408,20 @@
             { "name": "AIRDROPS", "includedCount": 1 }
           ],
           "highVolumeRates": {
-            "maxMultiplier": 99000000,
+            "maxMultiplier": 100000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 1000, "multiplier": 3000000 },
-                  { "utilizationPercentage": 1500, "multiplier": 7000000 },
-                  { "utilizationPercentage": 2500, "multiplier": 9000000 },
-                  { "utilizationPercentage": 3500, "multiplier": 14000000 },
-                  { "utilizationPercentage": 5000, "multiplier": 19000000 },
-                  { "utilizationPercentage": 7500, "multiplier": 29000000 },
-                  { "utilizationPercentage": 10000, "multiplier": 39000000 },
-                  { "utilizationPercentage": 25000, "multiplier": 59000000 },
-                  { "utilizationPercentage": 50000, "multiplier": 79000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 99000000 }
+                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
                 ]
               }
             }
@@ -432,14 +432,14 @@
           "baseFee": 9000000,
           "extras": [],
           "highVolumeRates": {
-            "maxMultiplier": 14000000,
+            "maxMultiplier": 15000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 28571, "multiplier": 3000000 },
-                  { "utilizationPercentage": 42857, "multiplier": 7000000 },
-                  { "utilizationPercentage": 71429, "multiplier": 9000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 14000000 }
+                  { "utilizationBasisPoints": 2857, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 4286, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 7143, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 15000 }
                 ]
               }
             }
@@ -463,20 +463,20 @@
             { "name": "SCHEDULE_CREATE_CONTRACT_CALL_BASE", "includedCount": 0}
           ],
           "highVolumeRates": {
-            "maxMultiplier": 99000000,
+            "maxMultiplier": 100000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 1000, "multiplier": 3000000 },
-                  { "utilizationPercentage": 1500, "multiplier": 7000000 },
-                  { "utilizationPercentage": 2500, "multiplier": 9000000 },
-                  { "utilizationPercentage": 3500, "multiplier": 14000000 },
-                  { "utilizationPercentage": 5000, "multiplier": 19000000 },
-                  { "utilizationPercentage": 7500, "multiplier": 29000000 },
-                  { "utilizationPercentage": 10000, "multiplier": 39000000 },
-                  { "utilizationPercentage": 25000, "multiplier": 59000000 },
-                  { "utilizationPercentage": 50000, "multiplier": 79000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 99000000 }
+                  { "utilizationBasisPoints": 100, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 150, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 250, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 350, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 750, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 2500, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 5000, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 100000 }
                 ]
               }
             }
@@ -509,19 +509,19 @@
             { "name": "GAS", "includedCount": 0 }
           ],
           "highVolumeRates": {
-            "maxMultiplier": 79000000,
+            "maxMultiplier": 80000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 2000, "multiplier": 3000000 },
-                  { "utilizationPercentage": 3000, "multiplier": 7000000 },
-                  { "utilizationPercentage": 5000, "multiplier": 9000000 },
-                  { "utilizationPercentage": 7000, "multiplier": 14000000 },
-                  { "utilizationPercentage": 10000, "multiplier": 19000000 },
-                  { "utilizationPercentage": 15000, "multiplier": 29000000 },
-                  { "utilizationPercentage": 20000, "multiplier": 39000000 },
-                  { "utilizationPercentage": 50000, "multiplier": 59000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 79000000 }
+                  { "utilizationBasisPoints": 200, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 300, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 700, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 1500, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 2000, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 5000, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 80000 }
                 ]
               }
             }
@@ -532,23 +532,23 @@
           "baseFee": 10000000,
           "extras": [],
           "highVolumeRates": {
-            "maxMultiplier": 199000000,
+            "maxMultiplier": 200000,
             "pricingCurve": {
               "piecewiseLinear": {
                 "points": [
-                  { "utilizationPercentage": 20, "multiplier": 3000000 },
-                  { "utilizationPercentage": 30, "multiplier": 7000000 },
-                  { "utilizationPercentage": 50, "multiplier": 9000000 },
-                  { "utilizationPercentage": 70, "multiplier": 14000000 },
-                  { "utilizationPercentage": 100, "multiplier": 19000000 },
-                  { "utilizationPercentage": 150, "multiplier": 29000000 },
-                  { "utilizationPercentage": 200, "multiplier": 39000000 },
-                  { "utilizationPercentage": 500, "multiplier": 59000000 },
-                  { "utilizationPercentage": 1000, "multiplier": 79000000 },
-                  { "utilizationPercentage": 2000, "multiplier": 99000000 },
-                  { "utilizationPercentage": 5000, "multiplier": 149000000 },
-                  { "utilizationPercentage": 10000, "multiplier": 199000000 },
-                  { "utilizationPercentage": 100000, "multiplier": 199000000 }
+                  { "utilizationBasisPoints": 2, "multiplier": 4000 },
+                  { "utilizationBasisPoints": 3, "multiplier": 8000 },
+                  { "utilizationBasisPoints": 5, "multiplier": 10000 },
+                  { "utilizationBasisPoints": 7, "multiplier": 15000 },
+                  { "utilizationBasisPoints": 10, "multiplier": 20000 },
+                  { "utilizationBasisPoints": 15, "multiplier": 30000 },
+                  { "utilizationBasisPoints": 20, "multiplier": 40000 },
+                  { "utilizationBasisPoints": 50, "multiplier": 60000 },
+                  { "utilizationBasisPoints": 100, "multiplier": 80000 },
+                  { "utilizationBasisPoints": 200, "multiplier": 100000 },
+                  { "utilizationBasisPoints": 500, "multiplier": 150000 },
+                  { "utilizationBasisPoints": 1000, "multiplier": 200000 },
+                  { "utilizationBasisPoints": 10000, "multiplier": 200000 }
                 ]
               }
             }

@@ -37,8 +37,8 @@ public class HighVolumePricingValidator {
     private final Path simpleFeesPath;
 
     // Conversion constants matching the proto definitions
-    private static final int UTILIZATION_SCALE = 100_000; // thousandths of percent
-    private static final int MULTIPLIER_SCALE = 1_000_000; // multiplier - 1, scaled by 1M
+    private static final int UTILIZATION_SCALE = 10_000; // hundredths of percent (basis points)
+    private static final int MULTIPLIER_SCALE = 1_000; // multiplier * 1000
 
     /**
      * Creates a validator with the path to the simpleFeesSchedules.json file.
@@ -127,7 +127,7 @@ public class HighVolumePricingValidator {
                     final var piecewiseLinear = highVolumeRates.get("pricingCurve").get("piecewiseLinear");
                     for (JsonNode point : piecewiseLinear.get("points")) {
                         points.add(new ActualPoint(
-                                point.get("utilizationPercentage").asInt(),
+                                point.get("utilizationBasisPoints").asInt(),
                                 point.get("multiplier").asInt()));
                     }
                     curves.put(name, new ActualPricingCurve(maxMultiplier, points));
@@ -162,8 +162,8 @@ public class HighVolumePricingValidator {
             final var expected = expectedPoints.get(i);
             final var actual = actualCurve.points().get(i);
 
-            assertEquals(expected.utilizationPercentage(), actual.utilizationPercentage(),
-                    txName + " point " + i + ": utilizationPercentage mismatch");
+            assertEquals(expected.utilizationBasisPoints(), actual.utilizationBasisPoints(),
+                    txName + " point " + i + ": utilizationBasisPoints mismatch");
             assertEquals(expected.multiplier(), actual.multiplier(),
                     txName + " point " + i + ": multiplier mismatch");
         }
@@ -184,17 +184,17 @@ public class HighVolumePricingValidator {
                 continue;
             }
 
-            // Calculate utilization percentage (in thousandths of percent)
-            final var utilizationPercentage = (int) Math.round((effectiveTps / maxTps) * UTILIZATION_SCALE);
+            // Calculate utilization in basis points (hundredths of percent)
+            final var utilizationBasisPoints = (int) Math.round((effectiveTps / maxTps) * UTILIZATION_SCALE);
 
-            // Calculate multiplier value
+            // Calculate multiplier value (price * 1000)
             final var multiplier = calculateExpectedMultiplier(curvePoint.priceMultiplier());
 
-            points.add(new ActualPoint(utilizationPercentage, multiplier));
+            points.add(new ActualPoint(utilizationBasisPoints, multiplier));
         }
 
         // Add final point at 100% utilization if not already there
-        if (points.isEmpty() || points.getLast().utilizationPercentage() < UTILIZATION_SCALE) {
+        if (points.isEmpty() || points.getLast().utilizationBasisPoints() < UTILIZATION_SCALE) {
             // Find the max price multiplier that applies at 100% utilization
             final var maxPriceMultiplier = getMaxPriceMultiplierAtUtilization(baseCurve, baseRate, maxTps);
             points.add(new ActualPoint(UTILIZATION_SCALE, calculateExpectedMultiplier(maxPriceMultiplier)));
@@ -215,8 +215,8 @@ public class HighVolumePricingValidator {
     }
 
     private int calculateExpectedMultiplier(int priceMultiplier) {
-        // multiplier = (priceMultiplier - 1) * 1,000,000
-        return (priceMultiplier - 1) * MULTIPLIER_SCALE;
+        // multiplier = priceMultiplier * 1000
+        return priceMultiplier * MULTIPLIER_SCALE;
     }
 
     // Record classes for data structures
@@ -226,7 +226,7 @@ public class HighVolumePricingValidator {
 
     record ExpectedPricing(List<BaseCurvePoint> baseCurve, List<TransactionTypeSpec> transactionTypes) {}
 
-    record ActualPoint(int utilizationPercentage, int multiplier) {}
+    record ActualPoint(int utilizationBasisPoints, int multiplier) {}
 
     record ActualPricingCurve(int maxMultiplier, List<ActualPoint> points) {}
 
