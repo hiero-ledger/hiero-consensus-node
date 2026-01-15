@@ -2,20 +2,14 @@
 package com.swirlds.platform.consensus;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.platform.Consensus;
-import com.swirlds.platform.ConsensusImpl;
-import com.swirlds.platform.config.legacy.LegacyConfigProperties;
-import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import com.swirlds.platform.event.preconsensus.PcesUtilities;
-import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
 import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
@@ -25,7 +19,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.FlowLayout;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.nio.file.Path;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -34,11 +27,7 @@ import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.roster.RosterRetriever;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 public class CoinRoundTest extends PlatformTest {
 
