@@ -5,7 +5,9 @@ import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.event.linking.ConsensusLinker;
@@ -51,38 +53,37 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final int roundsNonAncient;
 
-    private final ConsensusEngineMetrics metrics;
+    private final ConsensusEngineMetrics consensusEngineMetrics;
 
     private final FreezeRoundController freezeRoundController;
 
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param configuration the configuration
+     * @param metrics the metrics registry
+     * @param time the time source
      * @param roster the current roster
      * @param selfId the ID of the node
      * @param freezeChecker checks if the consensus time has reached the freeze period
      */
     public DefaultConsensusEngine(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final FreezePeriodChecker freezeChecker) {
 
-        final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
-        consensus = new ConsensusImpl(
-                platformContext.getConfiguration(), platformContext.getTime(), consensusMetrics, roster);
+        final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, metrics);
+        consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster);
 
-        linker = new ConsensusLinker(
-                new DefaultLinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime()));
-        futureEventBuffer = new FutureEventBuffer(
-                platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND, "consensus");
-        roundsNonAncient = platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient();
+        linker = new ConsensusLinker(new DefaultLinkerLogsAndMetrics(metrics, time));
+        futureEventBuffer =
+                new FutureEventBuffer(metrics, FutureEventBufferingOption.PENDING_CONSENSUS_ROUND, "consensus");
+        roundsNonAncient = configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
 
-        metrics = new ConsensusEngineMetrics(selfId, platformContext.getMetrics());
+        consensusEngineMetrics = new ConsensusEngineMetrics(selfId, metrics);
         this.freezeRoundController = new FreezeRoundController(freezeChecker);
     }
 
@@ -136,7 +137,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             // check if we have found init judges after adding the event
             final boolean waitingForJudgesAfterAdd = consensus.waitingForInitJudges();
 
-            metrics.eventAdded(linkedEvent);
+            consensusEngineMetrics.eventAdded(linkedEvent);
 
             if (waitingForJudgesAfterAdd) {
                 // If we haven't found all the init judges yet, we should return an empty output.
@@ -189,7 +190,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,
         // we need to freeze on the first one. this means discarding the rest of the rounds.
         final List<ConsensusRound> modifiedRounds = freezeRoundController.filterAndModify(allConsensusRounds);
-        staleEvents.forEach(metrics::reportStaleEvent);
+        staleEvents.forEach(consensusEngineMetrics::reportStaleEvent);
         return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents, staleEvents);
     }
 
