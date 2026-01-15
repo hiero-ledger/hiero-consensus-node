@@ -14,6 +14,7 @@ import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.NetworkMetrics;
+import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
@@ -138,7 +139,8 @@ public class RpcProtocol implements Protocol, GossipController {
                 networkMetrics,
                 time,
                 syncMetrics,
-                syncConfig);
+                syncConfig,
+                NetworkUtils::handleNetworkException);
 
         final RpcPeerHandler handler = new RpcPeerHandler(
                 synchronizer,
