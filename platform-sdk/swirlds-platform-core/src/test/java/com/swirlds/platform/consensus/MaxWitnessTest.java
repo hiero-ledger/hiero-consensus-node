@@ -7,7 +7,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
-import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
@@ -32,9 +31,6 @@ public class MaxWitnessTest extends PlatformTest {
 
 
         final PlatformContext context = createDefaultPlatformContext();
-        // this will compact files in advance. the PcesFileReader will do the same thing and the these files will be
-        // in the gradle cache and break the test. this seems to bypass that issue.
-        PcesUtilities.compactPreconsensusEventFiles(pcesDir);
         final PcesFileTracker pcesFileTracker =
                 PcesFileReader.readFilesFromDisk(context.getConfiguration(), context.getRecycleBin(), pcesDir, 0,
                         false);
@@ -53,9 +49,8 @@ public class MaxWitnessTest extends PlatformTest {
             }
             output.clear();
         }
-        assertNotNull(latestRound);
+        assertNotNull(latestRound, "Round 1 should have reached consensus, but no rounds reached consensus.");
         assertThat(latestRound.getRoundNum()).isEqualTo(1);
-        System.out.println("Latest round: " + latestRound.getRoundNum());
     }
 
     private Path loadResourceDir() throws IOException {
