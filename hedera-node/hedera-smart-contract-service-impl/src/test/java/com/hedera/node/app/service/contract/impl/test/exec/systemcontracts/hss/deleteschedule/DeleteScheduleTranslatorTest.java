@@ -195,6 +195,36 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
 
     @Test
     void testScheduleDeleteProxyWithNonContractAdminKey() {
+        prepProxyCall();
+        given(schedule.adminKeyOrElse(Key.DEFAULT)).willReturn(adminKey);
+        given(schedule.adminKey()).willReturn(adminKey);
+        given(adminKey.hasContractID()).willReturn(false);
+        given(adminKey.hasDelegatableContractId()).willReturn(false);
+        given(adminKey.hasEcdsaSecp256k1()).willReturn(true);
+        // when:
+        callAndAssert();
+    }
+
+    @Test
+    void testScheduleDeleteProxyWithContractAdminKey() {
+        prepProxyCall();
+        given(schedule.adminKey()).willReturn(adminKey);
+        given(adminKey.hasContractID()).willReturn(true);
+        // when:
+        callAndAssert();
+    }
+
+    @Test
+    void testScheduleDeleteProxyWithDelegatableContractAdminKey() {
+        prepProxyCall();
+        given(schedule.adminKey()).willReturn(adminKey);
+        given(adminKey.hasContractID()).willReturn(false);
+        given(adminKey.hasDelegatableContractId()).willReturn(true);
+        // when:
+        callAndAssert();
+    }
+
+    private void prepProxyCall() {
         given(nativeOperations.getAccount(payerId)).willReturn(B_CONTRACT);
         given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
         given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, false, nativeOperations))
@@ -202,11 +232,9 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
-        given(schedule.adminKeyOrElse(Key.DEFAULT)).willReturn(adminKey);
-        given(schedule.adminKey()).willReturn(adminKey);
-        given(adminKey.hasContractID()).willReturn(false);
-        given(adminKey.hasEcdsaSecp256k1()).willReturn(true);
-        // when:
+    }
+
+    private void callAndAssert() {
         var input = bytesForRedirectScheduleTxn(
                 DeleteScheduleTranslator.DELETE_SCHEDULE_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS);
         attempt = createHssCallAttempt(input, false, configuration, List.of(subject));

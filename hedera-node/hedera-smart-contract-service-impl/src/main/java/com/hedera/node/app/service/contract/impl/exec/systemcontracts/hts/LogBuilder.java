@@ -92,7 +92,7 @@ public class LogBuilder {
         }
     }
 
-    private static byte[] expandByteArrayTo32Length(final byte[] bytesToExpand) {
+    public static byte[] expandByteArrayTo32Length(final byte[] bytesToExpand) {
         final byte[] expandedArray = new byte[32];
 
         System.arraycopy(
