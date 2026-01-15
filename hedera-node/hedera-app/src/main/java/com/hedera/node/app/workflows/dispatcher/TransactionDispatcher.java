@@ -151,13 +151,22 @@ public class TransactionDispatcher {
                     TOKEN_MINT,
                     TOKEN_BURN,
                     TOKEN_DELETION,
-                    TOKEN_PAUSE,
+                    TOKEN_FEE_SCHEDULE_UPDATE,
                     TOKEN_FREEZE,
-                    TOKEN_UNPAUSE,
+                    TOKEN_ASSOCIATE,
+                    TOKEN_DISSOCIATE,
+                    TOKEN_GRANT_KYC,
+                    TOKEN_PAUSE,
+                    TOKEN_REVOKE_KYC,
+                    TOKEN_REJECT,
                     TOKEN_UNFREEZE,
+                    TOKEN_UNPAUSE,
                     TOKEN_AIRDROP,
                     TOKEN_CLAIM_AIRDROP,
-                    TOKEN_CANCEL_AIRDROP -> true;
+                    TOKEN_CANCEL_AIRDROP,
+                    TOKEN_UPDATE,
+                    TOKEN_UPDATE_NFTS,
+                    TOKEN_WIPE -> true;
             case NODE_CREATE, NODE_UPDATE, NODE_DELETE -> true;
             default -> false;
         };
@@ -194,7 +203,7 @@ public class TransactionDispatcher {
             case CONTRACT_CALL -> handlers.contractCallHandler();
             case CONTRACT_DELETE_INSTANCE -> handlers.contractDeleteHandler();
             case ETHEREUM_TRANSACTION -> handlers.ethereumTransactionHandler();
-            case LAMBDA_SSTORE -> handlers.lambdaSStoreHandler();
+            case HOOK_STORE -> handlers.hookStoreHandler();
             case HOOK_DISPATCH -> handlers.hookDispatchHandler();
 
             case CRYPTO_CREATE_ACCOUNT -> handlers.cryptoCreateHandler();
