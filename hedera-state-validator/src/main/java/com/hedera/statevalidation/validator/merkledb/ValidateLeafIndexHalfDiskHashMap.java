@@ -12,14 +12,13 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.report.SlackReportGenerator;
-import com.hedera.statevalidation.util.junit.StateResolver;
+import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
 import com.hedera.statevalidation.util.reflect.BucketIterator;
 import com.hedera.statevalidation.util.reflect.HalfDiskHashMapAccessor;
 import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAccessor;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -33,16 +32,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @SuppressWarnings("NewClassNamingConvention")
-@ExtendWith({StateResolver.class, SlackReportGenerator.class})
+@ExtendWith({MerkleNodeStateResolver.class, SlackReportGenerator.class})
 @Tag("hdhm")
 public class ValidateLeafIndexHalfDiskHashMap {
 
     private static final Logger log = LogManager.getLogger(ValidateLeafIndexHalfDiskHashMap.class);
 
     @Test
-    public void validateIndex(DeserializedSignedState deserializedState) {
-        final MerkleNodeState merkleNodeState =
-                deserializedState.reservedSignedState().get().getState();
+    public void validateIndex(final MerkleNodeState merkleNodeState) {
         final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
         assertNotNull(virtualMap);
         MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();

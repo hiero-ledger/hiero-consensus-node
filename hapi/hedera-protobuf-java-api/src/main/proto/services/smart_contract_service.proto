@@ -173,7 +173,7 @@ service SmartContractService {
     rpc callEthereum (Transaction) returns (TransactionResponse);
 
     /**
-     * Update zero or more slots of a lambda.
+     * Update zero or more slots of an EVM hook's storage.
      */
-    rpc lambdaSStore (Transaction) returns (TransactionResponse);
+    rpc hookStore (Transaction) returns (TransactionResponse);
 }
