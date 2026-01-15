@@ -399,10 +399,11 @@ public class ConsensusImpl implements Consensus {
         event.setWitness(true);
 
         if (rounds.getElectionRoundNumber() <= event.getRoundCreated()) {
+            rounds.newWitness(event);
             if (rounds.getElectionRoundNumber() == event.getRoundCreated()) {
                 // this is a candidate witness which we are voting on, we might need to create
                 // elections for this witness, but this witness does not vote
-                rounds.newWitness(event);
+
             } else {
                 // this is a witness for a round later than the round being voted on, so it should
                 // vote in all elections in the current round
