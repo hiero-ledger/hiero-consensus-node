@@ -1217,7 +1217,7 @@ class QueryWorkflowImplTest extends AppTestBase {
             verify(feeManager, never()).getSimpleFeeCalculator();
         }
 
-        private void simpleFeesEnabled(boolean enabled) {
+        private void simpleFeesEnabled(final boolean enabled) {
             given(feesConfig.simpleFeesEnabled()).willReturn(enabled);
             given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
 
