@@ -5,14 +5,15 @@ import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
+import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
-import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
-import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -20,7 +21,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAl
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
@@ -40,6 +40,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeNoFallback;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
@@ -48,9 +54,12 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -66,6 +75,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -79,10 +89,13 @@ import org.junit.jupiter.api.Tag;
  * (different number of signatures, key structures, memo lengths, etc.) and compares
  * fees charged with simple fees enabled vs disabled.
  *
+ * <p>Each service has its own test method for easier debugging and isolation.
+ * The summary output shows the emphasis (key type, memo length, etc.) for each transaction.
+ *
  * <p>This test uses:
  * <ul>
  *   <li>{@code @LeakyHapiTest} - allows overriding network properties</li>
- *   <li>ED25519 keys only for consistency</li>
+ *   <li>ED25519 keys only for consistency (except for auto-creation tests)</li>
  *   <li>Fixed entity names with prefixes to avoid collisions between runs</li>
  * </ul>
  */
@@ -99,7 +112,10 @@ public class KitchenSinkFeeComparisonSuite {
      */
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
+        testLifecycle.overrideInClass(Map.of(
+                "fees.simpleFeesEnabled", "true",
+                "lazyCreation.enabled", "true",
+                "cryptoCreateWithAliasAndEvmAddress.enabled", "true"));
     }
 
     // Key names for different complexity levels
@@ -110,12 +126,15 @@ public class KitchenSinkFeeComparisonSuite {
     private static final String THRESH_KEY_2_OF_3 = "threshKey2of3";
     private static final String THRESH_KEY_3_OF_5 = "threshKey3of5";
     private static final String COMPLEX_KEY = "complexKey";
+    private static final String ECDSA_KEY = "ecdsaKey";
 
     // Payer names
     private static final String PAYER = "payer";
     private static final String PAYER_COMPLEX = "payerComplex";
     private static final String TREASURY = "treasury";
     private static final String RECEIVER = "receiver";
+    private static final String FEE_COLLECTOR = "feeCollector";
+    private static final String BATCH_OPERATOR = "batchOperator";
 
     // Memo variations (max memo length is 100 bytes)
     private static final String EMPTY_MEMO = "";
@@ -123,67 +142,144 @@ public class KitchenSinkFeeComparisonSuite {
     private static final String MEDIUM_MEMO = "x".repeat(50);
     private static final String LONG_MEMO = "x".repeat(100); // Max allowed memo length
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("Kitchen sink fee comparison - all transaction types with varying parameters")
-    final Stream<DynamicTest> kitchenSinkFeeComparison() {
-        // Maps to store fees from both runs
-        final Map<String, Long> legacyFees = new LinkedHashMap<>();
-        final Map<String, Long> simpleFees = new LinkedHashMap<>();
+    // Contract name
+    private static final String STORAGE_CONTRACT = "Storage";
 
-        // Note: We run simple fees FIRST because the SimpleFeeCalculator is only initialized
-        // when simpleFeesEnabled=true at startup. If we start with false and switch to true,
-        // the SimpleFeeCalculator will be null and cause a NullPointerException.
-        return hapiTest(
-                // === SETUP: Create keys with varying complexity ===
-                createAllKeys(),
-                // === SETUP: Create base accounts ===
-                createBaseAccounts(),
-                // === RUN 1: Simple fees (simpleFeesEnabled=true) - must run first ===
-                overriding("fees.simpleFeesEnabled", "true"),
-                blockingOrder(runCryptoTransactions("simple", simpleFees)),
-                // === RUN 2: Legacy fees (simpleFeesEnabled=false) ===
-                overriding("fees.simpleFeesEnabled", "false"),
-                blockingOrder(runCryptoTransactions("legacy", legacyFees)),
-                // === COMPARE AND LOG RESULTS ===
-                logFeeComparison(legacyFees, simpleFees));
-    }
+    // ==================== RECORD CLASS FOR FEE ENTRIES ====================
 
     /**
-     * Runs only crypto transactions for a simpler test.
+     * Record to store fee information with emphasis description.
      */
-    private static SpecOperation[] runCryptoTransactions(String prefix, Map<String, Long> feeMap) {
-        List<SpecOperation> ops = new ArrayList<>();
-        ops.addAll(cryptoTransactions(prefix, feeMap));
-        return ops.toArray(new SpecOperation[0]);
+    private record FeeEntry(String txnName, String emphasis, long fee) {}
+
+    // ==================== CRYPTO SERVICE TEST ====================
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("Crypto Service - fee comparison")
+    final Stream<DynamicTest> cryptoServiceFeeComparison() {
+        final Map<String, FeeEntry> legacyFees = new LinkedHashMap<>();
+        final Map<String, FeeEntry> simpleFees = new LinkedHashMap<>();
+
+        return hapiTest(
+                createAllKeys(),
+                createBaseAccounts(),
+                // === RUN 1: Simple fees ===
+                overriding("fees.simpleFeesEnabled", "true"),
+                blockingOrder(cryptoTransactionsWithEmphasis("simple", simpleFees)),
+                // === RUN 2: Legacy fees ===
+                overriding("fees.simpleFeesEnabled", "false"),
+                blockingOrder(cryptoTransactionsWithEmphasis("legacy", legacyFees)),
+                logFeeComparisonWithEmphasis("CRYPTO SERVICE", legacyFees, simpleFees));
     }
 
-    /**
-     * Full kitchen sink test with all transaction types.
-     * This is a separate test method to allow running just crypto transactions first.
-     */
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("Kitchen sink fee comparison - full suite with all transaction types")
-    final Stream<DynamicTest> kitchenSinkFeeComparisonFull() {
-        // Maps to store fees from both runs
-        final Map<String, Long> legacyFees = new LinkedHashMap<>();
-        final Map<String, Long> simpleFees = new LinkedHashMap<>();
+    // ==================== TOKEN SERVICE TEST ====================
 
-        // Note: We run simple fees FIRST because the SimpleFeeCalculator is only initialized
-        // when simpleFeesEnabled=true at startup. If we start with false and switch to true,
-        // the SimpleFeeCalculator will be null and cause a NullPointerException.
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("Token Service - fee comparison (including custom fees)")
+    final Stream<DynamicTest> tokenServiceFeeComparison() {
+        final Map<String, FeeEntry> legacyFees = new LinkedHashMap<>();
+        final Map<String, FeeEntry> simpleFees = new LinkedHashMap<>();
+
         return hapiTest(
-                // === SETUP: Create keys with varying complexity ===
                 createAllKeys(),
-                // === SETUP: Create base accounts ===
                 createBaseAccounts(),
-                // === RUN 1: Simple fees (simpleFeesEnabled=true) - must run first ===
                 overriding("fees.simpleFeesEnabled", "true"),
-                blockingOrder(runAllTransactions("simple", simpleFees)),
-                // === RUN 2: Legacy fees (simpleFeesEnabled=false) ===
+                blockingOrder(tokenTransactionsWithEmphasis("simple", simpleFees)),
                 overriding("fees.simpleFeesEnabled", "false"),
-                blockingOrder(runAllTransactions("legacy", legacyFees)),
-                // === COMPARE AND LOG RESULTS ===
-                logFeeComparison(legacyFees, simpleFees));
+                blockingOrder(tokenTransactionsWithEmphasis("legacy", legacyFees)),
+                logFeeComparisonWithEmphasis("TOKEN SERVICE", legacyFees, simpleFees));
+    }
+
+    // ==================== TOPIC/CONSENSUS SERVICE TEST ====================
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("Topic/Consensus Service - fee comparison")
+    final Stream<DynamicTest> topicServiceFeeComparison() {
+        final Map<String, FeeEntry> legacyFees = new LinkedHashMap<>();
+        final Map<String, FeeEntry> simpleFees = new LinkedHashMap<>();
+
+        return hapiTest(
+                createAllKeys(),
+                createBaseAccounts(),
+                overriding("fees.simpleFeesEnabled", "true"),
+                blockingOrder(topicTransactionsWithEmphasis("simple", simpleFees)),
+                overriding("fees.simpleFeesEnabled", "false"),
+                blockingOrder(topicTransactionsWithEmphasis("legacy", legacyFees)),
+                logFeeComparisonWithEmphasis("TOPIC/CONSENSUS SERVICE", legacyFees, simpleFees));
+    }
+
+    // ==================== FILE SERVICE TEST ====================
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("File Service - fee comparison")
+    final Stream<DynamicTest> fileServiceFeeComparison() {
+        final Map<String, FeeEntry> legacyFees = new LinkedHashMap<>();
+        final Map<String, FeeEntry> simpleFees = new LinkedHashMap<>();
+
+        return hapiTest(
+                createAllKeys(),
+                createBaseAccounts(),
+                overriding("fees.simpleFeesEnabled", "true"),
+                blockingOrder(fileTransactionsWithEmphasis("simple", simpleFees)),
+                overriding("fees.simpleFeesEnabled", "false"),
+                blockingOrder(fileTransactionsWithEmphasis("legacy", legacyFees)),
+                logFeeComparisonWithEmphasis("FILE SERVICE", legacyFees, simpleFees));
+    }
+
+    // ==================== SCHEDULE SERVICE TEST ====================
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("Schedule Service - fee comparison")
+    final Stream<DynamicTest> scheduleServiceFeeComparison() {
+        final Map<String, FeeEntry> legacyFees = new LinkedHashMap<>();
+        final Map<String, FeeEntry> simpleFees = new LinkedHashMap<>();
+
+        return hapiTest(
+                createAllKeys(),
+                createBaseAccounts(),
+                overriding("fees.simpleFeesEnabled", "true"),
+                blockingOrder(scheduleTransactionsWithEmphasis("simple", simpleFees)),
+                overriding("fees.simpleFeesEnabled", "false"),
+                blockingOrder(scheduleTransactionsWithEmphasis("legacy", legacyFees)),
+                logFeeComparisonWithEmphasis("SCHEDULE SERVICE", legacyFees, simpleFees));
+    }
+
+    // ==================== CONTRACT SERVICE TEST ====================
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("Contract Service - fee comparison")
+    final Stream<DynamicTest> contractServiceFeeComparison() {
+        final Map<String, FeeEntry> legacyFees = new LinkedHashMap<>();
+        final Map<String, FeeEntry> simpleFees = new LinkedHashMap<>();
+
+        return hapiTest(
+                createAllKeys(),
+                createBaseAccounts(),
+                uploadInitCode(STORAGE_CONTRACT),
+                overriding("fees.simpleFeesEnabled", "true"),
+                blockingOrder(contractTransactionsWithEmphasis("simple", simpleFees)),
+                overriding("fees.simpleFeesEnabled", "false"),
+                blockingOrder(contractTransactionsWithEmphasis("legacy", legacyFees)),
+                logFeeComparisonWithEmphasis("CONTRACT SERVICE", legacyFees, simpleFees));
+    }
+
+    // ==================== BATCH SERVICE TEST ====================
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("Batch Service - fee comparison")
+    final Stream<DynamicTest> batchServiceFeeComparison() {
+        final Map<String, FeeEntry> legacyFees = new LinkedHashMap<>();
+        final Map<String, FeeEntry> simpleFees = new LinkedHashMap<>();
+
+        return hapiTest(
+                createAllKeys(),
+                createBaseAccounts(),
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                overriding("fees.simpleFeesEnabled", "true"),
+                blockingOrder(batchTransactionsWithEmphasis("simple", simpleFees)),
+                overriding("fees.simpleFeesEnabled", "false"),
+                blockingOrder(batchTransactionsWithEmphasis("legacy", legacyFees)),
+                logFeeComparisonWithEmphasis("BATCH SERVICE", legacyFees, simpleFees));
     }
 
     // ==================== KEY CREATION ====================
@@ -196,7 +292,8 @@ public class KitchenSinkFeeComparisonSuite {
                 newKeyNamed(LIST_KEY_5).shape(listOf(5)),
                 newKeyNamed(THRESH_KEY_2_OF_3).shape(threshOf(2, 3)),
                 newKeyNamed(THRESH_KEY_3_OF_5).shape(threshOf(3, 5)),
-                newKeyNamed(COMPLEX_KEY).shape(threshOf(2, listOf(2), KeyShape.SIMPLE, threshOf(1, 2))));
+                newKeyNamed(COMPLEX_KEY).shape(threshOf(2, listOf(2), KeyShape.SIMPLE, threshOf(1, 2))),
+                newKeyNamed(ECDSA_KEY).shape(SECP256K1));
     }
 
     // ==================== BASE ACCOUNT CREATION ====================
@@ -206,29 +303,13 @@ public class KitchenSinkFeeComparisonSuite {
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SIMPLE_KEY),
                 cryptoCreate(PAYER_COMPLEX).balance(ONE_MILLION_HBARS).key(COMPLEX_KEY),
                 cryptoCreate(TREASURY).balance(ONE_MILLION_HBARS),
-                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS));
+                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(FEE_COLLECTOR).balance(ONE_HUNDRED_HBARS));
     }
 
-    // ==================== TRANSACTION SUITE ====================
+    // ==================== CRYPTO TRANSACTIONS WITH EMPHASIS ====================
 
-    private static SpecOperation[] runAllTransactions(String prefix, Map<String, Long> feeMap) {
-        List<SpecOperation> ops = new ArrayList<>();
-
-        // Add all transaction categories
-        ops.addAll(cryptoTransactions(prefix, feeMap));
-        ops.addAll(tokenTransactions(prefix, feeMap));
-        ops.addAll(consensusTransactions(prefix, feeMap));
-        ops.addAll(fileTransactions(prefix, feeMap));
-        ops.addAll(scheduleTransactions(prefix, feeMap));
-        // Contract transactions are commented out for now due to resource constraints
-        // ops.addAll(contractTransactions(prefix, feeMap));
-
-        return ops.toArray(new SpecOperation[0]);
-    }
-
-    // ==================== CRYPTO TRANSACTIONS ====================
-
-    private static List<SpecOperation> cryptoTransactions(String prefix, Map<String, Long> feeMap) {
+    private static SpecOperation[] cryptoTransactionsWithEmphasis(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
         // CryptoCreate with varying key complexity and memo lengths
@@ -239,7 +320,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "CryptoCreateSimple"));
-        ops.add(captureFee(prefix + "CryptoCreateSimple", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateSimple", "key=ED25519, memo=empty", feeMap));
 
         ops.add(cryptoCreate(prefix + "AccList2")
                 .key(LIST_KEY_2)
@@ -248,7 +329,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "CryptoCreateList2"));
-        ops.add(captureFee(prefix + "CryptoCreateList2", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateList2", "key=KeyList(2), memo=10chars", feeMap));
 
         ops.add(cryptoCreate(prefix + "AccList5")
                 .key(LIST_KEY_5)
@@ -257,7 +338,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "CryptoCreateList5"));
-        ops.add(captureFee(prefix + "CryptoCreateList5", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateList5", "key=KeyList(5), memo=50chars", feeMap));
 
         ops.add(cryptoCreate(prefix + "AccThresh2of3")
                 .key(THRESH_KEY_2_OF_3)
@@ -266,7 +347,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "CryptoCreateThresh2of3"));
-        ops.add(captureFee(prefix + "CryptoCreateThresh2of3", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateThresh2of3", "key=Thresh(2/3), memo=100chars", feeMap));
 
         ops.add(cryptoCreate(prefix + "AccComplex")
                 .key(COMPLEX_KEY)
@@ -275,7 +356,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "CryptoCreateComplex"));
-        ops.add(captureFee(prefix + "CryptoCreateComplex", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateComplex", "key=Nested(Thresh+List), memo=100chars", feeMap));
 
         // CryptoUpdate with varying parameters
         ops.add(cryptoUpdate(prefix + "AccSimple")
@@ -284,7 +365,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "CryptoUpdateSimple"));
-        ops.add(captureFee(prefix + "CryptoUpdateSimple", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoUpdateSimple", "key=ED25519, memo=50chars", feeMap));
 
         ops.add(cryptoUpdate(prefix + "AccComplex")
                 .memo(SHORT_MEMO)
@@ -292,7 +373,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, COMPLEX_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "CryptoUpdateComplex"));
-        ops.add(captureFee(prefix + "CryptoUpdateComplex", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoUpdateComplex", "key=Nested, sigs=4", feeMap));
 
         // CryptoTransfer with varying number of accounts
         ops.add(cryptoTransfer(movingHbar(ONE_HBAR).between(PAYER, RECEIVER))
@@ -300,7 +381,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .memo(EMPTY_MEMO)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "HbarTransfer2Acct"));
-        ops.add(captureFee(prefix + "HbarTransfer2Acct", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "HbarTransfer2Acct", "accounts=2, memo=empty", feeMap));
 
         ops.add(cryptoTransfer(
                         movingHbar(ONE_HBAR).between(PAYER, prefix + "AccSimple"),
@@ -309,7 +390,15 @@ public class KitchenSinkFeeComparisonSuite {
                 .memo(SHORT_MEMO)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "HbarTransfer3Acct"));
-        ops.add(captureFee(prefix + "HbarTransfer3Acct", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "HbarTransfer3Acct", "accounts=3, memo=10chars", feeMap));
+
+        // Auto-creation via ECDSA alias transfer (hollow account creation)
+        ops.add(newKeyNamed(prefix + "AutoCreateKey").shape(SECP256K1));
+        ops.add(cryptoTransfer(tinyBarsFromAccountToAlias(PAYER, prefix + "AutoCreateKey", ONE_HBAR))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "HbarTransferAutoCreate"));
+        ops.add(captureFeeWithEmphasis(prefix + "HbarTransferAutoCreate", "hollow account creation via ECDSA alias", feeMap));
 
         // CryptoApproveAllowance - HBAR allowance
         ops.add(cryptoApproveAllowance()
@@ -318,7 +407,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "CryptoApproveHbar"));
-        ops.add(captureFee(prefix + "CryptoApproveHbar", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoApproveHbar", "allowances=1, key=ED25519", feeMap));
 
         // CryptoApproveAllowance - Multiple allowances
         ops.add(cryptoApproveAllowance()
@@ -328,7 +417,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, LIST_KEY_2)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "CryptoApproveMultiple"));
-        ops.add(captureFee(prefix + "CryptoApproveMultiple", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoApproveMultiple", "allowances=2, key=KeyList(2)", feeMap));
 
         // CryptoDelete
         ops.add(cryptoCreate(prefix + "ToDelete")
@@ -340,19 +429,21 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "CryptoDelete"));
-        ops.add(captureFee(prefix + "CryptoDelete", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoDelete", "transfer to payer", feeMap));
 
-        return ops;
+        return ops.toArray(new SpecOperation[0]);
     }
 
+    // ==================== TOKEN TRANSACTIONS WITH EMPHASIS ====================
 
-
-    // ==================== TOKEN TRANSACTIONS ====================
-
-    private static List<SpecOperation> tokenTransactions(String prefix, Map<String, Long> feeMap) {
+    private static SpecOperation[] tokenTransactionsWithEmphasis(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // TokenCreate - Fungible with varying parameters
+        // First create accounts needed for token operations
+        ops.add(cryptoCreate(prefix + "AccSimple").key(SIMPLE_KEY).balance(ONE_HBAR).payingWith(GENESIS));
+        ops.add(cryptoCreate(prefix + "AccList2").key(LIST_KEY_2).balance(ONE_HBAR).payingWith(GENESIS));
+
+        // TokenCreate - Fungible simple
         ops.add(tokenCreate(prefix + "FungibleSimple")
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
@@ -361,8 +452,9 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenCreateFungible"));
-        ops.add(captureFee(prefix + "TokenCreateFungible", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateFungible", "type=FT, keys=none, memo=empty", feeMap));
 
+        // TokenCreate - Fungible with all keys
         ops.add(tokenCreate(prefix + "FungibleWithKeys")
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
@@ -377,7 +469,29 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenCreateFungibleKeys"));
-        ops.add(captureFee(prefix + "TokenCreateFungibleKeys", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateFungibleKeys", "type=FT, keys=5(admin,supply,freeze,pause,wipe)", feeMap));
+
+        // TokenCreate - Fungible with fixed HBAR custom fee
+        ops.add(tokenCreate(prefix + "FungibleWithHbarFee")
+                .tokenType(FUNGIBLE_COMMON)
+                .initialSupply(1_000_000L)
+                .treasury(TREASURY)
+                .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TokenCreateWithHbarFee"));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateWithHbarFee", "type=FT, customFee=fixedHbar(1)", feeMap));
+
+        // TokenCreate - Fungible with fractional fee
+        ops.add(tokenCreate(prefix + "FungibleWithFractionalFee")
+                .tokenType(FUNGIBLE_COMMON)
+                .initialSupply(1_000_000L)
+                .treasury(TREASURY)
+                .withCustom(fractionalFee(1L, 100L, 1L, OptionalLong.of(10L), TREASURY))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TokenCreateWithFractionalFee"));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateWithFractionalFee", "type=FT, customFee=fractional(1/100,min=1,max=10)", feeMap));
 
         // TokenCreate - NFT
         ops.add(tokenCreate(prefix + "NFT")
@@ -389,22 +503,35 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenCreateNFT"));
-        ops.add(captureFee(prefix + "TokenCreateNFT", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateNFT", "type=NFT, keys=supply", feeMap));
 
-        // TokenAssociate
+        // TokenCreate - NFT with royalty fee
+        ops.add(tokenCreate(prefix + "NFTWithRoyalty")
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0L)
+                .treasury(TREASURY)
+                .supplyKey(SIMPLE_KEY)
+                .withCustom(royaltyFeeNoFallback(1, 10, FEE_COLLECTOR))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TokenCreateNFTWithRoyalty"));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateNFTWithRoyalty", "type=NFT, customFee=royalty(1/10)", feeMap));
+
+        // TokenAssociate - 2 tokens, simple key
         ops.add(tokenAssociate(prefix + "AccSimple", prefix + "FungibleSimple", prefix + "FungibleWithKeys")
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenAssociate1"));
-        ops.add(captureFee(prefix + "TokenAssociate1", feeMap));
+                .via(prefix + "TokenAssociate2Tokens"));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenAssociate2Tokens", "tokens=2, key=ED25519", feeMap));
 
+        // TokenAssociate - 2 tokens, key list
         ops.add(tokenAssociate(prefix + "AccList2", prefix + "FungibleSimple", prefix + "FungibleWithKeys")
                 .payingWith(PAYER)
                 .signedBy(PAYER, LIST_KEY_2)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenAssociate2"));
-        ops.add(captureFee(prefix + "TokenAssociate2", feeMap));
+                .via(prefix + "TokenAssociate2TokensKeyList"));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenAssociate2TokensKeyList", "tokens=2, key=KeyList(2)", feeMap));
 
         // TokenMint - Fungible
         ops.add(mintToken(prefix + "FungibleWithKeys", 10_000L)
@@ -412,27 +539,26 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenMintFungible"));
-        ops.add(captureFee(prefix + "TokenMintFungible", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenMintFungible", "type=FT, amount=10000", feeMap));
 
-        // TokenMint - NFT with varying metadata sizes
+        // TokenMint - NFT single
         ops.add(mintToken(prefix + "NFT", List.of(ByteString.copyFromUtf8("NFT1")))
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenMintNFT1"));
-        ops.add(captureFee(prefix + "TokenMintNFT1", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenMintNFT1", "type=NFT, count=1, metadata=4bytes", feeMap));
 
-        ops.add(mintToken(
-                        prefix + "NFT",
-                        List.of(
-                                ByteString.copyFromUtf8("NFT2"),
-                                ByteString.copyFromUtf8("NFT3"),
-                                ByteString.copyFromUtf8("NFT4")))
+        // TokenMint - NFT batch
+        ops.add(mintToken(prefix + "NFT", List.of(
+                        ByteString.copyFromUtf8("NFT2"),
+                        ByteString.copyFromUtf8("NFT3"),
+                        ByteString.copyFromUtf8("NFT4")))
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenMintNFT3"));
-        ops.add(captureFee(prefix + "TokenMintNFT3", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenMintNFT3", "type=NFT, count=3, metadata=4bytes each", feeMap));
 
         // Token transfer - Fungible
         ops.add(cryptoTransfer(moving(100L, prefix + "FungibleSimple").between(TREASURY, prefix + "AccSimple"))
@@ -440,41 +566,40 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenTransferFungible"));
-        ops.add(captureFee(prefix + "TokenTransferFungible", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenTransferFungible", "type=FT, amount=100", feeMap));
 
-        // Transfer FungibleWithKeys to AccSimple (for wipe test later)
+        // Transfer for wipe test
         ops.add(cryptoTransfer(moving(500L, prefix + "FungibleWithKeys").between(TREASURY, prefix + "AccSimple"))
                 .payingWith(PAYER)
                 .signedBy(PAYER, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenTransferForWipe"));
-        ops.add(captureFee(prefix + "TokenTransferForWipe", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenTransferForWipe", "type=FT, amount=500 (for wipe)", feeMap));
 
         // Token transfer - NFT
-        ops.add(tokenAssociate(RECEIVER, prefix + "NFT")
-                .payingWith(PAYER)
-                .fee(ONE_HUNDRED_HBARS));
+        ops.add(tokenAssociate(RECEIVER, prefix + "NFT").payingWith(PAYER).fee(ONE_HUNDRED_HBARS));
         ops.add(cryptoTransfer(movingUnique(prefix + "NFT", 1L).between(TREASURY, RECEIVER))
                 .payingWith(PAYER)
                 .signedBy(PAYER, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenTransferNFT"));
-        ops.add(captureFee(prefix + "TokenTransferNFT", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenTransferNFT", "type=NFT, serial=1", feeMap));
 
-        // TokenFreeze/Unfreeze
+        // TokenFreeze
         ops.add(tokenFreeze(prefix + "FungibleWithKeys", prefix + "AccSimple")
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenFreeze"));
-        ops.add(captureFee(prefix + "TokenFreeze", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenFreeze", "freezeKey=ED25519", feeMap));
 
+        // TokenUnfreeze
         ops.add(tokenUnfreeze(prefix + "FungibleWithKeys", prefix + "AccSimple")
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenUnfreeze"));
-        ops.add(captureFee(prefix + "TokenUnfreeze", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenUnfreeze", "freezeKey=ED25519", feeMap));
 
         // TokenDissociate
         ops.add(tokenDissociate(prefix + "AccList2", prefix + "FungibleSimple")
@@ -482,7 +607,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, LIST_KEY_2)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenDissociate"));
-        ops.add(captureFee(prefix + "TokenDissociate", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenDissociate", "tokens=1, key=KeyList(2)", feeMap));
 
         // TokenBurn - Fungible
         ops.add(burnToken(prefix + "FungibleWithKeys", 1_000L)
@@ -490,7 +615,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenBurnFungible"));
-        ops.add(captureFee(prefix + "TokenBurnFungible", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenBurnFungible", "type=FT, amount=1000", feeMap));
 
         // TokenBurn - NFT
         ops.add(burnToken(prefix + "NFT", List.of(4L))
@@ -498,15 +623,15 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenBurnNFT"));
-        ops.add(captureFee(prefix + "TokenBurnNFT", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenBurnNFT", "type=NFT, serials=1", feeMap));
 
-        // TokenWipe - Fungible (wipe from AccSimple which has tokens)
+        // TokenWipe
         ops.add(wipeTokenAccount(prefix + "FungibleWithKeys", prefix + "AccSimple", 50L)
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenWipeFungible"));
-        ops.add(captureFee(prefix + "TokenWipeFungible", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenWipeFungible", "type=FT, amount=50", feeMap));
 
         // TokenPause
         ops.add(tokenPause(prefix + "FungibleWithKeys")
@@ -514,7 +639,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenPause"));
-        ops.add(captureFee(prefix + "TokenPause", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenPause", "pauseKey=ED25519", feeMap));
 
         // TokenUnpause
         ops.add(tokenUnpause(prefix + "FungibleWithKeys")
@@ -522,24 +647,25 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenUnpause"));
-        ops.add(captureFee(prefix + "TokenUnpause", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenUnpause", "pauseKey=ED25519", feeMap));
 
-        return ops;
+        return ops.toArray(new SpecOperation[0]);
     }
 
-    // ==================== CONSENSUS TRANSACTIONS ====================
+    // ==================== TOPIC TRANSACTIONS WITH EMPHASIS ====================
 
-    private static List<SpecOperation> consensusTransactions(String prefix, Map<String, Long> feeMap) {
+    private static SpecOperation[] topicTransactionsWithEmphasis(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // CreateTopic with varying parameters
+        // CreateTopic - simple
         ops.add(createTopic(prefix + "TopicSimple")
                 .blankMemo()
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TopicCreateSimple"));
-        ops.add(captureFee(prefix + "TopicCreateSimple", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateSimple", "keys=none, memo=empty", feeMap));
 
+        // CreateTopic - with keys
         ops.add(createTopic(prefix + "TopicWithKeys")
                 .adminKeyName(SIMPLE_KEY)
                 .submitKeyName(SIMPLE_KEY)
@@ -547,8 +673,9 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TopicCreateWithKeys"));
-        ops.add(captureFee(prefix + "TopicCreateWithKeys", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateWithKeys", "keys=admin+submit(ED25519), memo=50chars", feeMap));
 
+        // CreateTopic - complex keys
         ops.add(createTopic(prefix + "TopicComplexKey")
                 .adminKeyName(COMPLEX_KEY)
                 .submitKeyName(THRESH_KEY_2_OF_3)
@@ -556,30 +683,32 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TopicCreateComplex"));
-        ops.add(captureFee(prefix + "TopicCreateComplex", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateComplex", "keys=admin(Nested)+submit(Thresh2/3), memo=100chars", feeMap));
 
-        // SubmitMessage with varying message sizes
+        // SubmitMessage - short
         ops.add(submitMessageTo(prefix + "TopicSimple")
                 .message("Short message")
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "SubmitMsgShort"));
-        ops.add(captureFee(prefix + "SubmitMsgShort", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "SubmitMsgShort", "msg=13bytes, submitKey=none", feeMap));
 
+        // SubmitMessage - medium
         ops.add(submitMessageTo(prefix + "TopicSimple")
                 .message("x".repeat(1000))
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "SubmitMsgMedium"));
-        ops.add(captureFee(prefix + "SubmitMsgMedium", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "SubmitMsgMedium", "msg=1000bytes, submitKey=none", feeMap));
 
+        // SubmitMessage - with submit key
         ops.add(submitMessageTo(prefix + "TopicWithKeys")
                 .message("x".repeat(100))
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "SubmitMsgWithKey"));
-        ops.add(captureFee(prefix + "SubmitMsgWithKey", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "SubmitMsgWithKey", "msg=100bytes, submitKey=ED25519", feeMap));
 
         // UpdateTopic
         ops.add(updateTopic(prefix + "TopicWithKeys")
@@ -588,7 +717,7 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TopicUpdate"));
-        ops.add(captureFee(prefix + "TopicUpdate", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicUpdate", "adminKey=ED25519, memo=10chars", feeMap));
 
         // DeleteTopic
         ops.add(deleteTopic(prefix + "TopicWithKeys")
@@ -596,39 +725,41 @@ public class KitchenSinkFeeComparisonSuite {
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TopicDelete"));
-        ops.add(captureFee(prefix + "TopicDelete", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicDelete", "adminKey=ED25519", feeMap));
 
-        return ops;
+        return ops.toArray(new SpecOperation[0]);
     }
 
-    // ==================== FILE TRANSACTIONS ====================
+    // ==================== FILE TRANSACTIONS WITH EMPHASIS ====================
 
-    private static List<SpecOperation> fileTransactions(String prefix, Map<String, Long> feeMap) {
+    private static SpecOperation[] fileTransactionsWithEmphasis(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // FileCreate with varying content sizes
+        // FileCreate - small
         ops.add(fileCreate(prefix + "FileSmall")
                 .contents("Small file content")
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "FileCreateSmall"));
-        ops.add(captureFee(prefix + "FileCreateSmall", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "FileCreateSmall", "content=18bytes, memo=empty", feeMap));
 
+        // FileCreate - medium
         ops.add(fileCreate(prefix + "FileMedium")
                 .contents("x".repeat(1000))
                 .memo(MEDIUM_MEMO)
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "FileCreateMedium"));
-        ops.add(captureFee(prefix + "FileCreateMedium", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "FileCreateMedium", "content=1000bytes, memo=50chars", feeMap));
 
+        // FileCreate - large
         ops.add(fileCreate(prefix + "FileLarge")
                 .contents("x".repeat(4000))
                 .memo(LONG_MEMO)
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "FileCreateLarge"));
-        ops.add(captureFee(prefix + "FileCreateLarge", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "FileCreateLarge", "content=4000bytes, memo=100chars", feeMap));
 
         // FileUpdate
         ops.add(fileUpdate(prefix + "FileSmall")
@@ -636,31 +767,29 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "FileUpdate"));
-        ops.add(captureFee(prefix + "FileUpdate", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "FileUpdate", "content=15bytes", feeMap));
 
-        return ops;
+        return ops.toArray(new SpecOperation[0]);
     }
 
-    // ==================== SCHEDULE TRANSACTIONS ====================
+    // ==================== SCHEDULE TRANSACTIONS WITH EMPHASIS ====================
 
-    private static List<SpecOperation> scheduleTransactions(String prefix, Map<String, Long> feeMap) {
+    private static SpecOperation[] scheduleTransactionsWithEmphasis(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
         // Use different amounts based on prefix to ensure unique scheduled transactions
-        // "simple" prefix uses 1 tinybar, "legacy" prefix uses 2 tinybars
         final long amount = prefix.equals("simple") ? 1L : 2L;
 
-        // ScheduleCreate - simple scheduled crypto transfer (from RECEIVER to PAYER, so RECEIVER must sign)
-        // This won't auto-execute because RECEIVER hasn't signed yet
+        // ScheduleCreate - simple
         ops.add(scheduleCreate(
                         prefix + "ScheduleSimple",
                         cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount)).memo(SHORT_MEMO))
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ScheduleCreateSimple"));
-        ops.add(captureFee(prefix + "ScheduleCreateSimple", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateSimple", "inner=CryptoTransfer, adminKey=none", feeMap));
 
-        // ScheduleCreate with admin key and memo (from RECEIVER to PAYER)
+        // ScheduleCreate - with admin key
         ops.add(scheduleCreate(
                         prefix + "ScheduleWithAdmin",
                         cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount)).memo(MEDIUM_MEMO))
@@ -669,10 +798,9 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ScheduleCreateWithAdmin"));
-        ops.add(captureFee(prefix + "ScheduleCreateWithAdmin", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateWithAdmin", "inner=CryptoTransfer, adminKey=ED25519, memo=10chars", feeMap));
 
-        // ScheduleCreate with designated payer (from RECEIVER to PAYER)
-        // This won't auto-execute because RECEIVER hasn't signed yet
+        // ScheduleCreate - with designated payer
         ops.add(scheduleCreate(
                         prefix + "ScheduleWithPayer",
                         cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount)))
@@ -681,47 +809,42 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ScheduleCreateWithPayer"));
-        ops.add(captureFee(prefix + "ScheduleCreateWithPayer", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateWithPayer", "inner=CryptoTransfer, designatedPayer=yes", feeMap));
 
-        // ScheduleSign - sign the schedule with RECEIVER to trigger execution
+        // ScheduleSign
         ops.add(scheduleSign(prefix + "ScheduleWithPayer")
                 .alsoSigningWith(RECEIVER)
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ScheduleSign"));
-        ops.add(captureFee(prefix + "ScheduleSign", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleSign", "additionalSigs=1", feeMap));
 
-        // ScheduleDelete - delete the schedule with admin key (ScheduleWithAdmin hasn't been signed by RECEIVER)
+        // ScheduleDelete
         ops.add(scheduleDelete(prefix + "ScheduleWithAdmin")
                 .signedBy(PAYER, SIMPLE_KEY)
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ScheduleDelete"));
-        ops.add(captureFee(prefix + "ScheduleDelete", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleDelete", "adminKey=ED25519", feeMap));
 
-        return ops;
+        return ops.toArray(new SpecOperation[0]);
     }
 
-    // ==================== CONTRACT TRANSACTIONS ====================
+    // ==================== CONTRACT TRANSACTIONS WITH EMPHASIS ====================
 
-    private static final String STORAGE_CONTRACT = "Storage";
-
-    private static List<SpecOperation> contractTransactions(String prefix, Map<String, Long> feeMap) {
+    private static SpecOperation[] contractTransactionsWithEmphasis(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // Upload contract bytecode (only once, shared between runs)
-        ops.add(uploadInitCode(STORAGE_CONTRACT));
-
-        // ContractCreate - simple contract
+        // ContractCreate - simple
         ops.add(contractCreate(prefix + "ContractSimple")
                 .bytecode(STORAGE_CONTRACT)
                 .gas(200_000L)
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ContractCreateSimple"));
-        ops.add(captureFee(prefix + "ContractCreateSimple", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractCreateSimple", "gas=200k, adminKey=none", feeMap));
 
-        // ContractCreate with admin key and memo
+        // ContractCreate - with admin key
         ops.add(contractCreate(prefix + "ContractWithAdmin")
                 .bytecode(STORAGE_CONTRACT)
                 .adminKey(SIMPLE_KEY)
@@ -730,9 +853,9 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ContractCreateWithAdmin"));
-        ops.add(captureFee(prefix + "ContractCreateWithAdmin", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractCreateWithAdmin", "gas=200k, adminKey=ED25519, memo=10chars", feeMap));
 
-        // ContractCreate with auto-renew account
+        // ContractCreate - with auto-renew account
         ops.add(contractCreate(prefix + "ContractWithAutoRenew")
                 .bytecode(STORAGE_CONTRACT)
                 .adminKey(SIMPLE_KEY)
@@ -742,34 +865,34 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ContractCreateWithAutoRenew"));
-        ops.add(captureFee(prefix + "ContractCreateWithAutoRenew", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractCreateWithAutoRenew", "gas=200k, autoRenewAccount=yes", feeMap));
 
-        // ContractCall - call the store function
+        // ContractCall - store function
         final var storeAbi = getABIFor(FUNCTION, "store", STORAGE_CONTRACT);
         ops.add(contractCallWithFunctionAbi(prefix + "ContractSimple", storeAbi, BigInteger.valueOf(42))
                 .gas(50_000L)
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ContractCallStore"));
-        ops.add(captureFee(prefix + "ContractCallStore", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractCallStore", "gas=50k, function=store(uint256)", feeMap));
 
-        // ContractCall - call the retrieve function
+        // ContractCall - retrieve function
         final var retrieveAbi = getABIFor(FUNCTION, "retrieve", STORAGE_CONTRACT);
         ops.add(contractCallWithFunctionAbi(prefix + "ContractSimple", retrieveAbi)
                 .gas(50_000L)
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ContractCallRetrieve"));
-        ops.add(captureFee(prefix + "ContractCallRetrieve", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractCallRetrieve", "gas=50k, function=retrieve()", feeMap));
 
-        // ContractUpdate - update memo
+        // ContractUpdate
         ops.add(contractUpdate(prefix + "ContractWithAdmin")
                 .newMemo(MEDIUM_MEMO)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ContractUpdate"));
-        ops.add(captureFee(prefix + "ContractUpdate", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractUpdate", "adminKey=ED25519, memo=50chars", feeMap));
 
         // ContractDelete
         ops.add(contractDelete(prefix + "ContractWithAdmin")
@@ -778,57 +901,97 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ContractDelete"));
-        ops.add(captureFee(prefix + "ContractDelete", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractDelete", "adminKey=ED25519, transferTo=payer", feeMap));
 
-        return ops;
+        return ops.toArray(new SpecOperation[0]);
+    }
+
+    // ==================== BATCH TRANSACTIONS WITH EMPHASIS ====================
+
+    private static SpecOperation[] batchTransactionsWithEmphasis(String prefix, Map<String, FeeEntry> feeMap) {
+        List<SpecOperation> ops = new ArrayList<>();
+
+        // AtomicBatch - 2 crypto transfers
+        ops.add(atomicBatch(
+                        cryptoTransfer(movingHbar(1L).between(PAYER, RECEIVER))
+                                .batchKey(BATCH_OPERATOR),
+                        cryptoTransfer(movingHbar(2L).between(PAYER, RECEIVER))
+                                .batchKey(BATCH_OPERATOR))
+                .payingWith(BATCH_OPERATOR)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "AtomicBatch2Transfers"));
+        ops.add(captureFeeWithEmphasis(prefix + "AtomicBatch2Transfers", "innerTxns=2(CryptoTransfer)", feeMap));
+
+        // AtomicBatch - 3 mixed transactions
+        ops.add(atomicBatch(
+                        cryptoTransfer(movingHbar(3L).between(PAYER, RECEIVER))
+                                .batchKey(BATCH_OPERATOR),
+                        cryptoTransfer(movingHbar(4L).between(PAYER, RECEIVER))
+                                .batchKey(BATCH_OPERATOR),
+                        cryptoTransfer(movingHbar(5L).between(PAYER, RECEIVER))
+                                .batchKey(BATCH_OPERATOR))
+                .payingWith(BATCH_OPERATOR)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "AtomicBatch3Transfers"));
+        ops.add(captureFeeWithEmphasis(prefix + "AtomicBatch3Transfers", "innerTxns=3(CryptoTransfer)", feeMap));
+
+        return ops.toArray(new SpecOperation[0]);
     }
 
     // ==================== FEE CAPTURE AND COMPARISON ====================
 
-    private static SpecOperation captureFee(String txnName, Map<String, Long> feeMap) {
+    private static SpecOperation captureFeeWithEmphasis(String txnName, String emphasis, Map<String, FeeEntry> feeMap) {
         return withOpContext((spec, opLog) -> {
             var recordOp = getTxnRecord(txnName);
             allRunFor(spec, recordOp);
             var record = recordOp.getResponseRecord();
             long fee = record.getTransactionFee();
-            feeMap.put(txnName, fee);
-            LOG.info("Captured fee for {}: {} tinybars", txnName, fee);
+            feeMap.put(txnName, new FeeEntry(txnName, emphasis, fee));
+            LOG.info("Captured fee for {}: {} tinybars ({})", txnName, fee, emphasis);
         });
     }
 
-    private static SpecOperation logFeeComparison(Map<String, Long> legacyFees, Map<String, Long> simpleFees) {
+    private static SpecOperation logFeeComparisonWithEmphasis(
+            String serviceName, Map<String, FeeEntry> legacyFees, Map<String, FeeEntry> simpleFees) {
         return withOpContext((spec, opLog) -> {
-            LOG.info("\n========== FEE COMPARISON RESULTS ==========");
+            LOG.info("\n========== {} FEE COMPARISON ==========", serviceName);
             LOG.info(String.format(
-                    "%-40s %15s %15s %15s %10s", "Transaction", "Legacy Fee", "Simple Fee", "Difference", "% Change"));
-            LOG.info("=".repeat(100));
+                    "%-35s %-45s %15s %15s %15s %10s",
+                    "Transaction", "Emphasis", "Legacy Fee", "Simple Fee", "Difference", "% Change"));
+            LOG.info("=".repeat(140));
 
             for (String txnName : legacyFees.keySet()) {
                 // Extract the base name (remove prefix)
                 String baseName = txnName.startsWith("legacy") ? txnName.substring(6) : txnName;
                 String simpleTxnName = "simple" + baseName;
 
-                Long legacyFee = legacyFees.get(txnName);
-                Long simpleFee = simpleFees.get(simpleTxnName);
+                FeeEntry legacyEntry = legacyFees.get(txnName);
+                FeeEntry simpleEntry = simpleFees.get(simpleTxnName);
 
-                if (legacyFee != null && simpleFee != null) {
-                    long diff = simpleFee - legacyFee;
-                    double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
+                if (legacyEntry != null && simpleEntry != null) {
+                    long diff = simpleEntry.fee() - legacyEntry.fee();
+                    double pctChange = legacyEntry.fee() > 0 ? (diff * 100.0 / legacyEntry.fee()) : 0;
+                    String emphasis = legacyEntry.emphasis();
+                    if (emphasis.length() > 45) {
+                        emphasis = emphasis.substring(0, 42) + "...";
+                    }
                     LOG.info(String.format(
-                            "%-40s %15d %15d %15d %9.2f%%", baseName, legacyFee, simpleFee, diff, pctChange));
+                            "%-35s %-45s %15d %15d %15d %9.2f%%",
+                            baseName, emphasis, legacyEntry.fee(), simpleEntry.fee(), diff, pctChange));
                 }
             }
-            LOG.info("=".repeat(100));
+            LOG.info("=".repeat(140));
 
-            // Also log summary statistics
-            long totalLegacy = legacyFees.values().stream().mapToLong(Long::longValue).sum();
-            long totalSimple = simpleFees.values().stream().mapToLong(Long::longValue).sum();
+            // Summary statistics
+            long totalLegacy = legacyFees.values().stream().mapToLong(FeeEntry::fee).sum();
+            long totalSimple = simpleFees.values().stream().mapToLong(FeeEntry::fee).sum();
             long totalDiff = totalSimple - totalLegacy;
             double totalPctChange = totalLegacy > 0 ? (totalDiff * 100.0 / totalLegacy) : 0;
 
             LOG.info(String.format(
-                    "%-40s %15d %15d %15d %9.2f%%", "TOTAL", totalLegacy, totalSimple, totalDiff, totalPctChange));
-            LOG.info("=============================================\n");
+                    "%-35s %-45s %15d %15d %15d %9.2f%%",
+                    "TOTAL", "", totalLegacy, totalSimple, totalDiff, totalPctChange));
+            LOG.info("=".repeat(140) + "\n");
         });
     }
 }
