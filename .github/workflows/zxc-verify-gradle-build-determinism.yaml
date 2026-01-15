@@ -170,7 +170,7 @@ jobs:
           GEN_MATRIX="This is a string test"
           
           # Set the output (simplified name)
-          echo "matrix=$GEN_MATRIX" >> $GITHUB_OUTPUT
+          echo "os-matrix=$GEN_MATRIX" >> $GITHUB_OUTPUT
 
   verify-output:
     name: Verify Matrix Output
@@ -185,7 +185,7 @@ jobs:
 
       - name: Debug Matrix Values
         run: |
-          echo "Raw matrix output: ${{ needs.generate-matrix.outputs.matrix }}"
+          echo "Raw matrix output: ${{ needs.generate-matrix.outputs.os-matrix }}"
 
   # Then in verify-artifacts:
   verify-artifacts:
