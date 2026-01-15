@@ -3,7 +3,6 @@ package com.swirlds.common.merkle.synchronization.streams;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
