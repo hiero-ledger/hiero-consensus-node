@@ -36,6 +36,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
@@ -43,6 +44,7 @@ import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
+import com.hedera.hapi.node.tss.LedgerIdNodeContribution;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -107,6 +109,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -483,20 +486,35 @@ public class SystemTransactions {
      * @param state the current state
      * @param now the consensus time for the synthetic transaction
      * @param ledgerId the new ledger id
+     * @param proofKeys the proof keys for the new ledger id
+     * @param targetNodeWeights the weights of the nodes in the target roster
      * @param historyProofVerificationKey the verification key for the new ledger id
      */
     public void externalizeLedgerId(
             @NonNull final State state,
             @NonNull final Instant now,
             @NonNull final Bytes ledgerId,
+            @NonNull final List<ProofKey> proofKeys,
+            @NonNull final SortedMap<Long, Long> targetNodeWeights,
             @NonNull final Bytes historyProofVerificationKey) {
+        requireNonNull(now);
         requireNonNull(ledgerId);
+        requireNonNull(proofKeys);
+        requireNonNull(targetNodeWeights);
         requireNonNull(historyProofVerificationKey);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+        final List<LedgerIdNodeContribution> contributions = proofKeys.stream()
+                .map(proofKey -> LedgerIdNodeContribution.newBuilder()
+                        .nodeId(proofKey.nodeId())
+                        .historyProofKey(proofKey.key())
+                        .weight(targetNodeWeights.get(proofKey.nodeId()))
+                        .build())
+                .toList();
         systemContext.dispatchAdmin(b -> b.memo("Ledger id")
                 .ledgerIdPublication(LedgerIdPublicationTransactionBody.newBuilder()
                         .ledgerId(ledgerId)
+                        .nodeContributions(contributions)
                         .historyProofVerificationKey(historyProofVerificationKey)
                         .build()));
     }

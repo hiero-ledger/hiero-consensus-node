@@ -340,7 +340,7 @@ class ProofControllerImplTest {
         verify(writableHistoryStore).getLedgerId();
         verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any());
         verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
-        verify(historyService).onFinished(eq(writableHistoryStore), eq(construction));
+        verify(historyService).onFinished(eq(writableHistoryStore), eq(construction), weights.targetNodeWeights());
     }
 
     @Test
@@ -524,7 +524,7 @@ class ProofControllerImplTest {
 
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(vote));
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
-        verify(historyService).onFinished(eq(writableHistoryStore), any());
+        verify(historyService).onFinished(eq(writableHistoryStore), any(), weights.targetNodeWeights());
     }
 
     @Test

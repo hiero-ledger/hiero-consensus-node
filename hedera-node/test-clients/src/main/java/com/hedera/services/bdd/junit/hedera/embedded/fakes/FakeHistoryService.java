@@ -22,6 +22,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.SortedMap;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 public class FakeHistoryService implements HistoryService {
@@ -81,8 +82,11 @@ public class FakeHistoryService implements HistoryService {
     }
 
     @Override
-    public void onFinished(@NonNull WritableHistoryStore historyStore, @NonNull HistoryProofConstruction construction) {
-        delegate.onFinished(historyStore, construction);
+    public void onFinished(
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final HistoryProofConstruction construction,
+            @NonNull final SortedMap<Long, Long> targetNodeWeights) {
+        delegate.onFinished(historyStore, construction, targetNodeWeights);
     }
 
     @Override
