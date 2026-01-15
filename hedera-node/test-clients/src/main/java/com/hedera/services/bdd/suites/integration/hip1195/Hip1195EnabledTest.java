@@ -656,9 +656,9 @@ public class Hip1195EnabledTest {
                 tokenAssociate(amelie, List.of(westWindArt, usdc)),
                 tokenAssociate(alice, List.of(westWindArt, usdc)),
                 mintToken(westWindArt, List.of(copyFromUtf8("test"))),
-                cryptoTransfer(moving(200, usdc).between(usdcTreasury, alice)).fee(ONE_HBAR),
+                cryptoTransfer(moving(200, usdc).between(usdcTreasury, alice)).fee(ONE_HUNDRED_HBARS),
                 cryptoTransfer(movingUnique(westWindArt, 1L).between(westWindTreasury, amelie))
-                        .fee(ONE_HBAR)
+                        .fee(ONE_HUNDRED_HBARS)
                         .via(txnFromTreasury),
                 cryptoTransfer(
                                 movingUnique(westWindArt, 1L).between(amelie, alice),
@@ -668,7 +668,7 @@ public class Hip1195EnabledTest {
                         .signedBy(amelie, alice)
                         .payingWith(amelie)
                         .via(txnFromAmelie)
-                        .fee(ONE_HBAR),
+                        .fee(ONE_HUNDRED_HBARS),
                 getTxnRecord(txnFromAmelie).logged()
                 // manually check the proposed transfers in logs
                 );
