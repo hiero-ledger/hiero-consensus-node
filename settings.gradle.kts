@@ -57,5 +57,4 @@ javaModules {
     directory("example-apps") { group = "com.hedera.hashgraph" }
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
-
 }
