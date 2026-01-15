@@ -164,10 +164,10 @@ public class TransactionDispatcher {
                     TOKEN_UPDATE_NFTS,
                     TOKEN_WIPE -> true;
             case CONTRACT_CREATE_INSTANCE,
-                 CONTRACT_DELETE_INSTANCE,
-                 CONTRACT_CALL,
-                 CONTRACT_UPDATE_INSTANCE,
-                 ETHEREUM_TRANSACTION -> true;
+                    CONTRACT_DELETE_INSTANCE,
+                    CONTRACT_CALL,
+                    CONTRACT_UPDATE_INSTANCE,
+                    ETHEREUM_TRANSACTION -> true;
             default -> false;
         };
     }
