@@ -236,7 +236,7 @@ public class Hip1195EnabledTest {
         final AtomicReference<byte[]> payerMirror = new AtomicReference<>();
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate(PAYER),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, STATIC_CALL_HOOK.name())),
                 tokenCreate("token")
                         .treasury(PAYER)
@@ -633,7 +633,9 @@ public class Hip1195EnabledTest {
                 cryptoCreate(alice)
                         .withHooks(accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()))
                         .balance(10 * ONE_HUNDRED_HBARS),
-                cryptoCreate(amelie).withHooks(accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate(amelie)
+                        .withHooks(accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
+                        .balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(usdcTreasury),
                 cryptoCreate(usdcCollector),
                 cryptoCreate(westWindTreasury),
@@ -1300,19 +1302,20 @@ public class Hip1195EnabledTest {
                         .withPrePostHookFor("owner6", 6L, 25_000L, "")
                         .payingWith(PAYER)
                         .signedBy(PAYER)
+                        .fee(THOUSAND_HBAR)
                         .hasKnownStatus(TOO_MANY_HOOK_INVOCATIONS));
     }
 
     /**
      * Verifies that when the requested gas limit exceeds numHookInvocations * maxGasPerSec,
      * the effective gas charged is capped at numHookInvocations * maxGasPerSec.
-     *
+     * <p>
      * The formula is: effectiveGasLimit = min(numHookInvocations * maxGasPerSec, totalGasLimitOfHooks)
-     *
+     * <p>
      * This test creates two transfers:
      * 1. One with gas limit below the cap (should charge the requested gas)
      * 2. One with gas limit above the cap (should charge numHookInvocations * maxGasPerSec)
-     *
+     * <p>
      * Both should have similar fees since the second one's gas is capped.
      */
     @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
