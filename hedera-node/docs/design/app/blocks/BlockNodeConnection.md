@@ -9,6 +9,10 @@
 5. [Lifecycle](#lifecycle)
 6. [State Machine Diagrams](#state-machine-diagrams)
 7. [Error Handling](#error-handling)
+   - [Consensus Node Behavior on EndOfStream Response Codes](#consensus-node-behavior-on-endofstream-response-codes)
+   - [Consensus Node Behavior on BehindPublisher Response](#consensus-node-behavior-on-behindpublisher-response)
+   - [EndOfStream Rate Limiting](#endofstream-rate-limiting)
+   - [Pipeline Operation Timeout](#pipeline-operation-timeout)
 
 ## Abstract
 
@@ -67,7 +71,7 @@ the current streaming block needs to be updated. If this is the first time the w
 the following will happen:
 - If the connection was initialized with an explicit block to start with, then that block will be loaded from the block buffer.
 - If the connection wasn't initialized with an explicit block, then the most recent block produced is chosen as the block to start streaming.
-- If at any point during the lifespan of the connection a `SkipBlock` or `ResendBlock` response is received, then the
+- If at any point during the lifespan of the connection a `SkipBlock`, `ResendBlock` or `BehindPublisher` response is received, then the
 worker will detect this and switch to that block.
 
 If the block is not available yet (e.g. no items yet) then the worker will go back to sleep and try again later. If the
@@ -94,7 +98,7 @@ Under normal situations, the worker will continue advancing to the next block af
 associated with the current block. This process will repeat until the connection is terminated for any reason. (A
 conditional check is performed each time the worker wakes up ensuring the connection is not in a terminal state.)
 
-For cases where an `EndStream` response is received from the block node or some other internal error condition is encountered
+For cases where an `EndOfStream` response is received from the block node or some other internal error condition is encountered
 \- e.g. transient network error - then the connection will transition to a `CLOSING` state. This state signals that the connection
 has entered a terminal state and is in the process of stopping and being cleaned up. Once final cleanup processes complete,
 the connection will transition to the final end state: `CLOSED`. Once a connection enters a terminal state, no further
@@ -155,6 +159,7 @@ stateDiagram-v2
     ACTIVE --> CLOSING : EndOfStream UNKNOWN
     ACTIVE --> CLOSING : Block not found in buffer
     ACTIVE --> CLOSING : ResendBlock unavailable
+    ACTIVE --> CLOSING : BehindPublisher unavailable
     ACTIVE --> CLOSING : gRPC onError
     ACTIVE --> CLOSING : Stream failure
     ACTIVE --> CLOSING : Pipeline operation timeout
@@ -162,8 +167,8 @@ stateDiagram-v2
     ACTIVE --> ACTIVE : BlockAcknowledgement
     ACTIVE --> ACTIVE : SkipBlock
     ACTIVE --> ACTIVE : ResendBlock available
+    ACTIVE --> ACTIVE : BehindPublisher available
     ACTIVE --> ACTIVE : Normal streaming
-    ACTIVE --> CLOSING : EndOfStream BEHIND<br/>restart at next block
     ACTIVE --> CLOSING : EndOfStream TIMEOUT<br/>restart at next block
     ACTIVE --> CLOSING : EndOfStream DUPLICATE_BLOCK<br/>restart at next block
     ACTIVE --> CLOSING : EndOfStream BAD_BLOCK_PROOF<br/>restart at next block
@@ -217,23 +222,35 @@ sequenceDiagram
 
 ### Consensus Node Behavior on EndOfStream Response Codes
 
-| Code                          | Connect to Other Node | Retry Behavior      | Initial Retry Delay | Exponential Backoff | Restart at Block | Special Behaviour                                                                                   |
-|:------------------------------|:----------------------|:--------------------|:--------------------|:--------------------|:-----------------|:----------------------------------------------------------------------------------------------------|
-| `SUCCESS`                     | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                                                                                                     |
-| `BEHIND` with block in buffer | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                                                                                                     |
-| `BEHIND` w/o block in buffer  | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           | CN sends `EndStream.TOO_FAR_BEHIND` to indicate the BN to look for the block from other Block Nodes |
-| `ERROR`                       | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                                                                                                     |
-| `PERSISTENCE_FAILED`          | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                                                                                                     |
-| `TIMEOUT`                     | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                                                                                                     |
-| `DUPLICATE_BLOCK`             | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                                                                                                     |
-| `BAD_BLOCK_PROOF`             | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                                                                                                     |
-| `INVALID_REQUEST`             | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                                                                                                     |
-| `UNKNOWN`                     | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                                                                                                     |
+| Code                 | Connect to Other Node | Retry Behavior      | Initial Retry Delay | Exponential Backoff | Restart at Block | Special Behaviour |
+|:---------------------|:----------------------|:--------------------|:--------------------|:--------------------|:-----------------|:------------------|
+| `SUCCESS`            | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
+| `ERROR`              | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
+| `PERSISTENCE_FAILED` | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
+| `TIMEOUT`            | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
+| `DUPLICATE_BLOCK`    | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
+| `BAD_BLOCK_PROOF`    | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
+| `INVALID_REQUEST`    | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
+| `UNKNOWN`            | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
 
 **Notes:**
 - **Exponential Backoff**: When enabled, delay starts at 1 second and doubles (2x multiplier) on each retry attempt with jitter applied (delay/2 + random(0, delay/2)) to spread out retry attempts. Max backoff is configurable via `maxBackoffDelay`.
 - **Connect to Other Node**: When "Yes (immediate)", the manager will immediately attempt to connect to the next available priority node while the failed node is rescheduled for retry.
 - **Restart at Block**: "Latest" means reconnection starts at the latest produced block; "blockNumber + 1" means reconnection continues from the block following the acknowledged block.
+
+### Consensus Node Behavior on BehindPublisher Response
+
+The `BehindPublisher` response indicates that the block node is behind the publisher (consensus node) and needs earlier blocks. This is a separate response type from `EndOfStream`, and crucially **does not close the stream** when the consensus node can help.
+
+| Condition                            | Connection Behavior  | Stream Closed | Resume at Block | Special Behaviour                                                                             |
+|:-------------------------------------|:---------------------|:--------------|:----------------|:----------------------------------------------------------------------------------------------|
+| Block available in buffer            | Stay connected       | No            | blockNumber + 1 | Connection remains open; streaming resumes from the earlier block                             |
+| Block not available (too far behind) | Close and reschedule | Yes           | Latest          | CN sends `EndStream.TOO_FAR_BEHIND` to indicate the BN should catch up from other Block Nodes |
+| Block not available (future block)   | Close and reschedule | Yes           | Latest          | CN sends `EndStream.ERROR` - this indicates an unexpected state                               |
+
+**Key Behavioral Notes:**
+- If the consensus node has the requested block in its buffer, it simply updates the streaming block and continues on the same connection.
+- The connection is only closed when the consensus node cannot provide the requested block.
 
 ### EndOfStream Rate Limiting
 

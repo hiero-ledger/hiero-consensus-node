@@ -20,7 +20,7 @@ tasks.withType<JavaCompile>().configureEach {
 // block would not be needed.
 dependencies {
     protobuf(platform(project(":hiero-dependency-versions")))
-    protobuf("org.hiero.block:block-node-protobuf-sources")
+    protobuf("org.hiero.block-node:protobuf-sources")
 }
 
 sourceSets {
