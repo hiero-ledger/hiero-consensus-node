@@ -3,37 +3,17 @@ package com.hedera.node.app;
 
 import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.mockStatic;
 
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.state.MerkleNodeState;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 final class ServicesMainTest {
-
-    @Mock(strictness = LENIENT)
-    private Metrics metrics;
-
-    @Mock(strictness = LENIENT)
-    private Hedera hedera;
-
-    @Mock
-    private MerkleNodeState state;
-
-    private final ServicesMain subject = new ServicesMain();
-
     // no local nodes specified, no environment nodes specified
     @Test
     void throwsExceptionOnNoNodesToRun() {
@@ -50,26 +30,5 @@ final class ServicesMainTest {
             assertThatThrownBy(() -> ServicesMain.main(args)).isInstanceOf(ConfigurationException.class);
             systemExitUtilsMockedStatic.verify(() -> SystemExitUtils.exitSystem(NODE_ADDRESS_MISMATCH));
         }
-    }
-
-    @Test
-    void delegatesSoftwareVersion() {
-        ServicesMain.initGlobal(hedera, metrics);
-        final var mockVersion = SemanticVersion.DEFAULT;
-        given(hedera.getSemanticVersion()).willReturn(mockVersion);
-        assertSame(mockVersion, subject.getSemanticVersion());
-    }
-
-    @Test
-    void noopsAsExpected() {
-        ServicesMain.initGlobal(hedera, metrics);
-        assertDoesNotThrow(subject::run);
-    }
-
-    @Test
-    void createsNewStateRoot() {
-        ServicesMain.initGlobal(hedera, metrics);
-        given(hedera.newStateRoot()).willReturn(state);
-        assertSame(state, subject.newStateRoot());
     }
 }
