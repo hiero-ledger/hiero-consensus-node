@@ -291,11 +291,21 @@ public class KitchenSinkFeeComparisonSuite {
     }
 
     // ==================== BASE ACCOUNT CREATION ====================
+    // Payers with different signature requirements for testing SIGNATURES extra
+    private static final String PAYER_SIG1 = "payerSig1"; // 1 signature (ED25519)
+    private static final String PAYER_SIG2 = "payerSig2"; // 2 signatures (listOf(2))
+    private static final String PAYER_SIG3 = "payerSig3"; // 3 signatures (listOf(3))
+    private static final String PAYER_SIG5 = "payerSig5"; // 5 signatures (listOf(5))
 
     private static SpecOperation createBaseAccounts() {
         return blockingOrder(
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SIMPLE_KEY),
                 cryptoCreate(PAYER_COMPLEX).balance(ONE_MILLION_HBARS).key(COMPLEX_KEY),
+                // Payers with different signature counts for SIGNATURES extra testing
+                cryptoCreate(PAYER_SIG1).balance(ONE_MILLION_HBARS).key(SIMPLE_KEY),
+                cryptoCreate(PAYER_SIG2).balance(ONE_MILLION_HBARS).key(LIST_KEY_2),
+                cryptoCreate(PAYER_SIG3).balance(ONE_MILLION_HBARS).key(LIST_KEY_3),
+                cryptoCreate(PAYER_SIG5).balance(ONE_MILLION_HBARS).key(LIST_KEY_5),
                 cryptoCreate(TREASURY).balance(ONE_MILLION_HBARS),
                 cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER2).balance(ONE_HUNDRED_HBARS),
@@ -304,150 +314,197 @@ public class KitchenSinkFeeComparisonSuite {
     }
 
     // ==================== CRYPTO TRANSACTIONS WITH EXTRAS ====================
-    // Extras: KEYS (includedCount=1), SIGNATURES, ACCOUNTS (includedCount=2), ALLOWANCES (includedCount=1)
+    // Node extras: SIGNATURES (includedCount=1)
+    // CryptoCreate extras: KEYS (includedCount=1), HOOK_UPDATES (includedCount=0)
+    // CryptoUpdate extras: KEYS (includedCount=1), HOOK_UPDATES (includedCount=0)
+    // CryptoTransfer extras: ACCOUNTS (includedCount=2), FUNGIBLE_TOKENS (1), NON_FUNGIBLE_TOKENS (1)
+    // CryptoApproveAllowance extras: ALLOWANCES (includedCount=1)
+    // CryptoDeleteAllowance extras: ALLOWANCES (includedCount=1)
+    // CryptoDelete extras: none
 
     private static SpecOperation[] cryptoTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // === CryptoCreate: KEYS extra (includedCount=1) ===
-        // KEYS=1 (included, no extra charge)
-        ops.add(cryptoCreate(prefix + "AccKey1")
+        // ========== CryptoCreate: KEYS + SIGNATURES combinations ==========
+        // KEYS=1, SIGS=1 (both included)
+        ops.add(cryptoCreate(prefix + "AccK1S1")
                 .key(SIMPLE_KEY)
                 .balance(ONE_HBAR)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoCreateKey1"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateKey1", "KEYS=1 (included)", feeMap));
+                .via(prefix + "CryptoCreateK1S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateK1S1", "KEYS=1, SIGS=1 (both included)", feeMap));
 
-        // KEYS=2 (1 extra)
-        ops.add(cryptoCreate(prefix + "AccKey2")
+        // KEYS=1, SIGS=2 (+1 sig extra)
+        ops.add(cryptoCreate(prefix + "AccK1S2")
+                .key(SIMPLE_KEY)
+                .balance(ONE_HBAR)
+                .payingWith(PAYER_SIG2)
+                .signedBy(PAYER_SIG2)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "CryptoCreateK1S2"));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateK1S2", "KEYS=1, SIGS=2 (+1 sig)", feeMap));
+
+        // KEYS=2, SIGS=1 (+1 key extra)
+        ops.add(cryptoCreate(prefix + "AccK2S1")
                 .key(LIST_KEY_2)
                 .balance(ONE_HBAR)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoCreateKey2"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateKey2", "KEYS=2 (+1 extra)", feeMap));
+                .via(prefix + "CryptoCreateK2S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateK2S1", "KEYS=2 (+1), SIGS=1", feeMap));
 
-        // KEYS=3 (2 extra)
-        ops.add(cryptoCreate(prefix + "AccKey3")
+        // KEYS=3, SIGS=3 (+2 key, +2 sig extra)
+        ops.add(cryptoCreate(prefix + "AccK3S3")
                 .key(LIST_KEY_3)
                 .balance(ONE_HBAR)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoCreateKey3"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateKey3", "KEYS=3 (+2 extra)", feeMap));
+                .via(prefix + "CryptoCreateK3S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateK3S3", "KEYS=3 (+2), SIGS=3 (+2)", feeMap));
 
-        // KEYS=5 (4 extra)
-        ops.add(cryptoCreate(prefix + "AccKey5")
+        // KEYS=5, SIGS=5 (+4 key, +4 sig extra)
+        ops.add(cryptoCreate(prefix + "AccK5S5")
                 .key(LIST_KEY_5)
                 .balance(ONE_HBAR)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG5)
+                .signedBy(PAYER_SIG5)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoCreateKey5"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateKey5", "KEYS=5 (+4 extra)", feeMap));
+                .via(prefix + "CryptoCreateK5S5"));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateK5S5", "KEYS=5 (+4), SIGS=5 (+4)", feeMap));
 
-        // === CryptoUpdate: KEYS extra (includedCount=1) ===
-        // KEYS=1 (included)
-        ops.add(cryptoUpdate(prefix + "AccKey1")
+        // ========== CryptoUpdate: KEYS + SIGNATURES combinations ==========
+        // KEYS=1, SIGS=1 (both included)
+        ops.add(cryptoUpdate(prefix + "AccK1S1")
                 .memo("updated")
-                .payingWith(PAYER)
-                .signedBy(PAYER, SIMPLE_KEY)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoUpdateKey1"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoUpdateKey1", "KEYS=1 (included)", feeMap));
+                .via(prefix + "CryptoUpdateK1S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoUpdateK1S1", "KEYS=1, SIGS=2 (+1 sig)", feeMap));
 
-        // KEYS=3 (2 extra) - update with new key
-        ops.add(cryptoUpdate(prefix + "AccKey2")
+        // KEYS=3, SIGS=3 (+2 key, +2 sig extra) - update with new key
+        ops.add(cryptoUpdate(prefix + "AccK2S1")
                 .key(LIST_KEY_3)
-                .payingWith(PAYER)
-                .signedBy(PAYER, LIST_KEY_2, LIST_KEY_3)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3, LIST_KEY_2, LIST_KEY_3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoUpdateKey3"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoUpdateKey3", "KEYS=3 (+2 extra, new key)", feeMap));
+                .via(prefix + "CryptoUpdateK3S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoUpdateK3S3", "KEYS=3 (+2), SIGS=8 (+7)", feeMap));
 
-        // === CryptoTransfer: ACCOUNTS extra (includedCount=2) ===
-        // ACCOUNTS=2 (included)
-        ops.add(cryptoTransfer(movingHbar(ONE_HBAR).between(PAYER, RECEIVER))
-                .payingWith(PAYER)
+        // ========== CryptoTransfer: ACCOUNTS + SIGNATURES combinations ==========
+        // ACCOUNTS=2, SIGS=1 (both included)
+        ops.add(cryptoTransfer(movingHbar(ONE_HBAR).between(PAYER_SIG1, RECEIVER))
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferAcct2"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferAcct2", "ACCOUNTS=2 (included)", feeMap));
+                .via(prefix + "TransferA2S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "TransferA2S1", "ACCTS=2, SIGS=1 (included)", feeMap));
 
-        // ACCOUNTS=3 (+1 extra)
+        // ACCOUNTS=2, SIGS=2 (+1 sig extra)
+        ops.add(cryptoTransfer(movingHbar(ONE_HBAR).between(PAYER_SIG2, RECEIVER))
+                .payingWith(PAYER_SIG2)
+                .signedBy(PAYER_SIG2)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TransferA2S2"));
+        ops.add(captureFeeWithEmphasis(prefix + "TransferA2S2", "ACCTS=2, SIGS=2 (+1 sig)", feeMap));
+
+        // ACCOUNTS=3, SIGS=1 (+1 acct extra)
         ops.add(cryptoTransfer(
-                        movingHbar(ONE_HBAR).between(PAYER, RECEIVER),
-                        movingHbar(ONE_HBAR).between(PAYER, RECEIVER2))
-                .payingWith(PAYER)
+                        movingHbar(ONE_HBAR).between(PAYER_SIG1, RECEIVER),
+                        movingHbar(ONE_HBAR).between(PAYER_SIG1, RECEIVER2))
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferAcct3"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferAcct3", "ACCOUNTS=3 (+1 extra)", feeMap));
+                .via(prefix + "TransferA3S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "TransferA3S1", "ACCTS=3 (+1), SIGS=1", feeMap));
 
-        // ACCOUNTS=4 (+2 extra)
+        // ACCOUNTS=4, SIGS=3 (+2 acct, +2 sig extra)
         ops.add(cryptoTransfer(
-                        movingHbar(ONE_HBAR).between(PAYER, RECEIVER),
-                        movingHbar(ONE_HBAR).between(PAYER, RECEIVER2),
-                        movingHbar(ONE_HBAR).between(PAYER, RECEIVER3))
-                .payingWith(PAYER)
+                        movingHbar(ONE_HBAR).between(PAYER_SIG3, RECEIVER),
+                        movingHbar(ONE_HBAR).between(PAYER_SIG3, RECEIVER2),
+                        movingHbar(ONE_HBAR).between(PAYER_SIG3, RECEIVER3))
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferAcct4"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferAcct4", "ACCOUNTS=4 (+2 extra)", feeMap));
+                .via(prefix + "TransferA4S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "TransferA4S3", "ACCTS=4 (+2), SIGS=3 (+2)", feeMap));
 
         // Auto-creation via ECDSA alias (hollow account)
         ops.add(newKeyNamed(prefix + "AutoKey").shape(SECP256K1));
-        ops.add(cryptoTransfer(tinyBarsFromAccountToAlias(PAYER, prefix + "AutoKey", ONE_HBAR))
-                .payingWith(PAYER)
+        ops.add(cryptoTransfer(tinyBarsFromAccountToAlias(PAYER_SIG1, prefix + "AutoKey", ONE_HBAR))
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TransferAutoCreate"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferAutoCreate", "ACCOUNTS=2, hollow creation", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TransferAutoCreate", "ACCTS=2, SIGS=1, hollow", feeMap));
 
-        // === CryptoApproveAllowance: ALLOWANCES extra (includedCount=1) ===
-        // ALLOWANCES=1 (included)
+        // ========== CryptoApproveAllowance: ALLOWANCES + SIGNATURES combinations ==========
+        // ALLOWANCES=1, SIGS=1 (both included)
         ops.add(cryptoApproveAllowance()
-                .addCryptoAllowance(prefix + "AccKey1", RECEIVER, ONE_HBAR)
-                .payingWith(PAYER)
-                .signedBy(PAYER, SIMPLE_KEY)
+                .addCryptoAllowance(prefix + "AccK1S1", RECEIVER, ONE_HBAR)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ApproveAllow1"));
-        ops.add(captureFeeWithEmphasis(prefix + "ApproveAllow1", "ALLOWANCES=1 (included)", feeMap));
+                .via(prefix + "ApproveA1S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "ApproveA1S1", "ALLOW=1, SIGS=2 (+1 sig)", feeMap));
 
-        // ALLOWANCES=2 (+1 extra)
+        // ALLOWANCES=2, SIGS=3 (+1 allow, +2 sig extra)
         ops.add(cryptoApproveAllowance()
-                .addCryptoAllowance(prefix + "AccKey3", RECEIVER, ONE_HBAR)
-                .addCryptoAllowance(prefix + "AccKey3", RECEIVER2, ONE_HBAR)
-                .payingWith(PAYER)
-                .signedBy(PAYER, LIST_KEY_3)
+                .addCryptoAllowance(prefix + "AccK3S3", RECEIVER, ONE_HBAR)
+                .addCryptoAllowance(prefix + "AccK3S3", RECEIVER2, ONE_HBAR)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3, LIST_KEY_3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ApproveAllow2"));
-        ops.add(captureFeeWithEmphasis(prefix + "ApproveAllow2", "ALLOWANCES=2 (+1 extra)", feeMap));
+                .via(prefix + "ApproveA2S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "ApproveA2S3", "ALLOW=2 (+1), SIGS=6 (+5)", feeMap));
 
-        // ALLOWANCES=3 (+2 extra)
+        // ALLOWANCES=3, SIGS=5 (+2 allow, +4 sig extra)
         ops.add(cryptoApproveAllowance()
-                .addCryptoAllowance(prefix + "AccKey5", RECEIVER, ONE_HBAR)
-                .addCryptoAllowance(prefix + "AccKey5", RECEIVER2, ONE_HBAR)
-                .addCryptoAllowance(prefix + "AccKey5", RECEIVER3, ONE_HBAR)
-                .payingWith(PAYER)
-                .signedBy(PAYER, LIST_KEY_5)
+                .addCryptoAllowance(prefix + "AccK5S5", RECEIVER, ONE_HBAR)
+                .addCryptoAllowance(prefix + "AccK5S5", RECEIVER2, ONE_HBAR)
+                .addCryptoAllowance(prefix + "AccK5S5", RECEIVER3, ONE_HBAR)
+                .payingWith(PAYER_SIG5)
+                .signedBy(PAYER_SIG5, LIST_KEY_5)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ApproveAllow3"));
-        ops.add(captureFeeWithEmphasis(prefix + "ApproveAllow3", "ALLOWANCES=3 (+2 extra)", feeMap));
+                .via(prefix + "ApproveA3S5"));
+        ops.add(captureFeeWithEmphasis(prefix + "ApproveA3S5", "ALLOW=3 (+2), SIGS=10 (+9)", feeMap));
 
-        // Note: CryptoDeleteAllowance only supports NFT allowance deletion, tested in token section
-
-        // === CryptoDelete ===
-        ops.add(cryptoCreate(prefix + "ToDelete").balance(0L).payingWith(PAYER).fee(ONE_HUNDRED_HBARS));
-        ops.add(cryptoDelete(prefix + "ToDelete")
-                .transfer(PAYER)
-                .payingWith(PAYER)
+        // ========== CryptoDelete: SIGNATURES combinations ==========
+        ops.add(cryptoCreate(prefix + "ToDelete1").balance(0L).payingWith(PAYER_SIG1).fee(ONE_HUNDRED_HBARS));
+        ops.add(cryptoDelete(prefix + "ToDelete1")
+                .transfer(PAYER_SIG1)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoDelete"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoDelete", "no extras", feeMap));
+                .via(prefix + "CryptoDeleteS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoDeleteS1", "SIGS=1 (included)", feeMap));
+
+        ops.add(cryptoCreate(prefix + "ToDelete3")
+                .balance(0L)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
+                .fee(ONE_HUNDRED_HBARS));
+        ops.add(cryptoDelete(prefix + "ToDelete3")
+                .transfer(PAYER_SIG3)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "CryptoDeleteS3"));
+        ops.add(captureFeeWithEmphasis(prefix + "CryptoDeleteS3", "SIGS=3 (+2)", feeMap));
 
         return ops.toArray(new SpecOperation[0]);
     }
 
     // ==================== TOKEN TRANSACTIONS WITH EXTRAS ====================
-    // Extras: KEYS (includedCount=1), TOKEN_CREATE_WITH_CUSTOM_FEE (0), TOKEN_MINT_NFT (0)
-    // Transfer extras: TOKEN_TRANSFER_BASE, FUNGIBLE_TOKENS (1), NON_FUNGIBLE_TOKENS (1)
+    // Node extras: SIGNATURES (includedCount=1)
+    // TokenCreate extras: KEYS (includedCount=1), TOKEN_CREATE_WITH_CUSTOM_FEE (includedCount=0)
+    // TokenMint extras: TOKEN_MINT_NFT (includedCount=0)
+    // TokenUpdate extras: KEYS (includedCount=1)
+    // Transfer extras: FUNGIBLE_TOKENS (1), NON_FUNGIBLE_TOKENS (1)
 
     private static SpecOperation[] tokenTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
@@ -456,30 +513,32 @@ public class KitchenSinkFeeComparisonSuite {
         ops.add(cryptoCreate(prefix + "Acc1").key(SIMPLE_KEY).balance(ONE_HBAR).payingWith(GENESIS));
         ops.add(cryptoCreate(prefix + "Acc2").key(LIST_KEY_2).balance(ONE_HBAR).payingWith(GENESIS));
 
-        // === TokenCreate: KEYS extra (includedCount=1) ===
-        // KEYS=0 (no admin key)
-        ops.add(tokenCreate(prefix + "FTKey0")
+        // ========== TokenCreate: KEYS + SIGNATURES + CUSTOM_FEE combinations ==========
+        // KEYS=0, SIGS=1 (no admin key)
+        ops.add(tokenCreate(prefix + "FTK0S1")
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
                 .treasury(TREASURY)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateKey0"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateKey0", "KEYS=0, TOKEN_CREATE_WITH_CUSTOM_FEE=0", feeMap));
+                .via(prefix + "TokenCreateK0S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateK0S1", "KEYS=0, SIGS=2 (+1)", feeMap));
 
-        // KEYS=1 (included)
-        ops.add(tokenCreate(prefix + "FTKey1")
+        // KEYS=1, SIGS=1 (both included)
+        ops.add(tokenCreate(prefix + "FTK1S1")
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
                 .treasury(TREASURY)
                 .adminKey(SIMPLE_KEY)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateKey1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateKey1", "KEYS=1 (included)", feeMap));
+                .via(prefix + "TokenCreateK1S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateK1S1", "KEYS=1, SIGS=2 (+1)", feeMap));
 
-        // KEYS=3 (+2 extra: admin, supply, freeze)
-        ops.add(tokenCreate(prefix + "FTKey3")
+        // KEYS=3, SIGS=3 (+2 key, +2 sig extra)
+        ops.add(tokenCreate(prefix + "FTK3S3")
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
                 .treasury(TREASURY)
@@ -487,13 +546,14 @@ public class KitchenSinkFeeComparisonSuite {
                 .supplyKey(SIMPLE_KEY)
                 .freezeKey(SIMPLE_KEY)
                 .freezeDefault(false)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateKey3"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateKey3", "KEYS=3 (+2 extra)", feeMap));
+                .via(prefix + "TokenCreateK3S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateK3S3", "KEYS=3 (+2), SIGS=4 (+3)", feeMap));
 
-        // KEYS=5 (+4 extra: admin, supply, freeze, pause, wipe)
-        ops.add(tokenCreate(prefix + "FTKey5")
+        // KEYS=5, SIGS=5 (+4 key, +4 sig extra)
+        ops.add(tokenCreate(prefix + "FTK5S5")
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
                 .treasury(TREASURY)
@@ -503,45 +563,48 @@ public class KitchenSinkFeeComparisonSuite {
                 .pauseKey(SIMPLE_KEY)
                 .wipeKey(SIMPLE_KEY)
                 .freezeDefault(false)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG5)
+                .signedBy(PAYER_SIG5, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateKey5"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateKey5", "KEYS=5 (+4 extra)", feeMap));
+                .via(prefix + "TokenCreateK5S5"));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateK5S5", "KEYS=5 (+4), SIGS=6 (+5)", feeMap));
 
-        // === TokenCreate: TOKEN_CREATE_WITH_CUSTOM_FEE extra (includedCount=0) ===
-        // 1 custom fee (fixedHbar)
-        ops.add(tokenCreate(prefix + "FTCustom1")
+        // TOKEN_CREATE_WITH_CUSTOM_FEE=1, SIGS=1
+        ops.add(tokenCreate(prefix + "FTCust1S1")
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
                 .treasury(TREASURY)
                 .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateCustom1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateCustom1", "TOKEN_CREATE_WITH_CUSTOM_FEE=1 (fixedHbar)", feeMap));
+                .via(prefix + "TokenCreateCust1S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateCust1S1", "CUSTOM_FEE=1, SIGS=2 (+1)", feeMap));
 
-        // 2 custom fees (fixedHbar + fractional)
-        ops.add(tokenCreate(prefix + "FTCustom2")
+        // TOKEN_CREATE_WITH_CUSTOM_FEE=2, SIGS=3
+        ops.add(tokenCreate(prefix + "FTCust2S3")
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
                 .treasury(TREASURY)
                 .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
                 .withCustom(fractionalFee(1L, 100L, 1L, OptionalLong.of(10L), TREASURY))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateCustom2"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateCustom2", "TOKEN_CREATE_WITH_CUSTOM_FEE=2 (hbar+frac)", feeMap));
+                .via(prefix + "TokenCreateCust2S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateCust2S3", "CUSTOM_FEE=2, SIGS=4 (+3)", feeMap));
 
-        // === NFT with TOKEN_MINT_NFT extra ===
+        // ========== NFT with TOKEN_MINT_NFT + SIGNATURES ==========
         ops.add(tokenCreate(prefix + "NFT")
                 .tokenType(NON_FUNGIBLE_UNIQUE)
                 .initialSupply(0L)
                 .treasury(TREASURY)
                 .supplyKey(SIMPLE_KEY)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenCreateNFT"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateNFT", "KEYS=1, type=NFT", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateNFT", "KEYS=1, NFT, SIGS=2 (+1)", feeMap));
 
         // NFT with royalty custom fee
         ops.add(tokenCreate(prefix + "NFTRoyalty")
@@ -550,467 +613,615 @@ public class KitchenSinkFeeComparisonSuite {
                 .treasury(TREASURY)
                 .supplyKey(SIMPLE_KEY)
                 .withCustom(royaltyFeeNoFallback(1, 10, FEE_COLLECTOR))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TokenCreateNFTRoyalty"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateNFTRoyalty", "TOKEN_CREATE_WITH_CUSTOM_FEE=1 (royalty)", feeMap));
+        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateNFTRoyalty", "CUSTOM_FEE=1 (royalty), SIGS=2", feeMap));
 
-        // === TokenMint: TOKEN_MINT_NFT extra (includedCount=0) ===
-        // Fungible mint (no NFT extra)
-        ops.add(mintToken(prefix + "FTKey5", 10_000L)
-                .payingWith(PAYER)
-                .signedBy(PAYER, SIMPLE_KEY)
+        // ========== TokenMint: TOKEN_MINT_NFT + SIGNATURES ==========
+        // Fungible mint, SIGS=1
+        ops.add(mintToken(prefix + "FTK5S5", 10_000L)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "MintFT"));
-        ops.add(captureFeeWithEmphasis(prefix + "MintFT", "TOKEN_MINT_NFT=0 (fungible)", feeMap));
+                .via(prefix + "MintFTS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "MintFTS1", "MINT_NFT=0 (FT), SIGS=2 (+1)", feeMap));
 
-        // NFT mint 1 serial
+        // Fungible mint, SIGS=3
+        ops.add(mintToken(prefix + "FTK5S5", 5_000L)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3, SIMPLE_KEY)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "MintFTS3"));
+        ops.add(captureFeeWithEmphasis(prefix + "MintFTS3", "MINT_NFT=0 (FT), SIGS=4 (+3)", feeMap));
+
+        // NFT mint 1 serial, SIGS=1
         ops.add(mintToken(prefix + "NFT", List.of(ByteString.copyFromUtf8("N1")))
-                .payingWith(PAYER)
-                .signedBy(PAYER, SIMPLE_KEY)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "MintNFT1"));
-        ops.add(captureFeeWithEmphasis(prefix + "MintNFT1", "TOKEN_MINT_NFT=1", feeMap));
+                .via(prefix + "MintNFT1S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "MintNFT1S1", "MINT_NFT=1, SIGS=2 (+1)", feeMap));
 
-        // NFT mint 3 serials
+        // NFT mint 3 serials, SIGS=3
         ops.add(mintToken(prefix + "NFT", List.of(
                         ByteString.copyFromUtf8("N2"),
                         ByteString.copyFromUtf8("N3"),
                         ByteString.copyFromUtf8("N4")))
-                .payingWith(PAYER)
-                .signedBy(PAYER, SIMPLE_KEY)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "MintNFT3"));
-        ops.add(captureFeeWithEmphasis(prefix + "MintNFT3", "TOKEN_MINT_NFT=3", feeMap));
+                .via(prefix + "MintNFT3S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "MintNFT3S3", "MINT_NFT=3, SIGS=4 (+3)", feeMap));
 
-        // NFT mint 5 serials
+        // NFT mint 5 serials, SIGS=5
         ops.add(mintToken(prefix + "NFT", List.of(
                         ByteString.copyFromUtf8("N5"),
                         ByteString.copyFromUtf8("N6"),
                         ByteString.copyFromUtf8("N7"),
                         ByteString.copyFromUtf8("N8"),
                         ByteString.copyFromUtf8("N9")))
-                .payingWith(PAYER)
-                .signedBy(PAYER, SIMPLE_KEY)
+                .payingWith(PAYER_SIG5)
+                .signedBy(PAYER_SIG5, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "MintNFT5"));
-        ops.add(captureFeeWithEmphasis(prefix + "MintNFT5", "TOKEN_MINT_NFT=5", feeMap));
+                .via(prefix + "MintNFT5S5"));
+        ops.add(captureFeeWithEmphasis(prefix + "MintNFT5S5", "MINT_NFT=5, SIGS=6 (+5)", feeMap));
 
-        // === Token transfers: FUNGIBLE_TOKENS, NON_FUNGIBLE_TOKENS extras ===
-        ops.add(tokenAssociate(prefix + "Acc1", prefix + "FTKey0", prefix + "FTKey1", prefix + "FTKey3", prefix + "FTKey5")
-                .payingWith(PAYER).signedBy(PAYER, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS));
-        ops.add(tokenAssociate(RECEIVER, prefix + "NFT").payingWith(PAYER).fee(ONE_HUNDRED_HBARS));
+        // ========== Token transfers: FUNGIBLE_TOKENS + NON_FUNGIBLE_TOKENS + SIGNATURES ==========
+        ops.add(tokenAssociate(prefix + "Acc1", prefix + "FTK0S1", prefix + "FTK1S1", prefix + "FTK3S3", prefix + "FTK5S5")
+                .payingWith(PAYER_SIG1).signedBy(PAYER_SIG1, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS));
+        ops.add(tokenAssociate(RECEIVER, prefix + "NFT").payingWith(PAYER_SIG1).signedBy(PAYER_SIG1).fee(ONE_HUNDRED_HBARS));
 
-        // FUNGIBLE_TOKENS=1 (included)
-        ops.add(cryptoTransfer(moving(100L, prefix + "FTKey0").between(TREASURY, prefix + "Acc1"))
-                .payingWith(PAYER)
-                .signedBy(PAYER, TREASURY)
+        // FUNGIBLE_TOKENS=1, SIGS=1
+        ops.add(cryptoTransfer(moving(100L, prefix + "FTK0S1").between(TREASURY, prefix + "Acc1"))
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferFT1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferFT1", "FUNGIBLE_TOKENS=1 (included)", feeMap));
+                .via(prefix + "TransferFT1S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "TransferFT1S1", "FT=1, SIGS=2 (+1)", feeMap));
 
-        // FUNGIBLE_TOKENS=2 (+1 extra)
+        // FUNGIBLE_TOKENS=2, SIGS=3
         ops.add(cryptoTransfer(
-                        moving(100L, prefix + "FTKey0").between(TREASURY, prefix + "Acc1"),
-                        moving(100L, prefix + "FTKey1").between(TREASURY, prefix + "Acc1"))
-                .payingWith(PAYER)
-                .signedBy(PAYER, TREASURY)
+                        moving(100L, prefix + "FTK0S1").between(TREASURY, prefix + "Acc1"),
+                        moving(100L, prefix + "FTK1S1").between(TREASURY, prefix + "Acc1"))
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferFT2"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferFT2", "FUNGIBLE_TOKENS=2 (+1 extra)", feeMap));
+                .via(prefix + "TransferFT2S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "TransferFT2S3", "FT=2 (+1), SIGS=4 (+3)", feeMap));
 
-        // NON_FUNGIBLE_TOKENS=1 (included)
+        // NON_FUNGIBLE_TOKENS=1, SIGS=1
         ops.add(cryptoTransfer(movingUnique(prefix + "NFT", 1L).between(TREASURY, RECEIVER))
-                .payingWith(PAYER)
-                .signedBy(PAYER, TREASURY)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, TREASURY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferNFT1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferNFT1", "NON_FUNGIBLE_TOKENS=1 (included)", feeMap));
+                .via(prefix + "TransferNFT1S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "TransferNFT1S1", "NFT=1, SIGS=2 (+1)", feeMap));
 
-        // === Other token operations (no variable extras) ===
-        ops.add(tokenFreeze(prefix + "FTKey5", prefix + "Acc1")
-                .payingWith(PAYER).signedBy(PAYER, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "Freeze"));
-        ops.add(captureFeeWithEmphasis(prefix + "Freeze", "no extras", feeMap));
+        // ========== Other token operations with SIGNATURES ==========
+        ops.add(tokenFreeze(prefix + "FTK5S5", prefix + "Acc1")
+                .payingWith(PAYER_SIG1).signedBy(PAYER_SIG1, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "FreezeS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "FreezeS1", "SIGS=2 (+1)", feeMap));
 
-        ops.add(tokenUnfreeze(prefix + "FTKey5", prefix + "Acc1")
-                .payingWith(PAYER).signedBy(PAYER, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "Unfreeze"));
-        ops.add(captureFeeWithEmphasis(prefix + "Unfreeze", "no extras", feeMap));
+        ops.add(tokenUnfreeze(prefix + "FTK5S5", prefix + "Acc1")
+                .payingWith(PAYER_SIG3).signedBy(PAYER_SIG3, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "UnfreezeS3"));
+        ops.add(captureFeeWithEmphasis(prefix + "UnfreezeS3", "SIGS=4 (+3)", feeMap));
 
-        ops.add(tokenPause(prefix + "FTKey5")
-                .payingWith(PAYER).signedBy(PAYER, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "Pause"));
-        ops.add(captureFeeWithEmphasis(prefix + "Pause", "no extras", feeMap));
+        ops.add(tokenPause(prefix + "FTK5S5")
+                .payingWith(PAYER_SIG1).signedBy(PAYER_SIG1, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "PauseS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "PauseS1", "SIGS=2 (+1)", feeMap));
 
-        ops.add(tokenUnpause(prefix + "FTKey5")
-                .payingWith(PAYER).signedBy(PAYER, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "Unpause"));
-        ops.add(captureFeeWithEmphasis(prefix + "Unpause", "no extras", feeMap));
+        ops.add(tokenUnpause(prefix + "FTK5S5")
+                .payingWith(PAYER_SIG3).signedBy(PAYER_SIG3, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "UnpauseS3"));
+        ops.add(captureFeeWithEmphasis(prefix + "UnpauseS3", "SIGS=4 (+3)", feeMap));
 
-        ops.add(burnToken(prefix + "FTKey5", 1_000L)
-                .payingWith(PAYER).signedBy(PAYER, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "BurnFT"));
-        ops.add(captureFeeWithEmphasis(prefix + "BurnFT", "no extras (fungible)", feeMap));
+        ops.add(burnToken(prefix + "FTK5S5", 1_000L)
+                .payingWith(PAYER_SIG1).signedBy(PAYER_SIG1, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "BurnFTS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "BurnFTS1", "FT burn, SIGS=2 (+1)", feeMap));
 
         ops.add(burnToken(prefix + "NFT", List.of(4L))
-                .payingWith(PAYER).signedBy(PAYER, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "BurnNFT"));
-        ops.add(captureFeeWithEmphasis(prefix + "BurnNFT", "no extras (NFT)", feeMap));
+                .payingWith(PAYER_SIG3).signedBy(PAYER_SIG3, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "BurnNFTS3"));
+        ops.add(captureFeeWithEmphasis(prefix + "BurnNFTS3", "NFT burn, SIGS=4 (+3)", feeMap));
 
         return ops.toArray(new SpecOperation[0]);
     }
 
     // ==================== TOPIC TRANSACTIONS WITH EXTRAS ====================
-    // Extras: KEYS (includedCount=0), BYTES (includedCount=100)
+    // Node extras: SIGNATURES (includedCount=1)
+    // ConsensusCreateTopic extras: KEYS (includedCount=0), CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE (0)
+    // ConsensusUpdateTopic extras: KEYS (includedCount=1)
+    // ConsensusSubmitMessage extras: BYTES (includedCount=100), CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE (0)
+    // ConsensusDeleteTopic extras: none
 
     private static SpecOperation[] topicTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // === ConsensusCreateTopic: KEYS extra (includedCount=0) ===
-        // KEYS=0 (no keys)
-        ops.add(createTopic(prefix + "TopicKey0")
-                .payingWith(PAYER)
+        // ========== ConsensusCreateTopic: KEYS + SIGNATURES combinations ==========
+        // KEYS=0, SIGS=1 (no keys)
+        ops.add(createTopic(prefix + "TopicK0S1")
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicCreateKey0"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateKey0", "KEYS=0 (no extra)", feeMap));
+                .via(prefix + "TopicCreateK0S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateK0S1", "KEYS=0, SIGS=1 (included)", feeMap));
 
-        // KEYS=1 (+1 extra: admin only)
-        ops.add(createTopic(prefix + "TopicKey1")
+        // KEYS=0, SIGS=3 (+2 sig extra)
+        ops.add(createTopic(prefix + "TopicK0S3")
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TopicCreateK0S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateK0S3", "KEYS=0, SIGS=3 (+2)", feeMap));
+
+        // KEYS=1, SIGS=1 (+1 key extra)
+        ops.add(createTopic(prefix + "TopicK1S1")
                 .adminKeyName(SIMPLE_KEY)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicCreateKey1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateKey1", "KEYS=1 (+1 extra)", feeMap));
+                .via(prefix + "TopicCreateK1S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateK1S1", "KEYS=1 (+1), SIGS=1", feeMap));
 
-        // KEYS=2 (+2 extra: admin + submit)
-        ops.add(createTopic(prefix + "TopicKey2")
+        // KEYS=2, SIGS=3 (+2 key, +2 sig extra)
+        ops.add(createTopic(prefix + "TopicK2S3")
                 .adminKeyName(SIMPLE_KEY)
                 .submitKeyName(SIMPLE_KEY)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicCreateKey2"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateKey2", "KEYS=2 (+2 extra)", feeMap));
+                .via(prefix + "TopicCreateK2S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateK2S3", "KEYS=2 (+2), SIGS=3 (+2)", feeMap));
 
-        // === ConsensusSubmitMessage: BYTES extra (includedCount=100) ===
-        // BYTES=50 (under included, no extra)
-        ops.add(submitMessageTo(prefix + "TopicKey0")
+        // ========== ConsensusSubmitMessage: BYTES + SIGNATURES combinations ==========
+        // BYTES=50, SIGS=1 (under included)
+        ops.add(submitMessageTo(prefix + "TopicK0S1")
                 .message("x".repeat(50))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "SubmitBytes50"));
-        ops.add(captureFeeWithEmphasis(prefix + "SubmitBytes50", "BYTES=50 (under 100 included)", feeMap));
+                .via(prefix + "SubmitB50S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "SubmitB50S1", "BYTES=50, SIGS=1 (included)", feeMap));
 
-        // BYTES=100 (exactly included)
-        ops.add(submitMessageTo(prefix + "TopicKey0")
+        // BYTES=100, SIGS=3 (+2 sig extra)
+        ops.add(submitMessageTo(prefix + "TopicK0S1")
                 .message("x".repeat(100))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "SubmitBytes100"));
-        ops.add(captureFeeWithEmphasis(prefix + "SubmitBytes100", "BYTES=100 (included)", feeMap));
+                .via(prefix + "SubmitB100S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "SubmitB100S3", "BYTES=100, SIGS=3 (+2)", feeMap));
 
-        // BYTES=500 (+400 extra)
-        ops.add(submitMessageTo(prefix + "TopicKey0")
+        // BYTES=500, SIGS=1 (+400 bytes extra)
+        ops.add(submitMessageTo(prefix + "TopicK0S1")
                 .message("x".repeat(500))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "SubmitBytes500"));
-        ops.add(captureFeeWithEmphasis(prefix + "SubmitBytes500", "BYTES=500 (+400 extra)", feeMap));
+                .via(prefix + "SubmitB500S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "SubmitB500S1", "BYTES=500 (+400), SIGS=1", feeMap));
 
-        // BYTES=1000 (+900 extra) - max topic message size is 1024
-        ops.add(submitMessageTo(prefix + "TopicKey0")
+        // BYTES=1000, SIGS=5 (+900 bytes, +4 sig extra)
+        ops.add(submitMessageTo(prefix + "TopicK0S1")
                 .message("x".repeat(1000))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG5)
+                .signedBy(PAYER_SIG5)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "SubmitBytes1000"));
-        ops.add(captureFeeWithEmphasis(prefix + "SubmitBytes1000", "BYTES=1000 (+900 extra)", feeMap));
+                .via(prefix + "SubmitB1000S5"));
+        ops.add(captureFeeWithEmphasis(prefix + "SubmitB1000S5", "BYTES=1000 (+900), SIGS=5 (+4)", feeMap));
 
-        // === ConsensusUpdateTopic: KEYS extra (includedCount=1) ===
-        ops.add(updateTopic(prefix + "TopicKey1")
-                .topicMemo("updated")
-                .payingWith(PAYER)
-                .signedBy(PAYER, SIMPLE_KEY)
+        // ========== ConsensusUpdateTopic: KEYS + SIGNATURES combinations ==========
+        // KEYS=1, SIGS=1 (included)
+        ops.add(updateTopic(prefix + "TopicK1S1")
+                .topicMemo("updated1")
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicUpdate"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicUpdate", "KEYS=1 (included)", feeMap));
+                .via(prefix + "TopicUpdateK1S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicUpdateK1S1", "KEYS=1, SIGS=2 (+1)", feeMap));
 
-        // === ConsensusDeleteTopic: no extras ===
-        ops.add(deleteTopic(prefix + "TopicKey1")
-                .payingWith(PAYER)
-                .signedBy(PAYER, SIMPLE_KEY)
+        // KEYS=1, SIGS=3 (+2 sig extra)
+        ops.add(updateTopic(prefix + "TopicK1S1")
+                .topicMemo("updated2")
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicDelete"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicDelete", "no extras", feeMap));
+                .via(prefix + "TopicUpdateK1S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicUpdateK1S3", "KEYS=1, SIGS=4 (+3)", feeMap));
+
+        // ========== ConsensusDeleteTopic: SIGNATURES combinations ==========
+        // SIGS=1
+        ops.add(deleteTopic(prefix + "TopicK1S1")
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, SIMPLE_KEY)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TopicDeleteS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicDeleteS1", "SIGS=2 (+1)", feeMap));
+
+        // SIGS=3
+        ops.add(deleteTopic(prefix + "TopicK2S3")
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3, SIMPLE_KEY)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TopicDeleteS3"));
+        ops.add(captureFeeWithEmphasis(prefix + "TopicDeleteS3", "SIGS=4 (+3)", feeMap));
 
         return ops.toArray(new SpecOperation[0]);
     }
 
     // ==================== FILE TRANSACTIONS WITH EXTRAS ====================
-    // Extras: KEYS (includedCount=1), BYTES (includedCount=1000)
+    // Node extras: SIGNATURES (includedCount=1)
+    // FileCreate extras: KEYS (includedCount=1), BYTES (includedCount=1000)
+    // FileUpdate extras: KEYS (includedCount=1), BYTES (includedCount=1000)
+    // FileAppend extras: BYTES (includedCount=1000)
+    // FileDelete extras: none
 
     private static SpecOperation[] fileTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // === FileCreate: KEYS=1 (included), BYTES variations ===
-        // BYTES=100 (under 1000 included)
-        ops.add(fileCreate(prefix + "FileBytes100")
+        // ========== FileCreate: KEYS + BYTES + SIGNATURES combinations ==========
+        // KEYS=1, BYTES=100, SIGS=1 (under included)
+        ops.add(fileCreate(prefix + "FileB100S1")
                 .contents("x".repeat(100))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileCreateBytes100"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileCreateBytes100", "KEYS=1, BYTES=100 (under 1000)", feeMap));
+                .via(prefix + "FileCreateB100S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "FileCreateB100S1", "KEYS=1, BYTES=100, SIGS=1", feeMap));
 
-        // BYTES=1000 (exactly included)
-        ops.add(fileCreate(prefix + "FileBytes1000")
+        // KEYS=1, BYTES=1000, SIGS=3 (+2 sig extra)
+        ops.add(fileCreate(prefix + "FileB1000S3")
                 .contents("x".repeat(1000))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileCreateBytes1000"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileCreateBytes1000", "KEYS=1, BYTES=1000 (included)", feeMap));
+                .via(prefix + "FileCreateB1000S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "FileCreateB1000S3", "KEYS=1, BYTES=1000, SIGS=3 (+2)", feeMap));
 
-        // BYTES=2000 (+1000 extra)
-        ops.add(fileCreate(prefix + "FileBytes2000")
+        // KEYS=1, BYTES=2000, SIGS=1 (+1000 bytes extra)
+        ops.add(fileCreate(prefix + "FileB2000S1")
                 .contents("x".repeat(2000))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileCreateBytes2000"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileCreateBytes2000", "KEYS=1, BYTES=2000 (+1000 extra)", feeMap));
+                .via(prefix + "FileCreateB2000S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "FileCreateB2000S1", "KEYS=1, BYTES=2000 (+1000), SIGS=1", feeMap));
 
-        // BYTES=4000 (+3000 extra)
-        ops.add(fileCreate(prefix + "FileBytes4000")
+        // KEYS=1, BYTES=4000, SIGS=5 (+3000 bytes, +4 sig extra)
+        ops.add(fileCreate(prefix + "FileB4000S5")
                 .contents("x".repeat(4000))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG5)
+                .signedBy(PAYER_SIG5)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileCreateBytes4000"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileCreateBytes4000", "KEYS=1, BYTES=4000 (+3000 extra)", feeMap));
+                .via(prefix + "FileCreateB4000S5"));
+        ops.add(captureFeeWithEmphasis(prefix + "FileCreateB4000S5", "KEYS=1, BYTES=4000 (+3000), SIGS=5 (+4)", feeMap));
 
-        // === FileUpdate: KEYS=1 (included), BYTES variations ===
-        ops.add(fileUpdate(prefix + "FileBytes100")
+        // ========== FileUpdate: KEYS + BYTES + SIGNATURES combinations ==========
+        // KEYS=1, BYTES=500, SIGS=1
+        ops.add(fileUpdate(prefix + "FileB100S1")
                 .contents("x".repeat(500))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileUpdateBytes500"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileUpdateBytes500", "KEYS=1, BYTES=500 (under 1000)", feeMap));
+                .via(prefix + "FileUpdateB500S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "FileUpdateB500S1", "KEYS=1, BYTES=500, SIGS=1", feeMap));
 
-        ops.add(fileUpdate(prefix + "FileBytes1000")
+        // KEYS=1, BYTES=3000, SIGS=3 (+2000 bytes, +2 sig extra)
+        ops.add(fileUpdate(prefix + "FileB1000S3")
                 .contents("x".repeat(3000))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileUpdateBytes3000"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileUpdateBytes3000", "KEYS=1, BYTES=3000 (+2000 extra)", feeMap));
+                .via(prefix + "FileUpdateB3000S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "FileUpdateB3000S3", "KEYS=1, BYTES=3000 (+2000), SIGS=3 (+2)", feeMap));
 
-        // === FileAppend: BYTES (includedCount=1000) ===
-        ops.add(fileAppend(prefix + "FileBytes100")
+        // ========== FileAppend: BYTES + SIGNATURES combinations ==========
+        // BYTES=500, SIGS=1
+        ops.add(fileAppend(prefix + "FileB100S1")
                 .content("y".repeat(500))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileAppendBytes500"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileAppendBytes500", "BYTES=500 (under 1000)", feeMap));
+                .via(prefix + "FileAppendB500S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "FileAppendB500S1", "BYTES=500, SIGS=1", feeMap));
 
-        ops.add(fileAppend(prefix + "FileBytes100")
+        // BYTES=2000, SIGS=3 (+1000 bytes, +2 sig extra)
+        ops.add(fileAppend(prefix + "FileB100S1")
                 .content("z".repeat(2000))
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileAppendBytes2000"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileAppendBytes2000", "BYTES=2000 (+1000 extra)", feeMap));
+                .via(prefix + "FileAppendB2000S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "FileAppendB2000S3", "BYTES=2000 (+1000), SIGS=3 (+2)", feeMap));
 
-        // === FileDelete: no extras ===
-        ops.add(fileDelete(prefix + "FileBytes4000")
-                .payingWith(PAYER)
+        // ========== FileDelete: SIGNATURES combinations ==========
+        // SIGS=1
+        ops.add(fileDelete(prefix + "FileB4000S5")
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileDelete"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileDelete", "no extras", feeMap));
+                .via(prefix + "FileDeleteS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "FileDeleteS1", "SIGS=1 (included)", feeMap));
+
+        // SIGS=3
+        ops.add(fileDelete(prefix + "FileB2000S1")
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "FileDeleteS3"));
+        ops.add(captureFeeWithEmphasis(prefix + "FileDeleteS3", "SIGS=3 (+2)", feeMap));
 
         return ops.toArray(new SpecOperation[0]);
     }
 
     // ==================== SCHEDULE TRANSACTIONS WITH EXTRAS ====================
-    // Extras: KEYS (includedCount=1)
+    // Node extras: SIGNATURES (includedCount=1)
+    // ScheduleCreate extras: KEYS (includedCount=1), SCHEDULE_CREATE_CONTRACT_CALL_BASE (0)
+    // ScheduleSign extras: none
+    // ScheduleDelete extras: none
 
     private static SpecOperation[] scheduleTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
         final long amount = prefix.equals("simple") ? 1L : 2L;
 
-        // === ScheduleCreate: KEYS extra (includedCount=1) ===
-        // KEYS=0 (no admin key, under included)
+        // ========== ScheduleCreate: KEYS + SIGNATURES combinations ==========
+        // KEYS=0, SIGS=1 (no admin key)
         ops.add(scheduleCreate(
-                        prefix + "SchedKey0",
-                        cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount)))
-                .payingWith(PAYER)
+                        prefix + "SchedK0S1",
+                        cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER_SIG1, amount)))
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleCreateKey0"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateKey0", "KEYS=0 (under 1 included)", feeMap));
+                .via(prefix + "ScheduleCreateK0S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateK0S1", "KEYS=0, SIGS=1 (included)", feeMap));
 
-        // KEYS=1 (included) - schedule for signing (will be executed)
+        // KEYS=0, SIGS=3 (+2 sig extra)
         ops.add(scheduleCreate(
-                        prefix + "SchedKey1",
-                        cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount + 1)))
+                        prefix + "SchedK0S3",
+                        cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER_SIG3, amount + 1)))
+                .payingWith(PAYER_SIG3)
+                .signedBy(LIST_KEY_3)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "ScheduleCreateK0S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateK0S3", "KEYS=0, SIGS=3 (+2)", feeMap));
+
+        // KEYS=1, SIGS=1 (included) - schedule for signing
+        ops.add(scheduleCreate(
+                        prefix + "SchedK1S1",
+                        cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER_SIG1, amount + 2)))
                 .adminKey(SIMPLE_KEY)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleCreateKey1"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateKey1", "KEYS=1 (included)", feeMap));
+                .via(prefix + "ScheduleCreateK1S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateK1S1", "KEYS=1, SIGS=1 (included)", feeMap));
 
-        // KEYS=2 (+1 extra) - schedule for deletion (won't be executed)
+        // KEYS=2, SIGS=3 (+1 key, +2 sig extra) - schedule for deletion
         ops.add(scheduleCreate(
-                        prefix + "SchedKey2",
-                        cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount + 2)))
+                        prefix + "SchedK2S3",
+                        cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER_SIG3, amount + 3)))
                 .adminKey(LIST_KEY_2)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleCreateKey2"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateKey2", "KEYS=2 (+1 extra)", feeMap));
+                .via(prefix + "ScheduleCreateK2S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateK2S3", "KEYS=2 (+1), SIGS=3 (+2)", feeMap));
 
-        // === ScheduleSign: no variable extras ===
-        // This will execute the schedule since RECEIVER signature completes it
-        ops.add(scheduleSign(prefix + "SchedKey1")
+        // ========== ScheduleSign: SIGNATURES combinations ==========
+        // SIGS=1 - This will execute the schedule since RECEIVER signature completes it
+        ops.add(scheduleSign(prefix + "SchedK1S1")
                 .alsoSigningWith(RECEIVER)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, RECEIVER)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleSign"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleSign", "no extras", feeMap));
+                .via(prefix + "ScheduleSignS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleSignS1", "SIGS=2 (+1)", feeMap));
 
-        // === ScheduleDelete: no extras ===
-        // Delete SchedKey2 which hasn't been executed
-        ops.add(scheduleDelete(prefix + "SchedKey2")
-                .signedBy(PAYER, LIST_KEY_2)
-                .payingWith(PAYER)
+        // SIGS=3
+        ops.add(scheduleSign(prefix + "SchedK0S1")
+                .alsoSigningWith(RECEIVER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3, RECEIVER)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleDelete"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleDelete", "no extras", feeMap));
+                .via(prefix + "ScheduleSignS3"));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleSignS3", "SIGS=4 (+3)", feeMap));
+
+        // ========== ScheduleDelete: SIGNATURES combinations ==========
+        // SIGS=1 - Delete SchedK2S3 which hasn't been executed
+        ops.add(scheduleDelete(prefix + "SchedK2S3")
+                .signedBy(PAYER_SIG1, LIST_KEY_2)
+                .payingWith(PAYER_SIG1)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "ScheduleDeleteS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "ScheduleDeleteS1", "SIGS=3 (+2)", feeMap));
+
+        // SIGS=3 - Delete SchedK0S3 which hasn't been executed
+        ops.add(scheduleDelete(prefix + "SchedK0S3")
+                .signedBy(PAYER_SIG3)
+                .payingWith(PAYER_SIG3)
+                .fee(ONE_HUNDRED_HBARS)
+                .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_IS_IMMUTABLE)
+                .via(prefix + "ScheduleDeleteS3Fail"));
+        // Note: SchedK0S3 has no admin key so delete will fail - just testing signature count
 
         return ops.toArray(new SpecOperation[0]);
     }
 
     // ==================== CONTRACT TRANSACTIONS WITH EXTRAS ====================
-    // Extras: GAS (fee per unit)
+    // Node extras: SIGNATURES (includedCount=1)
+    // ContractCreate/Call extras: GAS (fee per unit)
+    // ContractUpdate/Delete extras: none
 
     private static SpecOperation[] contractTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // Create contracts for testing
+        // ========== ContractCreate: GAS + SIGNATURES combinations ==========
+        // GAS=200000, SIGS=1
         ops.add(contractCreate(prefix + "Contract1")
                 .bytecode(STORAGE_CONTRACT)
                 .gas(200_000L)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ContractCreate"));
-        ops.add(captureFeeWithEmphasis(prefix + "ContractCreate", "GAS=200000", feeMap));
+                .via(prefix + "ContractCreateS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractCreateS1", "GAS=200000, SIGS=1 (included)", feeMap));
 
+        // GAS=200000, SIGS=3 (+2 sig extra)
         ops.add(contractCreate(prefix + "Contract2")
                 .bytecode(STORAGE_CONTRACT)
                 .adminKey(SIMPLE_KEY)
                 .gas(200_000L)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ContractCreateAdmin"));
-        ops.add(captureFeeWithEmphasis(prefix + "ContractCreateAdmin", "GAS=200000, adminKey=1", feeMap));
+                .via(prefix + "ContractCreateS3"));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractCreateS3", "GAS=200000, adminKey=1, SIGS=3 (+2)", feeMap));
 
-        // === ContractCall: GAS extra variations ===
+        // ========== ContractCall: GAS + SIGNATURES combinations ==========
         final var storeAbi = getABIFor(FUNCTION, "store", STORAGE_CONTRACT);
         final var retrieveAbi = getABIFor(FUNCTION, "retrieve", STORAGE_CONTRACT);
 
-        // GAS=50000
+        // GAS=50000, SIGS=1
         ops.add(contractCallWithFunctionAbi(prefix + "Contract1", storeAbi, BigInteger.valueOf(42))
                 .gas(50_000L)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CallGas50k"));
-        ops.add(captureFeeWithEmphasis(prefix + "CallGas50k", "GAS=50000", feeMap));
+                .via(prefix + "CallG50kS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "CallG50kS1", "GAS=50000, SIGS=1 (included)", feeMap));
 
-        // GAS=100000
+        // GAS=100000, SIGS=3 (+2 sig extra)
         ops.add(contractCallWithFunctionAbi(prefix + "Contract1", storeAbi, BigInteger.valueOf(100))
                 .gas(100_000L)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG3)
+                .signedBy(PAYER_SIG3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CallGas100k"));
-        ops.add(captureFeeWithEmphasis(prefix + "CallGas100k", "GAS=100000", feeMap));
+                .via(prefix + "CallG100kS3"));
+        ops.add(captureFeeWithEmphasis(prefix + "CallG100kS3", "GAS=100000, SIGS=3 (+2)", feeMap));
 
-        // GAS=200000
+        // GAS=200000, SIGS=1
         ops.add(contractCallWithFunctionAbi(prefix + "Contract1", storeAbi, BigInteger.valueOf(200))
                 .gas(200_000L)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CallGas200k"));
-        ops.add(captureFeeWithEmphasis(prefix + "CallGas200k", "GAS=200000", feeMap));
+                .via(prefix + "CallG200kS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "CallG200kS1", "GAS=200000, SIGS=1", feeMap));
 
-        // GAS=500000
+        // GAS=500000, SIGS=5 (+4 sig extra)
         ops.add(contractCallWithFunctionAbi(prefix + "Contract1", storeAbi, BigInteger.valueOf(500))
                 .gas(500_000L)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG5)
+                .signedBy(PAYER_SIG5)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CallGas500k"));
-        ops.add(captureFeeWithEmphasis(prefix + "CallGas500k", "GAS=500000", feeMap));
+                .via(prefix + "CallG500kS5"));
+        ops.add(captureFeeWithEmphasis(prefix + "CallG500kS5", "GAS=500000, SIGS=5 (+4)", feeMap));
 
-        // Read-only call (retrieve)
+        // Read-only call (retrieve), SIGS=1
         ops.add(contractCallWithFunctionAbi(prefix + "Contract1", retrieveAbi)
                 .gas(50_000L)
-                .payingWith(PAYER)
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CallRetrieve"));
-        ops.add(captureFeeWithEmphasis(prefix + "CallRetrieve", "GAS=50000 (read-only)", feeMap));
+                .via(prefix + "CallRetrieveS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "CallRetrieveS1", "GAS=50000 (read), SIGS=1", feeMap));
 
-        // === ContractUpdate: no GAS extra ===
+        // ========== ContractUpdate: SIGNATURES combinations ==========
+        // SIGS=1
         ops.add(contractUpdate(prefix + "Contract2")
-                .newMemo("updated")
-                .signedBy(PAYER, SIMPLE_KEY)
-                .payingWith(PAYER)
+                .newMemo("updated1")
+                .signedBy(PAYER_SIG1, SIMPLE_KEY)
+                .payingWith(PAYER_SIG1)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ContractUpdate"));
-        ops.add(captureFeeWithEmphasis(prefix + "ContractUpdate", "no GAS extra", feeMap));
+                .via(prefix + "ContractUpdateS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractUpdateS1", "SIGS=2 (+1)", feeMap));
 
-        // === ContractDelete: no GAS extra ===
-        ops.add(contractDelete(prefix + "Contract2")
-                .transferAccount(PAYER)
-                .signedBy(PAYER, SIMPLE_KEY)
-                .payingWith(PAYER)
+        // SIGS=3
+        ops.add(contractUpdate(prefix + "Contract2")
+                .newMemo("updated2")
+                .signedBy(PAYER_SIG3, SIMPLE_KEY)
+                .payingWith(PAYER_SIG3)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ContractDelete"));
-        ops.add(captureFeeWithEmphasis(prefix + "ContractDelete", "no GAS extra", feeMap));
+                .via(prefix + "ContractUpdateS3"));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractUpdateS3", "SIGS=4 (+3)", feeMap));
+
+        // ========== ContractDelete: SIGNATURES combinations ==========
+        // SIGS=1
+        ops.add(contractDelete(prefix + "Contract2")
+                .transferAccount(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, SIMPLE_KEY)
+                .payingWith(PAYER_SIG1)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "ContractDeleteS1"));
+        ops.add(captureFeeWithEmphasis(prefix + "ContractDeleteS1", "SIGS=2 (+1)", feeMap));
 
         return ops.toArray(new SpecOperation[0]);
     }
 
     // ==================== BATCH TRANSACTIONS WITH EXTRAS ====================
+    // Node extras: SIGNATURES (includedCount=1)
+    // AtomicBatch extras: innerTxns count
 
     private static SpecOperation[] batchTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // AtomicBatch - 2 inner transactions
+        // ========== AtomicBatch: innerTxns + SIGNATURES combinations ==========
+        // innerTxns=2, SIGS=1
         ops.add(atomicBatch(
-                        cryptoTransfer(movingHbar(1L).between(PAYER, RECEIVER))
+                        cryptoTransfer(movingHbar(1L).between(PAYER_SIG1, RECEIVER))
                                 .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(2L).between(PAYER, RECEIVER))
+                        cryptoTransfer(movingHbar(2L).between(PAYER_SIG1, RECEIVER))
                                 .batchKey(BATCH_OPERATOR))
+                .signedBy(BATCH_OPERATOR, PAYER_SIG1)
                 .payingWith(BATCH_OPERATOR)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "Batch2"));
-        ops.add(captureFeeWithEmphasis(prefix + "Batch2", "innerTxns=2", feeMap));
+                .via(prefix + "Batch2S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "Batch2S1", "innerTxns=2, SIGS=2 (+1)", feeMap));
 
-        // AtomicBatch - 3 inner transactions
+        // innerTxns=2, SIGS=3
         ops.add(atomicBatch(
-                        cryptoTransfer(movingHbar(3L).between(PAYER, RECEIVER))
+                        cryptoTransfer(movingHbar(3L).between(PAYER_SIG3, RECEIVER))
                                 .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(4L).between(PAYER, RECEIVER))
-                                .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(5L).between(PAYER, RECEIVER))
+                        cryptoTransfer(movingHbar(4L).between(PAYER_SIG3, RECEIVER))
                                 .batchKey(BATCH_OPERATOR))
+                .signedBy(BATCH_OPERATOR, PAYER_SIG3)
                 .payingWith(BATCH_OPERATOR)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "Batch3"));
-        ops.add(captureFeeWithEmphasis(prefix + "Batch3", "innerTxns=3", feeMap));
+                .via(prefix + "Batch2S3"));
+        ops.add(captureFeeWithEmphasis(prefix + "Batch2S3", "innerTxns=2, SIGS=4 (+3)", feeMap));
 
-        // AtomicBatch - 5 inner transactions
+        // innerTxns=3, SIGS=1
         ops.add(atomicBatch(
-                        cryptoTransfer(movingHbar(6L).between(PAYER, RECEIVER))
+                        cryptoTransfer(movingHbar(5L).between(PAYER_SIG1, RECEIVER))
                                 .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(7L).between(PAYER, RECEIVER))
+                        cryptoTransfer(movingHbar(6L).between(PAYER_SIG1, RECEIVER))
                                 .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(8L).between(PAYER, RECEIVER))
-                                .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(9L).between(PAYER, RECEIVER))
-                                .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(10L).between(PAYER, RECEIVER))
+                        cryptoTransfer(movingHbar(7L).between(PAYER_SIG1, RECEIVER))
                                 .batchKey(BATCH_OPERATOR))
+                .signedBy(BATCH_OPERATOR, PAYER_SIG1)
                 .payingWith(BATCH_OPERATOR)
                 .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "Batch5"));
-        ops.add(captureFeeWithEmphasis(prefix + "Batch5", "innerTxns=5", feeMap));
+                .via(prefix + "Batch3S1"));
+        ops.add(captureFeeWithEmphasis(prefix + "Batch3S1", "innerTxns=3, SIGS=2 (+1)", feeMap));
+
+        // innerTxns=5, SIGS=5
+        ops.add(atomicBatch(
+                        cryptoTransfer(movingHbar(8L).between(PAYER_SIG5, RECEIVER))
+                                .batchKey(BATCH_OPERATOR),
+                        cryptoTransfer(movingHbar(9L).between(PAYER_SIG5, RECEIVER))
+                                .batchKey(BATCH_OPERATOR),
+                        cryptoTransfer(movingHbar(10L).between(PAYER_SIG5, RECEIVER))
+                                .batchKey(BATCH_OPERATOR),
+                        cryptoTransfer(movingHbar(11L).between(PAYER_SIG5, RECEIVER))
+                                .batchKey(BATCH_OPERATOR),
+                        cryptoTransfer(movingHbar(12L).between(PAYER_SIG5, RECEIVER))
+                                .batchKey(BATCH_OPERATOR))
+                .signedBy(BATCH_OPERATOR, PAYER_SIG5)
+                .payingWith(BATCH_OPERATOR)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "Batch5S5"));
+        ops.add(captureFeeWithEmphasis(prefix + "Batch5S5", "innerTxns=5, SIGS=6 (+5)", feeMap));
 
         return ops.toArray(new SpecOperation[0]);
     }
