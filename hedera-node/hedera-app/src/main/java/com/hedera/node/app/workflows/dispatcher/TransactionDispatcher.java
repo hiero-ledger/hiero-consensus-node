@@ -128,47 +128,7 @@ public class TransactionDispatcher {
     }
 
     private boolean shouldUseSimpleFees(FeeContext feeContext) {
-        if (!feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            return false;
-        }
-
-        return switch (feeContext.body().data().kind()) {
-            case CONSENSUS_CREATE_TOPIC,
-                    CONSENSUS_DELETE_TOPIC,
-                    CONSENSUS_SUBMIT_MESSAGE,
-                    CONSENSUS_UPDATE_TOPIC,
-                    CRYPTO_APPROVE_ALLOWANCE,
-                    CRYPTO_CREATE_ACCOUNT,
-                    CRYPTO_DELETE,
-                    CRYPTO_DELETE_ALLOWANCE,
-                    CRYPTO_UPDATE_ACCOUNT,
-                    CRYPTO_TRANSFER,
-                    SCHEDULE_CREATE,
-                    SCHEDULE_SIGN,
-                    SCHEDULE_DELETE -> true;
-            case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE -> true;
-            case TOKEN_CREATION,
-                    TOKEN_MINT,
-                    TOKEN_BURN,
-                    TOKEN_DELETION,
-                    TOKEN_FEE_SCHEDULE_UPDATE,
-                    TOKEN_FREEZE,
-                    TOKEN_ASSOCIATE,
-                    TOKEN_DISSOCIATE,
-                    TOKEN_GRANT_KYC,
-                    TOKEN_PAUSE,
-                    TOKEN_REVOKE_KYC,
-                    TOKEN_REJECT,
-                    TOKEN_UNFREEZE,
-                    TOKEN_UNPAUSE,
-                    TOKEN_AIRDROP,
-                    TOKEN_CLAIM_AIRDROP,
-                    TOKEN_CANCEL_AIRDROP,
-                    TOKEN_UPDATE,
-                    TOKEN_UPDATE_NFTS,
-                    TOKEN_WIPE -> true;
-            default -> false;
-        };
+        return feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled();
     }
 
     /**
