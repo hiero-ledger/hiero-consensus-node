@@ -156,18 +156,18 @@ jobs:
             ALL_RUNNERS=("${COMMON_RUNNERS}" "${PUBLIC_ONLY_RUNNERS}")
           fi
           
-          # printf -v joined '"%s",' "${ALL_RUNNERS}"
-          # GEN_MATRIX="{\"os\":[${joined%,}]}"
+          printf -v joined '"%s",' "${ALL_RUNNERS}"
+          GEN_MATRIX="{\"os\":[${joined%,}]}"
           
           # Print to console
-          # echo "Matrix configuration:"
-          # echo "GEN_MATRIX"
+          echo "Matrix configuration:"
+          echo "GEN_MATRIX"
           
           # Or for pretty-printed JSON (if jq is available)
-          # echo "Pretty-printed matrix:"
-          # echo "GEN_MATRIX" | jq .
+          echo "Pretty-printed matrix:"
+          echo "GEN_MATRIX" | jq .
           
-          GEN_MATRIX="This is a string test"
+          # GEN_MATRIX="This is a string test"
           
           # Set the output (simplified name)
           echo "os-matrix=$GEN_MATRIX" >> $GITHUB_OUTPUT
