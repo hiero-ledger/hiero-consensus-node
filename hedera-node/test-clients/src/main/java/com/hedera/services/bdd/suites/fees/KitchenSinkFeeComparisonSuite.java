@@ -71,6 +71,9 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -113,12 +116,70 @@ import org.junit.jupiter.api.Tag;
 public class KitchenSinkFeeComparisonSuite {
     private static final Logger LOG = LogManager.getLogger(KitchenSinkFeeComparisonSuite.class);
 
+    private static class CSVWriter {
+
+        private final Writer writer;
+        private int fieldCount;
+
+        public CSVWriter(Writer fwriter) {
+            this.writer = fwriter;
+            this.fieldCount = 0;
+        }
+
+        private static String escapeCsv(String value) {
+            if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+                value = value.replace("\"", "\"\"");
+                return "\"" + value + "\"";
+            }
+            return value;
+        }
+
+        public void write(String s) throws IOException {
+            this.writer.write(s);
+        }
+
+        public void field(String value) throws IOException {
+            if (this.fieldCount > 0) {
+                this.write(",");
+            }
+            this.write(escapeCsv(value));
+            this.fieldCount += 1;
+        }
+
+        public void endLine() throws IOException {
+            this.write("\n");
+            this.fieldCount = 0;
+        }
+
+        public void field(int i) throws IOException {
+            this.field(i + "");
+        }
+
+        public void field(long fee) throws IOException {
+            this.field(fee + "");
+        }
+
+        public void fieldPercentage(double diff) throws IOException {
+            this.field(String.format("%9.2f%%", diff));
+        }
+    }
+
+    private static CSVWriter csv;
+
+    /**
+     * Initialize the test class with simple fees enabled.
+     * This ensures the SimpleFeeCalculator is initialized at startup,
+     * which is required for switching between simple and legacy fees mid-test.
+     */
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) throws IOException {
         testLifecycle.overrideInClass(Map.of(
                 "fees.simpleFeesEnabled", "true",
                 "lazyCreation.enabled", "true",
                 "cryptoCreateWithAliasAndEvmAddress.enabled", "true"));
+        csv = new CSVWriter(new FileWriter("simple-fees-report.csv"));
+        csv.write("Transaction, Emphasis, Legacy Fee, Simple Fee, Difference, Change");
+        csv.endLine();
     }
 
     // Key names for different complexity levels
@@ -1266,6 +1327,13 @@ public class KitchenSinkFeeComparisonSuite {
                     LOG.info(String.format(
                             "%-35s %-45s %15d %15d %15d %9.2f%%",
                             baseName, emphasis, legacyEntry.fee(), simpleEntry.fee(), diff, pctChange));
+                    csv.field(baseName);
+                    csv.field(emphasis);
+                    csv.field(legacyEntry.fee());
+                    csv.field(simpleEntry.fee());
+                    csv.field(diff);
+                    csv.fieldPercentage(pctChange);
+                    csv.endLine();
                 }
             }
             LOG.info("=".repeat(140));
