@@ -27,7 +27,7 @@ import java.util.Map;
 import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.Test;
 
-public class SimpleFeesMirrorNodeAPITest {
+public class StandaloneFeeCalculatorTest {
 
     @Test
     public void testTokenCreateIntrinsic() throws ParseException {
