@@ -22,6 +22,9 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.consensus.pces.PcesConfig_;
+import org.hiero.consensus.pces.PcesFileManager;
+import org.hiero.consensus.pces.PcesFileTracker;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

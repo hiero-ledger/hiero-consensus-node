@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.config.api.ConfigurationExtension;
+import org.hiero.consensus.concurrent.config.ConcurrentConfigurationExtension;
+
 module org.hiero.consensus.concurrent {
     exports org.hiero.consensus.concurrent.config;
     exports org.hiero.consensus.concurrent.framework;
@@ -17,4 +20,7 @@ module org.hiero.consensus.concurrent {
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.logging;
     requires static transitive com.github.spotbugs.annotations;
+
+    provides ConfigurationExtension with
+            ConcurrentConfigurationExtension;
 }

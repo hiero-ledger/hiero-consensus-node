@@ -4,6 +4,7 @@ package org.hiero.consensus.event.intake.impl;
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static java.util.Objects.requireNonNull;
 
+import com.google.auto.service.AutoService;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.metrics.event.EventPipelineTracker;
@@ -17,6 +18,7 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.UnaryOperator;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -24,6 +26,8 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
 import org.hiero.consensus.event.intake.impl.deduplication.EventDeduplicator;
 import org.hiero.consensus.event.intake.impl.deduplication.StandardEventDeduplicator;
+import org.hiero.consensus.event.intake.impl.signature.DefaultEventSignatureValidator;
+import org.hiero.consensus.event.intake.impl.signature.EventSignatureValidator;
 import org.hiero.consensus.event.intake.impl.validation.DefaultInternalEventValidator;
 import org.hiero.consensus.event.intake.impl.validation.InternalEventValidator;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -35,6 +39,7 @@ import org.hiero.consensus.transaction.TransactionLimits;
 /**
  * The default implementation of the {@link EventIntakeModule}.
  */
+@AutoService(EventIntakeModule.class)
 public class DefaultEventIntakeModule implements EventIntakeModule {
 
     /** Transformer to dispatch event windows to components that need them. */
@@ -49,6 +54,9 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
 
     @Nullable
     private ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring;
+
+    @Nullable
+    private ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring;
 
     /**
      * {@inheritDoc}
@@ -80,6 +88,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
                 new ComponentWiring<>(model, InternalEventValidator.class, wiringConfig.internalEventValidator());
         this.eventDeduplicatorWiring =
                 new ComponentWiring<>(model, EventDeduplicator.class, wiringConfig.eventDeduplicator());
+        this.eventSignatureValidatorWiring =
+                new ComponentWiring<>(model, EventSignatureValidator.class, wiringConfig.eventSignatureValidator());
 
         // Wire components
         eventHasherWiring
@@ -91,6 +101,14 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         eventWindowDispatcher
                 .getOutputWire()
                 .solderTo(this.eventDeduplicatorWiring.getInputWire(EventDeduplicator::setEventWindow), INJECT);
+        eventDeduplicatorWiring
+                .getOutputWire()
+                .solderTo(this.eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::validateSignature));
+        eventWindowDispatcher
+                .getOutputWire()
+                .solderTo(
+                        this.eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::setEventWindow),
+                        INJECT);
 
         // Wire metrics
         if (pipelineTracker != null) {
@@ -106,10 +124,15 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             this.eventDeduplicatorWiring
                     .getOutputWire()
                     .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("deduplication", platformEvent));
+            pipelineTracker.registerMetric("verification");
+            this.eventSignatureValidatorWiring
+                    .getOutputWire()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("verification", platformEvent));
         }
 
         // Force not soldered wires to be built
         this.eventDeduplicatorWiring.getInputWire(EventDeduplicator::clear);
+        this.eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
 
         // Create and bind components
         final EventHasher eventHasher = new DefaultEventHasher();
@@ -119,6 +142,9 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         eventValidatorWiring.bind(internalEventValidator);
         final EventDeduplicator eventDeduplicator = new StandardEventDeduplicator(metrics, intakeEventCounter);
         eventDeduplicatorWiring.bind(eventDeduplicator);
+        final EventSignatureValidator eventSignatureValidator = new DefaultEventSignatureValidator(
+                metrics, time, ConsensusCryptoUtils::verifySignature, rosterHistory, intakeEventCounter);
+        eventSignatureValidatorWiring.bind(eventSignatureValidator);
     }
 
     /**
@@ -127,7 +153,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public OutputWire<PlatformEvent> validatedEventsOutputWire() {
-        return requireNonNull(eventDeduplicatorWiring, "Not initialized").getOutputWire();
+        return requireNonNull(eventSignatureValidatorWiring, "Not initialized").getOutputWire();
     }
 
     /**
@@ -164,7 +190,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public InputWire<RosterHistory> rosterHistoryInputWire() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return requireNonNull(eventSignatureValidatorWiring, "Not initialized")
+                .getInputWire(EventSignatureValidator::updateRosterHistory);
     }
 
     /**
@@ -187,6 +214,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         requireNonNull(eventHasherWiring, "Not initialized").flush();
         requireNonNull(eventValidatorWiring, "Not initialized").flush();
         requireNonNull(eventDeduplicatorWiring, "Not initialized").flush();
+        requireNonNull(eventSignatureValidatorWiring, "Not initialized").flush();
     }
 
     /**

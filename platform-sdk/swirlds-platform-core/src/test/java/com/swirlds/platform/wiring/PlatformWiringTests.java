@@ -31,7 +31,6 @@ import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
-import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.state.hasher.StateHasher;
@@ -103,7 +102,6 @@ class PlatformWiringTests {
 
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents, ApplicationCallbacks.EMPTY);
         componentBuilder
-                .withEventSignatureValidator(mock(EventSignatureValidator.class))
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
                 .withOrphanBuffer(mock(OrphanBuffer.class))
                 .withConsensusEngine(mock(ConsensusEngine.class))

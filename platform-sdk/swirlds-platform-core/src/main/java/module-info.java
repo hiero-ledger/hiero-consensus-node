@@ -26,7 +26,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gui.hashgraph.internal;
     exports com.swirlds.platform.network.connection;
     exports com.swirlds.platform.network.connectivity;
-    exports com.swirlds.platform.event.validation;
     exports com.swirlds.platform.eventhandling;
     exports com.swirlds.platform.gui;
     exports com.swirlds.platform.gui.model;
@@ -120,6 +119,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
     requires transitive info.picocli;

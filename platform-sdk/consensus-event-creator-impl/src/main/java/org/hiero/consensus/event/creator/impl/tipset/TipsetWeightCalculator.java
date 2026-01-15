@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 
 import com.hedera.hapi.node.state.roster.Roster;
