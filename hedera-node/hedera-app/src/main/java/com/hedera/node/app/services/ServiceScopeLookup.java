@@ -52,7 +52,7 @@ public class ServiceScopeLookup {
                     CONTRACT_CALL,
                     CONTRACT_DELETE_INSTANCE,
                     ETHEREUM_TRANSACTION,
-                    LAMBDA_SSTORE,
+                    HOOK_STORE,
                     HOOK_DISPATCH -> ContractService.NAME;
 
             case CRYPTO_CREATE_ACCOUNT,
