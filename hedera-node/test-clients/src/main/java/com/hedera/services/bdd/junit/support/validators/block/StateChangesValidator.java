@@ -16,7 +16,6 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
-import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.history.schemas.V069HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
@@ -73,7 +72,6 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.service.entityid.EntityIdService;
-import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -178,41 +176,6 @@ public class StateChangesValidator implements BlockStreamValidator {
     private final Map<Long, PreprocessedKeys> preprocessedKeys = new HashMap<>();
     private final Map<Long, Bytes> proofKeys = new HashMap<>();
     private final Map<Bytes, Roster> rosters = new HashMap<>();
-
-    /**
-     * The relevant context from a history proof construction.
-     *
-     * @param proverWeights the weights of the nodes in the prover history roster
-     * @param targetWeights the weights of the nodes in the target history roster
-     * @param proofKeys the proof keys of the nodes in the target history roster
-     */
-    private record HistoryContext(
-            Map<Long, Long> proverWeights, Map<Long, Long> targetWeights, Map<Long, Bytes> proofKeys) {
-        public Bytes targetBookHash(@NonNull final HistoryLibrary library) {
-            requireNonNull(library);
-            return HistoryLibrary.computeHash(
-                    library,
-                    targetWeights.keySet(),
-                    targetWeights::get,
-                    id -> proofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY));
-        }
-
-        public byte[] wrapsMessageGiven(@NonNull final HistoryLibrary library, @NonNull final Bytes metadata) {
-            final var targetAddressBook = HistoryLibrary.AddressBook.from(
-                    new TreeMap<>(targetWeights()),
-                    nodeId -> proofKeys.getOrDefault(nodeId, EMPTY_PUBLIC_KEY).toByteArray());
-            return library.computeWrapsMessage(targetAddressBook, metadata.toByteArray());
-        }
-
-        public byte[][] publicKeysFor(@NonNull final List<Long> nodeIds) {
-            return nodeIds.stream().map(proofKeys::get).map(Bytes::toByteArray).toArray(byte[][]::new);
-        }
-    }
-
-    /**
-     * The history proof contexts for each hinTS verification key when it first appeared in a next hinTS construction.
-     */
-    private final Map<Bytes, HistoryContext> vkContexts = new HashMap<>();
 
     /**
      * Tracks a sequence of indirect state proofs preceding a signed block proof. This field should <b>not</b>
@@ -363,6 +326,9 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var hedera = ServicesMain.newHedera(platformConfig, metrics, Time.getCurrent());
         this.state = hedera.newStateRoot();
+        final var emptyState = state;
+        final var emptyStateHash = CRYPTO.digestTreeSync(emptyState.getRoot());
+        state = state.copy();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
@@ -370,6 +336,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         this.historyLibrary = (historyEnabled == HistoryEnabled.YES) ? new HistoryLibraryImpl() : null;
         // get the state hash before applying the state changes from current block
         this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied.getRoot());
+        assertEquals(emptyStateHash, genesisStateHash, "Genesis state hash should be empty");
         this.proofSeqFactory =
                 (stateProofsEnabled == StateProofsEnabled.YES) ? IndirectProofSequenceValidator::new : () -> null;
 
@@ -861,24 +828,12 @@ public class StateChangesValidator implements BlockStreamValidator {
                                     nextScheme.preprocessedKeysOrThrow().verificationKey();
                             requireNonNull(activeWeights);
                             final var candidateRoster = rosters.get(construction.targetRosterHash());
-                            final var nextVkContext = new HistoryContext(
-                                    Map.copyOf(activeWeights),
-                                    ActiveRosters.weightsFrom(candidateRoster),
-                                    Map.copyOf(proofKeys));
-                            vkContexts.put(nextVk, nextVkContext);
                         }
                     } else if (stateChange.stateId() == STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal()) {
                         final var construction = (HintsConstruction) singleton;
                         if (construction.hasHintsScheme()) {
                             final var proverWeights = Map.copyOf(requireNonNull(activeWeights));
                             activeWeights = requireNonNull(maybeWeightsFrom(construction));
-                            final var activeVk = construction
-                                    .hintsSchemeOrThrow()
-                                    .preprocessedKeysOrThrow()
-                                    .verificationKey();
-                            final var activeVkContext =
-                                    new HistoryContext(proverWeights, Map.copyOf(activeWeights), Map.copyOf(proofKeys));
-                            vkContexts.put(activeVk, activeVkContext);
                         }
                     } else if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
                         ledgerIdFromState = ((ProtoBytes) singleton).value();
