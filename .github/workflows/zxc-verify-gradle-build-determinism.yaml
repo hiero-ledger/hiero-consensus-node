@@ -144,12 +144,12 @@ jobs:
             "hiero-network-node-linux-ubuntu-24-large"
             "hiero-network-node-linux-debian-12-large"
           )
-          
+
           PUBLIC_ONLY=(
             "windows-2022"
             "windows-2025"
           )
-          
+
           if [[ "${{ github.event.repository.private }}" == "true" ]]; then
             ALL_RUNNERS=("${ALWAYS_RUN[@]}")
             echo "Using Linux runners only (private repo)"
@@ -157,10 +157,10 @@ jobs:
             ALL_RUNNERS=("${ALWAYS_RUN[@]}" "${PUBLIC_ONLY[@]}")
             echo "Using all runners including Windows (public repo)"
           fi
-          
+
           printf -v joined '"%s",' "${ALL_RUNNERS[@]}"
           MATRIX="{\"os\":[${joined%,}]}"
-          
+
           echo "----------------------------------------"
           echo "Selected runners (${#ALL_RUNNERS[@]} total):"
           printf ' - %s\n' "${ALL_RUNNERS[@]}"
@@ -168,7 +168,7 @@ jobs:
           echo "Matrix JSON:"
           echo "$MATRIX"
           echo "----------------------------------------"
-          
+
           # Set the output (simplified name)
           echo "os-matrix=$MATRIX" >> $GITHUB_OUTPUT
 
