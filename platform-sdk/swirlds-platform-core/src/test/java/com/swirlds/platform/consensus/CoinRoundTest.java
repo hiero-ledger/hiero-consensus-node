@@ -54,42 +54,30 @@ public class CoinRoundTest extends PlatformTest {
     void coinRound() throws IOException, ParseException {
         final PlatformContext context = createDefaultPlatformContext();
 
-        final Path dir = Path.of("/Users/lazarpetrovic/Downloads/pces0");
+        final Path pcesDir = Path.of("/Users/kellygreco/Desktop/test_run/node0/migrated-pces/");
         final Roster roster = Roster.JSON.parse(
-                new ReadableStreamingData(new FileInputStream("/Users/lazarpetrovic/Downloads/currentRoster.json")));
+                new ReadableStreamingData(new FileInputStream(
+                        "/Users/kellygreco/Desktop/test_run/node0/migrated-roster/new-roster.json")));
         // this will compact files in advance. the PcesFileReader will do the same thing and the these files will be
         // in the gradle cache and break the test. this seems to bypass that issue.
-        PcesUtilities.compactPreconsensusEventFiles(dir);
+        PcesUtilities.compactPreconsensusEventFiles(pcesDir);
 
         final PcesFileTracker pcesFileTracker =
-                PcesFileReader.readFilesFromDisk(context.getConfiguration(), context.getRecycleBin(), dir, 0, false);
-
-        final Path consensusSnapshotPath = Path.of("/Users/lazarpetrovic/Downloads/consensusSnapshot.json");
-        final ConsensusSnapshot consensusSnapshot =
-                ConsensusSnapshot.JSON.parse(new ReadableStreamingData(new FileInputStream(consensusSnapshotPath.toFile())));
+                PcesFileReader.readFilesFromDisk(context.getConfiguration(), context.getRecycleBin(), pcesDir, 0,
+                        false);
 
         final TestIntake intake = new TestIntake(context, roster);
-        intake.loadSnapshot(consensusSnapshot);
-
         final ConsensusOutput output = intake.getOutput();
 
         ConsensusRound latestRound = null;
-        final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(
-                consensusSnapshot.minimumJudgeInfoList().getFirst().minimumJudgeBirthRound(),
-                consensusSnapshot.round()
-        );
+        final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);
 
         long eventCount = 0;
 
-        final int numEventsBeforeGui = 69340;
-
-        while (eventIterator.hasNext() && eventCount < numEventsBeforeGui) {
+        while (eventIterator.hasNext()) {
             final PlatformEvent event = eventIterator.next();
-//            if(event.getBirthRound() == 79681){
-//                continue;
-//            }
             intake.addEvent(event);
-            if(!output.getConsensusRounds().isEmpty()){
+            if (!output.getConsensusRounds().isEmpty()) {
                 latestRound = output.getConsensusRounds().getLast();
             }
             output.clear();
@@ -107,7 +95,7 @@ public class CoinRoundTest extends PlatformTest {
 
         final StandardGuiSource guiSource = intake.createGuiSource();
 
-        HashgraphGuiRunner.runHashgraphGui(guiSource,  controls(
+        HashgraphGuiRunner.runHashgraphGui(guiSource, controls(
                 intake.getConsensusEngine().getConsensus(),
                 eventIterator,
                 intake,
@@ -138,11 +126,11 @@ public class CoinRoundTest extends PlatformTest {
             try {
                 final int numToAdd = numEvents.getValue() instanceof final Integer value ? value : defaultNumEvents;
                 for (int i = 0; i < numToAdd; i++) {
-                    if(eventIterator.hasNext()){
+                    if (eventIterator.hasNext()) {
                         final PlatformEvent event = eventIterator.next();
                         intake.addEvent(event);
                         guiSource.getEventStorage().updateMaxGen(event);
-                    }else {
+                    } else {
                         System.out.println("No more events");
                     }
                 }

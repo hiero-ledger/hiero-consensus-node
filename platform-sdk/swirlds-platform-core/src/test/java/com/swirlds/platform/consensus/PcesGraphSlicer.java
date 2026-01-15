@@ -58,12 +58,15 @@ import org.junit.jupiter.api.Test;
 
 public class PcesGraphSlicer extends PlatformTest {
     public static final Path HOME = Paths.get(System.getProperty("user.home"));
-    public static final Path SNAPSHOT_PATH = HOME.resolve(Path.of("Downloads/data/consensus-snapshot.json"));
-    public static final Path PCES_LOCATION = HOME.resolve(Path.of("Downloads/data/saved/preconsensus-events/"));
-    public static final Path PCES_OUTPUT_LOCATION = HOME.resolve(Path.of("Downloads/output/migrated-pces"));
+    public static final Path SNAPSHOT_PATH = HOME.resolve(Path.of("Desktop/test_run/node0/consensusSnapshot.json"));
+    public static final Path PCES_LOCATION = HOME.resolve(Path.of("Desktop/test_run/node0/preconsensus-events/"));
+    public static final Path PCES_OUTPUT_LOCATION = HOME.resolve(Path.of("Desktop/test_run/node0/migrated-pces"));
     public static final Path ROSTER_OUTPUT_LOCATION =
-            HOME.resolve(Path.of("Downloads/output/migrated-roster/new-roster.json"));
-    private static final Path ROSTER_LOCATION = HOME.resolve(Path.of("Downloads/output/node0/currentRoster.json"));
+            HOME.resolve(Path.of("Desktop/test_run/node0/migrated-roster/new-roster.json"));
+    private static final Path ROSTER_LOCATION = HOME.resolve(Path.of("Desktop/test_run/node0/currentRoster.json"));
+
+
+    private final PbjStreamHasher eventHasher = new PbjStreamHasher();
 
     /**
      * A test that reads in a set of PCES event files and checks that the coin round occurred. The test expects the
@@ -95,27 +98,20 @@ public class PcesGraphSlicer extends PlatformTest {
 
         final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);
 
-        final List<PlatformEvent> migratedEvents = new ArrayList<>();
-        final Map<Bytes, EventDescriptor> migratedParents = new HashMap<>();
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(context.getMetrics(),
+                new NoOpIntakeEventCounter());
+        orphanBuffer.setEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, 26));
+        final List<PlatformEvent> nonOrphans = new ArrayList<>();
 
-        final DefaultOrphanBuffer buffer = new DefaultOrphanBuffer(context.getMetrics(), new NoOpIntakeEventCounter());
-        buffer.setEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, 26));
-        final PbjStreamHasher eventHasher = new PbjStreamHasher();
         while (eventIterator.hasNext()) {
             final PlatformEvent event = eventIterator.next();
             eventHasher.hashEvent(event);
-
-            final var events = buffer.handleEvent(event);
-            for (final PlatformEvent bufferedEvents : events) {
-                final var migrated = migrateEvent(bufferedEvents, signers, eventHasher, migratedParents);
-                if (migrated != null) {
-                    migratedEvents.add(migrated);
-                }
-            }
+            final var events = orphanBuffer.handleEvent(event);
+            nonOrphans.addAll(events);
         }
-        buffer.clear();
-        writeEvents(context, migratedEvents);
 
+        final List<PlatformEvent> migratedEvents = migrateEvents(nonOrphans, signers);
+        writeEvents(context, migratedEvents);
     }
 
     private void writeRoster(final Roster newRoster) {
@@ -131,102 +127,103 @@ public class PcesGraphSlicer extends PlatformTest {
         }
     }
 
-    private PlatformEvent migrateEvent(
-            @NonNull final PlatformEvent event,
-            final Map<NodeId, PlatformSigner> signers,
-            final PbjStreamHasher eventHasher,
-            final Map<Bytes, EventDescriptor> migratedParents) {
+    private List<PlatformEvent> migrateEvents(@NonNull final List<PlatformEvent> events,
+            final Map<NodeId, PlatformSigner> signers) {
+        final Map<Bytes, EventDescriptor> migratedParents = new HashMap<>();
+        final List<PlatformEvent> migratedEvents = new ArrayList<>();
+        for (final PlatformEvent event : events) {
+            switch ((int) event.getCreatorId().id()) {
+                case 0, 5: {
+                    if (event.getNGen() == 23886) {
+                        System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound());
+                    }
+                    if (event.getNGen() < 23886) {
+                        continue;
+                    }
+                    break;
+                }
+                case 1, 3: {
+                    if (event.getNGen() == 23887) {
+                        System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound());
+                    }
+                    if (event.getNGen() < 23887) {
+                        continue;
+                    }
+                    break;
+                }
+                case 2: {
+                    if (event.getNGen() == 23888) {
+                        System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound());
+                    }
+                    if (event.getNGen() < 23888) {
+                        continue;
+                    }
+                    break;
+                }
+                case 4: {
+                    if (event.getNGen() == 23890) {
+                        System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound());
+                    }
+                    if (event.getNGen() < 23890) {
+                        continue;
+                    }
+                    break;
+                }
+                case 6: {
+                    if (event.getNGen() == 23892) {
+                        System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound());
+                    }
+                    if (event.getNGen() < 23892) {
+                        continue;
+                    }
+                    break;
+                }
+                default: {
+                    System.err.println("Unknown event creator: " + event.getCreatorId());
+                    return null;
+                }
+            }
+            // Create the new event core
+            final EventCore oldEventCore = event.getEventCore();
+            final EventCore newEventCore = oldEventCore
+                    .copyBuilder()
+                    .birthRound(Long.max(oldEventCore.birthRound() - 79679, 1))
+                    .build();
 
-        switch ((int) event.getCreatorId().id()) {
-            case 0, 5: {
-                if (event.getNGen() == 23886){
-                    System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound() );
-                }
-                if (event.getNGen() < 23886) {
-                    return null;
-                }
-                break;
-            }
-            case 1, 3: {
-                if (event.getNGen() == 23887){
-                    System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound() );
-                }
-                if (event.getNGen() < 23887) {
-                    return null;
-                }
-                break;
-            }
-            case 2: {
-                if (event.getNGen() == 23888){
-                    System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound() );
-                }
-                if (event.getNGen() < 23888) {
-                    return null;
-                }
-                break;
-            }
-            case 4: {
-                if (event.getNGen() == 23890){
-                    System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound() );
-                }
-                if (event.getNGen() < 23890) {
-                    return null;
-                }
-                break;
-            }
-            case 6: {
-                if (event.getNGen() == 23892){
-                    System.out.println(event.getEventCore().creatorNodeId() + " " + event.getBirthRound() );
-                }
-                if (event.getNGen() < 23892) {
-                    return null;
-                }
-                break;
-            }
-            default: {
-                System.err.println("Unknown event creator: " + event.getCreatorId());
-                return null;
-            }
+            // Get the updated parent descriptors
+            final List<EventDescriptor> parents = event.getAllParents().stream()
+                    .map(parent -> migratedParents.get(parent.hash().getBytes()))
+                    .filter(Objects::nonNull)
+                    .toList();
+
+            // Calculate the new hash (clear any transactions)
+            final Hash newHash = eventHasher.hashEvent(newEventCore, parents, Collections.emptyList());
+
+            // sign new hash
+            final PlatformSigner signer = signers.get(event.getCreatorId());
+            final Signature signature = signer.sign(newHash.getBytes().toByteArray());
+
+            // Build the migrated GossipEvent
+            final GossipEvent migratedGossipEvent = new GossipEvent.Builder()
+                    .eventCore(newEventCore)
+                    .signature(signature.getBytes())
+                    .parents(parents)
+                    .build();
+
+            //  Create the new event descriptor for the migrated event
+            final EventDescriptor eventDescriptor = new EventDescriptor.Builder()
+                    .hash(newHash.getBytes())
+                    .creatorNodeId(newEventCore.creatorNodeId())
+                    .birthRound(newEventCore.birthRound())
+                    .build();
+
+            // Store the migrated event descriptor for future events to lookup as parents
+            migratedParents.put(event.getHash().getBytes(), eventDescriptor);
+
+            // Add the migrated event to the list to return
+            migratedEvents.add(new PlatformEvent(migratedGossipEvent));
         }
-        // Create the new event core
-        final EventCore oldEventCore = event.getEventCore();
-        final EventCore newEventCore = oldEventCore
-                .copyBuilder()
-                .birthRound(Long.max(oldEventCore.birthRound() - 79679, 1))
-                .build();
-
-        // Get the updated parent descriptors
-        final List<EventDescriptor> parents = event.getAllParents().stream()
-                .map(parent -> migratedParents.get(parent.hash()))
-                .filter(Objects::nonNull)
-                .toList();
-
-        // Calculate the new hash (clear any transactions)
-        final Hash newHash = eventHasher.hashEvent(newEventCore, parents, Collections.emptyList());
-
-        // sign new hash
-        final PlatformSigner signer = signers.get(event.getCreatorId());
-        final Signature signature = signer.sign(newHash.getBytes().toByteArray());
-
-        // Build the migrated GossipEvent
-        final GossipEvent migratedGossipEvent = new GossipEvent.Builder()
-                .eventCore(newEventCore)
-                .signature(signature.getBytes())
-                .parents(parents)
-                .build();
-
-        //  Create the new event descriptor for the migrated event
-        final EventDescriptor eventDescriptor = new EventDescriptor.Builder()
-                .hash(newHash.getBytes())
-                .creatorNodeId(newEventCore.creatorNodeId())
-                .birthRound(newEventCore.birthRound())
-                .build();
-
-        // Store the migrated event descriptor for future events to lookup as parents
-        migratedParents.put(newHash.getBytes(), eventDescriptor);
-
-        // Add to the list of migrated events to return.
-        return new PlatformEvent(migratedGossipEvent);
+        return migratedEvents;
     }
 
     private void writeEvents(final PlatformContext platformContext, final List<PlatformEvent> migratedEvents) {
