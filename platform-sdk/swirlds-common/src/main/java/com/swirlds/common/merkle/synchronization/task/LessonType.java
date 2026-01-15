@@ -24,10 +24,4 @@ public final class LessonType {
      * Corresponds to {@link InternalDataLesson}.
      */
     public static final byte INTERNAL_NODE_DATA = 2;
-
-    /**
-     * This lesson describes the root of a subtree that needs a custom root to do reconnect.
-     * Corresponds to {@link CustomViewRootLesson}.
-     */
-    public static final byte CUSTOM_VIEW_ROOT = 3;
 }

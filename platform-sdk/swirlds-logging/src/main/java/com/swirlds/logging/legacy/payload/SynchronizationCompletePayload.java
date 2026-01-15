@@ -8,7 +8,6 @@ public class SynchronizationCompletePayload extends AbstractLogPayload {
 
     private double timeInSeconds;
     private double hashTimeInSeconds;
-    private double initializationTimeInSeconds;
     private int totalNodes;
     private int leafNodes;
     private int redundantLeafNodes;
@@ -60,25 +59,6 @@ public class SynchronizationCompletePayload extends AbstractLogPayload {
      */
     public SynchronizationCompletePayload setHashTimeInSeconds(final double hashTimeInSeconds) {
         this.hashTimeInSeconds = hashTimeInSeconds;
-        return this;
-    }
-
-    /**
-     * Get the time required to required to initialize the state, in seconds.
-     */
-    public double getInitializationTimeInSeconds() {
-        return initializationTimeInSeconds;
-    }
-
-    /**
-     * Set the time required to required to initialize the state, in seconds.
-     *
-     * @param initializationTimeInSeconds
-     * 		the time required to initialize the state
-     * @return this object
-     */
-    public SynchronizationCompletePayload setInitializationTimeInSeconds(double initializationTimeInSeconds) {
-        this.initializationTimeInSeconds = initializationTimeInSeconds;
         return this;
     }
 
