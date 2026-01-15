@@ -122,7 +122,7 @@ jobs:
 
   generate-matrix:
     name: "Generate OS Matrix for Determinism Verification"
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-network-node-linux-small-scheduler
     outputs:
       os-matrix: ${{ steps.set-matrix.outputs.os-matrix }}
     steps:
