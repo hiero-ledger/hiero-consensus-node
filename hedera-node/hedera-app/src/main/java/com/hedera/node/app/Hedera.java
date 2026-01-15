@@ -466,16 +466,14 @@ public final class Hedera
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
         this.blockHashSignerFactory = requireNonNull(blockHashSignerFactory);
         this.storeMetricsService = new StoreMetricsServiceImpl(metrics);
-        logger.info(
-                """
+        logger.info("""
 
                         {}
 
                         Welcome to Hedera! Developed with ❤\uFE0F by the Open Source Community.
                         https://github.com/hashgraph/hedera-services
 
-                        """,
-                HEDERA);
+                        """, HEDERA);
         bootstrapConfigProvider = new BootstrapConfigProviderImpl();
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
         hapiVersion = bootstrapConfig.getConfigData(VersionConfig.class).hapiVersion();
