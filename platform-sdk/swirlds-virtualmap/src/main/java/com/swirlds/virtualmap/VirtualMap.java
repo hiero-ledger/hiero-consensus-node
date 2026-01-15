@@ -79,6 +79,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
+import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
@@ -146,6 +147,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * through the map-like methods.
  */
 @DebugIterationEndpoint
+@ConstructableIgnored
 public final class VirtualMap extends PartialBinaryMerkleInternal implements Labeled, MerkleInternal, VirtualRoot {
 
     private static final int MAX_PBJ_RECORD_SIZE = 33554432;
@@ -999,11 +1001,13 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
 
     /**
      * {@inheritDoc}
+     * @deprecated this method can be safely removed once we switch to pull-based reconnect,
+     * see <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/12648">issue #12648</a>
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     @Override
     public long getClassId() {
-        // This class is still required for the reconnect code
+        // This class id is still required for the reconnect code
         return CLASS_ID;
     }
 
