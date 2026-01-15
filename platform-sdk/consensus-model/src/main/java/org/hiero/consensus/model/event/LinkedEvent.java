@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.internal;
+package org.hiero.consensus.model.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.PlatformEvent;
 
 public class LinkedEvent<T extends LinkedEvent<T>> {
     /** the event we are wrapping with links */
