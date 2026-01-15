@@ -1196,7 +1196,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
     @DisplayName("getKv returns value for existing key and null for missing key")
     void testGetKv() {
         setupFruitVirtualMap();
-        final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+        final VirtualMap vm = virtualMapState.getRoot();
 
         addKvState(vm, fruitMetadata, A_KEY, APPLE);
 
@@ -1214,7 +1214,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
     @DisplayName("singleton returns bytes for valid singleton and null for invalid IDs")
     void testSingletonAccessor() {
         setupSingletonCountry();
-        final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+        final VirtualMap vm = virtualMapState.getRoot();
         addSingletonState(vm, countryMetadata, GHANA);
 
         virtualMapState.initializeState(countryMetadata);
