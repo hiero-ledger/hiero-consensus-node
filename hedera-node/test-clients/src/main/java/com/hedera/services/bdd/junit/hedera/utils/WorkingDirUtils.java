@@ -320,6 +320,10 @@ public class WorkingDirUtils {
         try (final var files = Files.walk(assetDir)) {
             files.filter(file -> !file.equals(assetDir)).forEach(file -> {
                 final var fileName = file.getFileName().toString();
+                // Skip genesis-network.json as it's already written by recreateWorkingDir()
+                if (GENESIS_NETWORK_JSON.equals(fileName)) {
+                    return;
+                }
                 if (fileName.endsWith(".properties") || fileName.endsWith(".json")) {
                     copyUnchecked(
                             file,
