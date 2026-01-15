@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
@@ -10,14 +9,12 @@ import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
-import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -77,8 +74,7 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
             final Time time,
             final StandardWorkGroup workGroup,
             final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream,
-            final Queue<TeacherSubtree> subtrees) {
+            final MerkleDataOutputStream outputStream) {
         final AsyncOutputStream<PullVirtualTreeResponse> out =
                 teachingSynchronizer.buildOutputStream(workGroup, outputStream);
         out.start();
@@ -126,14 +122,6 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
      */
     public Hash loadHash(final long path) {
         return records.findHash(path);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long getRoot() {
-        return ROOT_PATH;
     }
 
     /**
@@ -219,14 +207,6 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public void writeChildHashes(final Long parent, final SerializableDataOutputStream out) throws IOException {
         throw new UnsupportedOperationException("TeacherPullVirtualTreeView.writeChildHashes()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isCustomReconnectRoot(final Long node) {
-        return node == ROOT_PATH;
     }
 
     /**

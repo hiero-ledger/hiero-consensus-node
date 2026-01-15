@@ -350,6 +350,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     SCHEDULE_GET_INFO,
                     FILE_GET_CONTENTS,
                     FILE_GET_INFO,
+                    TOKEN_GET_INFO,
+                    TOKEN_GET_NFT_INFO,
                     CRYPTO_GET_INFO,
                     CRYPTO_GET_ACCOUNT_RECORDS,
                     CONTRACT_CALL_LOCAL,
