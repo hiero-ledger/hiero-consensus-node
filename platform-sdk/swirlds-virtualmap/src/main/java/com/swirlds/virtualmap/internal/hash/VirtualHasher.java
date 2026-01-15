@@ -153,7 +153,6 @@ public final class VirtualHasher {
             this.out = out;
             if (out != null) {
                 out.initInputs();
-//                out.preloadHashChunkNeeded();
             }
             send();
         }
@@ -191,14 +190,7 @@ public final class VirtualHasher {
 
         private final AtomicInteger insProvided = new AtomicInteger(0);
 
-        // No need to have it atomic, this flag is set/checked on a single thread in hashImpl()
-        private boolean chunkPreloaded = false;
-
-        private VirtualHashChunk hashChunk;
-
         ChunkHashTask(final ForkJoinPool pool, final long path, final int height) {
-            // out (1) + preload (1) + ins (2^height)
-//            super(pool, 1 + (1 << height) + 1);
             super(pool, 1 + (1 << height));
             this.path = path;
             this.height = height;
@@ -214,21 +206,6 @@ public final class VirtualHasher {
             if (ins == null) {
                 ins = new Hash[1 << height];
             }
-        }
-
-        void preloadHashChunkNeeded() {
-            if (!chunkPreloaded) {
-                chunkPreloaded = true;
-                final PreloadHashChunkTask preloadTask = new PreloadHashChunkTask(getPool(), path, this);
-                preloadTask.send();
-            }
-        }
-
-        void setHashChunk(final VirtualHashChunk hashChunk) {
-            assert hashChunk != null;
-            assert this.hashChunk == null;
-            this.hashChunk = hashChunk;
-            send();
         }
 
         void setHash(final long path, final Hash hash) {
@@ -262,13 +239,16 @@ public final class VirtualHasher {
                 chunkPath = Path.getGrandParentPath(path, rankDiff);
             }
             final int chunkRank = Path.getRank(chunkPath);
+            VirtualHashChunk hashChunk = null;
             if ((insProvided.get() == len) && (chunkPath == path)) {
-                if ((height == defaultChunkHeight) || (Path.getLeftGrandChildPath(path, height + 1) > lastLeafPath)) {
+                if ((height == defaultChunkHeight) || (Path.getLeftGrandChildPath(path, height) >= firstLeafPath)) {
                     // All inputs provided, no need to load the chunk from disk using hashChunkPreloader
                     hashChunk = new VirtualHashChunk(chunkPath, defaultChunkHeight);
                 }
             }
             if (hashChunk == null) {
+                // Important: chunk preloader MUST return the same VirtualHashChunk object if
+                // called multiple times for a single chunk path
                 hashChunk = hashChunkPreloader.apply(chunkPath);
                 if (hashChunk == null) {
                     throw new RuntimeException("Failed to load hash chunk for path = " + chunkPath);
@@ -283,20 +263,19 @@ public final class VirtualHasher {
                     Hash left = ins[i * 2];
                     final long leftPath = rankPath + i * 2;
                     assert (leftPath < lastLeafPath) || (lastLeafPath == 1);
-                    final long leftLeftPath = Path.getLeftChildPath(leftPath);
+                    final boolean leftIsLeaf = leftPath >= firstLeafPath;
                     if (left == null) {
                         assert currentRank == taskRank + height;
                         // Need to load the hash from hashChunk
-                        if ((height == defaultChunkHeight) || (leftLeftPath > lastLeafPath)) {
+                        if ((height == defaultChunkHeight) || leftIsLeaf) {
                             left = hashChunk.getHashAtPath(leftPath);
                         } else {
-                            final Hash leftLeftHash = hashChunk.getHashAtPath(leftLeftPath);
-                            final Hash leftRightHash = hashChunk.getHashAtPath(Path.getRightChildPath(leftPath));
-                            left = hashInternal(leftLeftHash, leftRightHash);
+                            // Get left's left and right child hashes and hashInternal() them
+                            left = hashChunk.calcHash(leftPath, firstLeafPath, lastLeafPath);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
-                        if ((currentRank == chunkLastRank) || (leftLeftPath > lastLeafPath)) {
+                        if ((currentRank == chunkLastRank) || leftIsLeaf) {
                             hashChunk.setHashAtPath(leftPath, left);
                         }
                     }
@@ -304,20 +283,19 @@ public final class VirtualHasher {
                     Hash right = ins[i * 2 + 1];
                     final long rightPath = rankPath + i * 2 + 1;
                     assert (rightPath <= lastLeafPath) || (lastLeafPath == 1);
-                    final long rightLeftPath = Path.getLeftChildPath(rightPath);
+                    final boolean rightIsLeaf = rightPath >= firstLeafPath;
                     if (right == null) {
                         assert currentRank == taskRank + height;
                         // Need to load the hash from hashChunk
-                        if ((height == defaultChunkHeight) || (rightLeftPath > lastLeafPath)) {
+                        if ((height == defaultChunkHeight) || rightIsLeaf) {
                             right = hashChunk.getHashAtPath(rightPath);
                         } else {
-                            final Hash rightLeftHash = hashChunk.getHashAtPath(rightLeftPath);
-                            final Hash rightRightHash = hashChunk.getHashAtPath(Path.getRightChildPath(rightPath));
-                            right = hashInternal(rightLeftHash, rightRightHash);
+                            // Get right's left and right child hashes and hashInternal() them
+                            right = hashChunk.calcHash(rightPath, firstLeafPath, lastLeafPath);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
-                        if ((currentRank == chunkLastRank) || (rightLeftPath > lastLeafPath)) {
+                        if ((currentRank == chunkLastRank) || rightIsLeaf) {
                             hashChunk.setHashAtPath(rightPath, right);
                         }
                     }
@@ -380,25 +358,6 @@ public final class VirtualHasher {
             } else {
                 out.setHash(path, null);
             }
-            return true;
-        }
-    }
-
-    class PreloadHashChunkTask extends AbstractTask {
-
-        private final long path;
-
-        private final ChunkHashTask out;
-
-        PreloadHashChunkTask(final ForkJoinPool pool, final long path, final ChunkHashTask out) {
-            super(pool, 1);
-            this.path = path;
-            this.out = out;
-        }
-
-        @Override
-        protected boolean onExecute() {
-            out.setHashChunk(hashChunkPreloader.apply(path));
             return true;
         }
     }
@@ -475,8 +434,12 @@ public final class VirtualHasher {
             final int height = lastLeafRank - rank;
             final long lastPathInChunk = Path.getRightGrandChildPath(path, height);
             if (lastPathInChunk <= lastLeafPath) {
+                // First 'height' ranks in the chunk are in the tree
                 return height;
             } else {
+                // Some nodes at the 'height' rank are beyond the leaf range. Split
+                // the chunk into one task of height - 1, and a few small chunks of
+                // height 1
                 return height - 1;
             }
         }
@@ -486,12 +449,18 @@ public final class VirtualHasher {
      * Hash the given dirty leaves and the minimal subset of the tree necessary to produce a
      * single root hash. The root hash is returned.
      *
-     * <p>If leaf path is empty, that is when {@code firstLeafPath} and/or {@code lastLeafPath}
+     * <p>If leaf path range is empty, that is when {@code firstLeafPath} and/or {@code lastLeafPath}
      * are zero or less, and dirty leaves stream is not empty, throws an {@link
      * IllegalArgumentException}.
      *
+     * <p>If the provided list of dirty leaves is empty, this method returns {@code null}.
+     *
+     * @param hashChunkPreloader
+     *      A mechanism to load hash chunks by path. If a chunk is partially clean, the hasher
+     *      will load the chunk first, then update all dirty hashes in it, and finally notify
+     *      the listener using {@link VirtualHashListener#onHashChunkHashed(VirtualHashChunk)}
      * @param sortedDirtyLeaves
-     * 		A stream of dirty leaves sorted in <strong>ASCENDING PATH ORDER</strong>, such that path
+     * 		A list of dirty leaves sorted in <strong>ASCENDING PATH ORDER</strong>, such that path
      * 		1234 comes before 1235. If null or empty, a null hash result is returned.
      * @param firstLeafPath
      * 		The firstLeafPath of the tree that is being hashed. If &lt; 1, then a null hash result is returned.
@@ -501,8 +470,10 @@ public final class VirtualHasher {
      * 		No leaf in {@code sortedDirtyLeaves} may have a path greater than {@code lastLeafPath}.
      * @param listener
      *      Hash listener. May be {@code null}
-     * @param virtualMapConfig platform configuration for VirtualMap
-     * @return The hash of the root of the tree
+     * @param virtualMapConfig
+     *      Platform configuration for VirtualMap
+     * @return
+     *      The hash of the root of the tree, or {@code null} if the list of dirty leaves is empty
      */
     @SuppressWarnings("rawtypes")
     public Hash hash(
@@ -528,8 +499,8 @@ public final class VirtualHasher {
                 ? thread.getPool()
                 : getHashingPool(virtualMapConfig);
 
-        final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(
-                () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, virtualMapConfig, pool)));
+        final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(() ->
+                hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, virtualMapConfig, pool)));
         if (rootTask != null) {
             try {
                 rootTask.join();
@@ -589,8 +560,8 @@ public final class VirtualHasher {
         // virtual maps.
 
         // A chunk is a small sub-tree, which is identified by a path and a height. Chunks of
-        // height 1 contain three nodes: one node and two its children. Chunks of height 2 contain
-        // seven nodes: a node, two its children, and four grand children. Chunk path is the path
+        // height 1 contain two nodes: the path's two children. Chunks of height 2 contain
+        // six nodes: two path's children, and four grand children. Chunk path is the path
         // of the top-level node in the chunk.
 
         // Each chunk is processed in a separate task. Tasks have dependencies. Once all task
@@ -694,6 +665,7 @@ public final class VirtualHasher {
                 if (parentTask == null) {
                     parentTask = new ChunkHashTask(pool, parentPath, parentChunkHeight);
                 }
+                // If curTask is a leaf task, it will be scheduled for execution here
                 curTask.setOut(parentTask);
 
                 // For every task on the route to the root, check its siblings within the same
