@@ -31,10 +31,12 @@ class ThrottleBucketTest {
         subject.setBurstPeriod(123);
         subject.setBurstPeriodMs(123L);
         subject.setName("Thom");
+        subject.setHighVolume(true);
 
         assertEquals(123, subject.getBurstPeriod());
         assertEquals(123L, subject.getBurstPeriodMs());
         assertEquals("Thom", subject.getName());
+        assertEquals(true, subject.isHighVolume());
     }
 
     @Test
