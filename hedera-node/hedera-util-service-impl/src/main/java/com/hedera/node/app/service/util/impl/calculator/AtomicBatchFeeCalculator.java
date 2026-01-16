@@ -20,11 +20,10 @@ public class AtomicBatchFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.ATOMIC_BATCH);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.addServiceBase(serviceDef.baseFee());
     }
 
     @Override

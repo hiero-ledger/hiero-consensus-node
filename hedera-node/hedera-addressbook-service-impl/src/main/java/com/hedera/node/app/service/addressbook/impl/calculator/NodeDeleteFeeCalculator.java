@@ -17,11 +17,10 @@ public class NodeDeleteFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.NODE_DELETE);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.addServiceBase(serviceDef.baseFee());
     }
 
     @Override

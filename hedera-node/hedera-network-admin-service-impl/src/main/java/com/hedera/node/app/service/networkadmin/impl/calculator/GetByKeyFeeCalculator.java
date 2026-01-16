@@ -23,11 +23,10 @@ public class GetByKeyFeeCalculator implements QueryFeeCalculator {
     @Override
     public void accumulateNodePayment(
             @NonNull Query query,
-            @Nullable QueryContext queryContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.GET_BY_KEY);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.addServiceBase(serviceDef.baseFee());
     }
 
     @Override
