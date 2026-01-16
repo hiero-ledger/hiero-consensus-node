@@ -43,6 +43,11 @@ public interface HistoryService extends Service, OnProofFinished {
     }
 
     /**
+     * Returns the verification key for history proofs.
+     */
+    Bytes historyProofVerificationKey();
+
+    /**
      * Returns the handlers for the {@link HistoryService}.
      */
     HistoryHandlers handlers();
