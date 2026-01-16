@@ -83,7 +83,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Service fee is transaction-specific.
      *
      * @param txnBody the transaction body
-     * @param feeContext the fee context containing signature count and transaction bytes
+     * @param feeContext the fee context containing signature count
      * @return the calculated fee result
      */
     @NonNull
@@ -91,7 +91,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
         // Extract primitive counts (no allocations)
         final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
-        final long bytes = feeContext != null ? feeContext.numTxnBytes() : 0;
+        // Calculate transaction body size in bytes using PROTOBUF codec
+        final long bytes = TransactionBody.PROTOBUF.measureRecord(txnBody);
         final var result = new FeeResult();
 
         // Add node base and extras (bytes and payer signatures)
