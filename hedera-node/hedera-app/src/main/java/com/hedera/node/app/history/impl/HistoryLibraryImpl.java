@@ -7,7 +7,7 @@ import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPh
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R3;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
+import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -23,11 +23,10 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
 
     @Override
-    public SigningAndVerifyingSchnorrKeys newSchnorrKeyPair() {
+    public SchnorrKeys newSchnorrKeyPair() {
         final var seed = new byte[32];
         RANDOM.nextBytes(seed);
-        final var wrapsKeys = WRAPS.generateSchnorrKeys(seed);
-        return new SigningAndVerifyingSchnorrKeys(wrapsKeys.privateKey(), wrapsKeys.publicKey());
+        return WRAPS.generateSchnorrKeys(seed);
     }
 
     @Override

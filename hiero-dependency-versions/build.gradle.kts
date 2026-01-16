@@ -124,9 +124,6 @@ dependencies.constraints {
     api("uk.org.webcompere:system-stubs-jupiter:$webcompare") {
         because("uk.org.webcompere.systemstubs.jupiter")
     }
-    api("com.hedera.cryptography:hedera-cryptography-rpm:$hederaCryptography") {
-        because("com.hedera.cryptography.rpm")
-    }
     api("com.hedera.cryptography:hedera-cryptography-wraps:$hederaCryptography") {
         because("com.hedera.cryptography.wraps")
     }
