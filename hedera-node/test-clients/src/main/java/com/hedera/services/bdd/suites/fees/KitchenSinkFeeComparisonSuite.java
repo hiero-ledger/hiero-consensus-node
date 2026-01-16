@@ -9,8 +9,11 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractDelete;
@@ -19,6 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDeleteAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
@@ -26,27 +30,37 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.revokeTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCancelAirdrop;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenClaimAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDissociate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFeeScheduleUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenReject;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnfreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdateNfts;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
-import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeNoFallback;
+import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
@@ -55,7 +69,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -65,50 +78,53 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
+import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
+import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoUpdate;
+import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
+import com.hedera.services.bdd.spec.transactions.token.HapiTokenUpdate;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Kitchen sink test suite that submits all transaction types with varying parameters
- * to test all combinations of "extras" from simpleFeesSchedules.json.
+ * Kitchen sink test suite that exercises all simple-fees transaction types and
+ * full permutations of their extras (plus node SIGNATURES) derived from simpleFeesSchedules.json.
  *
  * <p>Each service has its own test method for easier debugging and isolation.
- * The summary output shows the emphasis with specific extra values for each transaction.
+ * The summary output shows the emphasis with specific extra values added for each transaction,
+ * and the CSV includes a combined, final table across all services.
  *
- * <p>Extras tested per transaction type:
- * <ul>
- *   <li>CryptoCreate: KEYS (1-5), SIGNATURES (1-5)</li>
- *   <li>CryptoUpdate: KEYS (1-5), SIGNATURES (1-5)</li>
- *   <li>CryptoTransfer: ACCOUNTS (2-5), FUNGIBLE_TOKENS (0-3), NON_FUNGIBLE_TOKENS (0-2)</li>
- *   <li>CryptoApproveAllowance: ALLOWANCES (1-3)</li>
- *   <li>TokenCreate: KEYS (0-5), TOKEN_CREATE_WITH_CUSTOM_FEE (0-3)</li>
- *   <li>TokenMint: TOKEN_MINT_NFT (0-5)</li>
- *   <li>ConsensusCreateTopic: KEYS (0-2)</li>
- *   <li>ConsensusSubmitMessage: BYTES (10-2000)</li>
- *   <li>FileCreate/Update: KEYS (1-3), BYTES (100-5000)</li>
- *   <li>ScheduleCreate: KEYS (0-2), SCHEDULE_CREATE_CONTRACT_CALL_BASE (0-1)</li>
- *   <li>Contract: GAS (50k-500k)</li>
- * </ul>
+ * <p>Extras are permuted across representative ranges to cover included, boundary, and
+ * multi-extra combinations for each transaction type (e.g. keys, allowances, bytes, custom fees,
+ * hook updates/executions, gas, innerTxns, token transfer bases).
  */
 @Tag(SIMPLE_FEES)
 @Tag(ONLY_EMBEDDED)
@@ -162,6 +178,11 @@ public class KitchenSinkFeeComparisonSuite {
         public void fieldPercentage(double diff) throws IOException {
             this.field(String.format("%9.2f%%", diff));
         }
+
+        public void close() throws IOException {
+            this.writer.flush();
+            this.writer.close();
+        }
     }
 
     private static CSVWriter csv;
@@ -175,17 +196,27 @@ public class KitchenSinkFeeComparisonSuite {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) throws IOException {
         testLifecycle.overrideInClass(Map.of(
                 "fees.simpleFeesEnabled", "true",
+                "hooks.hooksEnabled", "true",
                 "lazyCreation.enabled", "true",
                 "cryptoCreateWithAliasAndEvmAddress.enabled", "true"));
         csv = new CSVWriter(new FileWriter("simple-fees-report.csv"));
-        csv.write("Transaction, Emphasis, Legacy Fee, Simple Fee, Difference, Change");
+        csv.write("Service, Transaction, Emphasis, Legacy Fee, Simple Fee, Difference, Change");
         csv.endLine();
+    }
+
+    @AfterAll
+    static void afterAll() throws IOException {
+        logFinalComparisonTable();
+        if (csv != null) {
+            csv.close();
+        }
     }
 
     // Key names for different complexity levels
     private static final String SIMPLE_KEY = "simpleKey";
     private static final String LIST_KEY_2 = "listKey2";
     private static final String LIST_KEY_3 = "listKey3";
+    private static final String LIST_KEY_4 = "listKey4";
     private static final String LIST_KEY_5 = "listKey5";
     private static final String THRESH_KEY_2_OF_3 = "threshKey2of3";
     private static final String THRESH_KEY_3_OF_5 = "threshKey3of5";
@@ -195,19 +226,97 @@ public class KitchenSinkFeeComparisonSuite {
     // Payer names
     private static final String PAYER = "payer";
     private static final String PAYER_COMPLEX = "payerComplex";
+    private static final String PAYER_SIG1 = "payerSig1"; // 1 signature (ED25519)
+    private static final String PAYER_SIG2 = "payerSig2"; // 2 signatures (listOf(2))
+    private static final String PAYER_SIG3 = "payerSig3"; // 3 signatures (listOf(3))
+    private static final String PAYER_SIG4 = "payerSig4"; // 4 signatures (listOf(4))
+    private static final String PAYER_SIG5 = "payerSig5"; // 5 signatures (listOf(5))
     private static final String TREASURY = "treasury";
     private static final String RECEIVER = "receiver";
     private static final String RECEIVER2 = "receiver2";
     private static final String RECEIVER3 = "receiver3";
+    private static final String RECEIVER4 = "receiver4";
     private static final String FEE_COLLECTOR = "feeCollector";
     private static final String BATCH_OPERATOR = "batchOperator";
 
     // Contract name
     private static final String STORAGE_CONTRACT = "Storage";
+    private static final String SCHEDULE_CONTRACT = "ScheduleStorage";
+    private static final String HOOK_CONTRACT = "TruePreHook";
+
+    private static final long[] HOOK_IDS = {1L, 2L};
+
+    // Permutation ranges for extras
+    private static final int[] SIGNATURE_COUNTS = {1, 2, 3, 4, 5};
+    private static final int[] KEY_COUNTS = {1, 2, 3, 4, 5};
+    private static final int[] TOKEN_KEY_COUNTS = {0, 1, 2, 3, 4, 5};
+    private static final int[] HOOK_COUNTS = {0, 1, 2};
+    private static final int[] ALLOWANCE_COUNTS = {1, 2, 3};
+    private static final int[] TRANSFER_SIGNATURE_COUNTS = {1, 3, 5};
+    private static final int[] TRANSFER_HOOK_COUNTS = {0, 1};
+    private static final int[] TRANSFER_ACCOUNT_COUNTS = {2, 3, 5};
+    private static final int[] TRANSFER_FT_COUNTS = {0, 1, 3};
+    private static final int[] TRANSFER_NFT_COUNTS = {0, 1};
+    private static final int TRANSFER_NFT_SERIALS = 200;
+    private static final int NFT_MINT_BATCH_SIZE = 10;
+    private static final int[] CUSTOM_FEE_COUNTS = {0, 1};
+    private static final int[] NFT_MINT_COUNTS = {0, 1, 2, 3, 5};
+    private static final int[] TOPIC_KEY_COUNTS = {0, 1, 2};
+    private static final int[] TOPIC_CUSTOM_FEE_COUNTS = {0, 1};
+    private static final int[] TOPIC_MESSAGE_BYTES = {50, 100, 500, 1000, 2000};
+    private static final int[] FILE_KEY_COUNTS = {1, 2, 3};
+    private static final int[] FILE_CREATE_BYTES = {100, 1000, 2000, 4000};
+    private static final int[] FILE_UPDATE_BYTES = {500, 1000, 3000};
+    private static final int[] FILE_APPEND_BYTES = {500, 1000, 2000};
+    private static final int[] SCHEDULE_KEY_COUNTS = {0, 1, 2};
+    private static final int[] CONTRACT_GAS = {50_000, 100_000, 200_000, 500_000};
+    private static final int[] BATCH_INNER_COUNTS = {2, 3, 5};
+
+    private static final List<String> RECEIVERS = List.of(RECEIVER, RECEIVER2, RECEIVER3, RECEIVER4);
+
+    private static final Map<String, Integer> SIGNER_SIG_COUNTS = new HashMap<>();
+
+    private static final List<FeeComparisonRow> ALL_ROWS = Collections.synchronizedList(new ArrayList<>());
 
     // ==================== RECORD CLASS FOR FEE ENTRIES ====================
 
     private record FeeEntry(String txnName, String emphasis, long fee) {}
+
+    private record ExtraCount(String name, int included, int count) {
+        int added() {
+            return Math.max(0, count - included);
+        }
+    }
+
+    private record FeeComparisonRow(
+            String service, String txnName, String emphasis, long legacyFee, long simpleFee, long diff, double pct) {}
+
+    static {
+        SIGNER_SIG_COUNTS.put(SIMPLE_KEY, 1);
+        SIGNER_SIG_COUNTS.put(LIST_KEY_2, 2);
+        SIGNER_SIG_COUNTS.put(LIST_KEY_3, 3);
+        SIGNER_SIG_COUNTS.put(LIST_KEY_4, 4);
+        SIGNER_SIG_COUNTS.put(LIST_KEY_5, 5);
+        SIGNER_SIG_COUNTS.put(PAYER_SIG1, 1);
+        SIGNER_SIG_COUNTS.put(PAYER_SIG2, 2);
+        SIGNER_SIG_COUNTS.put(PAYER_SIG3, 3);
+        SIGNER_SIG_COUNTS.put(PAYER_SIG4, 4);
+        SIGNER_SIG_COUNTS.put(PAYER_SIG5, 5);
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            for (final int hookCount : HOOK_COUNTS) {
+                SIGNER_SIG_COUNTS.put(hookedPayerName(sigCount, hookCount), sigCount);
+            }
+        }
+        SIGNER_SIG_COUNTS.put(PAYER, 1);
+        SIGNER_SIG_COUNTS.put(PAYER_COMPLEX, 3);
+        SIGNER_SIG_COUNTS.put(TREASURY, 1);
+        SIGNER_SIG_COUNTS.put(RECEIVER, 1);
+        SIGNER_SIG_COUNTS.put(RECEIVER2, 1);
+        SIGNER_SIG_COUNTS.put(RECEIVER3, 1);
+        SIGNER_SIG_COUNTS.put(RECEIVER4, 1);
+        SIGNER_SIG_COUNTS.put(FEE_COLLECTOR, 1);
+        SIGNER_SIG_COUNTS.put(BATCH_OPERATOR, 1);
+    }
 
     // ==================== CRYPTO SERVICE TEST ====================
 
@@ -220,6 +329,9 @@ public class KitchenSinkFeeComparisonSuite {
         return hapiTest(
                 createAllKeys(),
                 createBaseAccounts(),
+                uploadInitCode(HOOK_CONTRACT),
+                contractCreate(HOOK_CONTRACT).gas(5_000_000L),
+                createHookedPayers(),
                 overriding("fees.simpleFeesEnabled", "true"),
                 blockingOrder(cryptoTransactionsWithExtras("simple", simpleFees)),
                 overriding("fees.simpleFeesEnabled", "false"),
@@ -230,7 +342,7 @@ public class KitchenSinkFeeComparisonSuite {
     // ==================== TOKEN SERVICE TEST ====================
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("Token Service - extras (KEYS, TOKEN_CREATE_WITH_CUSTOM_FEE, TOKEN_MINT_NFT, NFT_SERIALS)")
+    @DisplayName("Token Service - extras permutations")
     final Stream<DynamicTest> tokenServiceFeeComparison() {
         final Map<String, FeeEntry> legacyFees = new LinkedHashMap<>();
         final Map<String, FeeEntry> simpleFees = new LinkedHashMap<>();
@@ -292,6 +404,8 @@ public class KitchenSinkFeeComparisonSuite {
         return hapiTest(
                 createAllKeys(),
                 createBaseAccounts(),
+                uploadInitCode(STORAGE_CONTRACT),
+                contractCreate(SCHEDULE_CONTRACT).bytecode(STORAGE_CONTRACT).gas(2_000_000L),
                 overriding("fees.simpleFeesEnabled", "true"),
                 blockingOrder(scheduleTransactionsWithExtras("simple", simpleFees)),
                 overriding("fees.simpleFeesEnabled", "false"),
@@ -302,7 +416,7 @@ public class KitchenSinkFeeComparisonSuite {
     // ==================== CONTRACT SERVICE TEST ====================
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("Contract Service - extras (GAS)")
+    @DisplayName("Contract Service - extras (GAS, HOOK_STORE)")
     final Stream<DynamicTest> contractServiceFeeComparison() {
         final Map<String, FeeEntry> legacyFees = new LinkedHashMap<>();
         final Map<String, FeeEntry> simpleFees = new LinkedHashMap<>();
@@ -310,6 +424,9 @@ public class KitchenSinkFeeComparisonSuite {
         return hapiTest(
                 createAllKeys(),
                 createBaseAccounts(),
+                uploadInitCode(HOOK_CONTRACT),
+                contractCreate(HOOK_CONTRACT).gas(5_000_000L),
+                createHookedPayers(),
                 uploadInitCode(STORAGE_CONTRACT),
                 overriding("fees.simpleFeesEnabled", "true"),
                 blockingOrder(contractTransactionsWithExtras("simple", simpleFees)),
@@ -344,6 +461,7 @@ public class KitchenSinkFeeComparisonSuite {
                 newKeyNamed(SIMPLE_KEY).shape(ED25519),
                 newKeyNamed(LIST_KEY_2).shape(listOf(2)),
                 newKeyNamed(LIST_KEY_3).shape(listOf(3)),
+                newKeyNamed(LIST_KEY_4).shape(listOf(4)),
                 newKeyNamed(LIST_KEY_5).shape(listOf(5)),
                 newKeyNamed(THRESH_KEY_2_OF_3).shape(threshOf(2, 3)),
                 newKeyNamed(THRESH_KEY_3_OF_5).shape(threshOf(3, 5)),
@@ -353,10 +471,6 @@ public class KitchenSinkFeeComparisonSuite {
 
     // ==================== BASE ACCOUNT CREATION ====================
     // Payers with different signature requirements for testing SIGNATURES extra
-    private static final String PAYER_SIG1 = "payerSig1"; // 1 signature (ED25519)
-    private static final String PAYER_SIG2 = "payerSig2"; // 2 signatures (listOf(2))
-    private static final String PAYER_SIG3 = "payerSig3"; // 3 signatures (listOf(3))
-    private static final String PAYER_SIG5 = "payerSig5"; // 5 signatures (listOf(5))
 
     private static SpecOperation createBaseAccounts() {
         return blockingOrder(
@@ -366,19 +480,99 @@ public class KitchenSinkFeeComparisonSuite {
                 cryptoCreate(PAYER_SIG1).balance(ONE_MILLION_HBARS).key(SIMPLE_KEY),
                 cryptoCreate(PAYER_SIG2).balance(ONE_MILLION_HBARS).key(LIST_KEY_2),
                 cryptoCreate(PAYER_SIG3).balance(ONE_MILLION_HBARS).key(LIST_KEY_3),
+                cryptoCreate(PAYER_SIG4).balance(ONE_MILLION_HBARS).key(LIST_KEY_4),
                 cryptoCreate(PAYER_SIG5).balance(ONE_MILLION_HBARS).key(LIST_KEY_5),
                 cryptoCreate(TREASURY).balance(ONE_MILLION_HBARS),
                 cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER2).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER3).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER4).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(FEE_COLLECTOR).balance(ONE_HUNDRED_HBARS));
+    }
+
+    private static SpecOperation createHookedPayers() {
+        List<SpecOperation> ops = new ArrayList<>();
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String keyName = keyForCount(sigCount);
+            for (final int hookCount : HOOK_COUNTS) {
+                final String payerName = hookedPayerName(sigCount, hookCount);
+                final HapiCryptoCreate create = cryptoCreate(payerName)
+                        .balance(ONE_MILLION_HBARS)
+                        .key(keyName);
+                applyHookUpdates(create, hookCount);
+                ops.add(create);
+            }
+        }
+        return blockingOrder(ops.toArray(new SpecOperation[0]));
+    }
+
+    private static String keyForCount(final int count) {
+        return switch (count) {
+            case 1 -> SIMPLE_KEY;
+            case 2 -> LIST_KEY_2;
+            case 3 -> LIST_KEY_3;
+            case 4 -> LIST_KEY_4;
+            case 5 -> LIST_KEY_5;
+            default -> SIMPLE_KEY;
+        };
+    }
+
+    private static String payerForSigCount(final int sigCount) {
+        return switch (sigCount) {
+            case 1 -> PAYER_SIG1;
+            case 2 -> PAYER_SIG2;
+            case 3 -> PAYER_SIG3;
+            case 4 -> PAYER_SIG4;
+            case 5 -> PAYER_SIG5;
+            default -> PAYER_SIG1;
+        };
+    }
+
+    private static String hookedPayerName(final int sigCount, final int hookCount) {
+        return "payerSig" + sigCount + "Hooks" + hookCount;
+    }
+
+    private static int signatureCount(final String... signers) {
+        return Arrays.stream(signers)
+                .distinct()
+                .mapToInt(s -> SIGNER_SIG_COUNTS.getOrDefault(s, 1))
+                .sum();
+    }
+
+    private static String extrasEmphasis(final ExtraCount... extras) {
+        final List<String> parts = new ArrayList<>();
+        for (final var extra : extras) {
+            if (extra.added() > 0) {
+                parts.add(extra.name + "=" + extra.count + " (+" + extra.added() + ")");
+            }
+        }
+        return parts.isEmpty() ? "none" : String.join(", ", parts);
+    }
+
+    private static void applyHookUpdates(final HapiCryptoCreate op, final int hookCount) {
+        for (int i = 0; i < hookCount; i++) {
+            op.withHook(accountAllowanceHook(HOOK_IDS[i], HOOK_CONTRACT));
+        }
+    }
+
+    private static void applyHookUpdates(final HapiCryptoUpdate op, final int hookCount) {
+        for (int i = 0; i < hookCount; i++) {
+            op.withHook(accountAllowanceHook(HOOK_IDS[i], HOOK_CONTRACT));
+        }
+    }
+
+    private static void applyHookExecutions(final HapiCryptoTransfer op, final String account, final int hookCount) {
+        for (int i = 0; i < hookCount; i++) {
+            op.withPreHookFor(account, HOOK_IDS[i], 5_000_000L, "");
+        }
     }
 
     // ==================== CRYPTO TRANSACTIONS WITH EXTRAS ====================
     // Node extras: SIGNATURES (includedCount=1)
     // CryptoCreate extras: KEYS (includedCount=1), HOOK_UPDATES (includedCount=0)
     // CryptoUpdate extras: KEYS (includedCount=1), HOOK_UPDATES (includedCount=0)
-    // CryptoTransfer extras: ACCOUNTS (includedCount=2), FUNGIBLE_TOKENS (1), NON_FUNGIBLE_TOKENS (1)
+    // CryptoTransfer extras: TOKEN_TRANSFER_BASE, TOKEN_TRANSFER_BASE_CUSTOM_FEES, HOOK_EXECUTION,
+    // ACCOUNTS (includedCount=2), FUNGIBLE_TOKENS (1), NON_FUNGIBLE_TOKENS (1)
     // CryptoApproveAllowance extras: ALLOWANCES (includedCount=1)
     // CryptoDeleteAllowance extras: ALLOWANCES (includedCount=1)
     // CryptoDelete extras: none
@@ -386,289 +580,137 @@ public class KitchenSinkFeeComparisonSuite {
     private static SpecOperation[] cryptoTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // ========== CryptoCreate: KEYS + SIGNATURES combinations ==========
-        // KEYS=1, SIGS=1 (both included)
-        ops.add(cryptoCreate(prefix + "AccK1S1")
-                .key(SIMPLE_KEY)
-                .balance(ONE_HBAR)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoCreateK1S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateK1S1", "KEYS=1, SIGS=1 (both included)", feeMap));
-
-        // KEYS=1, SIGS=2 (+1 sig extra)
-        ops.add(cryptoCreate(prefix + "AccK1S2")
-                .key(SIMPLE_KEY)
-                .balance(ONE_HBAR)
-                .payingWith(PAYER_SIG2)
-                .signedBy(PAYER_SIG2)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoCreateK1S2"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateK1S2", "KEYS=1, SIGS=2 (+1 sig)", feeMap));
-
-        // KEYS=2, SIGS=1 (+1 key extra)
-        ops.add(cryptoCreate(prefix + "AccK2S1")
-                .key(LIST_KEY_2)
-                .balance(ONE_HBAR)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoCreateK2S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateK2S1", "KEYS=2 (+1), SIGS=1", feeMap));
-
-        // KEYS=3, SIGS=3 (+2 key, +2 sig extra)
-        ops.add(cryptoCreate(prefix + "AccK3S3")
-                .key(LIST_KEY_3)
-                .balance(ONE_HBAR)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoCreateK3S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateK3S3", "KEYS=3 (+2), SIGS=3 (+2)", feeMap));
-
-        // KEYS=5, SIGS=5 (+4 key, +4 sig extra)
-        ops.add(cryptoCreate(prefix + "AccK5S5")
-                .key(LIST_KEY_5)
-                .balance(ONE_HBAR)
-                .payingWith(PAYER_SIG5)
-                .signedBy(PAYER_SIG5)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoCreateK5S5"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoCreateK5S5", "KEYS=5 (+4), SIGS=5 (+4)", feeMap));
-
-        // ========== CryptoUpdate: KEYS + SIGNATURES combinations ==========
-        // KEYS=1, SIGS=1 (both included)
-        ops.add(cryptoUpdate(prefix + "AccK1S1")
-                .memo("updated")
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1, SIMPLE_KEY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoUpdateK1S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoUpdateK1S1", "KEYS=1, SIGS=2 (+1 sig)", feeMap));
-
-        // KEYS=3, SIGS=3 (+2 key, +2 sig extra) - update with new key
-        ops.add(cryptoUpdate(prefix + "AccK2S1")
-                .key(LIST_KEY_3)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3, LIST_KEY_2, LIST_KEY_3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoUpdateK3S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoUpdateK3S3", "KEYS=3 (+2), SIGS=8 (+7)", feeMap));
-
-        // ========== CryptoTransfer: ACCOUNTS + SIGNATURES combinations ==========
-        // ACCOUNTS=2, SIGS=1 (both included)
-        ops.add(cryptoTransfer(movingHbar(ONE_HBAR).between(PAYER_SIG1, RECEIVER))
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferA2S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferA2S1", "ACCTS=2, SIGS=1 (included)", feeMap));
-
-        // ACCOUNTS=2, SIGS=2 (+1 sig extra)
-        ops.add(cryptoTransfer(movingHbar(ONE_HBAR).between(PAYER_SIG2, RECEIVER))
-                .payingWith(PAYER_SIG2)
-                .signedBy(PAYER_SIG2)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferA2S2"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferA2S2", "ACCTS=2, SIGS=2 (+1 sig)", feeMap));
-
-        // ACCOUNTS=3, SIGS=1 (+1 acct extra)
-        ops.add(cryptoTransfer(
-                        movingHbar(ONE_HBAR).between(PAYER_SIG1, RECEIVER),
-                        movingHbar(ONE_HBAR).between(PAYER_SIG1, RECEIVER2))
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferA3S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferA3S1", "ACCTS=3 (+1), SIGS=1", feeMap));
-
-        // ACCOUNTS=4, SIGS=3 (+2 acct, +2 sig extra)
-        ops.add(cryptoTransfer(
-                        movingHbar(ONE_HBAR).between(PAYER_SIG3, RECEIVER),
-                        movingHbar(ONE_HBAR).between(PAYER_SIG3, RECEIVER2),
-                        movingHbar(ONE_HBAR).between(PAYER_SIG3, RECEIVER3))
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferA4S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferA4S3", "ACCTS=4 (+2), SIGS=3 (+2)", feeMap));
-
-        // Auto-creation via ECDSA alias (hollow account)
-        ops.add(newKeyNamed(prefix + "AutoKey").shape(SECP256K1));
-        ops.add(cryptoTransfer(tinyBarsFromAccountToAlias(PAYER_SIG1, prefix + "AutoKey", ONE_HBAR))
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferAutoCreate"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferAutoCreate", "ACCTS=2, SIGS=1, hollow", feeMap));
-
-        // ========== CryptoApproveAllowance: ALLOWANCES + SIGNATURES combinations ==========
-        // ALLOWANCES=1, SIGS=1 (both included)
-        ops.add(cryptoApproveAllowance()
-                .addCryptoAllowance(prefix + "AccK1S1", RECEIVER, ONE_HBAR)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1, SIMPLE_KEY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ApproveA1S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "ApproveA1S1", "ALLOW=1, SIGS=2 (+1 sig)", feeMap));
-
-        // ALLOWANCES=2, SIGS=3 (+1 allow, +2 sig extra)
-        ops.add(cryptoApproveAllowance()
-                .addCryptoAllowance(prefix + "AccK3S3", RECEIVER, ONE_HBAR)
-                .addCryptoAllowance(prefix + "AccK3S3", RECEIVER2, ONE_HBAR)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3, LIST_KEY_3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ApproveA2S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "ApproveA2S3", "ALLOW=2 (+1), SIGS=6 (+5)", feeMap));
-
-        // ALLOWANCES=3, SIGS=5 (+2 allow, +4 sig extra)
-        ops.add(cryptoApproveAllowance()
-                .addCryptoAllowance(prefix + "AccK5S5", RECEIVER, ONE_HBAR)
-                .addCryptoAllowance(prefix + "AccK5S5", RECEIVER2, ONE_HBAR)
-                .addCryptoAllowance(prefix + "AccK5S5", RECEIVER3, ONE_HBAR)
-                .payingWith(PAYER_SIG5)
-                .signedBy(PAYER_SIG5, LIST_KEY_5)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ApproveA3S5"));
-        ops.add(captureFeeWithEmphasis(prefix + "ApproveA3S5", "ALLOW=3 (+2), SIGS=10 (+9)", feeMap));
-
-        // ========== CryptoDelete: SIGNATURES combinations ==========
-        ops.add(cryptoCreate(prefix + "ToDelete1").balance(0L).payingWith(PAYER_SIG1).fee(ONE_HUNDRED_HBARS));
-        ops.add(cryptoDelete(prefix + "ToDelete1")
-                .transfer(PAYER_SIG1)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoDeleteS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoDeleteS1", "SIGS=1 (included)", feeMap));
-
-        ops.add(cryptoCreate(prefix + "ToDelete3")
-                .balance(0L)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS));
-        ops.add(cryptoDelete(prefix + "ToDelete3")
-                .transfer(PAYER_SIG3)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CryptoDeleteS3"));
-        ops.add(captureFeeWithEmphasis(prefix + "CryptoDeleteS3", "SIGS=3 (+2)", feeMap));
+        ops.addAll(cryptoCreatePermutations(prefix, feeMap));
+        ops.addAll(cryptoUpdatePermutations(prefix, feeMap));
+        ops.addAll(cryptoTransferPermutations(prefix, feeMap));
+        ops.addAll(cryptoApproveAllowancePermutations(prefix, feeMap));
+        ops.addAll(cryptoDeleteAllowancePermutations(prefix, feeMap));
+        ops.addAll(cryptoDeletePermutations(prefix, feeMap));
 
         return ops.toArray(new SpecOperation[0]);
     }
 
-    // ==================== TOKEN TRANSACTIONS WITH EXTRAS ====================
-    // Node extras: SIGNATURES (includedCount=1)
-    // TokenCreate extras: KEYS (includedCount=1), TOKEN_CREATE_WITH_CUSTOM_FEE (includedCount=0)
-    // TokenMint extras: TOKEN_MINT_NFT (includedCount=0)
-    // TokenUpdate extras: KEYS (includedCount=1)
-    // Transfer extras: FUNGIBLE_TOKENS (1), NON_FUNGIBLE_TOKENS (1)
+    private static List<SpecOperation> cryptoCreatePermutations(String prefix, Map<String, FeeEntry> feeMap) {
+        List<SpecOperation> ops = new ArrayList<>();
+        for (final int keyCount : KEY_COUNTS) {
+            final String keyName = keyForCount(keyCount);
+            for (final int sigCount : SIGNATURE_COUNTS) {
+                final String payer = payerForSigCount(sigCount);
+                for (final int hookCount : HOOK_COUNTS) {
+                    final String baseName = String.format("CryptoCreate_K%d_S%d_H%d", keyCount, sigCount, hookCount);
+                    final String account = prefix + "Acc_" + baseName;
+                    final String txnName = prefix + baseName;
 
-    private static SpecOperation[] tokenTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
+                    final HapiCryptoCreate op = cryptoCreate(account)
+                            .key(keyName)
+                            .balance(ONE_HBAR)
+                            .payingWith(payer)
+                            .signedBy(payer)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(txnName);
+                    applyHookUpdates(op, hookCount);
+                    ops.add(op);
+
+                    final String emphasis = extrasEmphasis(
+                            new ExtraCount("KEYS", 1, keyCount),
+                            new ExtraCount("HOOK_UPDATES", 0, hookCount),
+                            new ExtraCount("SIGNATURES", 1, sigCount));
+                    ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+                }
+            }
+        }
+        return ops;
+    }
+
+    private static List<SpecOperation> cryptoUpdatePermutations(String prefix, Map<String, FeeEntry> feeMap) {
+        List<SpecOperation> ops = new ArrayList<>();
+        for (final int keyCount : KEY_COUNTS) {
+            final String keyName = keyForCount(keyCount);
+            for (final int sigCount : SIGNATURE_COUNTS) {
+                final String payer = payerForSigCount(sigCount);
+                for (final int hookCount : HOOK_COUNTS) {
+                    final String baseName = String.format("CryptoUpdate_K%d_S%d_H%d", keyCount, sigCount, hookCount);
+                    final String account = prefix + "UpdAcc_" + baseName;
+                    final String txnName = prefix + baseName;
+
+                    ops.add(cryptoCreate(account)
+                            .key(SIMPLE_KEY)
+                            .balance(ONE_HBAR)
+                            .payingWith(payer)
+                            .signedBy(payer)
+                            .fee(ONE_HUNDRED_HBARS));
+
+                    final HapiCryptoUpdate update = cryptoUpdate(account)
+                            .key(keyName)
+                            .memo("updated")
+                            .payingWith(payer)
+                            .signedBy(payer, SIMPLE_KEY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(txnName);
+                    applyHookUpdates(update, hookCount);
+                    ops.add(update);
+
+                    final int sigs = signatureCount(payer, SIMPLE_KEY);
+                    final String emphasis = extrasEmphasis(
+                            new ExtraCount("KEYS", 1, keyCount),
+                            new ExtraCount("HOOK_UPDATES", 0, hookCount),
+                            new ExtraCount("SIGNATURES", 1, sigs));
+                    ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+                }
+            }
+        }
+        return ops;
+    }
+
+    private static List<SpecOperation> cryptoTransferPermutations(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // Setup accounts
-        ops.add(cryptoCreate(prefix + "Acc1").key(SIMPLE_KEY).balance(ONE_HBAR).payingWith(GENESIS));
-        ops.add(cryptoCreate(prefix + "Acc2").key(LIST_KEY_2).balance(ONE_HBAR).payingWith(GENESIS));
+        final String ft1 = prefix + "FT1";
+        final String ft2 = prefix + "FT2";
+        final String ft3 = prefix + "FT3";
+        final String ftCustom = prefix + "FTCustom";
+        final String nft1 = prefix + "NFT1";
+        final String nftCustom = prefix + "NFTCustom";
 
-        // ========== TokenCreate: KEYS + SIGNATURES + CUSTOM_FEE combinations ==========
-        // KEYS=0, SIGS=1 (no admin key)
-        ops.add(tokenCreate(prefix + "FTK0S1")
+        ops.add(tokenCreate(ft1)
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
                 .treasury(TREASURY)
                 .payingWith(PAYER_SIG1)
                 .signedBy(PAYER_SIG1, TREASURY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateK0S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateK0S1", "KEYS=0, SIGS=2 (+1)", feeMap));
-
-        // KEYS=1, SIGS=1 (both included)
-        ops.add(tokenCreate(prefix + "FTK1S1")
+                .fee(ONE_HUNDRED_HBARS));
+        ops.add(tokenCreate(ft2)
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
                 .treasury(TREASURY)
-                .adminKey(SIMPLE_KEY)
                 .payingWith(PAYER_SIG1)
                 .signedBy(PAYER_SIG1, TREASURY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateK1S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateK1S1", "KEYS=1, SIGS=2 (+1)", feeMap));
-
-        // KEYS=3, SIGS=3 (+2 key, +2 sig extra)
-        ops.add(tokenCreate(prefix + "FTK3S3")
+                .fee(ONE_HUNDRED_HBARS));
+        ops.add(tokenCreate(ft3)
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
                 .treasury(TREASURY)
-                .adminKey(SIMPLE_KEY)
-                .supplyKey(SIMPLE_KEY)
-                .freezeKey(SIMPLE_KEY)
-                .freezeDefault(false)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3, TREASURY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateK3S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateK3S3", "KEYS=3 (+2), SIGS=4 (+3)", feeMap));
-
-        // KEYS=5, SIGS=5 (+4 key, +4 sig extra)
-        ops.add(tokenCreate(prefix + "FTK5S5")
-                .tokenType(FUNGIBLE_COMMON)
-                .initialSupply(1_000_000L)
-                .treasury(TREASURY)
-                .adminKey(SIMPLE_KEY)
-                .supplyKey(SIMPLE_KEY)
-                .freezeKey(SIMPLE_KEY)
-                .pauseKey(SIMPLE_KEY)
-                .wipeKey(SIMPLE_KEY)
-                .freezeDefault(false)
-                .payingWith(PAYER_SIG5)
-                .signedBy(PAYER_SIG5, TREASURY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateK5S5"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateK5S5", "KEYS=5 (+4), SIGS=6 (+5)", feeMap));
-
-        // TOKEN_CREATE_WITH_CUSTOM_FEE=1, SIGS=1
-        ops.add(tokenCreate(prefix + "FTCust1S1")
+                .payingWith(PAYER_SIG1)
+                .signedBy(PAYER_SIG1, TREASURY)
+                .fee(ONE_HUNDRED_HBARS));
+        ops.add(tokenCreate(ftCustom)
                 .tokenType(FUNGIBLE_COMMON)
                 .initialSupply(1_000_000L)
                 .treasury(TREASURY)
                 .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
                 .payingWith(PAYER_SIG1)
                 .signedBy(PAYER_SIG1, TREASURY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateCust1S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateCust1S1", "CUSTOM_FEE=1, SIGS=2 (+1)", feeMap));
+                .fee(ONE_HUNDRED_HBARS));
 
-        // TOKEN_CREATE_WITH_CUSTOM_FEE=2, SIGS=3
-        ops.add(tokenCreate(prefix + "FTCust2S3")
-                .tokenType(FUNGIBLE_COMMON)
-                .initialSupply(1_000_000L)
-                .treasury(TREASURY)
-                .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
-                .withCustom(fractionalFee(1L, 100L, 1L, OptionalLong.of(10L), TREASURY))
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3, TREASURY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateCust2S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateCust2S3", "CUSTOM_FEE=2, SIGS=4 (+3)", feeMap));
-
-        // ========== NFT with TOKEN_MINT_NFT + SIGNATURES ==========
-        ops.add(tokenCreate(prefix + "NFT")
+        ops.add(tokenCreate(nft1)
                 .tokenType(NON_FUNGIBLE_UNIQUE)
                 .initialSupply(0L)
                 .treasury(TREASURY)
                 .supplyKey(SIMPLE_KEY)
                 .payingWith(PAYER_SIG1)
                 .signedBy(PAYER_SIG1, TREASURY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateNFT"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateNFT", "KEYS=1, NFT, SIGS=2 (+1)", feeMap));
-
-        // NFT with royalty custom fee
-        ops.add(tokenCreate(prefix + "NFTRoyalty")
+                .fee(ONE_HUNDRED_HBARS));
+        ops.add(tokenCreate(nftCustom)
                 .tokenType(NON_FUNGIBLE_UNIQUE)
                 .initialSupply(0L)
                 .treasury(TREASURY)
@@ -676,114 +718,959 @@ public class KitchenSinkFeeComparisonSuite {
                 .withCustom(royaltyFeeNoFallback(1, 10, FEE_COLLECTOR))
                 .payingWith(PAYER_SIG1)
                 .signedBy(PAYER_SIG1, TREASURY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TokenCreateNFTRoyalty"));
-        ops.add(captureFeeWithEmphasis(prefix + "TokenCreateNFTRoyalty", "CUSTOM_FEE=1 (royalty), SIGS=2", feeMap));
+                .fee(ONE_HUNDRED_HBARS));
 
-        // ========== TokenMint: TOKEN_MINT_NFT + SIGNATURES ==========
-        // Fungible mint, SIGS=1
-        ops.add(mintToken(prefix + "FTK5S5", 10_000L)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1, SIMPLE_KEY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "MintFTS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "MintFTS1", "MINT_NFT=0 (FT), SIGS=2 (+1)", feeMap));
+        ops.addAll(mintNftSerials(nft1, prefix + "NFT1", TRANSFER_NFT_SERIALS, PAYER_SIG1));
+        ops.addAll(mintNftSerials(nftCustom, prefix + "NFTC", TRANSFER_NFT_SERIALS, PAYER_SIG1));
 
-        // Fungible mint, SIGS=3
-        ops.add(mintToken(prefix + "FTK5S5", 5_000L)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3, SIMPLE_KEY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "MintFTS3"));
-        ops.add(captureFeeWithEmphasis(prefix + "MintFTS3", "MINT_NFT=0 (FT), SIGS=4 (+3)", feeMap));
+        for (final String receiver : RECEIVERS) {
+            ops.add(tokenAssociate(receiver, ft1, ft2, ft3, ftCustom, nft1, nftCustom)
+                    .payingWith(PAYER_SIG1)
+                    .signedBy(PAYER_SIG1, receiver)
+                    .fee(ONE_HUNDRED_HBARS));
+        }
 
-        // NFT mint 1 serial, SIGS=1
-        ops.add(mintToken(prefix + "NFT", List.of(ByteString.copyFromUtf8("N1")))
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1, SIMPLE_KEY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "MintNFT1S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "MintNFT1S1", "MINT_NFT=1, SIGS=2 (+1)", feeMap));
+        final List<String> standardFts = List.of(ft1, ft2, ft3);
+        final List<String> customFts = List.of(ftCustom);
+        final List<String> standardNfts = List.of(nft1);
+        final List<String> customNfts = List.of(nftCustom);
+        final Map<String, Integer> nextSerial = new HashMap<>();
+        nextSerial.put(nft1, 1);
+        nextSerial.put(nftCustom, 1);
 
-        // NFT mint 3 serials, SIGS=3
-        ops.add(mintToken(prefix + "NFT", List.of(
-                        ByteString.copyFromUtf8("N2"),
-                        ByteString.copyFromUtf8("N3"),
-                        ByteString.copyFromUtf8("N4")))
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3, SIMPLE_KEY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "MintNFT3S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "MintNFT3S3", "MINT_NFT=3, SIGS=4 (+3)", feeMap));
+        for (final int sigCount : TRANSFER_SIGNATURE_COUNTS) {
+            for (final int hookCount : TRANSFER_HOOK_COUNTS) {
+                final String payer = hookedPayerName(sigCount, hookCount);
+                for (final int accountCount : TRANSFER_ACCOUNT_COUNTS) {
+                    final List<String> receivers = RECEIVERS.subList(0, accountCount - 1);
+                    final String tokenReceiver = receivers.get(0);
+                    for (final int ftCount : TRANSFER_FT_COUNTS) {
+                        for (final int nftCount : TRANSFER_NFT_COUNTS) {
+                            for (final int hasCustom : new int[] {0, 1}) {
+                                if (ftCount == 0 && nftCount == 0 && hasCustom == 1) {
+                                    continue;
+                                }
+                                final boolean useCustom = hasCustom == 1 && (ftCount + nftCount) > 0;
+                                final List<String> fts = pickTokens(standardFts, customFts, ftCount, useCustom);
+                                final List<String> nfts =
+                                        pickTokens(standardNfts, customNfts, nftCount, useCustom && fts.isEmpty());
 
-        // NFT mint 5 serials, SIGS=5
-        ops.add(mintToken(prefix + "NFT", List.of(
-                        ByteString.copyFromUtf8("N5"),
-                        ByteString.copyFromUtf8("N6"),
-                        ByteString.copyFromUtf8("N7"),
-                        ByteString.copyFromUtf8("N8"),
-                        ByteString.copyFromUtf8("N9")))
-                .payingWith(PAYER_SIG5)
-                .signedBy(PAYER_SIG5, SIMPLE_KEY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "MintNFT5S5"));
-        ops.add(captureFeeWithEmphasis(prefix + "MintNFT5S5", "MINT_NFT=5, SIGS=6 (+5)", feeMap));
+                                final String baseName = String.format(
+                                        "CryptoTransfer_A%d_FT%d_NFT%d_H%d_C%d_S%d",
+                                        accountCount, ftCount, nftCount, hookCount, hasCustom, sigCount);
+                                final String txnName = prefix + baseName;
 
-        // ========== Token transfers: FUNGIBLE_TOKENS + NON_FUNGIBLE_TOKENS + SIGNATURES ==========
-        ops.add(tokenAssociate(prefix + "Acc1", prefix + "FTK0S1", prefix + "FTK1S1", prefix + "FTK3S3", prefix + "FTK5S5")
-                .payingWith(PAYER_SIG1).signedBy(PAYER_SIG1, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS));
-        ops.add(tokenAssociate(RECEIVER, prefix + "NFT").payingWith(PAYER_SIG1).signedBy(PAYER_SIG1).fee(ONE_HUNDRED_HBARS));
+                                final List<com.hedera.services.bdd.spec.transactions.token.TokenMovement> movements = new ArrayList<>();
+                                for (final String receiver : receivers) {
+                                    movements.add(movingHbar(1L).between(payer, receiver));
+                                }
+                                for (final String token : fts) {
+                                    movements.add(moving(1L, token).between(TREASURY, tokenReceiver));
+                                }
+                                for (final String token : nfts) {
+                                    final int serial = nextSerial.get(token);
+                                    nextSerial.put(token, serial + 1);
+                                    movements.add(movingUnique(token, serial).between(TREASURY, tokenReceiver));
+                                }
 
-        // FUNGIBLE_TOKENS=1, SIGS=1
-        ops.add(cryptoTransfer(moving(100L, prefix + "FTK0S1").between(TREASURY, prefix + "Acc1"))
+                                final boolean hasTokens = (ftCount + nftCount) > 0;
+                                final HapiCryptoTransfer transfer = cryptoTransfer(
+                                                movements.toArray(new com.hedera.services.bdd.spec.transactions.token.TokenMovement[0]))
+                                        .payingWith(payer)
+                                        .signedBy(hasTokens ? new String[] {payer, TREASURY} : new String[] {payer})
+                                        .fee(ONE_HUNDRED_HBARS)
+                                        .via(txnName);
+                                applyHookExecutions(transfer, payer, hookCount);
+                                ops.add(transfer);
+
+                                final int sigs = hasTokens ? signatureCount(payer, TREASURY) : signatureCount(payer);
+                                final int accounts = countAccounts(payer, receivers, hasTokens);
+                                final int ftExtraCount = fts.size();
+                                final int nftExtraCount = nfts.size();
+                                final int baseCustomExtra = (useCustom && hasTokens) ? 1 : 0;
+                                final int baseTokenExtra = hasTokens && baseCustomExtra == 0 ? 1 : 0;
+                                final String emphasis = extrasEmphasis(
+                                        new ExtraCount("TOKEN_TRANSFER_BASE", 0, baseTokenExtra),
+                                        new ExtraCount("TOKEN_TRANSFER_BASE_CUSTOM_FEES", 0, baseCustomExtra),
+                                        new ExtraCount("HOOK_EXECUTION", 0, hookCount),
+                                        new ExtraCount("ACCOUNTS", 2, accounts),
+                                        new ExtraCount("FUNGIBLE_TOKENS", 1, ftExtraCount),
+                                        new ExtraCount("NON_FUNGIBLE_TOKENS", 1, nftExtraCount),
+                                        new ExtraCount("SIGNATURES", 1, sigs));
+                                ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return ops;
+    }
+
+    private static List<SpecOperation> cryptoApproveAllowancePermutations(String prefix, Map<String, FeeEntry> feeMap) {
+        List<SpecOperation> ops = new ArrayList<>();
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            for (final int allowanceCount : ALLOWANCE_COUNTS) {
+                final String baseName = String.format("CryptoApproveAllowance_A%d_S%d", allowanceCount, sigCount);
+                final String txnName = prefix + baseName;
+
+                final var approve = cryptoApproveAllowance()
+                        .payingWith(payer)
+                        .signedBy(payer)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via(txnName);
+                if (allowanceCount >= 1) {
+                    approve.addCryptoAllowance(payer, RECEIVER, ONE_HBAR);
+                }
+                if (allowanceCount >= 2) {
+                    approve.addCryptoAllowance(payer, RECEIVER2, ONE_HBAR);
+                }
+                if (allowanceCount >= 3) {
+                    approve.addCryptoAllowance(payer, RECEIVER3, ONE_HBAR);
+                }
+                ops.add(approve);
+
+                final String emphasis = extrasEmphasis(
+                        new ExtraCount("ALLOWANCES", 1, allowanceCount),
+                        new ExtraCount("SIGNATURES", 1, sigCount));
+                ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+            }
+        }
+        return ops;
+    }
+
+    private static List<SpecOperation> cryptoDeleteAllowancePermutations(String prefix, Map<String, FeeEntry> feeMap) {
+        List<SpecOperation> ops = new ArrayList<>();
+
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            for (final int allowanceCount : ALLOWANCE_COUNTS) {
+                final String baseName = String.format("CryptoDeleteAllowance_A%d_S%d", allowanceCount, sigCount);
+                final String txnName = prefix + baseName;
+
+                final List<String> nftTokens = new ArrayList<>();
+                for (int i = 0; i < allowanceCount; i++) {
+                    final String token = prefix + "DelAllowNFT_" + sigCount + "_" + allowanceCount + "_" + i;
+                    nftTokens.add(token);
+                    ops.add(tokenCreate(token)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0L)
+                            .treasury(payer)
+                            .supplyKey(SIMPLE_KEY)
+                            .payingWith(payer)
+                            .fee(ONE_HUNDRED_HBARS));
+                    ops.add(mintToken(token, List.of(ByteString.copyFromUtf8("DA" + i)))
+                            .payingWith(payer)
+                            .signedBy(payer, SIMPLE_KEY)
+                            .fee(ONE_HUNDRED_HBARS));
+                }
+
+                final var approve = cryptoApproveAllowance()
+                        .payingWith(payer)
+                        .signedBy(payer)
+                        .fee(ONE_HUNDRED_HBARS);
+                for (final String token : nftTokens) {
+                    approve.addNftAllowance(payer, token, RECEIVER, false, List.of(1L));
+                }
+                ops.add(approve);
+
+                final var delete = cryptoDeleteAllowance()
+                        .payingWith(payer)
+                        .signedBy(payer)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via(txnName);
+                for (final String token : nftTokens) {
+                    delete.addNftDeleteAllowance(payer, token, List.of(1L));
+                }
+                ops.add(delete);
+
+                final String emphasis = extrasEmphasis(
+                        new ExtraCount("ALLOWANCES", 1, allowanceCount),
+                        new ExtraCount("SIGNATURES", 1, sigCount));
+                ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+            }
+        }
+        return ops;
+    }
+
+    private static List<SpecOperation> cryptoDeletePermutations(String prefix, Map<String, FeeEntry> feeMap) {
+        List<SpecOperation> ops = new ArrayList<>();
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String baseName = String.format("CryptoDelete_S%d", sigCount);
+            final String account = prefix + "ToDelete" + sigCount;
+            final String txnName = prefix + baseName;
+
+            ops.add(cryptoCreate(account).balance(0L).payingWith(payer).fee(ONE_HUNDRED_HBARS));
+            ops.add(cryptoDelete(account)
+                    .transfer(payer)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigCount));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+        return ops;
+    }
+
+    private static List<String> pickTokens(
+            final List<String> standard, final List<String> custom, final int count, final boolean useCustom) {
+        if (count <= 0) {
+            return List.of();
+        }
+        final List<String> picked = new ArrayList<>();
+        int remaining = count;
+        if (useCustom && !custom.isEmpty()) {
+            picked.add(custom.getFirst());
+            remaining -= 1;
+        }
+        for (int i = 0; i < remaining && i < standard.size(); i++) {
+            picked.add(standard.get(i));
+        }
+        return picked;
+    }
+
+    private static int countAccounts(final String payer, final List<String> receivers, final boolean hasTokens) {
+        final Set<String> accounts = new HashSet<>();
+        accounts.add(payer);
+        accounts.addAll(receivers);
+        if (hasTokens) {
+            accounts.add(TREASURY);
+        }
+        return accounts.size();
+    }
+
+    private static void applyTokenCreateKeys(final HapiTokenCreate op, final int keyCount) {
+        if (keyCount >= 1) {
+            op.adminKey(SIMPLE_KEY);
+        }
+        if (keyCount >= 2) {
+            op.supplyKey(SIMPLE_KEY);
+        }
+        if (keyCount >= 3) {
+            op.freezeKey(SIMPLE_KEY).freezeDefault(false);
+        }
+        if (keyCount >= 4) {
+            op.pauseKey(SIMPLE_KEY);
+        }
+        if (keyCount >= 5) {
+            op.wipeKey(SIMPLE_KEY);
+        }
+    }
+
+    private static void applyTokenCustomFees(final HapiTokenCreate op, final int feeCount) {
+        if (feeCount >= 1) {
+            op.withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR));
+        }
+        if (feeCount >= 2) {
+            op.withCustom(fixedHbarFee(2 * ONE_HBAR, FEE_COLLECTOR));
+        }
+        if (feeCount >= 3) {
+            op.withCustom(fractionalFee(1L, 100L, 1L, OptionalLong.of(10L), TREASURY));
+        }
+    }
+
+    private static void applyTokenUpdateKeys(final HapiTokenUpdate op, final int keyCount) {
+        if (keyCount >= 1) {
+            op.adminKey(SIMPLE_KEY);
+        }
+        if (keyCount >= 2) {
+            op.supplyKey(SIMPLE_KEY);
+        }
+        if (keyCount >= 3) {
+            op.freezeKey(SIMPLE_KEY);
+        }
+        if (keyCount >= 4) {
+            op.pauseKey(SIMPLE_KEY);
+        }
+        if (keyCount >= 5) {
+            op.wipeKey(SIMPLE_KEY);
+        }
+    }
+
+    private static List<ByteString> nftMetadata(final String prefix, final int count) {
+        if (count <= 0) {
+            return List.of();
+        }
+        final List<ByteString> list = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            list.add(ByteString.copyFromUtf8(prefix + "-" + i));
+        }
+        return list;
+    }
+
+    private static List<SpecOperation> mintNftSerials(
+            final String token, final String prefix, final int total, final String payer) {
+        final List<SpecOperation> ops = new ArrayList<>();
+        int minted = 0;
+        while (minted < total) {
+            final int batch = Math.min(NFT_MINT_BATCH_SIZE, total - minted);
+            ops.add(mintToken(token, nftMetadata(prefix + "-" + minted, batch))
+                    .payingWith(payer)
+                    .signedBy(payer, SIMPLE_KEY)
+                    .fee(ONE_HUNDRED_HBARS));
+            minted += batch;
+        }
+        return ops;
+    }
+
+    // ==================== TOKEN TRANSACTIONS WITH EXTRAS ====================
+    // Node extras: SIGNATURES (includedCount=1)
+    // TokenCreate extras: KEYS (includedCount=1), TOKEN_CREATE_WITH_CUSTOM_FEE (includedCount=0)
+    // TokenMint extras: TOKEN_MINT_NFT (includedCount=0)
+    // TokenUpdate extras: KEYS (includedCount=1)
+    // TokenBurn/Delete/Freeze/Unfreeze/Pause/Unpause/Associate/Dissociate/GrantKyc/RevokeKyc/
+    // TokenReject/TokenAccountWipe/TokenFeeScheduleUpdate/TokenUpdateNfts/TokenClaimAirdrop/TokenCancelAirdrop: none
+
+    private static SpecOperation[] tokenTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
+        List<SpecOperation> ops = new ArrayList<>();
+
+        final String mintFungible = prefix + "MintFungible";
+        final String mintNft = prefix + "MintNft";
+
+        ops.add(tokenCreate(mintFungible)
+                .tokenType(FUNGIBLE_COMMON)
+                .initialSupply(1_000_000L)
+                .treasury(TREASURY)
+                .supplyKey(SIMPLE_KEY)
                 .payingWith(PAYER_SIG1)
                 .signedBy(PAYER_SIG1, TREASURY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferFT1S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferFT1S1", "FT=1, SIGS=2 (+1)", feeMap));
-
-        // FUNGIBLE_TOKENS=2, SIGS=3
-        ops.add(cryptoTransfer(
-                        moving(100L, prefix + "FTK0S1").between(TREASURY, prefix + "Acc1"),
-                        moving(100L, prefix + "FTK1S1").between(TREASURY, prefix + "Acc1"))
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3, TREASURY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferFT2S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferFT2S3", "FT=2 (+1), SIGS=4 (+3)", feeMap));
-
-        // NON_FUNGIBLE_TOKENS=1, SIGS=1
-        ops.add(cryptoTransfer(movingUnique(prefix + "NFT", 1L).between(TREASURY, RECEIVER))
+                .fee(ONE_HUNDRED_HBARS));
+        ops.add(tokenCreate(mintNft)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0L)
+                .treasury(TREASURY)
+                .supplyKey(SIMPLE_KEY)
                 .payingWith(PAYER_SIG1)
                 .signedBy(PAYER_SIG1, TREASURY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TransferNFT1S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TransferNFT1S1", "NFT=1, SIGS=2 (+1)", feeMap));
+                .fee(ONE_HUNDRED_HBARS));
 
-        // ========== Other token operations with SIGNATURES ==========
-        ops.add(tokenFreeze(prefix + "FTK5S5", prefix + "Acc1")
-                .payingWith(PAYER_SIG1).signedBy(PAYER_SIG1, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "FreezeS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "FreezeS1", "SIGS=2 (+1)", feeMap));
+        // ========== TokenCreate permutations: KEYS + CUSTOM_FEES + SIGNATURES ==========
+        for (final int keyCount : TOKEN_KEY_COUNTS) {
+            for (final int feeCount : CUSTOM_FEE_COUNTS) {
+                for (final int sigCount : SIGNATURE_COUNTS) {
+                    final String payer = payerForSigCount(sigCount);
+                    final String baseName = String.format("TokenCreate_K%d_F%d_S%d", keyCount, feeCount, sigCount);
+                    final String token = prefix + "FT_" + baseName;
+                    final String txnName = prefix + baseName;
 
-        ops.add(tokenUnfreeze(prefix + "FTK5S5", prefix + "Acc1")
-                .payingWith(PAYER_SIG3).signedBy(PAYER_SIG3, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "UnfreezeS3"));
-        ops.add(captureFeeWithEmphasis(prefix + "UnfreezeS3", "SIGS=4 (+3)", feeMap));
+                    final HapiTokenCreate create = tokenCreate(token)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(1_000_000L)
+                            .treasury(TREASURY)
+                            .payingWith(payer)
+                            .signedBy(payer, TREASURY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(txnName);
+                    applyTokenCreateKeys(create, keyCount);
+                    applyTokenCustomFees(create, feeCount);
+                    ops.add(create);
 
-        ops.add(tokenPause(prefix + "FTK5S5")
-                .payingWith(PAYER_SIG1).signedBy(PAYER_SIG1, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "PauseS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "PauseS1", "SIGS=2 (+1)", feeMap));
+                    final int sigs = signatureCount(payer, TREASURY);
+                    final int customFeeExtra = feeCount > 0 ? 1 : 0;
+                    final String emphasis = extrasEmphasis(
+                            new ExtraCount("KEYS", 1, keyCount),
+                            new ExtraCount("TOKEN_CREATE_WITH_CUSTOM_FEE", 0, customFeeExtra),
+                            new ExtraCount("SIGNATURES", 1, sigs));
+                    ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+                }
+            }
+        }
 
-        ops.add(tokenUnpause(prefix + "FTK5S5")
-                .payingWith(PAYER_SIG3).signedBy(PAYER_SIG3, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "UnpauseS3"));
-        ops.add(captureFeeWithEmphasis(prefix + "UnpauseS3", "SIGS=4 (+3)", feeMap));
+        // ========== TokenMint permutations: TOKEN_MINT_NFT + SIGNATURES ==========
+        for (final int mintCount : NFT_MINT_COUNTS) {
+            for (final int sigCount : SIGNATURE_COUNTS) {
+                final String payer = payerForSigCount(sigCount);
+                final String baseName = String.format("TokenMint_NFT%d_S%d", mintCount, sigCount);
+                final String txnName = prefix + baseName;
 
-        ops.add(burnToken(prefix + "FTK5S5", 1_000L)
-                .payingWith(PAYER_SIG1).signedBy(PAYER_SIG1, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "BurnFTS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "BurnFTS1", "FT burn, SIGS=2 (+1)", feeMap));
+                if (mintCount == 0) {
+                    ops.add(mintToken(mintFungible, 1_000L)
+                            .payingWith(payer)
+                            .signedBy(payer, SIMPLE_KEY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(txnName));
+                } else {
+                    ops.add(mintToken(mintNft, nftMetadata(prefix + "Mint", mintCount))
+                            .payingWith(payer)
+                            .signedBy(payer, SIMPLE_KEY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(txnName));
+                }
 
-        ops.add(burnToken(prefix + "NFT", List.of(4L))
-                .payingWith(PAYER_SIG3).signedBy(PAYER_SIG3, SIMPLE_KEY).fee(ONE_HUNDRED_HBARS).via(prefix + "BurnNFTS3"));
-        ops.add(captureFeeWithEmphasis(prefix + "BurnNFTS3", "NFT burn, SIGS=4 (+3)", feeMap));
+                final int sigs = signatureCount(payer, SIMPLE_KEY);
+                final String emphasis = extrasEmphasis(
+                        new ExtraCount("TOKEN_MINT_NFT", 0, mintCount),
+                        new ExtraCount("SIGNATURES", 1, sigs));
+                ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+            }
+        }
+
+        // ========== TokenUpdate permutations: KEYS + SIGNATURES ==========
+        for (final int keyCount : KEY_COUNTS) {
+            for (final int sigCount : SIGNATURE_COUNTS) {
+                final String payer = payerForSigCount(sigCount);
+                final String baseName = String.format("TokenUpdate_K%d_S%d", keyCount, sigCount);
+                final String token = prefix + "Upd_" + baseName;
+                final String txnName = prefix + baseName;
+
+                ops.add(tokenCreate(token)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1_000_000L)
+                        .treasury(TREASURY)
+                        .adminKey(SIMPLE_KEY)
+                        .payingWith(payer)
+                        .signedBy(payer, TREASURY)
+                        .fee(ONE_HUNDRED_HBARS));
+
+                final HapiTokenUpdate update = tokenUpdate(token)
+                        .payingWith(payer)
+                        .signedBy(payer, SIMPLE_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via(txnName);
+                applyTokenUpdateKeys(update, keyCount);
+                ops.add(update);
+
+                final int sigs = signatureCount(payer, SIMPLE_KEY);
+                final String emphasis = extrasEmphasis(
+                        new ExtraCount("KEYS", 1, keyCount),
+                        new ExtraCount("SIGNATURES", 1, sigs));
+                ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+            }
+        }
+
+        // ========== TokenBurn permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenBurn_S%d", sigCount);
+            final String token = prefix + "Burn_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(payer)
+                    .supplyKey(keyName)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(burnToken(token, 1L)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenDelete permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenDelete_S%d", sigCount);
+            final String token = prefix + "Del_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(payer)
+                    .adminKey(keyName)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenDelete(token)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenFreeze permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenFreeze_S%d", sigCount);
+            final String token = prefix + "Freeze_" + baseName;
+            final String account = prefix + "FreezeAcct_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(cryptoCreate(account).balance(ONE_HUNDRED_HBARS));
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(payer)
+                    .freezeKey(keyName)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(tokenAssociate(account, token)
+                    .payingWith(payer)
+                    .signedBy(payer, account)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenFreeze(token, account)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenUnfreeze permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenUnfreeze_S%d", sigCount);
+            final String token = prefix + "Unfreeze_" + baseName;
+            final String account = prefix + "UnfreezeAcct_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(cryptoCreate(account).balance(ONE_HUNDRED_HBARS));
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(payer)
+                    .freezeKey(keyName)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(tokenAssociate(account, token)
+                    .payingWith(payer)
+                    .signedBy(payer, account)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(tokenFreeze(token, account)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenUnfreeze(token, account)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenPause permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenPause_S%d", sigCount);
+            final String token = prefix + "Pause_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(payer)
+                    .pauseKey(keyName)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenPause(token)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenUnpause permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenUnpause_S%d", sigCount);
+            final String token = prefix + "Unpause_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(payer)
+                    .pauseKey(keyName)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(tokenPause(token)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenUnpause(token)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenAssociate permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenAssociate_S%d", sigCount);
+            final String account = prefix + "AssocAcct_" + baseName;
+            final String token = prefix + "Assoc_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(cryptoCreate(account).key(keyName).balance(ONE_MILLION_HBARS));
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(TREASURY)
+                    .payingWith(PAYER_SIG1)
+                    .signedBy(PAYER_SIG1, TREASURY)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenAssociate(account, token)
+                    .payingWith(account)
+                    .signedBy(account)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(keyName);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenDissociate permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenDissociate_S%d", sigCount);
+            final String account = prefix + "DissocAcct_" + baseName;
+            final String token = prefix + "Dissoc_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(cryptoCreate(account).key(keyName).balance(ONE_MILLION_HBARS));
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(TREASURY)
+                    .payingWith(PAYER_SIG1)
+                    .signedBy(PAYER_SIG1, TREASURY)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(tokenAssociate(account, token)
+                    .payingWith(account)
+                    .signedBy(account)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenDissociate(account, token)
+                    .payingWith(account)
+                    .signedBy(account)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(keyName);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenGrantKyc permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenGrantKyc_S%d", sigCount);
+            final String token = prefix + "Kyc_" + baseName;
+            final String account = prefix + "KycAcct_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(cryptoCreate(account).balance(ONE_HUNDRED_HBARS));
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(payer)
+                    .kycKey(keyName)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(tokenAssociate(account, token)
+                    .payingWith(payer)
+                    .signedBy(payer, account)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(grantTokenKyc(token, account)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenRevokeKyc permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenRevokeKyc_S%d", sigCount);
+            final String token = prefix + "Revoke_" + baseName;
+            final String account = prefix + "RevokeAcct_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(cryptoCreate(account).balance(ONE_HUNDRED_HBARS));
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(payer)
+                    .kycKey(keyName)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(tokenAssociate(account, token)
+                    .payingWith(payer)
+                    .signedBy(payer, account)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(grantTokenKyc(token, account)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(revokeTokenKyc(token, account)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenReject permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenReject_S%d", sigCount);
+            final String owner = prefix + "RejectOwner_" + baseName;
+            final String account = prefix + "RejectAcct_" + baseName;
+            final String token = prefix + "Reject_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(cryptoCreate(owner).balance(ONE_MILLION_HBARS));
+            ops.add(cryptoCreate(account).key(keyName).balance(ONE_MILLION_HBARS));
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(owner)
+                    .payingWith(owner)
+                    .signedBy(owner)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(tokenAssociate(account, token)
+                    .payingWith(owner)
+                    .signedBy(owner, account)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(cryptoTransfer(moving(10L, token).between(owner, account))
+                    .payingWith(owner)
+                    .signedBy(owner)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenReject(rejectingToken(token))
+                    .payingWith(account)
+                    .signedBy(account)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(keyName);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenAccountWipe permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenWipe_S%d", sigCount);
+            final String token = prefix + "Wipe_" + baseName;
+            final String account = prefix + "WipeAcct_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(cryptoCreate(account).balance(ONE_HUNDRED_HBARS));
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(payer)
+                    .supplyKey(keyName)
+                    .wipeKey(keyName)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(tokenAssociate(account, token)
+                    .payingWith(payer)
+                    .signedBy(payer, account)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(cryptoTransfer(moving(10L, token).between(payer, account))
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(wipeTokenAccount(token, account, 5L)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenFeeScheduleUpdate permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenFeeScheduleUpdate_S%d", sigCount);
+            final String token = prefix + "Fee_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(payer)
+                    .feeScheduleKey(keyName)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenFeeScheduleUpdate(token)
+                    .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenUpdateNfts permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenUpdateNfts_S%d", sigCount);
+            final String token = prefix + "UpdNft_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(tokenCreate(token)
+                    .tokenType(NON_FUNGIBLE_UNIQUE)
+                    .initialSupply(0L)
+                    .treasury(payer)
+                    .supplyKey(keyName)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(mintToken(token, List.of(ByteString.copyFromUtf8(prefix + "Meta-" + sigCount)))
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenUpdateNfts(token, "updated-" + sigCount, List.of(1L))
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenClaimAirdrop permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenClaimAirdrop_S%d", sigCount);
+            final String owner = prefix + "ClaimOwner_" + baseName;
+            final String receiver = prefix + "ClaimReceiver_" + baseName;
+            final String token = prefix + "Claim_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(cryptoCreate(owner).balance(ONE_MILLION_HBARS));
+            ops.add(cryptoCreate(receiver).key(keyName).balance(ONE_MILLION_HBARS).maxAutomaticTokenAssociations(0));
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(owner)
+                    .payingWith(owner)
+                    .signedBy(owner)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(tokenAirdrop(moving(10L, token).between(owner, receiver))
+                    .payingWith(owner)
+                    .signedBy(owner)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenClaimAirdrop(
+                            com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop.pendingAirdrop(
+                                    owner, receiver, token))
+                    .payingWith(receiver)
+                    .signedBy(receiver)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(keyName);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== TokenCancelAirdrop permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String keyName = keyForCount(sigCount);
+            final String baseName = String.format("TokenCancelAirdrop_S%d", sigCount);
+            final String owner = prefix + "CancelOwner_" + baseName;
+            final String receiver = prefix + "CancelReceiver_" + baseName;
+            final String token = prefix + "Cancel_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(cryptoCreate(owner).key(keyName).balance(ONE_MILLION_HBARS));
+            ops.add(cryptoCreate(receiver).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(0));
+            ops.add(tokenCreate(token)
+                    .tokenType(FUNGIBLE_COMMON)
+                    .initialSupply(1_000L)
+                    .treasury(owner)
+                    .payingWith(owner)
+                    .signedBy(owner)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(tokenAirdrop(moving(10L, token).between(owner, receiver))
+                    .payingWith(owner)
+                    .signedBy(owner)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(tokenCancelAirdrop(
+                            com.hedera.services.bdd.spec.transactions.token.HapiTokenCancelAirdrop.pendingAirdrop(
+                                    owner, receiver, token))
+                    .payingWith(owner)
+                    .signedBy(owner)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(keyName);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
 
         return ops.toArray(new SpecOperation[0]);
     }
@@ -798,114 +1685,137 @@ public class KitchenSinkFeeComparisonSuite {
     private static SpecOperation[] topicTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // ========== ConsensusCreateTopic: KEYS + SIGNATURES combinations ==========
-        // KEYS=0, SIGS=1 (no keys)
-        ops.add(createTopic(prefix + "TopicK0S1")
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicCreateK0S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateK0S1", "KEYS=0, SIGS=1 (included)", feeMap));
+        final Map<Integer, String> submitTopics = new HashMap<>();
+        for (final int feeCount : TOPIC_CUSTOM_FEE_COUNTS) {
+            final String topic = prefix + "SubmitTopic_F" + feeCount;
+            final var create = createTopic(topic).payingWith(PAYER_SIG1).signedBy(PAYER_SIG1).fee(ONE_HUNDRED_HBARS);
+            for (int i = 0; i < feeCount; i++) {
+                create.withConsensusCustomFee(fixedConsensusHbarFee(i + 1L, FEE_COLLECTOR));
+            }
+            ops.add(create);
+            submitTopics.put(feeCount, topic);
+        }
 
-        // KEYS=0, SIGS=3 (+2 sig extra)
-        ops.add(createTopic(prefix + "TopicK0S3")
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicCreateK0S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateK0S3", "KEYS=0, SIGS=3 (+2)", feeMap));
+        // ========== ConsensusCreateTopic permutations: KEYS + CUSTOM_FEES + SIGNATURES ==========
+        for (final int keyCount : TOPIC_KEY_COUNTS) {
+            for (final int feeCount : TOPIC_CUSTOM_FEE_COUNTS) {
+                for (final int sigCount : SIGNATURE_COUNTS) {
+                    final String payer = payerForSigCount(sigCount);
+                    final String baseName = String.format("TopicCreate_K%d_F%d_S%d", keyCount, feeCount, sigCount);
+                    final String topic = prefix + baseName;
+                    final String txnName = prefix + baseName;
 
-        // KEYS=1, SIGS=1 (+1 key extra)
-        ops.add(createTopic(prefix + "TopicK1S1")
-                .adminKeyName(SIMPLE_KEY)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicCreateK1S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateK1S1", "KEYS=1 (+1), SIGS=1", feeMap));
+                    final var create = createTopic(topic)
+                            .payingWith(payer)
+                            .signedBy(payer)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(txnName);
+                    if (keyCount >= 1) {
+                        create.adminKeyName(SIMPLE_KEY);
+                    }
+                    if (keyCount >= 2) {
+                        create.submitKeyName(SIMPLE_KEY);
+                    }
+                    for (int i = 0; i < feeCount; i++) {
+                        create.withConsensusCustomFee(fixedConsensusHbarFee(i + 1L, FEE_COLLECTOR));
+                    }
+                    ops.add(create);
 
-        // KEYS=2, SIGS=3 (+2 key, +2 sig extra)
-        ops.add(createTopic(prefix + "TopicK2S3")
-                .adminKeyName(SIMPLE_KEY)
-                .submitKeyName(SIMPLE_KEY)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicCreateK2S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicCreateK2S3", "KEYS=2 (+2), SIGS=3 (+2)", feeMap));
+                    final int customFeeExtra = feeCount > 0 ? 1 : 0;
+                    final String emphasis = extrasEmphasis(
+                            new ExtraCount("KEYS", 0, keyCount),
+                            new ExtraCount("CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE", 0, customFeeExtra),
+                            new ExtraCount("SIGNATURES", 1, sigCount));
+                    ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+                }
+            }
+        }
 
-        // ========== ConsensusSubmitMessage: BYTES + SIGNATURES combinations ==========
-        // BYTES=50, SIGS=1 (under included)
-        ops.add(submitMessageTo(prefix + "TopicK0S1")
-                .message("x".repeat(50))
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "SubmitB50S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "SubmitB50S1", "BYTES=50, SIGS=1 (included)", feeMap));
+        // ========== ConsensusSubmitMessage permutations: BYTES + CUSTOM_FEES + SIGNATURES ==========
+        for (final int bytes : TOPIC_MESSAGE_BYTES) {
+            for (final int feeCount : TOPIC_CUSTOM_FEE_COUNTS) {
+                for (final int sigCount : SIGNATURE_COUNTS) {
+                    final String payer = payerForSigCount(sigCount);
+                    final String baseName = String.format("Submit_B%d_F%d_S%d", bytes, feeCount, sigCount);
+                    final String txnName = prefix + baseName;
+                    final String topic = submitTopics.get(feeCount);
 
-        // BYTES=100, SIGS=3 (+2 sig extra)
-        ops.add(submitMessageTo(prefix + "TopicK0S1")
-                .message("x".repeat(100))
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "SubmitB100S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "SubmitB100S3", "BYTES=100, SIGS=3 (+2)", feeMap));
+                    ops.add(submitMessageTo(topic)
+                            .message("x".repeat(bytes))
+                            .payingWith(payer)
+                            .signedBy(payer)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(txnName));
 
-        // BYTES=500, SIGS=1 (+400 bytes extra)
-        ops.add(submitMessageTo(prefix + "TopicK0S1")
-                .message("x".repeat(500))
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "SubmitB500S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "SubmitB500S1", "BYTES=500 (+400), SIGS=1", feeMap));
+                    final int customFeeExtra = feeCount > 0 ? 1 : 0;
+                    final String emphasis = extrasEmphasis(
+                            new ExtraCount("BYTES", 100, bytes),
+                            new ExtraCount("CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE", 0, customFeeExtra),
+                            new ExtraCount("SIGNATURES", 1, sigCount));
+                    ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+                }
+            }
+        }
 
-        // BYTES=1000, SIGS=5 (+900 bytes, +4 sig extra)
-        ops.add(submitMessageTo(prefix + "TopicK0S1")
-                .message("x".repeat(1000))
-                .payingWith(PAYER_SIG5)
-                .signedBy(PAYER_SIG5)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "SubmitB1000S5"));
-        ops.add(captureFeeWithEmphasis(prefix + "SubmitB1000S5", "BYTES=1000 (+900), SIGS=5 (+4)", feeMap));
+        // ========== ConsensusUpdateTopic permutations: KEYS + SIGNATURES ==========
+        for (final int keyCount : new int[] {1, 2}) {
+            for (final int sigCount : SIGNATURE_COUNTS) {
+                final String payer = payerForSigCount(sigCount);
+                final String baseName = String.format("TopicUpdate_K%d_S%d", keyCount, sigCount);
+                final String topic = prefix + "Upd_" + baseName;
+                final String txnName = prefix + baseName;
 
-        // ========== ConsensusUpdateTopic: KEYS + SIGNATURES combinations ==========
-        // KEYS=1, SIGS=1 (included)
-        ops.add(updateTopic(prefix + "TopicK1S1")
-                .topicMemo("updated1")
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1, SIMPLE_KEY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicUpdateK1S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicUpdateK1S1", "KEYS=1, SIGS=2 (+1)", feeMap));
+                ops.add(createTopic(topic)
+                        .adminKeyName(SIMPLE_KEY)
+                        .submitKeyName(SIMPLE_KEY)
+                        .payingWith(payer)
+                        .signedBy(payer)
+                        .fee(ONE_HUNDRED_HBARS));
 
-        // KEYS=1, SIGS=3 (+2 sig extra)
-        ops.add(updateTopic(prefix + "TopicK1S1")
-                .topicMemo("updated2")
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3, SIMPLE_KEY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicUpdateK1S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicUpdateK1S3", "KEYS=1, SIGS=4 (+3)", feeMap));
+                final var update = updateTopic(topic)
+                        .topicMemo("updated")
+                        .payingWith(payer)
+                        .signedBy(payer, SIMPLE_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via(txnName);
+                if (keyCount >= 1) {
+                    update.adminKey(SIMPLE_KEY);
+                }
+                if (keyCount >= 2) {
+                    update.submitKey(SIMPLE_KEY);
+                }
+                ops.add(update);
 
-        // ========== ConsensusDeleteTopic: SIGNATURES combinations ==========
-        // SIGS=1
-        ops.add(deleteTopic(prefix + "TopicK1S1")
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1, SIMPLE_KEY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicDeleteS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicDeleteS1", "SIGS=2 (+1)", feeMap));
+                final int sigs = signatureCount(payer, SIMPLE_KEY);
+                final String emphasis = extrasEmphasis(
+                        new ExtraCount("KEYS", 1, keyCount),
+                        new ExtraCount("SIGNATURES", 1, sigs));
+                ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+            }
+        }
 
-        // SIGS=3
-        ops.add(deleteTopic(prefix + "TopicK2S3")
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3, SIMPLE_KEY)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "TopicDeleteS3"));
-        ops.add(captureFeeWithEmphasis(prefix + "TopicDeleteS3", "SIGS=4 (+3)", feeMap));
+        // ========== ConsensusDeleteTopic permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String baseName = String.format("TopicDelete_S%d", sigCount);
+            final String topic = prefix + "Del_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(createTopic(topic)
+                    .adminKeyName(SIMPLE_KEY)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(deleteTopic(topic)
+                    .payingWith(payer)
+                    .signedBy(payer, SIMPLE_KEY)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer, SIMPLE_KEY);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
 
         return ops.toArray(new SpecOperation[0]);
     }
@@ -920,97 +1830,122 @@ public class KitchenSinkFeeComparisonSuite {
     private static SpecOperation[] fileTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // ========== FileCreate: KEYS + BYTES + SIGNATURES combinations ==========
-        // KEYS=1, BYTES=100, SIGS=1 (under included)
-        ops.add(fileCreate(prefix + "FileB100S1")
-                .contents("x".repeat(100))
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileCreateB100S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileCreateB100S1", "KEYS=1, BYTES=100, SIGS=1", feeMap));
+        // ========== FileCreate permutations: KEYS + BYTES + SIGNATURES ==========
+        for (final int keyCount : FILE_KEY_COUNTS) {
+            final String keyName = keyForCount(keyCount);
+            for (final int bytes : FILE_CREATE_BYTES) {
+                for (final int sigCount : SIGNATURE_COUNTS) {
+                    final String payer = payerForSigCount(sigCount);
+                    final String baseName = String.format("FileCreate_K%d_B%d_S%d", keyCount, bytes, sigCount);
+                    final String file = prefix + baseName;
+                    final String txnName = prefix + baseName;
 
-        // KEYS=1, BYTES=1000, SIGS=3 (+2 sig extra)
-        ops.add(fileCreate(prefix + "FileB1000S3")
-                .contents("x".repeat(1000))
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileCreateB1000S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileCreateB1000S3", "KEYS=1, BYTES=1000, SIGS=3 (+2)", feeMap));
+                    ops.add(fileCreate(file)
+                            .key(keyName)
+                            .contents("x".repeat(bytes))
+                            .payingWith(payer)
+                            .signedBy(payer, keyName)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(txnName));
 
-        // KEYS=1, BYTES=2000, SIGS=1 (+1000 bytes extra)
-        ops.add(fileCreate(prefix + "FileB2000S1")
-                .contents("x".repeat(2000))
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileCreateB2000S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileCreateB2000S1", "KEYS=1, BYTES=2000 (+1000), SIGS=1", feeMap));
+                    final int sigs = signatureCount(payer, keyName);
+                    final String emphasis = extrasEmphasis(
+                            new ExtraCount("KEYS", 1, keyCount),
+                            new ExtraCount("BYTES", 1000, bytes),
+                            new ExtraCount("SIGNATURES", 1, sigs));
+                    ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+                }
+            }
+        }
 
-        // KEYS=1, BYTES=4000, SIGS=5 (+3000 bytes, +4 sig extra)
-        ops.add(fileCreate(prefix + "FileB4000S5")
-                .contents("x".repeat(4000))
-                .payingWith(PAYER_SIG5)
-                .signedBy(PAYER_SIG5)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileCreateB4000S5"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileCreateB4000S5", "KEYS=1, BYTES=4000 (+3000), SIGS=5 (+4)", feeMap));
+        // ========== FileUpdate permutations: KEYS + BYTES + SIGNATURES ==========
+        for (final int keyCount : FILE_KEY_COUNTS) {
+            final String keyName = keyForCount(keyCount);
+            for (final int bytes : FILE_UPDATE_BYTES) {
+                for (final int sigCount : SIGNATURE_COUNTS) {
+                    final String payer = payerForSigCount(sigCount);
+                    final String baseName = String.format("FileUpdate_K%d_B%d_S%d", keyCount, bytes, sigCount);
+                    final String file = prefix + baseName;
+                    final String txnName = prefix + baseName;
 
-        // ========== FileUpdate: KEYS + BYTES + SIGNATURES combinations ==========
-        // KEYS=1, BYTES=500, SIGS=1
-        ops.add(fileUpdate(prefix + "FileB100S1")
-                .contents("x".repeat(500))
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileUpdateB500S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileUpdateB500S1", "KEYS=1, BYTES=500, SIGS=1", feeMap));
+                    ops.add(fileCreate(file)
+                            .key(keyName)
+                            .contents("x".repeat(100))
+                            .payingWith(payer)
+                            .signedBy(payer, keyName)
+                            .fee(ONE_HUNDRED_HBARS));
 
-        // KEYS=1, BYTES=3000, SIGS=3 (+2000 bytes, +2 sig extra)
-        ops.add(fileUpdate(prefix + "FileB1000S3")
-                .contents("x".repeat(3000))
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileUpdateB3000S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileUpdateB3000S3", "KEYS=1, BYTES=3000 (+2000), SIGS=3 (+2)", feeMap));
+                    ops.add(fileUpdate(file)
+                            .contents("y".repeat(bytes))
+                            .payingWith(payer)
+                            .signedBy(payer, keyName)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(txnName));
 
-        // ========== FileAppend: BYTES + SIGNATURES combinations ==========
-        // BYTES=500, SIGS=1
-        ops.add(fileAppend(prefix + "FileB100S1")
-                .content("y".repeat(500))
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileAppendB500S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileAppendB500S1", "BYTES=500, SIGS=1", feeMap));
+                    final int sigs = signatureCount(payer, keyName);
+                    final String emphasis = extrasEmphasis(
+                            new ExtraCount("KEYS", 1, keyCount),
+                            new ExtraCount("BYTES", 1000, bytes),
+                            new ExtraCount("SIGNATURES", 1, sigs));
+                    ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+                }
+            }
+        }
 
-        // BYTES=2000, SIGS=3 (+1000 bytes, +2 sig extra)
-        ops.add(fileAppend(prefix + "FileB100S1")
-                .content("z".repeat(2000))
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileAppendB2000S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileAppendB2000S3", "BYTES=2000 (+1000), SIGS=3 (+2)", feeMap));
+        // ========== FileAppend permutations: BYTES + SIGNATURES ==========
+        for (final int bytes : FILE_APPEND_BYTES) {
+            for (final int sigCount : SIGNATURE_COUNTS) {
+                final String payer = payerForSigCount(sigCount);
+                final String baseName = String.format("FileAppend_B%d_S%d", bytes, sigCount);
+                final String file = prefix + baseName;
+                final String txnName = prefix + baseName;
 
-        // ========== FileDelete: SIGNATURES combinations ==========
-        // SIGS=1
-        ops.add(fileDelete(prefix + "FileB4000S5")
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileDeleteS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileDeleteS1", "SIGS=1 (included)", feeMap));
+                ops.add(fileCreate(file)
+                        .key(SIMPLE_KEY)
+                        .contents("x".repeat(100))
+                        .payingWith(payer)
+                        .signedBy(payer, SIMPLE_KEY)
+                        .fee(ONE_HUNDRED_HBARS));
 
-        // SIGS=3
-        ops.add(fileDelete(prefix + "FileB2000S1")
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "FileDeleteS3"));
-        ops.add(captureFeeWithEmphasis(prefix + "FileDeleteS3", "SIGS=3 (+2)", feeMap));
+                ops.add(fileAppend(file)
+                        .content("z".repeat(bytes))
+                        .payingWith(payer)
+                        .signedBy(payer, SIMPLE_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via(txnName));
+
+                final int sigs = signatureCount(payer, SIMPLE_KEY);
+                final String emphasis = extrasEmphasis(
+                        new ExtraCount("BYTES", 1000, bytes),
+                        new ExtraCount("SIGNATURES", 1, sigs));
+                ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+            }
+        }
+
+        // ========== FileDelete permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String baseName = String.format("FileDelete_S%d", sigCount);
+            final String file = prefix + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(fileCreate(file)
+                    .key(SIMPLE_KEY)
+                    .contents("x".repeat(100))
+                    .payingWith(payer)
+                    .signedBy(payer, SIMPLE_KEY)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(fileDelete(file)
+                    .payingWith(payer)
+                    .signedBy(payer, SIMPLE_KEY)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer, SIMPLE_KEY);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
 
         return ops.toArray(new SpecOperation[0]);
     }
@@ -1024,87 +1959,88 @@ public class KitchenSinkFeeComparisonSuite {
     private static SpecOperation[] scheduleTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        final long amount = prefix.equals("simple") ? 1L : 2L;
+        // ========== ScheduleCreate permutations: KEYS + CONTRACT_CALL_BASE + SIGNATURES ==========
+        for (final int keyCount : SCHEDULE_KEY_COUNTS) {
+            final String keyName = keyCount == 0 ? null : keyForCount(keyCount);
+            for (final int contractCallFlag : new int[] {0, 1}) {
+                for (final int sigCount : SIGNATURE_COUNTS) {
+                    final String payer = payerForSigCount(sigCount);
+                    final String baseName = String.format("ScheduleCreate_K%d_C%d_S%d", keyCount, contractCallFlag, sigCount);
+                    final String schedule = prefix + baseName;
+                    final String txnName = prefix + baseName;
 
-        // ========== ScheduleCreate: KEYS + SIGNATURES combinations ==========
-        // KEYS=0, SIGS=1 (no admin key)
-        ops.add(scheduleCreate(
-                        prefix + "SchedK0S1",
-                        cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER_SIG1, amount)))
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleCreateK0S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateK0S1", "KEYS=0, SIGS=1 (included)", feeMap));
+                    final var scheduledOp = contractCallFlag == 1
+                            ? contractCall(SCHEDULE_CONTRACT, "store", BigInteger.valueOf(1L)).gas(50_000L)
+                            : cryptoTransfer(tinyBarsFromTo(RECEIVER, payer, 1L));
 
-        // KEYS=0, SIGS=3 (+2 sig extra)
-        ops.add(scheduleCreate(
-                        prefix + "SchedK0S3",
-                        cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER_SIG3, amount + 1)))
-                .payingWith(PAYER_SIG3)
-                .signedBy(LIST_KEY_3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleCreateK0S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateK0S3", "KEYS=0, SIGS=3 (+2)", feeMap));
+                    final var create = scheduleCreate(schedule, scheduledOp)
+                            .payingWith(payer)
+                            .signedBy(payer)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(txnName);
+                    if (keyName != null) {
+                        create.adminKey(keyName);
+                    }
+                    ops.add(create);
 
-        // KEYS=1, SIGS=1 (included) - schedule for signing
-        ops.add(scheduleCreate(
-                        prefix + "SchedK1S1",
-                        cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER_SIG1, amount + 2)))
-                .adminKey(SIMPLE_KEY)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleCreateK1S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateK1S1", "KEYS=1, SIGS=1 (included)", feeMap));
+                    final int sigs = signatureCount(payer);
+                    final String emphasis = extrasEmphasis(
+                            new ExtraCount("KEYS", 1, keyCount),
+                            new ExtraCount("SCHEDULE_CREATE_CONTRACT_CALL_BASE", 0, contractCallFlag),
+                            new ExtraCount("SIGNATURES", 1, sigs));
+                    ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+                }
+            }
+        }
 
-        // KEYS=2, SIGS=3 (+1 key, +2 sig extra) - schedule for deletion
-        ops.add(scheduleCreate(
-                        prefix + "SchedK2S3",
-                        cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER_SIG3, amount + 3)))
-                .adminKey(LIST_KEY_2)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleCreateK2S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleCreateK2S3", "KEYS=2 (+1), SIGS=3 (+2)", feeMap));
+        // ========== ScheduleSign permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String baseName = String.format("ScheduleSign_S%d", sigCount);
+            final String schedule = prefix + "Sign_" + baseName;
+            final String txnName = prefix + baseName;
 
-        // ========== ScheduleSign: SIGNATURES combinations ==========
-        // SIGS=1 - This will execute the schedule since RECEIVER signature completes it
-        ops.add(scheduleSign(prefix + "SchedK1S1")
-                .alsoSigningWith(RECEIVER)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1, RECEIVER)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleSignS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleSignS1", "SIGS=2 (+1)", feeMap));
+            ops.add(scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(RECEIVER, payer, 1L)))
+                    .adminKey(SIMPLE_KEY)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
 
-        // SIGS=3
-        ops.add(scheduleSign(prefix + "SchedK0S1")
-                .alsoSigningWith(RECEIVER)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3, RECEIVER)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleSignS3"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleSignS3", "SIGS=4 (+3)", feeMap));
+            ops.add(scheduleSign(schedule)
+                    .alsoSigningWith(RECEIVER)
+                    .payingWith(payer)
+                    .signedBy(payer, RECEIVER)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
 
-        // ========== ScheduleDelete: SIGNATURES combinations ==========
-        // SIGS=1 - Delete SchedK2S3 which hasn't been executed
-        ops.add(scheduleDelete(prefix + "SchedK2S3")
-                .signedBy(PAYER_SIG1, LIST_KEY_2)
-                .payingWith(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ScheduleDeleteS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "ScheduleDeleteS1", "SIGS=3 (+2)", feeMap));
+            final int sigs = signatureCount(payer, RECEIVER);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
 
-        // SIGS=3 - Delete SchedK0S3 which hasn't been executed
-        ops.add(scheduleDelete(prefix + "SchedK0S3")
-                .signedBy(PAYER_SIG3)
-                .payingWith(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_IS_IMMUTABLE)
-                .via(prefix + "ScheduleDeleteS3Fail"));
-        // Note: SchedK0S3 has no admin key so delete will fail - just testing signature count
+        // ========== ScheduleDelete permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String baseName = String.format("ScheduleDelete_S%d", sigCount);
+            final String schedule = prefix + "Del_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(RECEIVER, payer, 1L)))
+                    .adminKey(SIMPLE_KEY)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(scheduleDelete(schedule)
+                    .signedBy(payer, SIMPLE_KEY)
+                    .payingWith(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer, SIMPLE_KEY);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
 
         return ops.toArray(new SpecOperation[0]);
     }
@@ -1112,110 +2048,137 @@ public class KitchenSinkFeeComparisonSuite {
     // ==================== CONTRACT TRANSACTIONS WITH EXTRAS ====================
     // Node extras: SIGNATURES (includedCount=1)
     // ContractCreate/Call extras: GAS (fee per unit)
-    // ContractUpdate/Delete extras: none
+    // ContractUpdate/Delete/HookStore extras: none
 
+    
     private static SpecOperation[] contractTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // ========== ContractCreate: GAS + SIGNATURES combinations ==========
-        // GAS=200000, SIGS=1
-        ops.add(contractCreate(prefix + "Contract1")
-                .bytecode(STORAGE_CONTRACT)
-                .gas(200_000L)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ContractCreateS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "ContractCreateS1", "GAS=200000, SIGS=1 (included)", feeMap));
-
-        // GAS=200000, SIGS=3 (+2 sig extra)
-        ops.add(contractCreate(prefix + "Contract2")
+        final String callContract = prefix + "CallContract";
+        ops.add(contractCreate(callContract)
                 .bytecode(STORAGE_CONTRACT)
                 .adminKey(SIMPLE_KEY)
                 .gas(200_000L)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ContractCreateS3"));
-        ops.add(captureFeeWithEmphasis(prefix + "ContractCreateS3", "GAS=200000, adminKey=1, SIGS=3 (+2)", feeMap));
+                .payingWith(PAYER_SIG1)
+                .fee(ONE_HUNDRED_HBARS));
 
-        // ========== ContractCall: GAS + SIGNATURES combinations ==========
         final var storeAbi = getABIFor(FUNCTION, "store", STORAGE_CONTRACT);
-        final var retrieveAbi = getABIFor(FUNCTION, "retrieve", STORAGE_CONTRACT);
 
-        // GAS=50000, SIGS=1
-        ops.add(contractCallWithFunctionAbi(prefix + "Contract1", storeAbi, BigInteger.valueOf(42))
-                .gas(50_000L)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CallG50kS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "CallG50kS1", "GAS=50000, SIGS=1 (included)", feeMap));
+        // ========== HookStore permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = hookedPayerName(sigCount, 1);
+            final String baseName = String.format("HookStore_S%d", sigCount);
+            final String txnName = prefix + baseName;
 
-        // GAS=100000, SIGS=3 (+2 sig extra)
-        ops.add(contractCallWithFunctionAbi(prefix + "Contract1", storeAbi, BigInteger.valueOf(100))
-                .gas(100_000L)
-                .payingWith(PAYER_SIG3)
-                .signedBy(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CallG100kS3"));
-        ops.add(captureFeeWithEmphasis(prefix + "CallG100kS3", "GAS=100000, SIGS=3 (+2)", feeMap));
+            ops.add(accountEvmHookStore(payer, HOOK_IDS[0])
+                    .putSlot(Bytes.EMPTY, Bytes.EMPTY)
+                    .payingWith(payer)
+                    .signedBy(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
 
-        // GAS=200000, SIGS=1
-        ops.add(contractCallWithFunctionAbi(prefix + "Contract1", storeAbi, BigInteger.valueOf(200))
-                .gas(200_000L)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CallG200kS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "CallG200kS1", "GAS=200000, SIGS=1", feeMap));
+            final int sigs = signatureCount(payer);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
 
-        // GAS=500000, SIGS=5 (+4 sig extra)
-        ops.add(contractCallWithFunctionAbi(prefix + "Contract1", storeAbi, BigInteger.valueOf(500))
-                .gas(500_000L)
-                .payingWith(PAYER_SIG5)
-                .signedBy(PAYER_SIG5)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CallG500kS5"));
-        ops.add(captureFeeWithEmphasis(prefix + "CallG500kS5", "GAS=500000, SIGS=5 (+4)", feeMap));
+        // ========== ContractCreate permutations: GAS + SIGNATURES ==========
+        for (final int gas : CONTRACT_GAS) {
+            for (final int sigCount : SIGNATURE_COUNTS) {
+                final String payer = payerForSigCount(sigCount);
+                final String baseName = String.format("ContractCreate_G%d_S%d", gas, sigCount);
+                final String contract = prefix + baseName;
+                final String txnName = prefix + baseName;
 
-        // Read-only call (retrieve), SIGS=1
-        ops.add(contractCallWithFunctionAbi(prefix + "Contract1", retrieveAbi)
-                .gas(50_000L)
-                .payingWith(PAYER_SIG1)
-                .signedBy(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "CallRetrieveS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "CallRetrieveS1", "GAS=50000 (read), SIGS=1", feeMap));
+                ops.add(contractCreate(contract)
+                        .bytecode(STORAGE_CONTRACT)
+                        .gas(gas)
+                        .payingWith(payer)
+                        .signedBy(payer)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via(txnName));
 
-        // ========== ContractUpdate: SIGNATURES combinations ==========
-        // SIGS=1
-        ops.add(contractUpdate(prefix + "Contract2")
-                .newMemo("updated1")
-                .signedBy(PAYER_SIG1, SIMPLE_KEY)
-                .payingWith(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ContractUpdateS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "ContractUpdateS1", "SIGS=2 (+1)", feeMap));
+                final int sigs = signatureCount(payer);
+                final String emphasis = extrasEmphasis(
+                        new ExtraCount("GAS", 0, gas),
+                        new ExtraCount("SIGNATURES", 1, sigs));
+                ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+            }
+        }
 
-        // SIGS=3
-        ops.add(contractUpdate(prefix + "Contract2")
-                .newMemo("updated2")
-                .signedBy(PAYER_SIG3, SIMPLE_KEY)
-                .payingWith(PAYER_SIG3)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ContractUpdateS3"));
-        ops.add(captureFeeWithEmphasis(prefix + "ContractUpdateS3", "SIGS=4 (+3)", feeMap));
+        // ========== ContractCall permutations: GAS + SIGNATURES ==========
+        for (final int gas : CONTRACT_GAS) {
+            for (final int sigCount : SIGNATURE_COUNTS) {
+                final String payer = payerForSigCount(sigCount);
+                final String baseName = String.format("ContractCall_G%d_S%d", gas, sigCount);
+                final String txnName = prefix + baseName;
 
-        // ========== ContractDelete: SIGNATURES combinations ==========
-        // SIGS=1
-        ops.add(contractDelete(prefix + "Contract2")
-                .transferAccount(PAYER_SIG1)
-                .signedBy(PAYER_SIG1, SIMPLE_KEY)
-                .payingWith(PAYER_SIG1)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "ContractDeleteS1"));
-        ops.add(captureFeeWithEmphasis(prefix + "ContractDeleteS1", "SIGS=2 (+1)", feeMap));
+                ops.add(contractCallWithFunctionAbi(callContract, storeAbi, BigInteger.valueOf(gas))
+                        .gas(gas)
+                        .payingWith(payer)
+                        .signedBy(payer)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via(txnName));
+
+                final int sigs = signatureCount(payer);
+                final String emphasis = extrasEmphasis(
+                        new ExtraCount("GAS", 0, gas),
+                        new ExtraCount("SIGNATURES", 1, sigs));
+                ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+            }
+        }
+
+        // ========== ContractUpdate permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String baseName = String.format("ContractUpdate_S%d", sigCount);
+            final String contract = prefix + "Upd_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(contractCreate(contract)
+                    .bytecode(STORAGE_CONTRACT)
+                    .adminKey(SIMPLE_KEY)
+                    .gas(200_000L)
+                    .payingWith(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(contractUpdate(contract)
+                    .newMemo("updated")
+                    .signedBy(payer, SIMPLE_KEY)
+                    .payingWith(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer, SIMPLE_KEY);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
+
+        // ========== ContractDelete permutations: SIGNATURES ==========
+        for (final int sigCount : SIGNATURE_COUNTS) {
+            final String payer = payerForSigCount(sigCount);
+            final String baseName = String.format("ContractDelete_S%d", sigCount);
+            final String contract = prefix + "Del_" + baseName;
+            final String txnName = prefix + baseName;
+
+            ops.add(contractCreate(contract)
+                    .bytecode(STORAGE_CONTRACT)
+                    .adminKey(SIMPLE_KEY)
+                    .gas(200_000L)
+                    .payingWith(payer)
+                    .fee(ONE_HUNDRED_HBARS));
+
+            ops.add(contractDelete(contract)
+                    .transferAccount(payer)
+                    .signedBy(payer, SIMPLE_KEY)
+                    .payingWith(payer)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+
+            final int sigs = signatureCount(payer, SIMPLE_KEY);
+            final String emphasis = extrasEmphasis(new ExtraCount("SIGNATURES", 1, sigs));
+            ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+        }
 
         return ops.toArray(new SpecOperation[0]);
     }
@@ -1227,62 +2190,36 @@ public class KitchenSinkFeeComparisonSuite {
     private static SpecOperation[] batchTransactionsWithExtras(String prefix, Map<String, FeeEntry> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
-        // ========== AtomicBatch: innerTxns + SIGNATURES combinations ==========
-        // innerTxns=2, SIGS=1
-        ops.add(atomicBatch(
-                        cryptoTransfer(movingHbar(1L).between(PAYER_SIG1, RECEIVER))
-                                .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(2L).between(PAYER_SIG1, RECEIVER))
-                                .batchKey(BATCH_OPERATOR))
-                .signedBy(BATCH_OPERATOR, PAYER_SIG1)
-                .payingWith(BATCH_OPERATOR)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "Batch2S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "Batch2S1", "innerTxns=2, SIGS=2 (+1)", feeMap));
+        for (final int innerCount : BATCH_INNER_COUNTS) {
+            for (final int sigCount : SIGNATURE_COUNTS) {
+                final String payer = payerForSigCount(sigCount);
+                final String baseName = String.format("Batch_N%d_S%d", innerCount, sigCount);
+                final String txnName = prefix + baseName;
 
-        // innerTxns=2, SIGS=3
-        ops.add(atomicBatch(
-                        cryptoTransfer(movingHbar(3L).between(PAYER_SIG3, RECEIVER))
-                                .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(4L).between(PAYER_SIG3, RECEIVER))
-                                .batchKey(BATCH_OPERATOR))
-                .signedBy(BATCH_OPERATOR, PAYER_SIG3)
-                .payingWith(BATCH_OPERATOR)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "Batch2S3"));
-        ops.add(captureFeeWithEmphasis(prefix + "Batch2S3", "innerTxns=2, SIGS=4 (+3)", feeMap));
+                final List<com.hedera.services.bdd.spec.transactions.token.TokenMovement> movements = new ArrayList<>();
+                for (int i = 0; i < innerCount; i++) {
+                    movements.add(movingHbar(i + 1L).between(payer, RECEIVER));
+                }
 
-        // innerTxns=3, SIGS=1
-        ops.add(atomicBatch(
-                        cryptoTransfer(movingHbar(5L).between(PAYER_SIG1, RECEIVER))
-                                .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(6L).between(PAYER_SIG1, RECEIVER))
-                                .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(7L).between(PAYER_SIG1, RECEIVER))
-                                .batchKey(BATCH_OPERATOR))
-                .signedBy(BATCH_OPERATOR, PAYER_SIG1)
-                .payingWith(BATCH_OPERATOR)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "Batch3S1"));
-        ops.add(captureFeeWithEmphasis(prefix + "Batch3S1", "innerTxns=3, SIGS=2 (+1)", feeMap));
+                final List<com.hedera.services.bdd.spec.transactions.HapiTxnOp<?>> batchOps = new ArrayList<>();
+                for (final var movement : movements) {
+                    batchOps.add(cryptoTransfer(movement).batchKey(BATCH_OPERATOR));
+                }
 
-        // innerTxns=5, SIGS=5
-        ops.add(atomicBatch(
-                        cryptoTransfer(movingHbar(8L).between(PAYER_SIG5, RECEIVER))
-                                .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(9L).between(PAYER_SIG5, RECEIVER))
-                                .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(10L).between(PAYER_SIG5, RECEIVER))
-                                .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(11L).between(PAYER_SIG5, RECEIVER))
-                                .batchKey(BATCH_OPERATOR),
-                        cryptoTransfer(movingHbar(12L).between(PAYER_SIG5, RECEIVER))
-                                .batchKey(BATCH_OPERATOR))
-                .signedBy(BATCH_OPERATOR, PAYER_SIG5)
-                .payingWith(BATCH_OPERATOR)
-                .fee(ONE_HUNDRED_HBARS)
-                .via(prefix + "Batch5S5"));
-        ops.add(captureFeeWithEmphasis(prefix + "Batch5S5", "innerTxns=5, SIGS=6 (+5)", feeMap));
+                final var batch = atomicBatch(batchOps.toArray(new com.hedera.services.bdd.spec.transactions.HapiTxnOp<?>[0]))
+                        .signedBy(BATCH_OPERATOR, payer)
+                        .payingWith(BATCH_OPERATOR)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via(txnName);
+                ops.add(batch);
+
+                final int sigs = signatureCount(BATCH_OPERATOR, payer);
+                final String emphasis = extrasEmphasis(
+                        new ExtraCount("INNER_TXNS", 0, innerCount),
+                        new ExtraCount("SIGNATURES", 1, sigs));
+                ops.add(captureFeeWithEmphasis(txnName, emphasis, feeMap));
+            }
+        }
 
         return ops.toArray(new SpecOperation[0]);
     }
@@ -1320,20 +2257,25 @@ public class KitchenSinkFeeComparisonSuite {
                 if (legacyEntry != null && simpleEntry != null) {
                     long diff = simpleEntry.fee() - legacyEntry.fee();
                     double pctChange = legacyEntry.fee() > 0 ? (diff * 100.0 / legacyEntry.fee()) : 0;
-                    String emphasis = legacyEntry.emphasis();
-                    if (emphasis.length() > 45) {
-                        emphasis = emphasis.substring(0, 42) + "...";
+                    final String fullEmphasis = legacyEntry.emphasis();
+                    String logEmphasis = fullEmphasis;
+                    if (logEmphasis.length() > 45) {
+                        logEmphasis = logEmphasis.substring(0, 42) + "...";
                     }
                     LOG.info(String.format(
                             "%-35s %-45s %15d %15d %15d %9.2f%%",
-                            baseName, emphasis, legacyEntry.fee(), simpleEntry.fee(), diff, pctChange));
+                            baseName, logEmphasis, legacyEntry.fee(), simpleEntry.fee(), diff, pctChange));
+                    csv.field(serviceName);
                     csv.field(baseName);
-                    csv.field(emphasis);
+                    csv.field(fullEmphasis);
                     csv.field(legacyEntry.fee());
                     csv.field(simpleEntry.fee());
                     csv.field(diff);
                     csv.fieldPercentage(pctChange);
                     csv.endLine();
+
+                    ALL_ROWS.add(new FeeComparisonRow(
+                            serviceName, baseName, fullEmphasis, legacyEntry.fee(), simpleEntry.fee(), diff, pctChange));
                 }
             }
             LOG.info("=".repeat(140));
@@ -1348,6 +2290,70 @@ public class KitchenSinkFeeComparisonSuite {
                     "%-35s %-45s %15d %15d %15d %9.2f%%",
                     "TOTAL", "", totalLegacy, totalSimple, totalDiff, totalPctChange));
             LOG.info("=".repeat(140) + "\n");
+
+            csv.field(serviceName);
+            csv.field("TOTAL");
+            csv.field("");
+            csv.field(totalLegacy);
+            csv.field(totalSimple);
+            csv.field(totalDiff);
+            csv.fieldPercentage(totalPctChange);
+            csv.endLine();
         });
+    }
+
+    private static void logFinalComparisonTable() throws IOException {
+        if (ALL_ROWS.isEmpty()) {
+            return;
+        }
+        final List<FeeComparisonRow> rows;
+        synchronized (ALL_ROWS) {
+            rows = new ArrayList<>(ALL_ROWS);
+        }
+        rows.sort(Comparator.comparing(FeeComparisonRow::service).thenComparing(FeeComparisonRow::txnName));
+
+        LOG.info("\n========== FINAL FEE COMPARISON (ALL SERVICES) ==========");
+        LOG.info(String.format(
+                "%-18s %-35s %-70s %15s %15s %15s %10s",
+                "Service", "Transaction", "Emphasis", "Legacy Fee", "Simple Fee", "Difference", "% Change"));
+        LOG.info("=".repeat(175));
+
+        long totalLegacy = 0L;
+        long totalSimple = 0L;
+        for (final var row : rows) {
+            totalLegacy += row.legacyFee();
+            totalSimple += row.simpleFee();
+            String logEmphasis = row.emphasis();
+            if (logEmphasis.length() > 70) {
+                logEmphasis = logEmphasis.substring(0, 67) + "...";
+            }
+            LOG.info(String.format(
+                    "%-18s %-35s %-70s %15d %15d %15d %9.2f%%",
+                    row.service(),
+                    row.txnName(),
+                    logEmphasis,
+                    row.legacyFee(),
+                    row.simpleFee(),
+                    row.diff(),
+                    row.pct()));
+        }
+        final long totalDiff = totalSimple - totalLegacy;
+        final double totalPctChange = totalLegacy > 0 ? (totalDiff * 100.0 / totalLegacy) : 0;
+        LOG.info("=".repeat(175));
+        LOG.info(String.format(
+                "%-18s %-35s %-70s %15d %15d %15d %9.2f%%",
+                "ALL", "TOTAL", "", totalLegacy, totalSimple, totalDiff, totalPctChange));
+        LOG.info("=".repeat(175) + "\n");
+
+        if (csv != null) {
+            csv.field("ALL");
+            csv.field("TOTAL");
+            csv.field("");
+            csv.field(totalLegacy);
+            csv.field(totalSimple);
+            csv.field(totalDiff);
+            csv.fieldPercentage(totalPctChange);
+            csv.endLine();
+        }
     }
 }
