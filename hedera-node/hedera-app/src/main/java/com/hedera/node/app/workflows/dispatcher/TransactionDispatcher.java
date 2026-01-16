@@ -189,6 +189,7 @@ public class TransactionDispatcher {
                     TOKEN_UPDATE,
                     TOKEN_UPDATE_NFTS,
                     TOKEN_WIPE -> true;
+            case NODE_CREATE, NODE_UPDATE, NODE_DELETE -> true;
             default -> false;
         };
     }
