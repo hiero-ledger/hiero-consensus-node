@@ -469,6 +469,12 @@ class IndirectProofSequenceValidator {
                     actualBlockHash,
                     "Mismatch in indirect proof chain: block %s's hash does not match expected hash %s"
                             .formatted(blockNum, finalExpectedHash));
+            log.info(
+                    "Verified calculated block hash {} from state proof for block {} matches expected signed block {} hash {}",
+                    actualBlockHash,
+                    blockNum,
+                    signedBlockNum,
+                    finalExpectedHash);
         }
     }
 

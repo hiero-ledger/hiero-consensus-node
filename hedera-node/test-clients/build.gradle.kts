@@ -517,3 +517,6 @@ val rcdiffJar =
 
         manifest { attributes("Main-Class" to "com.hedera.services.rcdiff.RcDiffCmdWrapper") }
     }
+
+// This is only added here to provide needed APIs in `StateAndBlockHashesValidator`
+dependencies { implementation(project(":swirlds-state-impl")) }
