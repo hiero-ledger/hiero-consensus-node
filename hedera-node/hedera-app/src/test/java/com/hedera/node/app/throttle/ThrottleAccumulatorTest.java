@@ -718,6 +718,57 @@ class ThrottleAccumulatorTest {
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void clearsThrottleUsagesWhenTransactionIsThrottledToPreventDoubleReclaim(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .contractCall(ContractCallTransactionBody.DEFAULT)
+                        .build());
+
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
+
+        // when
+        subject.rebuildFor(defs);
+
+        // First, exhaust the throttle by making multiple requests until throttled
+        List<ThrottleUsage> throttleUsages = new ArrayList<>();
+        boolean throttled = false;
+        Instant currentTime = TIME_INSTANT;
+
+        // Make requests until we get throttled
+        for (int i = 0; i < 20 && !throttled; i++) {
+            throttleUsages.clear();
+            throttled = subject.checkAndEnforceThrottle(transactionInfo, currentTime, state, throttleUsages, false);
+            currentTime = currentTime.plusNanos(1);
+        }
+
+        // then - verify that we eventually got throttled
+        assertTrue(throttled, "Expected transaction to be throttled after exhausting capacity");
+
+        assertTrue(throttleUsages.isEmpty(), "throttleUsages should be cleared when transaction is throttled");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void computesNumImplicitCreationsIfNotAlreadyKnown(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given

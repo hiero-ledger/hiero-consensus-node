@@ -199,6 +199,9 @@ public class ThrottleAccumulator {
 
         if (shouldThrottleTxn(txnInfo, now, state, throttleUsages, gasThrottleAlwaysEnabled)) {
             reclaimLastAllowedUse();
+            if (throttleUsages != null) {
+                throttleUsages.clear();
+            }
             return true;
         }
 
