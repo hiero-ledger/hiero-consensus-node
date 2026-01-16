@@ -25,7 +25,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gui.hashgraph.internal;
     exports com.swirlds.platform.network.connection;
     exports com.swirlds.platform.network.connectivity;
-    exports com.swirlds.platform.event.validation;
     exports com.swirlds.platform.eventhandling;
     exports com.swirlds.platform.gui;
     exports com.swirlds.platform.gui.model;

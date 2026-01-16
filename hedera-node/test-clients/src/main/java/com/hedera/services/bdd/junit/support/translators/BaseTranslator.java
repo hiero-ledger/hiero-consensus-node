@@ -3,7 +3,7 @@ package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BYTECODE;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LAMBDA_STORAGE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_EVM_HOOK_STORAGE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_STORAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
@@ -57,7 +57,7 @@ import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.state.contract.SlotKey;
-import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
+import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -580,14 +580,14 @@ public class BaseTranslator {
                         c -> c.keyOrThrow().slotKeyKeyOrThrow(),
                         c -> c.valueOrThrow().slotValueValueOrThrow().value()));
         final Map<SlotKey, Bytes> writtenSlots = new HashMap<>(slotUpdates);
-        final var lambdaSlotUpdates = remainingStateChanges.stream()
-                .filter(change -> change.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal())
+        final var hookSlotUpdates = remainingStateChanges.stream()
+                .filter(change -> change.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
                 .collect(toMap(
-                        c -> c.keyOrThrow().lambdaSlotKeyOrThrow(),
+                        c -> c.keyOrThrow().evmHookSlotKeyOrThrow(),
                         c -> c.valueOrThrow().slotValueValueOrThrow().value()));
-        final Map<LambdaSlotKey, Bytes> writtenLambdaSlots = new HashMap<>(lambdaSlotUpdates);
+        final Map<EvmHookSlotKey, Bytes> writtenHookSlots = new HashMap<>(hookSlotUpdates);
         // Then the contract and hook slot removals
         final var slotRemovals = remainingStateChanges.stream()
                 .filter(change -> change.stateId() == STATE_ID_STORAGE.protoOrdinal())
@@ -595,12 +595,12 @@ public class BaseTranslator {
                 .map(StateChange::mapDeleteOrThrow)
                 .collect(toMap(d -> d.keyOrThrow().slotKeyKeyOrThrow(), d -> Bytes.EMPTY));
         writtenSlots.putAll(slotRemovals);
-        final var lambdaSlotRemovals = remainingStateChanges.stream()
-                .filter(change -> change.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal())
+        final var hookSlotRemovals = remainingStateChanges.stream()
+                .filter(change -> change.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapDelete)
                 .map(StateChange::mapDeleteOrThrow)
-                .collect(toMap(d -> d.keyOrThrow().lambdaSlotKeyOrThrow(), d -> Bytes.EMPTY));
-        writtenLambdaSlots.putAll(lambdaSlotRemovals);
+                .collect(toMap(d -> d.keyOrThrow().evmHookSlotKeyOrThrow(), d -> Bytes.EMPTY));
+        writtenHookSlots.putAll(hookSlotRemovals);
 
         // Now filter to just EVM traces and build the sidecars
         final var evmTraces = tracesHere.stream()
@@ -654,22 +654,17 @@ public class BaseTranslator {
                                 }
                             }
                             if (value == null) {
-                                Bytes valueFromState;
+                                final Bytes valueFromState;
                                 if (executingHookId == null
                                         || contractId.contractNumOrThrow() != HTS_HOOKS_CONTRACT_NUM) {
                                     valueFromState = writtenSlots.get(slotKey);
                                 } else {
-                                    valueFromState = writtenLambdaSlots.get(
-                                            new LambdaSlotKey(executingHookId, minimalKey(slotKey.key())));
+                                    valueFromState = writtenHookSlots.get(
+                                            new EvmHookSlotKey(executingHookId, minimalKey(slotKey.key())));
                                 }
                                 if (valueFromState == null) {
-                                    // (FUTURE) - uncomment throw below once we have determined the right way to
-                                    // unblock BlockItem -> TransactionSidecarRecord translation for the scenario in
-                                    // ContractGetInfoSuite#userPaysTheGasUsed()
-                                    //                                    throw new IllegalStateException("No written
-                                    // value found for write to " + slotKey
-                                    //                                            + " in " + remainingStateChanges);
-                                    valueFromState = Bytes.fromHex("02");
+                                    throw new IllegalStateException("No written value found for write to " + slotKey
+                                            + " in " + remainingStateChanges);
                                 }
                                 value = HookUtils.minimalRepresentationOf(valueFromState);
                             }
@@ -776,17 +771,17 @@ public class BaseTranslator {
                     if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
                         writtenKeys.add(HookUtils.minimalRepresentationOf(slotKey.key()));
                     }
-                } else if (stateChange.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal()) {
+                } else if (stateChange.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal()) {
                     SlotKey slotKey = null;
                     if (stateChange.hasMapUpdate()
                             && !stateChange.mapUpdateOrThrow().identical()) {
                         final var lambdaSlotKey =
-                                stateChange.mapUpdateOrThrow().keyOrThrow().lambdaSlotKeyOrThrow();
+                                stateChange.mapUpdateOrThrow().keyOrThrow().evmHookSlotKeyOrThrow();
                         slotKey = new SlotKey(hookContractId(), lambdaSlotKey.key());
                     } else if (stateChange.hasMapDelete()) {
-                        final var lambdaSlotKey =
-                                stateChange.mapDeleteOrThrow().keyOrThrow().lambdaSlotKeyOrThrow();
-                        slotKey = new SlotKey(hookContractId(), lambdaSlotKey.key());
+                        final var hookSlotKey =
+                                stateChange.mapDeleteOrThrow().keyOrThrow().evmHookSlotKeyOrThrow();
+                        slotKey = new SlotKey(hookContractId(), hookSlotKey.key());
                     }
                     if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
                         writtenKeys.add(HookUtils.minimalRepresentationOf(slotKey.key()));
