@@ -24,6 +24,7 @@ import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.SortedMap;
 import java.util.concurrent.Executor;
 
 /**
@@ -64,6 +65,11 @@ public class HistoryServiceImpl implements HistoryService {
     @Override
     public HistoryHandlers handlers() {
         return component.handlers();
+    }
+
+    @Override
+    public Bytes historyProofVerificationKey() {
+        return Bytes.wrap(component.library().wrapsVerificationKey());
     }
 
     @Override
@@ -108,11 +114,14 @@ public class HistoryServiceImpl implements HistoryService {
 
     @Override
     public void onFinished(
-            @NonNull final WritableHistoryStore historyStore, @NonNull final HistoryProofConstruction construction) {
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final HistoryProofConstruction construction,
+            @NonNull final SortedMap<Long, Long> targetNodeWeights) {
         requireNonNull(historyStore);
         requireNonNull(construction);
+        requireNonNull(targetNodeWeights);
         if (cb != null) {
-            cb.onFinished(historyStore, construction);
+            cb.onFinished(historyStore, construction, targetNodeWeights);
         }
     }
 

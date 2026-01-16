@@ -5,6 +5,7 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -165,6 +166,15 @@ class HistoryServiceImplTest {
                 activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, HintsConstruction.DEFAULT);
 
         verify(store, never()).getConstructionFor(activeRosters);
+    }
+
+    @Test
+    void wrapsWrapsKeyForProofVerification() {
+        withMockSubject();
+        final var mockKey = "ABCDEFGH".getBytes(UTF_8);
+        given(component.library()).willReturn(library);
+        given(library.wrapsVerificationKey()).willReturn(mockKey);
+        assertEquals(Bytes.wrap(mockKey), subject.historyProofVerificationKey());
     }
 
     private void withLiveSubject() {

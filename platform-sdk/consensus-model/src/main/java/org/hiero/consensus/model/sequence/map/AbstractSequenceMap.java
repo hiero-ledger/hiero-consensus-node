@@ -352,6 +352,7 @@ public abstract class AbstractSequenceMap<K, V> implements SequenceMap<K, V> {
             }
             setFirstSequenceNumberInWindow(firstSequenceNumberInWindow);
 
+            // Purge old sequence numbers one by one in ascending order
             for (int offset = 0; offset < sequenceNumberCapacity; offset++) {
 
                 // Stop purging once we encounter a high enough sequence number
@@ -360,6 +361,7 @@ public abstract class AbstractSequenceMap<K, V> implements SequenceMap<K, V> {
                     return;
                 }
 
+                // The keys associated with the current sequence number to replace
                 final SequenceKeySet<K> keys = getSequenceKeySet(sequenceNumberToReplace);
 
                 if (!largeShift) {

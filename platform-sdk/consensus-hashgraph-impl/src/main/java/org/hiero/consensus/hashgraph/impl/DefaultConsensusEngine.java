@@ -5,9 +5,15 @@ import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.base.time.Time;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.platform.Consensus;
+import com.swirlds.platform.ConsensusImpl;
+import com.swirlds.platform.event.linking.ConsensusLinker;
+import com.swirlds.platform.event.linking.DefaultLinkerLogsAndMetrics;
+import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.metrics.ConsensusEngineMetrics;
+import com.swirlds.platform.metrics.ConsensusMetrics;
+import com.swirlds.platform.metrics.ConsensusMetricsImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;

@@ -19,7 +19,6 @@ import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
-import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerDataCounter;
@@ -65,7 +64,6 @@ public record PlatformComponents(
         EventCreatorModule eventCreatorModule,
         EventIntakeModule eventIntakeModule,
         HashgraphModule hashgraphModule,
-        ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
         ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
@@ -118,7 +116,6 @@ public record PlatformComponents(
             @NonNull final SavedStateController savedStateController,
             @NonNull final AppNotifier notifier) {
 
-        eventSignatureValidatorWiring.bind(builder::buildEventSignatureValidator);
         orphanBufferWiring.bind(builder::buildOrphanBuffer);
         stateSnapshotManagerWiring.bind(builder::buildStateSnapshotManager);
         stateSignerWiring.bind(builder::buildStateSigner);
@@ -174,7 +171,6 @@ public record PlatformComponents(
                 eventCreatorModule,
                 eventIntakeModule,
                 hashgraphModule,
-                new ComponentWiring<>(model, EventSignatureValidator.class, config.eventSignatureValidator()),
                 new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer()),
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler()),
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
