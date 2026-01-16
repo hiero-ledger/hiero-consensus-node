@@ -196,11 +196,9 @@ public class ReconnectStateTeacher {
                         lastRoundReceived));
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         logger.info(
-                RECONNECT.getMarker(),
-                """
+                RECONNECT.getMarker(), """
                         The following state will be sent to the learner:
-                        {}""",
-                () -> getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
+                        {}""", () -> getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
     }
 
     private void logReconnectFinish() {

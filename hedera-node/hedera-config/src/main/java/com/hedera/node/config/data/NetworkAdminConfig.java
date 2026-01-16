@@ -74,4 +74,5 @@ public record NetworkAdminConfig(
         // Default value is the working directory
         @ConfigProperty(defaultValue = "") @NodeProperty String configTxtPath,
         // Config for high volume throttles
-        @ConfigProperty(defaultValue = "false") @NodeProperty boolean highVolumeThrottlesEnabled) {}
+        @ConfigProperty(defaultValue = "false") @NodeProperty
+        boolean highVolumeThrottlesEnabled) {}

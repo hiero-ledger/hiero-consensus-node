@@ -958,15 +958,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     /** Debug dump stats for this map */
     public void printStats() {
-        logger.info(
-                MERKLE_DB.getMarker(),
-                """
+        logger.info(MERKLE_DB.getMarker(), """
                         HalfDiskHashMap Stats {
                         	numOfBuckets = {}
                         	goodAverageBucketEntryCount = {}
-                        }""",
-                numOfBuckets,
-                goodAverageBucketEntryCount);
+                        }""", numOfBuckets, goodAverageBucketEntryCount);
     }
 
     public DataFileCollection getFileCollection() {

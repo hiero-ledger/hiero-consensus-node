@@ -668,7 +668,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         return account;
     }
 
-    private record InvolvedAccounts(@NonNull Account deletedAccount, @NonNull Account obtainerAccount) {
+    private record InvolvedAccounts(
+            @NonNull Account deletedAccount, @NonNull Account obtainerAccount) {
         private InvolvedAccounts {
             requireNonNull(deletedAccount);
             requireNonNull(obtainerAccount);

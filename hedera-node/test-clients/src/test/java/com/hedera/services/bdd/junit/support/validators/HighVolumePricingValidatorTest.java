@@ -70,8 +70,7 @@ class HighVolumePricingValidatorTest {
         Files.writeString(incorrectFile, incorrectJson);
 
         HighVolumePricingValidator validator = new HighVolumePricingValidator(incorrectFile);
-        assertThrows(AssertionError.class, validator::validate,
-                "Validation should fail for incorrect pricing curve");
+        assertThrows(AssertionError.class, validator::validate, "Validation should fail for incorrect pricing curve");
     }
 
     @Test
@@ -98,7 +97,9 @@ class HighVolumePricingValidatorTest {
         Files.writeString(missingTxFile, missingTxJson);
 
         HighVolumePricingValidator validator = new HighVolumePricingValidator(missingTxFile);
-        assertThrows(AssertionError.class, validator::validate,
+        assertThrows(
+                AssertionError.class,
+                validator::validate,
                 "Validation should fail when required transaction type is missing");
     }
 
@@ -118,4 +119,3 @@ class HighVolumePricingValidatorTest {
         return Path.of("").toAbsolutePath();
     }
 }
-

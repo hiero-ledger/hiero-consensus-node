@@ -106,8 +106,7 @@ public class HighVolumePricingValidator {
 
         for (TransactionTypeSpec txSpec : expected.transactionTypes()) {
             final var txName = txSpec.name();
-            assertTrue(actualCurves.containsKey(txName),
-                    "Missing high-volume pricing for transaction: " + txName);
+            assertTrue(actualCurves.containsKey(txName), "Missing high-volume pricing for transaction: " + txName);
 
             final var actualCurve = actualCurves.get(txName);
             validateTransactionCurve(txSpec, expected.baseCurve(), actualCurve);
@@ -122,9 +121,11 @@ public class HighVolumePricingValidator {
                 final var name = feeDef.get("name").asText();
                 final var highVolumeRates = feeDef.get("highVolumeRates");
                 if (highVolumeRates != null) {
-                    final var maxMultiplier = highVolumeRates.get("maxMultiplier").asInt();
+                    final var maxMultiplier =
+                            highVolumeRates.get("maxMultiplier").asInt();
                     final var points = new ArrayList<ActualPoint>();
-                    final var piecewiseLinear = highVolumeRates.get("pricingCurve").get("piecewiseLinear");
+                    final var piecewiseLinear =
+                            highVolumeRates.get("pricingCurve").get("piecewiseLinear");
                     for (JsonNode point : piecewiseLinear.get("points")) {
                         points.add(new ActualPoint(
                                 point.get("utilizationBasisPoints").asInt(),
@@ -138,9 +139,7 @@ public class HighVolumePricingValidator {
     }
 
     private void validateTransactionCurve(
-            TransactionTypeSpec txSpec,
-            List<BaseCurvePoint> baseCurve,
-            ActualPricingCurve actualCurve) {
+            TransactionTypeSpec txSpec, List<BaseCurvePoint> baseCurve, ActualPricingCurve actualCurve) {
         final var txName = txSpec.name();
         final var baseRate = txSpec.baseRate();
         final var maxTps = txSpec.maxTps();
@@ -150,29 +149,30 @@ public class HighVolumePricingValidator {
 
         // Validate max multiplier - it should be the multiplier at the last point
         final var expectedMaxMultiplier = expectedPoints.getLast().multiplier();
-        assertEquals(expectedMaxMultiplier, actualCurve.maxMultiplier(),
-                txName + ": maxMultiplier mismatch (expected " + expectedMaxMultiplier
-                        + ", actual " + actualCurve.maxMultiplier() + ")");
+        assertEquals(
+                expectedMaxMultiplier,
+                actualCurve.maxMultiplier(),
+                txName + ": maxMultiplier mismatch (expected " + expectedMaxMultiplier + ", actual "
+                        + actualCurve.maxMultiplier() + ")");
 
         // Validate each point
-        assertEquals(expectedPoints.size(), actualCurve.points().size(),
-                txName + ": number of points mismatch");
+        assertEquals(expectedPoints.size(), actualCurve.points().size(), txName + ": number of points mismatch");
 
         for (int i = 0; i < expectedPoints.size(); i++) {
             final var expected = expectedPoints.get(i);
             final var actual = actualCurve.points().get(i);
 
-            assertEquals(expected.utilizationBasisPoints(), actual.utilizationBasisPoints(),
+            assertEquals(
+                    expected.utilizationBasisPoints(),
+                    actual.utilizationBasisPoints(),
                     txName + " point " + i + ": utilizationBasisPoints mismatch");
-            assertEquals(expected.multiplier(), actual.multiplier(),
-                    txName + " point " + i + ": multiplier mismatch");
+            assertEquals(expected.multiplier(), actual.multiplier(), txName + " point " + i + ": multiplier mismatch");
         }
 
         logger.info("Validated pricing curve for {}: {} points", txName, expectedPoints.size());
     }
 
-    private List<ActualPoint> calculateExpectedPoints(
-            List<BaseCurvePoint> baseCurve, int baseRate, int maxTps) {
+    private List<ActualPoint> calculateExpectedPoints(List<BaseCurvePoint> baseCurve, int baseRate, int maxTps) {
         final var points = new ArrayList<ActualPoint>();
 
         for (BaseCurvePoint curvePoint : baseCurve) {
@@ -243,4 +243,3 @@ public class HighVolumePricingValidator {
         new HighVolumePricingValidator(Path.of(args[0])).validate();
     }
 }
-
