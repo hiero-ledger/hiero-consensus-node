@@ -361,7 +361,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     GET_BY_KEY,
                     CONTRACT_CALL_LOCAL,
                     CONTRACT_GET_BYTECODE,
-                    CONTRACT_GET_INFO-> true;
+                    CONTRACT_GET_INFO -> true;
             default -> false;
         };
     }
