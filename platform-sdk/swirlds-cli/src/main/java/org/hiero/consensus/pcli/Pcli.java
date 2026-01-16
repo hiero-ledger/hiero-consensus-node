@@ -17,7 +17,7 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.ParseResult;
 
 /**
- * The Swirlds Platform CLI.
+ * The Hiero Platform CLI.
  */
 @Command(
         name = "pcli",
