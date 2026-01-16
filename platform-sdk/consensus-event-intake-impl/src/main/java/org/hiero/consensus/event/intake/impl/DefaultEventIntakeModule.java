@@ -154,6 +154,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
                     .getOutputWire()
                     .solderForMonitoring(platformEvent ->
                             pipelineTracker.recordEvent("verification", platformEvent.getTimeReceived()));
+            pipelineTracker.registerMetric("orphanBuffer");
             this.orphanBufferWiring
                     .getSplitOutput()
                     .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent(
