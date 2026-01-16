@@ -68,6 +68,8 @@ import java.time.Duration;
  *                                           we still continue sending our own events
  * @param broadcast                          enable simplistic broadcast, where all self-events are broadcast to all
  *                                           neighbours
+ * @param disableBroadcastPingThreshold      if ping against peer breaches that level, we disable the broadcast for some
+ *                                           time, as sync is more efficient at that point
  */
 @ConfigData("sync")
 public record SyncConfig(
@@ -92,4 +94,5 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "-1") double fairMaxConcurrentSyncs,
         @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize,
         @ConfigProperty(defaultValue = "true") boolean keepSendingEventsWhenUnhealthy,
-        @ConfigProperty(defaultValue = "true") boolean broadcast) {}
+        @ConfigProperty(defaultValue = "true") boolean broadcast,
+        @ConfigProperty(defaultValue = "900ms") Duration disableBroadcastPingThreshold) {}

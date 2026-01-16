@@ -96,6 +96,8 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     private final RateLimiter fallBehindRateLimiter;
 
+    private final Duration disableBroadcastPingThreshold;
+
     /**
      * How many events were sent out to peer node during latest sync
      */
@@ -118,6 +120,9 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     private boolean lastIgnoreIncomingEvents;
 
+    // volatile, as it is accessed by both platform and write threads
+    private volatile long disabledBroadcastDueToLag = -1;
+
     /**
      * Create new state class for an RPC peer
      *
@@ -133,6 +138,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      * @param eventHandler                  events that are received are passed here
      * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen
      *                                      behind
+     * @param disableBroadcastPingThreshold
      */
     public RpcPeerHandler(
             @NonNull final RpcShadowgraphSynchronizer sharedShadowgraphSynchronizer,
@@ -145,7 +151,8 @@ public class RpcPeerHandler implements GossipRpcReceiver {
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final Consumer<PlatformEvent> eventHandler,
             @NonNull final SyncGuard syncGuard,
-            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
+            @NonNull final FallenBehindMonitor fallenBehindMonitor,
+            @NonNull final Duration disableBroadcastPingThreshold) {
         this.sharedShadowgraphSynchronizer = Objects.requireNonNull(sharedShadowgraphSynchronizer);
         this.sender = Objects.requireNonNull(sender);
         this.selfId = Objects.requireNonNull(selfId);
@@ -158,6 +165,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         this.syncGuard = syncGuard;
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.fallBehindRateLimiter = new RateLimiter(time, Duration.ofMinutes(1));
+        this.disableBroadcastPingThreshold = disableBroadcastPingThreshold;
     }
 
     /**
@@ -230,6 +238,24 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    // read thread
+    @Override
+    public void reportPing(final long pingMillis) {
+        final long LAG_STABLE_PERIOD_MS = 10_000; // FIXME: MAKE IT CONFIGURABLE
+        if (disabledBroadcastDueToLag < 0 && pingMillis > disableBroadcastPingThreshold.toMillis()) {
+            disabledBroadcastDueToLag = time.currentTimeMillis();
+            syncMetrics.disabledBroadcastDueToLag(true);
+        } else if (disabledBroadcastDueToLag > 0 && pingMillis < disableBroadcastPingThreshold.toMillis()) {
+            if (time.currentTimeMillis() - disabledBroadcastDueToLag > LAG_STABLE_PERIOD_MS) {
+                disabledBroadcastDueToLag = -1;
+                syncMetrics.disabledBroadcastDueToLag(false);
+            }
+        }
+    }
+
+    /**
      * Send event to remote node outside of normal sync logic (most probably due to broadcast)
      *
      * @param gossipEvent event to be sent
@@ -241,7 +267,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
 
         // be careful - this is unsynchronized access to non-volatile variables; given it is only a hint, we don't
         // really care if it is immediately visible with updates
-        if (!state.peerIsBehind && state.lastSyncFinishedTime != Instant.MIN) {
+        if (!state.peerIsBehind && state.lastSyncFinishedTime != Instant.MIN && disabledBroadcastDueToLag < 0) {
             sender.sendBroadcastEvent(gossipEvent);
         }
     }
@@ -291,7 +317,11 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         if (!state.remoteSyncData.dontReceiveEvents()) {
             // create a send list based on the known set
             final List<PlatformEvent> sendList = sharedShadowgraphSynchronizer.createSendList(
-                    selfId, state.eventsTheyHave, state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow());
+                    selfId,
+                    state.eventsTheyHave,
+                    state.mySyncData.eventWindow(),
+                    state.remoteSyncData.eventWindow(),
+                    true); // FIXME
             sender.sendEvents(
                     sendList.stream().map(PlatformEvent::getGossipEvent).collect(Collectors.toList()));
             outgoingEventsCounter += sendList.size();

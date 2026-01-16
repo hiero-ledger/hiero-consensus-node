@@ -43,4 +43,7 @@ public interface GossipRpcReceiver {
      * {@link GossipRpcSender#sendBroadcastEvent(GossipEvent)}
      */
     void receiveBroadcastEvent(GossipEvent gossipEvent);
+
+    // FIXME
+    void reportPing(long pingMillis);
 }

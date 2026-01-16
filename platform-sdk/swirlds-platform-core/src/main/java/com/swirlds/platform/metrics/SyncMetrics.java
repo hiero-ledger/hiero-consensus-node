@@ -184,6 +184,11 @@ public class SyncMetrics {
 
     private final RunningAverageMetric tipsPerSync;
 
+    private static final IntegerGauge.Config BROADCAST_DISABLED_DUE_TO_LAG_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "broadcastDisabledDueToLag")
+            .withDescription("How many broadcast peers are disabled due to the too large ping");
+    private final IntegerGauge broadcastDisabledDueToLag;
+
     private final AverageStat syncIndicatorDiff;
     private final AverageStat eventRecRate;
     private final AverageTimeStat avgSyncDuration1;
@@ -248,6 +253,7 @@ public class SyncMetrics {
         rpcWriteThreadRunning = metrics.getOrCreate(RPC_WRITE_THREAD_RUNNING_CONFIG);
         rpcDispatchThreadRunning = metrics.getOrCreate(RPC_DISPATCH_THREAD_RUNNING_CONFIG);
         syncsInProgress = metrics.getOrCreate(SYNCS_IN_PROGRESS_CONFIG);
+        broadcastDisabledDueToLag = metrics.getOrCreate(BROADCAST_DISABLED_DUE_TO_LAG_CONFIG);
 
         avgSyncDuration = new AverageAndMaxTimeStat(
                 metrics,
@@ -338,6 +344,7 @@ public class SyncMetrics {
 
     /**
      * Out metric csv report needs all the metrics upfront to not get confused
+     *
      * @param peers list of all peers to pre-create dynamic metrics
      */
     private void precreateDynamicMetrics(final List<PeerInfo> peers) {
@@ -352,8 +359,8 @@ public class SyncMetrics {
     /**
      * Supplies the event window numbers of a sync for statistics
      *
-     * @param self   event window of our graph at the start of the sync
-     * @param other  event window of their graph at the start of the sync
+     * @param self  event window of our graph at the start of the sync
+     * @param other event window of their graph at the start of the sync
      */
     public void eventWindow(@NonNull final EventWindow self, @NonNull final EventWindow other) {
         syncIndicatorDiff.update(self.ancientThreshold() - other.ancientThreshold());
@@ -685,5 +692,9 @@ public class SyncMetrics {
      */
     public void syncFinished() {
         syncsInProgress.add(-1);
+    }
+
+    public void disabledBroadcastDueToLag(final boolean disabled) {
+        broadcastDisabledDueToLag.add(disabled ? 1 : -1);
     }
 }
