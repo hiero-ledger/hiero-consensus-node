@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.utils;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
@@ -174,7 +175,9 @@ public class BlockGeneratorUtil {
 
         final BlockProof proof = BlockProof.newBuilder()
                 .block(blockNumber)
-                .verificationKey(Bytes.wrap(proofKey))
+                .signedBlockProof(TssSignedBlockProof.newBuilder()
+                        .blockSignature(Bytes.wrap(proofKey))
+                        .build())
                 .build();
         return BlockItem.newBuilder().blockProof(proof).build();
     }
