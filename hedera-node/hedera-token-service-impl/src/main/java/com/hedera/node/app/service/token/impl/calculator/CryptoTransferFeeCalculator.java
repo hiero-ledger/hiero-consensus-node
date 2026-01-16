@@ -66,25 +66,28 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
 
-        final ReadableTokenStore tokenStore = context.feeContext().readableStore(ReadableTokenStore.class);
-        final var op = txnBody.cryptoTransferOrThrow();
-        final long numAccounts = countUniqueAccounts(op);
-        final long numHooks = countHooks(op);
-        final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
-
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
         feeResult.addServiceBaseTC(serviceDef.baseFee());
+        if(context.estimationMode() == EstimationMode.STATEFUL) {
 
-        final Extra transferType = determineTransferType(tokenCounts);
-        if (transferType != null) {
-            addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
+            final ReadableTokenStore tokenStore = context.feeContext().readableStore(ReadableTokenStore.class);
+            final var op = txnBody.cryptoTransferOrThrow();
+            final long numAccounts = countUniqueAccounts(op);
+            final long numHooks = countHooks(op);
+            final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
+
+
+            final Extra transferType = determineTransferType(tokenCounts);
+            if (transferType != null) {
+                addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
+            }
+            addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, numHooks);
+            addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
+            final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
+            addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
+            final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
+            addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, totalNft);
         }
-        addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, numHooks);
-        addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
-        final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
-        addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
-        final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
-        addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, totalNft);
     }
 
     /**

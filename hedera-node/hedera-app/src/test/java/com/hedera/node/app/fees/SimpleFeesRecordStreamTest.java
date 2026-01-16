@@ -111,7 +111,6 @@ public class SimpleFeesRecordStreamTest {
 
         final State state = FakeGenesisState.make(overrides);
 
-        // config props
         final var properties = TransactionExecutors.Properties.newBuilder()
                 .state(state)
                 .appProperties(overrides)
@@ -123,12 +122,11 @@ public class SimpleFeesRecordStreamTest {
 
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
             paths.filter(Files::isRegularFile).forEach(file -> {
-                //                System.out.println("reading file " + file);
                 if (!file.toString().endsWith("rcd")) {
-//                    System.out.println("skipping");
                     return;
                 }
                 try (final var fin = new FileInputStream(file.toFile())) {
+                    // we have to read the first 4 bytes
                     final var recordFileVersion = ByteBuffer.wrap(fin.readNBytes(4)).getInt();
                     final var recordStreamFile = RecordStreamFile.parseFrom(fin);
                     recordStreamFile.getRecordStreamItemsList().stream().forEach(item -> {
@@ -155,16 +153,12 @@ public class SimpleFeesRecordStreamTest {
                 Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
         final Transaction txn =
                 Transaction.newBuilder().body(body).build();
-        if (shouldSkip(body.data().kind())) {
-            return;
-        }
         final var result = calc.calculate(txn, ServiceFeeCalculator.EstimationMode.INTRINSIC);
         final var record = item.getRecord();
         final var txnFee = record.getTransactionFee();
         final var rate = record.getReceipt().getExchangeRate();
         var fract = ((double) result.totalTC()) / (double) (txnFee * rate.getCurrentRate().getCentEquiv());
         if (Math.abs(1 - fract) > 0.05) {
-            System.out.println("TXN:" + body.data().kind());
             csv.field(body.data().kind().name());
             csv.field(result.totalTC());
             csv.field(txnFee*rate.getCurrentRate().getCentEquiv());
@@ -172,47 +166,5 @@ public class SimpleFeesRecordStreamTest {
             csv.field(result.toString());
             csv.endLine();
         }
-    }
-
-    private boolean shouldSkip(TransactionBody.DataOneOfType kind) {
-        // requires readable store
-        if (kind == TransactionBody.DataOneOfType.CONSENSUS_SUBMIT_MESSAGE) {
-            return true;
-        }
-        if (kind == TransactionBody.DataOneOfType.CRYPTO_TRANSFER) {
-            return true;
-        }
-
-        // fee calculator not implemented yet
-        // coming in PR: https://github.com/hiero-ledger/hiero-consensus-node/pull/22584
-        if (kind == TransactionBody.DataOneOfType.TOKEN_AIRDROP) {
-            return true;
-        }
-        if (kind == TransactionBody.DataOneOfType.TOKEN_ASSOCIATE) {
-            return true;
-        }
-        if (kind == TransactionBody.DataOneOfType.TOKEN_DISSOCIATE) {
-            return true;
-        }
-        if (kind == TransactionBody.DataOneOfType.TOKEN_UPDATE) {
-            return true;
-        }
-        if (kind == TransactionBody.DataOneOfType.TOKEN_UPDATE_NFTS) {
-            return true;
-        }
-        if (kind == TransactionBody.DataOneOfType.TOKEN_WIPE) {
-            return true;
-        }
-        if (kind == TransactionBody.DataOneOfType.TOKEN_REJECT) {
-            return true;
-        }
-        if (kind == TransactionBody.DataOneOfType.TOKEN_GRANT_KYC) {
-            return true;
-        }
-        if (kind == TransactionBody.DataOneOfType.TOKEN_FEE_SCHEDULE_UPDATE) {
-            return true;
-        }
-
-        return false;
     }
 }
