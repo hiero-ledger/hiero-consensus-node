@@ -29,6 +29,7 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.records.BlockRecordInjectionModule;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -192,6 +193,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder scheduleService(ScheduleServiceImpl scheduleService);
+
+        @BindsInstance
+        Builder addressBookService(AddressBookServiceImpl addressBookService);
 
         @BindsInstance
         Builder configProviderImpl(ConfigProviderImpl configProvider);

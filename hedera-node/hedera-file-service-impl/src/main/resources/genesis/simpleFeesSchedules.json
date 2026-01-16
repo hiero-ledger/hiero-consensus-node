@@ -674,6 +674,26 @@
           }
         }
       ]
+    },
+    {
+      "name": "AddressBook",
+      "schedule": [
+        {
+          "name": "NodeCreate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "NodeUpdate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "NodeDelete",
+          "baseFee": 9000000,
+          "extras": []
+        }
+      ]
     }
   ]
 }
