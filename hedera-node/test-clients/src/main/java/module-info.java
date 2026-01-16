@@ -74,6 +74,7 @@ open module com.hedera.node.test.clients {
     provides LauncherSessionListener with
             SharedNetworkLauncherSessionListener;
 
+    requires com.hedera.cryptography.wraps;
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;

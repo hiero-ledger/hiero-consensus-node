@@ -776,9 +776,27 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
         final long blockNumber = signedBlock.number();
 
+        final Bytes effectiveSignature;
+        if (verificationKey != null && chainOfTrustProof != null) {
+            if (chainOfTrustProof.hasWrapsProof()) {
+                effectiveSignature =
+                        verificationKey.append(blockSignature).append(chainOfTrustProof.wrapsProofOrThrow());
+            } else {
+                effectiveSignature = verificationKey
+                        .append(blockSignature)
+                        .append(chainOfTrustProof
+                                .aggregatedNodeSignaturesOrThrow()
+                                .aggregatedSignature());
+            }
+        } else if (verificationKey != null) {
+            effectiveSignature = verificationKey.append(blockSignature);
+        } else {
+            effectiveSignature = blockSignature;
+        }
         // Write proofs for all pending blocks up to and including the signed block number
-        final var latestSignedBlockProof =
-                TssSignedBlockProof.newBuilder().blockSignature(blockSignature).build();
+        final var latestSignedBlockProof = TssSignedBlockProof.newBuilder()
+                .blockSignature(effectiveSignature)
+                .build();
         while (!pendingBlocks.isEmpty() && pendingBlocks.peek().number() <= blockNumber) {
             final var currentPendingBlock = pendingBlocks.poll();
             final BlockProof.Builder proof;
