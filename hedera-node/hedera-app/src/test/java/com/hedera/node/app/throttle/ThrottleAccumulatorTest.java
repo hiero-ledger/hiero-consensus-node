@@ -718,8 +718,8 @@ class ThrottleAccumulatorTest {
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
-    void clearsThrottleUsagesWhenTransactionIsThrottledToPreventDoubleReclaim(
-            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+    void throttleUsagesPreservedWhenThrottledForProperReclaim(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
@@ -764,7 +764,151 @@ class ThrottleAccumulatorTest {
         // then - verify that we eventually got throttled
         assertTrue(throttled, "Expected transaction to be throttled after exhausting capacity");
 
-        assertTrue(throttleUsages.isEmpty(), "throttleUsages should be cleared when transaction is throttled");
+        assertFalse(
+                throttleUsages.isEmpty(),
+                "throttleUsages should be preserved when throttled so caller can reclaim capacity");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void noDoubleReclaimWhenThrottledWithThrottleUsages(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
+        // given - CONTRACT_CALL uses multiple buckets
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .contractCall(ContractCallTransactionBody.DEFAULT)
+                        .build());
+
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
+
+        subject.rebuildFor(defs);
+
+        // Record initial bucket state
+        var throttles = subject.activeThrottlesFor(CONTRACT_CALL);
+        var bucket0 = throttles.get(0);
+        var bucket1 = throttles.get(1);
+        final long initialUsed0 = bucket0.used();
+        final long initialUsed1 = bucket1.used();
+
+        // Exhaust the throttle
+        List<ThrottleUsage> throttleUsages = new ArrayList<>();
+        boolean throttled = false;
+        Instant currentTime = TIME_INSTANT;
+        for (int i = 0; i < 20 && !throttled; i++) {
+            throttleUsages.clear();
+            throttled = subject.checkAndEnforceThrottle(transactionInfo, currentTime, state, throttleUsages, false);
+            currentTime = currentTime.plusNanos(1);
+        }
+        assertTrue(throttled, "Should be throttled");
+        assertFalse(throttleUsages.isEmpty(), "Should have throttle usages to reclaim");
+
+        // Record usage after throttling (before reclaim)
+        final long usedBeforeReclaim0 = bucket0.used();
+
+        // Simulate what IngestWorkflowImpl does - reclaim via throttleUsages
+        throttleUsages.forEach(ThrottleUsage::reclaimCapacity);
+
+        // Verify capacity was reclaimed exactly once
+        final long usedAfterReclaim0 = bucket0.used();
+        final long usedAfterReclaim1 = bucket1.used();
+
+        // The reclaim should restore capacity for at least one bucket
+        assertTrue(usedAfterReclaim0 < usedBeforeReclaim0, "Should have less usage after reclaim");
+
+        assertTrue(usedAfterReclaim0 >= initialUsed0, "Bucket 0 usage should not go below initial");
+        assertTrue(usedAfterReclaim1 >= initialUsed1, "Bucket 1 usage should not go below initial");
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void atomicBatchLikeSequentialChecksPreserveAllUsages(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
+        // given - CONTRACT_CALL uses multiple buckets
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .contractCall(ContractCallTransactionBody.DEFAULT)
+                        .build());
+
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
+
+        subject.rebuildFor(defs);
+
+        // Record initial bucket state
+        var throttles = subject.activeThrottlesFor(CONTRACT_CALL);
+        var bucket0 = throttles.get(0);
+        final long initialUsed = bucket0.used();
+
+        // Simulate AtomicBatch: shared throttleUsages list across multiple inner transactions
+        List<ThrottleUsage> sharedThrottleUsages = new ArrayList<>();
+        Instant currentTime = TIME_INSTANT;
+
+        // First inner transaction - should pass
+        boolean firstThrottled =
+                subject.checkAndEnforceThrottle(transactionInfo, currentTime, state, sharedThrottleUsages, false);
+        assertFalse(firstThrottled, "First transaction should not be throttled");
+        int usagesAfterFirst = sharedThrottleUsages.size();
+        assertTrue(usagesAfterFirst > 0, "Should have usage records after first transaction");
+
+        // Continue making requests until throttled (simulating more inner transactions)
+        boolean throttled = false;
+        for (int i = 1; i < 20 && !throttled; i++) {
+            currentTime = currentTime.plusNanos(1);
+            throttled =
+                    subject.checkAndEnforceThrottle(transactionInfo, currentTime, state, sharedThrottleUsages, false);
+        }
+        assertTrue(throttled, "Should eventually be throttled");
+
+        // CRITICAL: throttleUsages should contain usages from ALL transactions (including first)
+        assertTrue(
+                sharedThrottleUsages.size() >= usagesAfterFirst,
+                "throttleUsages should preserve usages from earlier transactions");
+
+        // Record usage before reclaim
+        final long usedBeforeReclaim = bucket0.used();
+
+        // Simulate IngestWorkflowImpl reclaim
+        sharedThrottleUsages.forEach(ThrottleUsage::reclaimCapacity);
+
+        // Verify ALL capacity was reclaimed (including from first transaction)
+        final long usedAfterReclaim = bucket0.used();
+        assertTrue(usedAfterReclaim < usedBeforeReclaim, "Should reclaim capacity from all transactions");
+        assertEquals(initialUsed, usedAfterReclaim, "Should return to initial state after reclaiming all usages");
     }
 
     @ParameterizedTest
