@@ -153,9 +153,11 @@ public class TransactionDispatcher {
         }
 
         return switch (feeContext.body().data().kind()) {
-            case CONSENSUS_CREATE_TOPIC, CONSENSUS_DELETE_TOPIC, CONSENSUS_SUBMIT_MESSAGE, CONSENSUS_UPDATE_TOPIC ->
-                true;
-            case CRYPTO_APPROVE_ALLOWANCE,
+            case CONSENSUS_CREATE_TOPIC,
+                    CONSENSUS_DELETE_TOPIC,
+                    CONSENSUS_SUBMIT_MESSAGE,
+                    CONSENSUS_UPDATE_TOPIC,
+                    CRYPTO_APPROVE_ALLOWANCE,
                     CRYPTO_CREATE_ACCOUNT,
                     CRYPTO_DELETE,
                     CRYPTO_DELETE_ALLOWANCE,
@@ -186,6 +188,7 @@ public class TransactionDispatcher {
                     TOKEN_UPDATE,
                     TOKEN_UPDATE_NFTS,
                     TOKEN_WIPE -> true;
+            case NODE_CREATE, NODE_UPDATE, NODE_DELETE -> true;
             case CONTRACT_CREATE_INSTANCE,
                     CONTRACT_DELETE_INSTANCE,
                     CONTRACT_CALL,
