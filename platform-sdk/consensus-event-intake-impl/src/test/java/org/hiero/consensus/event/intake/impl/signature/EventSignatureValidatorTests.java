@@ -75,9 +75,7 @@ class EventSignatureValidatorTests {
             return new RosterEntry(
                     nodeId.id(),
                     10,
-                    Bytes.wrap(PreGeneratedX509Certs.getSigCert(nodeId.id())
-                            .getCertificate()
-                            .getEncoded()),
+                    Bytes.wrap(PreGeneratedX509Certs.getSigCert(nodeId.id()).getEncoded()),
                     List.of());
         } catch (CertificateEncodingException e) {
             throw new RuntimeException(e);
