@@ -58,6 +58,14 @@ public interface EventIntakeModule {
     OutputWire<PlatformEvent> validatedEventsOutputWire();
 
     /**
+     * {@link OutputWire} for validated but not yet persisted events.
+     *
+     * @return the {@link OutputWire} for validated but non-persisted events
+     */
+    @NonNull
+    OutputWire<PlatformEvent> validatedNonPersistedEventsOutputWire();
+
+    /**
      * {@link InputWire} for gossiped events received from other nodes.
      *
      * @return the {@link InputWire} for gossiped events
