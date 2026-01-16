@@ -79,11 +79,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
     /**
      * Calculates fees for transactions per HIP-1261.
-     * Node fee includes BYTES and SIGNATURES extras.
+     * Node fee includes BYTES (full transaction size) and SIGNATURES extras.
      * Service fee is transaction-specific.
      *
      * @param txnBody the transaction body
-     * @param feeContext the fee context containing signature count
+     * @param feeContext the fee context containing signature count and full transaction bytes
      * @return the calculated fee result
      */
     @NonNull
@@ -91,8 +91,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
         // Extract primitive counts (no allocations)
         final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
-        // Calculate transaction body size in bytes using PROTOBUF codec
-        final long bytes = TransactionBody.PROTOBUF.measureRecord(txnBody);
+        // Get full transaction size in bytes (includes body, signatures, and all transaction data)
+        final long bytes = feeContext != null ? feeContext.numTxnBytes() : 0;
         final var result = new FeeResult();
 
         // Add node base and extras (bytes and payer signatures)

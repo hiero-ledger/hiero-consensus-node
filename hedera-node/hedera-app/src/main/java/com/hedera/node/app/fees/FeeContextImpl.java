@@ -137,6 +137,13 @@ public class FeeContextImpl implements FeeContext {
     }
 
     @Override
+    public int numTxnBytes() {
+        return txInfo.serializedSignedTx() != null
+                ? (int) txInfo.serializedSignedTx().length()
+                : 0;
+    }
+
+    @Override
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
         return transactionDispatcher.dispatchComputeFees(new ChildFeeContextImpl(
