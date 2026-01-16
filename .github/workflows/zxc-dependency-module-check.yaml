@@ -80,7 +80,7 @@ jobs:
 
       - name: Gradle Dependency Scopes Check
         id: check-dependency-scopes
-        run: ${GRADLE_EXEC} checkAllModuleInfo validatePomFiles
+        run: ${GRADLE_EXEC} checkAllModuleInfo checkVersionConsistency validatePomFiles
 
       - name: Set Failure Mode Output
         id: set-failure-mode
