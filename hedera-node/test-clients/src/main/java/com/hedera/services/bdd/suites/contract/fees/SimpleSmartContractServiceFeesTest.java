@@ -4,9 +4,12 @@ package com.hedera.services.bdd.suites.contract.fees;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
@@ -24,6 +27,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -47,13 +51,18 @@ public class SimpleSmartContractServiceFeesTest {
     static final double CONTRACT_CALL_BASE_FEE = 0;
     static final double CONTRACT_UPDATE_BASE_FEE = 0.026;
     static final double ETHEREUM_CALL_BASE_FEE = 0.0001;
-    // 0.0001 cost and 9x network multiplier = 0.001
+    static final double HOOK_STORE_BASE_FEE = 0.005;
+    // EXTRAS
+    static final double EXTRA_HOOK_CREATE_FEE = 0.0049;
     static final double SINGLE_SIGNATURE_COST = 0.001;
     static final double SINGLE_BYTE_FEE = 0.000011;
     static final double EXPECTED_GAS_USED = 0.00184;
 
     @Contract(contract = "SmartContractsFees")
     static SpecContract contract;
+
+    @Contract(contract = "StorageAccessHook", creationGas = 5_000_000)
+    static SpecContract storageGetSlotHook;
 
     @Contract(contract = "CalldataSize")
     static SpecContract calldataContract;
@@ -66,7 +75,12 @@ public class SimpleSmartContractServiceFeesTest {
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(contract.getInfo(), calldataContract.getInfo(), civilian.getInfo(), relayer.getInfo());
+        lifecycle.doAdhoc(
+                contract.getInfo(),
+                storageGetSlotHook.getInfo(),
+                calldataContract.getInfo(),
+                civilian.getInfo(),
+                relayer.getInfo());
     }
 
     @HapiTest
@@ -152,5 +166,39 @@ public class SimpleSmartContractServiceFeesTest {
                 validateChargedUsdWithin("ethCall", jumboGasUsed + ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes, 1),
                 validateChargedUsdForGasOnly("ethCall", jumboGasUsed, 1),
                 validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes, 1));
+    }
+
+    @LeakyHapiTest(overrides = "hooks.hooksEnabled")
+    final Stream<DynamicTest> multipleHookStoreCreateBaseFee() {
+        final Bytes slot1 = Bytes.wrap("slot1");
+        final Bytes slot2 = Bytes.wrap("slot2");
+        final Bytes slot3 = Bytes.wrap("slot3");
+        final Bytes value = Bytes.wrap("value");
+        return hapiTest(
+                overriding("hooks.hooksEnabled", "true"),
+                cryptoCreate("ownerAccount").withHooks(accountAllowanceHook(237L, storageGetSlotHook.name())),
+                accountEvmHookStore("ownerAccount", 237L)
+                        .putSlot(slot1, value)
+                        .putSlot(slot2, value)
+                        .putSlot(slot3, value)
+                        .payingWith("ownerAccount")
+                        .signedBy("ownerAccount")
+                        .via("hookStoreTxn"),
+                validateChargedUsd("hookStoreTxn", HOOK_STORE_BASE_FEE + 2 * EXTRA_HOOK_CREATE_FEE));
+    }
+
+    @LeakyHapiTest(overrides = "hooks.hooksEnabled")
+    final Stream<DynamicTest> singleHookStoreCreateBaseFee() {
+        final Bytes slot1 = Bytes.wrap("slot1");
+        final Bytes value = Bytes.wrap("value");
+        return hapiTest(
+                overriding("hooks.hooksEnabled", "true"),
+                cryptoCreate("ownerAccount").withHooks(accountAllowanceHook(237L, storageGetSlotHook.name())),
+                accountEvmHookStore("ownerAccount", 237L)
+                        .putSlot(slot1, value)
+                        .payingWith("ownerAccount")
+                        .signedBy("ownerAccount")
+                        .via("hookStoreTxn"),
+                validateChargedUsd("hookStoreTxn", HOOK_STORE_BASE_FEE));
     }
 }
