@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.config.api.ConfigurationExtension;
+import org.hiero.consensus.hashgraph.HashgraphConfigurationExtension;
+
 module org.hiero.consensus.hashgraph {
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
@@ -9,4 +12,7 @@ module org.hiero.consensus.hashgraph {
     requires static com.github.spotbugs.annotations;
 
     exports org.hiero.consensus.hashgraph;
+
+    provides ConfigurationExtension with
+            HashgraphConfigurationExtension;
 }

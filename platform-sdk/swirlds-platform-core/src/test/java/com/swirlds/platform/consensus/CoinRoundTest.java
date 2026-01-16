@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
-import com.swirlds.platform.config.legacy.LegacyConfigProperties;
-import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
-import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.pces.PcesFileReader;
+import org.hiero.consensus.pces.PcesFileTracker;
+import org.hiero.consensus.pces.PcesMultiFileIterator;
+import org.hiero.consensus.pces.PcesUtilities;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -46,10 +44,7 @@ public class CoinRoundTest extends PlatformTest {
         final PcesFileTracker pcesFileTracker =
                 PcesFileReader.readFilesFromDisk(context.getConfiguration(), context.getRecycleBin(), dir, 0, false);
 
-        final LegacyConfigProperties legacyConfigProperties =
-                LegacyConfigPropertiesLoader.loadConfigFile(ResourceLoader.getFile(resources + "config.txt"));
-        final TestIntake intake =
-                new TestIntake(context, RosterRetriever.buildRoster(legacyConfigProperties.getAddressBook()));
+        final TestIntake intake = new TestIntake(context, Roster.newBuilder().build());
 
         final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);
         while (eventIterator.hasNext()) {

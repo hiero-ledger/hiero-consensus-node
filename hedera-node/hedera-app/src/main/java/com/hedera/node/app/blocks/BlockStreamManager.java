@@ -6,6 +6,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -28,7 +29,7 @@ import org.hiero.consensus.model.hashgraph.Round;
  * Merkle trees will be in the order they are written.
  */
 public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener {
-    Bytes ZERO_BLOCK_HASH = Bytes.wrap(new byte[48]);
+    Bytes ZERO_BLOCK_HASH = Bytes.wrap(new byte[StreamingTreeHasher.HASH_LENGTH]);
     int NUM_SIBLINGS_PER_BLOCK = 4;
 
     /**
@@ -97,7 +98,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param state the state of the network at the beginning of the round
      * @throws IllegalStateException if the last block hash was not explicitly initialized
      */
-    void startRound(@NonNull Round round, @NonNull State state);
+    void startRound(@NonNull Round round, @NonNull MerkleNodeState state);
 
     /**
      * Confirms that the post-upgrade work has been completed.
@@ -154,7 +155,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param roundNum the number of the round that has just ended
      * @return returns true if the round is the last round in the block
      */
-    boolean endRound(@NonNull State state, long roundNum);
+    boolean endRound(@NonNull MerkleNodeState state, long roundNum);
 
     /**
      * Writes a block item to the stream.

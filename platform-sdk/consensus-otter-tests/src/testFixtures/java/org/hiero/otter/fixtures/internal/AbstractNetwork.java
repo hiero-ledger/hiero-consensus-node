@@ -16,7 +16,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.common.utility.Threshold;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.reconnect.FallenBehindStatus;
@@ -43,6 +42,7 @@ import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.data.Percentage;
+import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -263,7 +263,7 @@ public abstract class AbstractNetwork implements Network {
         try {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
-            return CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet().stream()
+            return CryptoStatic.generateKeysAndCerts(nodeIds).entrySet().stream()
                     .map(e -> doCreateNode(e.getKey(), e.getValue()))
                     .toList();
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
@@ -289,7 +289,7 @@ public abstract class AbstractNetwork implements Network {
         try {
             final NodeId nodeId = getNextNodeId();
             final KeysAndCerts keysAndCerts =
-                    CryptoStatic.generateKeysAndCerts(List.of(nodeId), null).get(nodeId);
+                    CryptoStatic.generateKeysAndCerts(List.of(nodeId)).get(nodeId);
             return doCreateInstrumentedNode(nodeId, keysAndCerts);
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
@@ -1332,5 +1332,6 @@ public abstract class AbstractNetwork implements Network {
         }
     }
 
-    private record LatencyOverride(@NonNull Duration latency, @NonNull Percentage jitter) {}
+    private record LatencyOverride(
+            @NonNull Duration latency, @NonNull Percentage jitter) {}
 }

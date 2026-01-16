@@ -7,8 +7,12 @@ import static com.swirlds.platform.gui.internal.BrowserWindowManager.getPlatform
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static com.swirlds.platform.state.service.PlatformStateUtils.latestFreezeRoundOf;
 
+import com.swirlds.base.time.Time;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.component.framework.component.ComponentWiring;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifier;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
@@ -19,17 +23,10 @@ import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
 import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFileManager;
-import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
-import com.swirlds.platform.event.validation.DefaultEventSignatureValidator;
-import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
@@ -64,9 +61,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.pces.PcesConfig;
+import org.hiero.consensus.pces.PcesFileManager;
+import org.hiero.consensus.pces.PcesUtilities;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -90,7 +92,6 @@ public class PlatformComponentBuilder {
 
     private final PlatformBuildingBlocks blocks;
 
-    private EventSignatureValidator eventSignatureValidator;
     private StateGarbageCollector stateGarbageCollector;
     private OrphanBuffer orphanBuffer;
     private ConsensusEngine consensusEngine;
@@ -190,43 +191,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide an event signature validator in place of the platform's default event signature validator.
-     *
-     * @param eventSignatureValidator the event signature validator to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventSignatureValidator(
-            @NonNull final EventSignatureValidator eventSignatureValidator) {
-        throwIfAlreadyUsed();
-        if (this.eventSignatureValidator != null) {
-            throw new IllegalStateException("Event signature validator has already been set");
-        }
-        this.eventSignatureValidator = Objects.requireNonNull(eventSignatureValidator);
-
-        return this;
-    }
-
-    /**
-     * Build the event signature validator if it has not yet been built. If one has been provided via
-     * {@link #withEventSignatureValidator(EventSignatureValidator)}, that validator will be used. If this method is
-     * called more than once, only the first call will build the event signature validator. Otherwise, the default
-     * validator will be created and returned.
-     */
-    @NonNull
-    public EventSignatureValidator buildEventSignatureValidator() {
-        if (eventSignatureValidator == null) {
-            eventSignatureValidator = new DefaultEventSignatureValidator(
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    ConsensusCryptoUtils::verifySignature,
-                    blocks.rosterHistory(),
-                    blocks.intakeEventCounter());
-        }
-        return eventSignatureValidator;
-    }
-
-    /**
      * Provide a state garbage collector in place of the platform's default state garbage collector.
      *
      * @param stateGarbageCollector the state garbage collector to use
@@ -318,7 +282,9 @@ public class PlatformComponentBuilder {
     public ConsensusEngine buildConsensusEngine() {
         if (consensusEngine == null) {
             consensusEngine = new DefaultConsensusEngine(
-                    blocks.platformContext(),
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
                     blocks.freezeChecker());
@@ -493,14 +459,20 @@ public class PlatformComponentBuilder {
     public InlinePcesWriter buildInlinePcesWriter() {
         if (inlinePcesWriter == null) {
             try {
+                final PlatformContext platformContext = blocks.platformContext();
+                final Configuration configuration = platformContext.getConfiguration();
+                final Metrics metrics = platformContext.getMetrics();
+                final Time time = platformContext.getTime();
+                final NodeId selfId = blocks.selfId();
                 final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
-                        blocks.platformContext(),
+                        configuration,
+                        metrics,
+                        time,
                         blocks.initialPcesFiles(),
-                        PcesUtilities.getDatabaseDirectory(
-                                blocks.platformContext().getConfiguration(), blocks.selfId()),
+                        PcesUtilities.getDatabaseDirectory(configuration, selfId),
                         blocks.initialState().get().getRound());
-                inlinePcesWriter = new DefaultInlinePcesWriter(
-                        blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());
+                inlinePcesWriter =
+                        new DefaultInlinePcesWriter(configuration, metrics, time, preconsensusEventFileManager, selfId);
 
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);

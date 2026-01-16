@@ -34,7 +34,7 @@ public final class BlockStreamUtils {
             case STATE_ID_BYTECODE -> "ContractService.BYTECODE";
             case STATE_ID_STORAGE -> "ContractService.STORAGE";
             case STATE_ID_EVM_HOOK_STATES -> "ContractService.EVM_HOOK_STATES";
-            case STATE_ID_LAMBDA_STORAGE -> "ContractService.LAMBDA_STORAGE";
+            case STATE_ID_EVM_HOOK_STORAGE -> "ContractService.LAMBDA_STORAGE";
             case STATE_ID_ENTITY_ID -> "EntityIdService.ENTITY_ID";
             case STATE_ID_MIDNIGHT_RATES -> "FeeService.MIDNIGHT_RATES";
             case STATE_ID_FILES -> "FileService.FILES";
@@ -152,7 +152,7 @@ public final class BlockStreamUtils {
             case NODE_ID_KEY -> mapChangeKey.nodeIdKeyOrThrow();
             case CONSTRUCTION_NODE_ID_KEY -> mapChangeKey.constructionNodeIdKeyOrThrow();
             case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
-            case LAMBDA_SLOT_KEY -> mapChangeKey.lambdaSlotKeyOrThrow();
+            case EVM_HOOK_SLOT_KEY -> mapChangeKey.evmHookSlotKeyOrThrow();
         };
     }
 

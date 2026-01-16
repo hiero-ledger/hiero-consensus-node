@@ -6,13 +6,13 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
+import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.pces.PcesUtilities.getDatabaseDirectory;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -26,9 +26,6 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
@@ -69,6 +66,9 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesConfig;
+import org.hiero.consensus.pces.PcesFileReader;
+import org.hiero.consensus.pces.PcesFileTracker;
 import org.hiero.consensus.roster.RosterHistory;
 
 /**
@@ -114,9 +114,9 @@ public final class PlatformBuilder {
     private KeysAndCerts keysAndCerts;
 
     /**
-     * The path to the configuration file (i.e. the file with the address book).
+     * The path to the settings file (i.e. the file with the optional settings).
      */
-    private final Path configPath = getAbsolutePath(DEFAULT_CONFIG_FILE_NAME);
+    private final Path settingsPath = getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME);
 
     /**
      * The wiring model to use for this platform.
@@ -460,7 +460,7 @@ public final class PlatformBuilder {
             executorFactory = ExecutorFactory.create("platform", null, DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
         }
 
-        final boolean firstPlatform = doStaticSetup(configuration, configPath);
+        final boolean firstPlatform = doStaticSetup(configuration, settingsPath);
 
         final Roster currentRoster = rosterHistory.getCurrentRoster();
 

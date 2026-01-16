@@ -19,8 +19,6 @@ import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
-import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
@@ -42,6 +40,8 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.round.EventWindowUtils;
 
 /**
@@ -61,7 +61,7 @@ public class TestIntake {
 
     /**
      * @param platformContext the platform context used to configure this intake.
-     * @param roster     the roster used by this intake
+     * @param roster the roster used by this intake
      */
     public TestIntake(@NonNull final PlatformContext platformContext, @NonNull final Roster roster) {
         final NodeId selfId = NodeId.of(0);
@@ -95,8 +95,13 @@ public class TestIntake {
             }
         };
 
-        final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(platformContext, roster, selfId, localFreezeCheck);
+        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                roster,
+                selfId,
+                localFreezeCheck);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
