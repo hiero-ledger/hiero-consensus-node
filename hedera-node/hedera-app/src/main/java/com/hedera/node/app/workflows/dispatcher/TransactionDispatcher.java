@@ -36,6 +36,26 @@ public class TransactionDispatcher {
     public static final String SYSTEM_DELETE_WITHOUT_ID_CASE = "SystemDelete without IdCase";
     public static final String SYSTEM_UNDELETE_WITHOUT_ID_CASE = "SystemUndelete without IdCase";
 
+    /**
+     * No-op handler to simplify externalizing informational system txs in the consensus stream.
+     */
+    private static final TransactionHandler NOOP_HANDLER = new TransactionHandler() {
+        @Override
+        public void preHandle(@NonNull PreHandleContext context) {
+            // No-op
+        }
+
+        @Override
+        public void pureChecks(@NonNull PureChecksContext context) {
+            // No-op
+        }
+
+        @Override
+        public void handle(@NonNull HandleContext context) throws HandleException {
+            // No-op
+        }
+    };
+
     protected final TransactionHandlers handlers;
     protected final FeeManager feeManager;
 
@@ -140,9 +160,12 @@ public class TransactionDispatcher {
                     CRYPTO_DELETE,
                     CRYPTO_DELETE_ALLOWANCE,
                     CRYPTO_UPDATE_ACCOUNT,
-                    CRYPTO_TRANSFER -> true;
-            case SCHEDULE_CREATE, SCHEDULE_SIGN, SCHEDULE_DELETE -> true;
-            case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE -> true;
+                    CRYPTO_TRANSFER,
+                    SCHEDULE_CREATE,
+                    SCHEDULE_SIGN,
+                    SCHEDULE_DELETE -> true;
+            case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE, SYSTEM_DELETE, SYSTEM_UNDELETE -> true;
+            case UTIL_PRNG, ATOMIC_BATCH -> true;
             case TOKEN_CREATION,
                     TOKEN_MINT,
                     TOKEN_BURN,
@@ -277,6 +300,7 @@ public class TransactionDispatcher {
                     case FILE_ID -> handlers.fileSystemUndeleteHandler();
                     default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
                 };
+            case LEDGER_ID_PUBLICATION -> NOOP_HANDLER;
 
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };

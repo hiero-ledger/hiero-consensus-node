@@ -31,7 +31,7 @@ import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -116,7 +116,7 @@ public class RecordCreationSuite {
                         .logged()));
     }
 
-    @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
+    @LeakyRepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
     @Tag(MATS)
     final Stream<DynamicTest> submittingNodeChargedNetworkFeeForLackOfDueDiligence() {
         final String disquietingMemo = "\u0000his is ok, it's fine, it's whatever.";

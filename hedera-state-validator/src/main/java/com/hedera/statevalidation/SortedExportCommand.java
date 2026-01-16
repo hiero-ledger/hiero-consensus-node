@@ -6,7 +6,6 @@ import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.statevalidation.exporter.SortedJsonExporter;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -68,15 +67,9 @@ public class SortedExportCommand implements Runnable {
             throw new RuntimeException(outputDir.getAbsolutePath() + " is not a directory");
         }
 
-        final MerkleNodeState state;
         log.info("Initializing the state...");
         long start = System.currentTimeMillis();
-        try {
-            final DeserializedSignedState deserializedSignedState = StateUtils.getDeserializedSignedState();
-            state = deserializedSignedState.reservedSignedState().get().getState();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        final MerkleNodeState state = StateUtils.getState();
         log.info("State has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
         ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();

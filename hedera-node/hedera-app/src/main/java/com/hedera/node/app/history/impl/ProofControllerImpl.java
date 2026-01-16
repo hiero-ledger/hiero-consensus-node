@@ -265,7 +265,7 @@ public class ProofControllerImpl implements ProofController {
                 PROOF_COMPLETE_MSG,
                 construction.constructionId(),
                 isWrapsExtensible(proof));
-        historyService.onFinished(historyStore, construction);
+        historyService.onFinished(historyStore, construction, weights.targetNodeWeights());
     }
 
     /**
