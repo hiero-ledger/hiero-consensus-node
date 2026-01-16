@@ -1,0 +1,74 @@
+/**
+ * # Ledger Id Publication
+ * A system-initiated (i.e. internal) transaction to externalize a new
+ * ledger id and the verification key to use in verifying recursive
+ * chain-of-trust proofs from the new ledger id.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.node.tss;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.node.tss.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.node.tss">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A system initiated transaction to externalize the ledger id and verification
+ * key for recursive chain-of-trust proofs extending from the new ledger id.
+ *
+ * This transaction SHALL be issued whenever the ledger id changes.<br/>
+ * This transaction MUST NOT be sent by a client and SHALL be rejected if
+ * received by any node.<br/>
+ * This transaction SHALL be present in the record stream or block stream.
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message LedgerIdPublicationTransactionBody {
+  /**
+   * The new ledger id.
+   */
+  bytes ledger_id = 1;
+
+  /**
+   * The key to use when verifying recursive chain-of-trust proofs that extend
+   * from this ledger id.
+   */
+  bytes history_proof_verification_key = 2;
+
+  /**
+   * The node-specific contributions made to the new ledger id.
+   */
+  repeated LedgerIdNodeContribution node_contributions = 3;
+}
+
+/**
+ * A record of the proof key a node had in a particular address
+ * book. Necessary to keep at each point history so that nodes
+ * can verify the correct key was used to sign in transitions
+ * starting from the current address book; no matter how keys
+ * have been rotated from the time the address book was created.
+ */
+message LedgerIdNodeContribution {
+  /**
+   * The node id.
+   */
+  uint64 node_id = 1;
+  /**
+   * The node's consensus weight when the ledger id was published.
+   */
+  uint64 weight = 2;
+  /**
+   * The public key the node used to contribute to history proofs when the
+   * ledger id was published.
+   */
+  bytes history_proof_key = 3;
+}

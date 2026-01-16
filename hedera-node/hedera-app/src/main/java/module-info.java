@@ -132,6 +132,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.records.schemas;
     exports com.hedera.node.app.hints.schemas;
     exports com.hedera.node.app.blocks.impl.streaming.config;
+    exports com.hedera.node.app.history.schemas;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.hedera.node.app.config.ServicesConfigExtension;

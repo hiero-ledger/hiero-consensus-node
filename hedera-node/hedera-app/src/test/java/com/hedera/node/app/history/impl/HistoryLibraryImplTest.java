@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Set;
@@ -29,6 +30,11 @@ class HistoryLibraryImplTest {
     private HistoryLibrary library;
 
     private final HistoryLibraryImpl subject = new HistoryLibraryImpl();
+
+    @Test
+    void wrapsVerificationKeyIsTbd() {
+        assertArrayEquals(WRAPSVerificationKey.getCurrentKey(), subject.wrapsVerificationKey());
+    }
 
     @Test
     void computeHashBuildsCanonicalAddressBookAndWrapsResult() {

@@ -28,7 +28,7 @@ public interface HistoryLibrary {
     /**
      * A placeholder metadata for the genesis WRAPS proof.
      */
-    byte[] GENESIS_WRAPS_METADATA = new byte[1280];
+    byte[] GENESIS_WRAPS_METADATA = new byte[1288];
 
     /**
      * An address book for use in the history library.
@@ -36,7 +36,10 @@ public interface HistoryLibrary {
      * @param publicKeys the public keys of the nodes in the address book
      * @param nodeIds the node ids
      */
-    record AddressBook(@NonNull long[] weights, @NonNull byte[][] publicKeys, @NonNull long[] nodeIds) {
+    record AddressBook(
+            @NonNull long[] weights,
+            @NonNull byte[][] publicKeys,
+            @NonNull long[] nodeIds) {
         public AddressBook {
             requireNonNull(weights);
             requireNonNull(publicKeys);
@@ -125,6 +128,11 @@ public interface HistoryLibrary {
                 .toArray(byte[][]::new);
         return Bytes.wrap(library.hashAddressBook(new AddressBook(targetWeights, proofKeysArray, sortedNodeIds)));
     }
+
+    /**
+     * The verification key for WRAPS proofs.
+     */
+    byte[] wrapsVerificationKey();
 
     /**
      * Returns a new Schnorr key pair.
@@ -251,12 +259,6 @@ public interface HistoryLibrary {
             @NonNull byte[] targetHintsVerificationKey,
             @NonNull byte[] aggregatedSignature,
             @NonNull Set<Long> signers);
-
-    /**
-     * Verifies a WRAPS proof.
-     * @return true if the proof is valid; false otherwise
-     */
-    boolean isValidWraps(byte[] compressedProof);
 
     /**
      * Returns whether the library is ready to be used.

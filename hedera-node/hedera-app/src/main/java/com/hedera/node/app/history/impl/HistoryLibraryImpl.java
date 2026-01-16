@@ -10,6 +10,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
+import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
@@ -21,6 +22,11 @@ import java.util.SplittableRandom;
 public class HistoryLibraryImpl implements HistoryLibrary {
     public static final SplittableRandom RANDOM = new SplittableRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
+
+    @Override
+    public byte[] wrapsVerificationKey() {
+        return WRAPSVerificationKey.getCurrentKey();
+    }
 
     @Override
     public SchnorrKeys newSchnorrKeyPair() {
@@ -160,12 +166,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 targetHintsVerificationKey,
                 aggregatedSignature,
                 sourceAddressBook.signersMask(signers));
-    }
-
-    @Override
-    public boolean isValidWraps(@NonNull final byte[] compressedProof) {
-        requireNonNull(compressedProof);
-        return WRAPS.verifyCompressedProof(compressedProof);
     }
 
     @Override

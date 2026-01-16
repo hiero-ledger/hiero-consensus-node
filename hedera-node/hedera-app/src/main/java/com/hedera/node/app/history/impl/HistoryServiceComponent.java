@@ -26,6 +26,8 @@ public interface HistoryServiceComponent {
                 @BindsInstance HistoryService historyService);
     }
 
+    HistoryLibrary library();
+
     HistoryHandlers handlers();
 
     ProofControllers controllers();
