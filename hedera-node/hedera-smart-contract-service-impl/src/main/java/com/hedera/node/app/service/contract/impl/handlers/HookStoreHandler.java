@@ -36,6 +36,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -69,6 +70,7 @@ public class HookStoreHandler implements TransactionHandler {
         @Override
         public void accumulateServiceFee(
                 @NonNull final TransactionBody txnBody,
+                @NonNull final SimpleFeeContext context,
                 @NonNull final FeeResult feeResult,
                 @NonNull final FeeSchedule feeSchedule) {
             requireNonNull(txnBody);

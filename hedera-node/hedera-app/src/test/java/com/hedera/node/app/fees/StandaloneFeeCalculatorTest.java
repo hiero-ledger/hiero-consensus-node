@@ -2,7 +2,7 @@
 package com.hedera.node.app.fees;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode.INTRINSIC;
+import static com.hedera.node.app.spi.fees.SimpleFeeContext.EstimationMode.INTRINSIC;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import com.hedera.hapi.node.base.AccountID;

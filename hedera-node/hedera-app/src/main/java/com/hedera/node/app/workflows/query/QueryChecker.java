@@ -25,8 +25,7 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -225,7 +224,7 @@ public class QueryChecker {
                 -1,
                 dispatcher);
         if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            var simpleFeeContext = new SimpleFeeCalculator.SimpleFeeContext() {
+            var simpleFeeContext = new SimpleFeeContext() {
                 @Override
                 public int numTxnSignatures() {
                     return feeContext.numTxnSignatures();

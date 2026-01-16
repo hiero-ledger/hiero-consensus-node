@@ -10,8 +10,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -307,7 +306,7 @@ public class TransactionDispatcher {
         };
     }
 
-    public static class SimpleFeeContextImpl implements SimpleFeeCalculator.SimpleFeeContext {
+    public static class SimpleFeeContextImpl implements SimpleFeeContext {
         private final FeeContext feeContext;
 
         public SimpleFeeContextImpl(FeeContext feeContext) {
@@ -336,7 +335,7 @@ public class TransactionDispatcher {
 
         @Override
         public EstimationMode estimationMode() {
-            return EstimationMode.STATEFUL;
+            return SimpleFeeContext.EstimationMode.STATEFUL;
         }
     }
 }

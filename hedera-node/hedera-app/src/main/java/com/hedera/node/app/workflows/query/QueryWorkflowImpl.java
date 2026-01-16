@@ -31,8 +31,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -408,7 +407,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         }
     }
 
-    public static class QuerySimpleFeeContext implements SimpleFeeCalculator.SimpleFeeContext {
+    public static class QuerySimpleFeeContext implements SimpleFeeContext {
         private final QueryContext queryContext;
 
         public QuerySimpleFeeContext(QueryContext queryContext) {
@@ -436,8 +435,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         }
 
         @Override
-        public ServiceFeeCalculator.EstimationMode estimationMode() {
-            return ServiceFeeCalculator.EstimationMode.STATEFUL;
+        public EstimationMode estimationMode() {
+            return SimpleFeeContext.EstimationMode.STATEFUL;
         }
     }
 }

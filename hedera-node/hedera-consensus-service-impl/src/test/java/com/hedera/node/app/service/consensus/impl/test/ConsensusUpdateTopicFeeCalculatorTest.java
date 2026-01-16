@@ -12,7 +12,7 @@ import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusUpdateTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
+import com.hedera.node.app.spi.fees.ServiceSimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
@@ -55,11 +55,11 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
             final var op = ConsensusUpdateTopicTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusUpdateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.INTRINSIC);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
             assertThat(result).isNotNull();
-            Assertions.assertThat(result.node).isEqualTo(100000L);
-            Assertions.assertThat(result.service).isEqualTo(498500000L);
-            Assertions.assertThat(result.network).isEqualTo(200000L);
+            Assertions.assertThat(result.nodeTotalTC()).isEqualTo(100000L);
+            Assertions.assertThat(result.serviceTotalTC()).isEqualTo(498500000L);
+            Assertions.assertThat(result.networkTotalTC()).isEqualTo(200000L);
         }
     }
 

@@ -19,7 +19,6 @@ package com.hedera.node.app.spi.fees;
 
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
@@ -34,16 +33,4 @@ public interface SimpleFeeCalculator {
     FeeResult calculateQueryFee(@NonNull Query query, @NonNull SimpleFeeContext context);
 
     long getExtraFee(Extra extra);
-
-    interface SimpleFeeContext {
-        int numTxnSignatures(); // number of signatures in the transaction
-
-        int numTxnBytes(); // added in a different PR so we can have BYTE extras in the node fees
-
-        FeeContext feeContext(); // may be null
-
-        QueryContext queryContext(); // may be null
-
-        ServiceFeeCalculator.EstimationMode estimationMode(); // Intrinsic or Stateful
-    }
 }

@@ -8,8 +8,9 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
+import com.hedera.node.app.spi.fees.SimpleFeeContext.EstimationMode;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.node.config.types.StreamMode;
@@ -60,7 +61,7 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
         }
     }
 
-    private class StandaloneFeeContextImpl implements SimpleFeeCalculator.SimpleFeeContext {
+    private class StandaloneFeeContextImpl implements SimpleFeeContext {
 
         private int _numTxnSignatures;
         private EstimationMode mode;

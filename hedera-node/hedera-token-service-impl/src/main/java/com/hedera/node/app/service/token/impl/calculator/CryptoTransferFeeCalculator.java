@@ -17,7 +17,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashSet;
@@ -54,28 +54,20 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
 
     @Override
     public void accumulateServiceFee(
-            @NonNull TransactionBody txnBody, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
-        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
-        feeResult.addServiceBaseTC(serviceDef.baseFee());
-    }
-
-    @Override
-    public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @NonNull final SimpleFeeCalculator.SimpleFeeContext context,
+            @NonNull final SimpleFeeContext context,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
         feeResult.addServiceBaseTC(serviceDef.baseFee());
-        if(context.estimationMode() == EstimationMode.STATEFUL) {
+        if (context.estimationMode() == SimpleFeeContext.EstimationMode.STATEFUL) {
 
             final ReadableTokenStore tokenStore = context.feeContext().readableStore(ReadableTokenStore.class);
             final var op = txnBody.cryptoTransferOrThrow();
             final long numAccounts = countUniqueAccounts(op);
             final long numHooks = countHooks(op);
             final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
-
 
             final Extra transferType = determineTransferType(tokenCounts);
             if (transferType != null) {

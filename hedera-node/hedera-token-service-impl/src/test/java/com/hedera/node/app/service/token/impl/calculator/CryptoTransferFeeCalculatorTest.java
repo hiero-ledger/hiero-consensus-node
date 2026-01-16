@@ -22,7 +22,7 @@ import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
+import com.hedera.node.app.spi.fees.ServiceSimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
@@ -77,10 +77,10 @@ class CryptoTransferFeeCalculatorTest {
             setupMocks();
             final var body = buildHbarTransfer(1001L, 1002L, 100L);
 
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
             // HBAR-only: no service fee, total fee comes from node+network
-            assertThat(result.service).isEqualTo(0L);
+            assertThat(result.serviceTotalTC()).isEqualTo(0L);
         }
 
         @Test
@@ -90,9 +90,9 @@ class CryptoTransferFeeCalculatorTest {
             mockFungibleToken(2001L, false);
             final var body = buildFungibleTokenTransfer(2001L, 1001L, 1002L, 50L);
 
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_FEE);
+            assertThat(result.serviceTotalTC()).isEqualTo(TOKEN_TRANSFER_FEE);
         }
 
         @Test
@@ -102,9 +102,9 @@ class CryptoTransferFeeCalculatorTest {
             mockNftToken(3001L, false);
             final var body = buildNftTransfer(3001L, 1001L, 1002L, 1L);
 
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_FEE);
+            assertThat(result.serviceTotalTC()).isEqualTo(TOKEN_TRANSFER_FEE);
         }
 
         @Test
@@ -114,9 +114,9 @@ class CryptoTransferFeeCalculatorTest {
             mockFungibleToken(2001L, true);
             final var body = buildFungibleTokenTransfer(2001L, 1001L, 1002L, 50L);
 
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE);
+            assertThat(result.serviceTotalTC()).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE);
         }
 
         @Test
@@ -127,10 +127,10 @@ class CryptoTransferFeeCalculatorTest {
                     .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().build())
                     .build();
 
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
             // Empty = HBAR-only = no service fee
-            assertThat(result.service).isEqualTo(0L);
+            assertThat(result.serviceTotalTC()).isEqualTo(0L);
         }
     }
 
@@ -155,10 +155,10 @@ class CryptoTransferFeeCalculatorTest {
                             .build())
                     .build();
 
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
             // Single charge, NOT 18M (double)
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_FEE);
+            assertThat(result.serviceTotalTC()).isEqualTo(TOKEN_TRANSFER_FEE);
         }
 
         @Test
@@ -177,10 +177,10 @@ class CryptoTransferFeeCalculatorTest {
                             .build())
                     .build();
 
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
             // Single charge for custom fees tier
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE);
+            assertThat(result.serviceTotalTC()).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE);
         }
 
         @Test
@@ -199,10 +199,10 @@ class CryptoTransferFeeCalculatorTest {
                             .build())
                     .build();
 
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
             // Custom fee tier + 1 extra fungible token
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE + FUNGIBLE_TOKEN_EXTRA_FEE);
+            assertThat(result.serviceTotalTC()).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE + FUNGIBLE_TOKEN_EXTRA_FEE);
         }
     }
 
@@ -226,10 +226,10 @@ class CryptoTransferFeeCalculatorTest {
                             .build())
                     .build();
 
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
             // TOKEN_TRANSFER_BASE + 1 extra fungible (first included)
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_FEE + FUNGIBLE_TOKEN_EXTRA_FEE);
+            assertThat(result.serviceTotalTC()).isEqualTo(TOKEN_TRANSFER_FEE + FUNGIBLE_TOKEN_EXTRA_FEE);
         }
 
         @Test
@@ -262,10 +262,10 @@ class CryptoTransferFeeCalculatorTest {
                             .build())
                     .build();
 
-            final var result = feeCalculator.calculateTxFee(body, feeContext, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
             // TOKEN_TRANSFER_BASE + 1 hook
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_FEE + HOOK_EXECUTION_FEE);
+            assertThat(result.serviceTotalTC()).isEqualTo(TOKEN_TRANSFER_FEE + HOOK_EXECUTION_FEE);
         }
     }
 

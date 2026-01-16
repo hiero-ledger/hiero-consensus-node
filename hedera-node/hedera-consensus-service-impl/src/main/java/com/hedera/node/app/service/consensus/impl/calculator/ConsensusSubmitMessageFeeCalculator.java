@@ -7,7 +7,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
@@ -18,28 +18,19 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
 
     @Override
     public void accumulateServiceFee(
-            @NonNull TransactionBody txnBody, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
+            @NonNull TransactionBody txnBody,
+            @NonNull SimpleFeeContext context,
+            @NonNull FeeResult feeResult,
+            @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
         feeResult.addServiceBaseTC(serviceDef.baseFee());
         final var op = txnBody.consensusSubmitMessageOrThrow();
         final var msgSize = op.message().length();
         addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, msgSize);
-    }
-
-    @Override
-    public void accumulateServiceFee(
-            @NonNull TransactionBody txnBody,
-            @NonNull SimpleFeeCalculator.SimpleFeeContext context,
-            @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule) {
-        this.accumulateServiceFee(txnBody, feeResult, feeSchedule);
-        if (context.estimationMode() == EstimationMode.STATEFUL) {
-            final var op = txnBody.consensusSubmitMessageOrThrow();
+        if (context.estimationMode() == SimpleFeeContext.EstimationMode.STATEFUL) {
             final var topic =
                     context.feeContext().readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrThrow());
-            final ServiceFeeDefinition serviceDef =
-                    lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
             final var hasCustomFees = (topic != null && !topic.customFees().isEmpty());
             if (hasCustomFees) {
                 addExtraFee(feeResult, serviceDef, Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, feeSchedule, 1);

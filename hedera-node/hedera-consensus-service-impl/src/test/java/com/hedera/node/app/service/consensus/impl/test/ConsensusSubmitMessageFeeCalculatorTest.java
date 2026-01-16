@@ -17,7 +17,7 @@ import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusSubmitMessageFeeCalculator;
 import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
+import com.hedera.node.app.spi.fees.ServiceSimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -78,11 +78,11 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
                             .sequenceNumber(1L)
                             .build());
 
-            final var result = feeCalculator.calculateTxFee(body, feeCtx, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
             assertThat(result).isNotNull();
-            Assertions.assertThat(result.node).isEqualTo(100000L);
-            Assertions.assertThat(result.service).isEqualTo(498500000L);
-            Assertions.assertThat(result.network).isEqualTo(200000L);
+            Assertions.assertThat(result.nodeTotalTC()).isEqualTo(100000L);
+            Assertions.assertThat(result.serviceTotalTC()).isEqualTo(498500000L);
+            Assertions.assertThat(result.networkTotalTC()).isEqualTo(200000L);
         }
 
         @Test
@@ -104,11 +104,11 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
             // the 'topic' variable already has custom fees
             given(readableStore.getTopic(topic.topicId())).willReturn(topic);
 
-            final var result = feeCalculator.calculateTxFee(body, feeCtx, EstimationMode.STATEFUL);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeCtx));
             assertThat(result).isNotNull();
-            Assertions.assertThat(result.node).isEqualTo(100000L);
-            Assertions.assertThat(result.service).isEqualTo(498500000L + 500000000L);
-            Assertions.assertThat(result.network).isEqualTo(200000L);
+            Assertions.assertThat(result.nodeTotalTC()).isEqualTo(100000L);
+            Assertions.assertThat(result.serviceTotalTC()).isEqualTo(498500000L + 500000000L);
+            Assertions.assertThat(result.networkTotalTC()).isEqualTo(200000L);
         }
     }
 

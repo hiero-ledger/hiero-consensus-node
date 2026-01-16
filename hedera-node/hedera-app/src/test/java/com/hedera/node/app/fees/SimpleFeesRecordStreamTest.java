@@ -6,7 +6,7 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -24,7 +24,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -127,7 +126,8 @@ public class SimpleFeesRecordStreamTest {
                 }
                 try (final var fin = new FileInputStream(file.toFile())) {
                     // we have to read the first 4 bytes
-                    final var recordFileVersion = ByteBuffer.wrap(fin.readNBytes(4)).getInt();
+                    final var recordFileVersion =
+                            ByteBuffer.wrap(fin.readNBytes(4)).getInt();
                     final var recordStreamFile = RecordStreamFile.parseFrom(fin);
                     recordStreamFile.getRecordStreamItemsList().stream().forEach(item -> {
                         try {
@@ -151,17 +151,17 @@ public class SimpleFeesRecordStreamTest {
         final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
         final var body = TransactionBody.PROTOBUF.parse(
                 Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
-        final Transaction txn =
-                Transaction.newBuilder().body(body).build();
-        final var result = calc.calculate(txn, ServiceFeeCalculator.EstimationMode.INTRINSIC);
+        final Transaction txn = Transaction.newBuilder().body(body).build();
+        final var result = calc.calculate(txn, SimpleFeeContext.EstimationMode.INTRINSIC);
         final var record = item.getRecord();
         final var txnFee = record.getTransactionFee();
         final var rate = record.getReceipt().getExchangeRate();
-        var fract = ((double) result.totalTC()) / (double) (txnFee * rate.getCurrentRate().getCentEquiv());
+        var fract = ((double) result.totalTC())
+                / (double) (txnFee * rate.getCurrentRate().getCentEquiv());
         if (Math.abs(1 - fract) > 0.05) {
             csv.field(body.data().kind().name());
             csv.field(result.totalTC());
-            csv.field(txnFee*rate.getCurrentRate().getCentEquiv());
+            csv.field(txnFee * rate.getCurrentRate().getCentEquiv());
             csv.fieldPercentage(fract * 100);
             csv.field(result.toString());
             csv.endLine();
