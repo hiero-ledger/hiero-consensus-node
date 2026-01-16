@@ -3,12 +3,12 @@ package com.hedera.node.app.fees;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.RecordStreamItem;
@@ -16,62 +16,91 @@ import com.hederahashgraph.api.proto.java.SignedTransaction;
 import com.swirlds.state.State;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Writer;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.stream.Stream;
+
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 public class SimpleFeesRecordStreamTest {
+    private static class CSVWriter {
 
-    @Test
-    void basicStreaming() throws IOException {
-        final String record_path = "../../temp/2025-09-10T03_02_14.342128000Z.rcd";
-        //        final String sidecar_path = "sidecar";
-        //        byte[] bytes = Files.readAllBytes(Path.of(record_path));
+        private final Writer writer;
+        private int fieldCount;
 
-        try (final var fin = new FileInputStream(record_path)) {
-            final var recordFileVersion = ByteBuffer.wrap(fin.readNBytes(4)).getInt();
-            final var recordStreamFile = com.hedera.services.stream.proto.RecordStreamFile.parseFrom(fin);
-            System.out.println("File version is " + recordFileVersion);
-            System.out.println("stream file is " + recordStreamFile);
-            //            recordStreamFile.getRecordStreamItemsList().stream().flatMap()
-            recordStreamFile.getRecordStreamItemsList().stream()
-                    //                    .flatMap(recordStreamItem -> recordStreamItem.getRecord())
-                    // pull out the record stream items
-                    //                    .flatMap(recordWithSidecars ->
-                    // recordWithSidecars.recordFile().getRecordStreamItemsList().stream())
-                    .forEach(item -> {
-                        System.out.println("record " + item);
-                        process_record(item);
-                    });
+        public CSVWriter(Writer fwriter) {
+            this.writer = fwriter;
+            this.fieldCount = 0;
+        }
+
+        private static String escapeCsv(String value) {
+            if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+                value = value.replace("\"", "\"\"");
+                return "\"" + value + "\"";
+            }
+            return value;
+        }
+
+        public void write(String s) throws IOException {
+            this.writer.write(s);
+        }
+
+        public void field(String value) throws IOException {
+            if (this.fieldCount > 0) {
+                this.write(",");
+            }
+            this.write(escapeCsv(value));
+            this.fieldCount += 1;
+        }
+
+        public void endLine() throws IOException {
+            this.write("\n");
+            this.fieldCount = 0;
+        }
+
+        public void field(int i) throws IOException {
+            this.field(i + "");
+        }
+
+        public void field(long fee) throws IOException {
+            this.field(fee + "");
+        }
+
+        public void fieldPercentage(double diff) throws IOException {
+            this.field(String.format("%9.2f%%", diff));
+        }
+
+        public void close() throws IOException {
+            this.writer.flush();
+            this.writer.close();
         }
     }
 
-    private void process_record(RecordStreamItem item) {
-        System.out.println("record " + item);
-        System.out.println("OUT: memo = " + item.getRecord().getMemo());
-        System.out.println("OUT: transaction fee " + item.getRecord().getTransactionFee());
-        System.out.println("OUT: transaction " + item.getTransaction().getSignedTransactionBytes());
-        final var receipt = item.getRecord().getReceipt();
-        System.out.println("OUT: status " + receipt.getStatus());
-        System.out.println("OUT: exchange rate " + receipt.getExchangeRate());
-        try {
-            final var signedTxn =
-                    SignedTransaction.parseFrom(item.getTransaction().getSignedTransactionBytes());
-            System.out.println("the real transaction is" + signedTxn);
-            com.hederahashgraph.api.proto.java.TransactionBody transactionBody =
-                    com.hederahashgraph.api.proto.java.TransactionBody.parseFrom(signedTxn.getBodyBytes());
-            System.out.println("TXN:transaction body is " + transactionBody);
-            System.out.println("TXN: memo " + transactionBody.getMemo());
-            System.out.println("TXN: fee " + transactionBody.getTransactionFee());
-            System.out.println("TXN: id " + transactionBody.getTransactionID());
-            System.out.println("TXN: data case " + transactionBody.getDataCase());
+    private static CSVWriter csv;
 
-        } catch (InvalidProtocolBufferException e) {
-            throw new RuntimeException(e);
+    /**
+     * Initialize the test class with simple fees enabled.
+     * This ensures the SimpleFeeCalculator is initialized at startup,
+     * which is required for switching between simple and legacy fees mid-test.
+     */
+    @BeforeAll
+    static void beforeAll() throws IOException {
+        csv = new CSVWriter(new FileWriter("simple-fees-historical-comparison.csv"));
+        csv.write("Service Name, Simple Fee, Old Fees, Comparison, Details");
+        csv.endLine();
+    }
+
+    @AfterAll
+    static void afterAll() throws IOException {
+        if (csv != null) {
+            csv.close();
         }
     }
 
@@ -96,57 +125,15 @@ public class SimpleFeesRecordStreamTest {
             paths.filter(Files::isRegularFile).forEach(file -> {
                 //                System.out.println("reading file " + file);
                 if (!file.toString().endsWith("rcd")) {
-                    System.out.println("skipping");
+//                    System.out.println("skipping");
                     return;
                 }
                 try (final var fin = new FileInputStream(file.toFile())) {
-                    final var recordFileVersion =
-                            ByteBuffer.wrap(fin.readNBytes(4)).getInt();
-                    //                    System.out.println("read version " + recordFileVersion);
+                    final var recordFileVersion = ByteBuffer.wrap(fin.readNBytes(4)).getInt();
                     final var recordStreamFile = RecordStreamFile.parseFrom(fin);
                     recordStreamFile.getRecordStreamItemsList().stream().forEach(item -> {
                         try {
-                            //                            final var txn = item.getTransaction();
-                            final var signedTxnBytes = item.getTransaction().getSignedTransactionBytes();
-                            final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
-                            //                            final Transaction txn =
-                            // Transaction.newBuilder().signedTransactionBytes(signedTxn.getBodyBytes())
-                            final var body = TransactionBody.PROTOBUF.parse(
-                                    Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
-                            final Transaction txn =
-                                    Transaction.newBuilder().body(body).build();
-                            if (shouldSkip(body.data().kind())) {
-                                return;
-                            }
-                            //                            System.out.println("TXN: memo " + body.memo());
-                            //                            System.out.println("TXN: fee " + body.transactionFee());
-                            //                            System.out.println("TXN: id " + body.transactionID());
-                            //                            System.out.println("calculating simple fees for transaction "
-                            // + body);
-                            final var result = calc.calculate(txn, ServiceFeeCalculator.EstimationMode.INTRINSIC);
-                            //                            System.out.println("result is " + result);
-                            // max fee in tiny bar //
-                            //                            System.out.println("original      is : " +
-                            // body.transactionFee());
-                            final var record = item.getRecord();
-                            final var txnFee = record.getTransactionFee();
-                            // actual fee charged (in tiny bar)?
-                            var fract = ((double) result.totalTC()) / (double) (txnFee * 12);
-                            if (Math.abs(1 - fract) > 0.05) {
-                                System.out.println(
-                                        "TXN: data case " + body.data().kind());
-                                System.out.println("simple        is : " + result.totalTC());
-                                System.out.println("record trans fee : " + (txnFee * 12));
-                                System.out.println("fract = " + fract);
-                            }
-                            // rec fee * 12 to get cents
-                            // 845911
-                            //                            System.out.println(
-                            //                                    "status is " + record.getReceipt().getStatus());
-                            //                            System.out.println(
-                            //                                    "exchange rate is " +
-                            // record.getReceipt().getExchangeRate());
-
+                            process_item(item, calc);
                         } catch (Exception e) {
                             System.out.println("exception " + e);
                             e.printStackTrace();
@@ -161,14 +148,40 @@ public class SimpleFeesRecordStreamTest {
         }
     }
 
+    private void process_item(RecordStreamItem item, StandaloneFeeCalculator calc) throws ParseException, IOException {
+        final var signedTxnBytes = item.getTransaction().getSignedTransactionBytes();
+        final var signedTxn = SignedTransaction.parseFrom(signedTxnBytes);
+        final var body = TransactionBody.PROTOBUF.parse(
+                Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
+        final Transaction txn =
+                Transaction.newBuilder().body(body).build();
+        if (shouldSkip(body.data().kind())) {
+            return;
+        }
+        final var result = calc.calculate(txn, ServiceFeeCalculator.EstimationMode.INTRINSIC);
+        final var record = item.getRecord();
+        final var txnFee = record.getTransactionFee();
+        final var rate = record.getReceipt().getExchangeRate();
+        var fract = ((double) result.totalTC()) / (double) (txnFee * rate.getCurrentRate().getCentEquiv());
+        if (Math.abs(1 - fract) > 0.05) {
+            System.out.println("TXN:" + body.data().kind());
+            csv.field(body.data().kind().name());
+            csv.field(result.totalTC());
+            csv.field(txnFee*rate.getCurrentRate().getCentEquiv());
+            csv.fieldPercentage(fract * 100);
+            csv.field(result.toString());
+            csv.endLine();
+        }
+    }
+
     private boolean shouldSkip(TransactionBody.DataOneOfType kind) {
         // requires readable store
         if (kind == TransactionBody.DataOneOfType.CONSENSUS_SUBMIT_MESSAGE) {
             return true;
         }
-        //        if (kind == TransactionBody.DataOneOfType.CRYPTO_TRANSFER) {
-        //            return true;
-        //        }
+        if (kind == TransactionBody.DataOneOfType.CRYPTO_TRANSFER) {
+            return true;
+        }
 
         // fee calculator not implemented yet
         // coming in PR: https://github.com/hiero-ledger/hiero-consensus-node/pull/22584
