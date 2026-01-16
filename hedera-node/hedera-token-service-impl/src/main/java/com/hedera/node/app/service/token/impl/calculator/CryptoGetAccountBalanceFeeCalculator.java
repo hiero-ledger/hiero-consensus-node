@@ -20,9 +20,7 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 public class CryptoGetAccountBalanceFeeCalculator implements QueryFeeCalculator {
     @Override
     public void accumulateNodePayment(
-            @NonNull Query query,
-            @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule) {
+            @NonNull Query query, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_GET_ACCOUNT_BALANCE);
         feeResult.addServiceBase(serviceDef.baseFee());

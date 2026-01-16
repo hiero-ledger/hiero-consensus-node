@@ -20,9 +20,7 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 public class GetByKeyFeeCalculator implements QueryFeeCalculator {
     @Override
     public void accumulateNodePayment(
-            @NonNull Query query,
-            @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule) {
+            @NonNull Query query, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.GET_BY_KEY);
         feeResult.addServiceBase(serviceDef.baseFee());
     }

@@ -32,6 +32,7 @@ public class FeeUtils {
                 tinycentsToTinybars(feeResult.networkTotalTC(), rate),
                 tinycentsToTinybars(feeResult.serviceTotalTC(), rate));
     }
+
     public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
         final var hbarEquiv = rate.getHbarEquiv();
         if (productWouldOverflow(amount, hbarEquiv)) {

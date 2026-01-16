@@ -33,7 +33,6 @@ class FeeUtilsTest {
         assertEquals(60, fees.serviceFee());
     }
 
-
     @Test
     void tinycentsToTinybars_handlesOverflow() {
         ExchangeRate rate = mock(ExchangeRate.class);

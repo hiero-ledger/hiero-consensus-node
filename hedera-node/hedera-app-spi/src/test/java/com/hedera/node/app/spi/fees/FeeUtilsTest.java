@@ -29,5 +29,4 @@ public class FeeUtilsTest {
         assertEquals(4000, fees.networkFee());
         assertEquals(6000, fees.serviceFee());
     }
-
 }

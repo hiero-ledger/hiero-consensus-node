@@ -23,6 +23,7 @@ public class FeeResult {
     public long getNodeBaseTC() {
         return this.nodeBase;
     }
+
     private List<FeeDetail> nodeExtras = new ArrayList<>();
 
     private int networkMultiplier = 0;
@@ -102,7 +103,6 @@ public class FeeResult {
     public Iterable<? extends FeeDetail> getServiceExtras() {
         return this.serviceExtras;
     }
-
 
     public record FeeDetail(String name, long per_unit, long used, long included, long charged) {}
 
