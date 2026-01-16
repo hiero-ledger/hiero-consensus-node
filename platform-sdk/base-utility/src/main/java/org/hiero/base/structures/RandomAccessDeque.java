@@ -1,9 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-<<<<<<<< HEAD:platform-sdk/base-utility/src/main/java/org/hiero/base/RandomAccessDeque.java
-package org.hiero.base;
-========
 package org.hiero.base.structures;
->>>>>>>> main:platform-sdk/base-utility/src/main/java/org/hiero/base/structures/RandomAccessDeque.java
 
 import java.util.Arrays;
 import java.util.Collections;

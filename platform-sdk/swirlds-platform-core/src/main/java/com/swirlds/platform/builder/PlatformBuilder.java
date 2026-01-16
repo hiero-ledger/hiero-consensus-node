@@ -7,6 +7,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createHashgraphModule;
+import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;

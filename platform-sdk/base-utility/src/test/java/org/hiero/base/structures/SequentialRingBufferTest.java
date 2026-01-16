@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.stream.LongStream;
-import org.hiero.consensus.structures.SequentialRingBuffer;
 import org.junit.jupiter.api.Test;
 
 class SequentialRingBufferTest {
