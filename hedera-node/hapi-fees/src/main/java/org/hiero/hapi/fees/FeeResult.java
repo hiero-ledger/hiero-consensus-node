@@ -19,6 +19,7 @@ public class FeeResult {
     private long node = 0;
 
     private long nodeBase = 0;
+    /** The node base component in Tiny Cents */
     public long getNodeBaseTC() {
         return this.nodeBase;
     }
