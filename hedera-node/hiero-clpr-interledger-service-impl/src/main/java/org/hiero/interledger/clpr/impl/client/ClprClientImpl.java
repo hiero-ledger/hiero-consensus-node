@@ -202,17 +202,13 @@ public class ClprClientImpl implements ClprClient {
             @NonNull AccountID payerAccountId,
             @NonNull AccountID nodeAccountId,
             @NonNull ClprLedgerId ledgerId,
-            @NonNull ClprMessageQueueMetadata clprMessageQueueMetadata) {
+            @NonNull StateProof clprMessageQueueMetadata) {
         try {
-            var stateProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(ledgerId, clprMessageQueueMetadata);
-            if (stateProof.paths().isEmpty()) {
-                stateProof = devModeMsgQueueMetadataStateProof(clprMessageQueueMetadata);
-            }
             final var txnBody = TransactionBody.newBuilder()
                     .transactionID(newTransactionId(payerAccountId))
                     .clprUpdateMessageQueueMetadata(ClprUpdateMessageQueueMetadataTransactionBody.newBuilder()
                             .ledgerId(ledgerId)
-                            .messageQueueMetadataProof(stateProof)
+                            .messageQueueMetadataProof(clprMessageQueueMetadata)
                             .build())
                     .transactionFee(1L)
                     .transactionValidDuration(com.hedera.hapi.node.base.Duration.newBuilder()
@@ -294,7 +290,7 @@ public class ClprClientImpl implements ClprClient {
             return response.nodeTransactionPrecheckCode();
         } catch (final Exception e) {
             log.error(
-                    "CLPR client failed to submit message queue metadata for payer {} and ledger {}",
+                    "CLPR client failed to submit message bundle for payer {} and ledger {}",
                     payerAccountId,
                     ledgerId,
                     e);

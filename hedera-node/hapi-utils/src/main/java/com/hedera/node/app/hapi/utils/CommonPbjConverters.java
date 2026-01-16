@@ -42,12 +42,11 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.hederahashgraph.api.proto.java.AccountID.AccountCase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 
 public class CommonPbjConverters {
     public static final int MAX_PBJ_RECORD_SIZE = 33554432;
@@ -474,15 +473,15 @@ public class CommonPbjConverters {
                 .build();
     }
 
-    public static ClprLedgerConfiguration toPbj(@NonNull org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration clprLedgerConfiguration) {
+    public static ClprLedgerConfiguration toPbj(
+            @NonNull org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration clprLedgerConfiguration) {
         requireNonNull(clprLedgerConfiguration);
-        try{
+        try {
             final var bytes = clprLedgerConfiguration.toByteArray();
             return ClprLedgerConfiguration.PROTOBUF.parse(
                     BufferedData.wrap(bytes), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
-
     }
 }

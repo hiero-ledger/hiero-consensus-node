@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRo
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.interledger.clpr.ClprStateProofUtils.buildLocalClprStateProofWrapper;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -430,7 +431,7 @@ public class ClprSuite implements LifecycleTest {
         }
     }
 
-    private static ClprClient createClient(final HederaNode node) {
+    public static ClprClient createClient(final HederaNode node) {
         try {
             final var pbjEndpoint = com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
                     .ipAddressV4(
@@ -450,11 +451,12 @@ public class ClprSuite implements LifecycleTest {
             try (final var client = createClient(node.get())) {
                 final var config = tryFetchLedgerConfiguration(node.get());
                 final var payer = asAccount(spec, 2);
+                final var ledgerId = toPbj(config).ledgerId();
                 client.updateMessageQueueMetadata(
                         toPbj(payer),
                         node.get().getAccountId(),
-                        toPbj(config).ledgerId(),
-                        clprMessageQueueMetadata);
+                        ledgerId,
+                        buildLocalClprStateProofWrapper(ledgerId, clprMessageQueueMetadata));
             }
         });
     }
@@ -467,10 +469,7 @@ public class ClprSuite implements LifecycleTest {
                 final var config = tryFetchLedgerConfiguration(node.get());
                 final var payer = asAccount(spec, 2);
                 client.processMessageBundle(
-                        toPbj(payer),
-                        node.get().getAccountId(),
-                        toPbj(config).ledgerId(),
-                        messageBundle);
+                        toPbj(payer), node.get().getAccountId(), toPbj(config).ledgerId(), messageBundle);
             }
         });
     }
@@ -480,8 +479,7 @@ public class ClprSuite implements LifecycleTest {
         return doingContextual(spec -> {
             try (final var client = createClient(node.get())) {
                 final var config = tryFetchLedgerConfiguration(node.get());
-                final var messageBundle =
-                        client.getMessages(toPbj(config).ledgerId(), 10, 1000);
+                final var messageBundle = client.getMessages(toPbj(config).ledgerId(), 10, 1000);
                 exposingMessageBundle.set(messageBundle);
             }
         });

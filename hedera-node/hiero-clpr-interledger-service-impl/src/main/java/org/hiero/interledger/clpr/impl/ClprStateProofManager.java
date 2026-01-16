@@ -24,6 +24,7 @@ import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema;
 
@@ -177,7 +178,16 @@ public class ClprStateProofManager {
     }
 
     @Nullable
-    public StateProof getMessageQueueMetadata(@NonNull final ClprLedgerId ledgerId) {
+    public StateProof getMessageQueueMetadataProof() {
+        final var localLedgerId = getLocalLedgerId();
+        if (localLedgerId == null) {
+            return null;
+        }
+        return getMessageQueueMetadataProof(localLedgerId);
+    }
+
+    @Nullable
+    public StateProof getMessageQueueMetadataProof(@NonNull final ClprLedgerId ledgerId) {
         requireNonNull(ledgerId);
         if (!clprConfig.devModeEnabled()) {
             return null;
@@ -196,6 +206,24 @@ public class ClprStateProofManager {
         // TODO: If the ledger id is blank, it's a query for the local message queue metadata. Add code to handle.
         return buildMerkleStateProof(
                 state, V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
+    }
+
+    @Nullable
+    public ClprMessageQueueMetadata getMessageQueueMetadata(@NonNull final ClprLedgerId ledgerId) {
+        requireNonNull(ledgerId);
+        if (!clprConfig.devModeEnabled()) {
+            return null;
+        }
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return null;
+        }
+
+        final var state = snapshot.merkleState();
+        final var readableStates = state.getReadableStates(ClprService.NAME);
+        final ReadableKVState<ClprLedgerId, ClprMessageQueueMetadata> messageQueueMetadataReadableState =
+                readableStates.get(V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID);
+        return messageQueueMetadataReadableState.get(ledgerId);
     }
 
     /**

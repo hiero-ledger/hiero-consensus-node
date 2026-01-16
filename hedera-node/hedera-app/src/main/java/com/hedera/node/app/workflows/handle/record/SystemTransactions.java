@@ -119,9 +119,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.ReadableClprMessageQueueMetadataStore;
 import org.hiero.interledger.clpr.ReadableClprMetadataStore;
 
 /**
@@ -500,11 +502,14 @@ public class SystemTransactions {
         final var storeFactory = new ReadableStoreFactory(state);
         final ReadableRosterStore rosterStore;
         final ReadableClprMetadataStore metadataStore;
+        final ReadableClprMessageQueueMetadataStore messageQueueMetadataStore;
+
         ReadableClprLedgerConfigurationStore configStore = null;
         try {
             rosterStore = storeFactory.getStore(ReadableRosterStore.class);
             metadataStore = storeFactory.getStore(ReadableClprMetadataStore.class);
             configStore = storeFactory.getStore(ReadableClprLedgerConfigurationStore.class);
+            messageQueueMetadataStore = storeFactory.getStore(ReadableClprMessageQueueMetadataStore.class);
         } catch (final IllegalArgumentException e) {
             return;
         }
@@ -581,6 +586,7 @@ public class SystemTransactions {
             return;
         }
         final var dispatchTime = systemContext.now();
+        // build initial ledger config txn body
         final var transactionBody = ClprService.buildLedgerConfigurationUpdateTransactionBody(
                 activeRoster,
                 systemAdminAccountId,
@@ -589,8 +595,34 @@ public class SystemTransactions {
                 includeServiceEndpoint,
                 endpointProvider,
                 accountIdProvider);
+        // dispatch create of the initial ledger configuration
         systemContext.dispatchCreation(
                 builder -> builder.clprSetLedgerConfiguration(transactionBody.clprSetLedgerConfigurationOrThrow()), 0L);
+
+        // build initial message queue metadata txn body.
+        final var existingMessageQueueMetadata = messageQueueMetadataStore.get(
+                ClprLedgerId.newBuilder().ledgerId(ledgerId).build());
+        if (existingMessageQueueMetadata == null) {
+            // TODO: update runnig hashes
+            // build new metadata
+            final var initialMessageQueueMetadata = ClprMessageQueueMetadata.newBuilder()
+                    .ledgerShortId(0)
+                    .nextOutgoingMessageId(0)
+                    .sentRunningHash(Bytes.EMPTY)
+                    .receivedMessageId(0)
+                    .receivedRunningHash(Bytes.EMPTY)
+                    .build();
+
+            final var msgQueueMetadataTxnBody = ClprService.buildMessageQueueMetadataUpdateTransactionBody(
+                    systemAdminAccountId, ledgerId, dispatchTime, initialMessageQueueMetadata);
+
+            log.info("CLPR: Initialize message queue metadata");
+            // dispatch create of the initial message queue metadata
+            systemContext.dispatchCreation(
+                    builder -> builder.clprUpdateMessageQueueMetadata(
+                            msgQueueMetadataTxnBody.clprUpdateMessageQueueMetadataOrThrow()),
+                    0L);
+        }
     }
 
     private Network safeGetNetwork(@NonNull final ReadableStoreFactory storeFactory) {

@@ -12,12 +12,18 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.interledger.state.clpr.ClprMessage;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.WritableClprMessageQueueMetadataStore;
+import org.hiero.interledger.clpr.WritableClprMessageStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
 /**
@@ -66,7 +72,35 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
                 ClprStateProofUtils.extractMessageQueueMetadata(body.messageQueueMetadataProof());
         final var writableMessageQueueMetadataStore =
                 context.storeFactory().writableStore(WritableClprMessageQueueMetadataStore.class);
+
+        // TODO: REMOVE THIS TEST CODE
+        final var updatedMetadata = initOneMsg(context, messageQueueMetadata);
+
         // update the state
-        writableMessageQueueMetadataStore.put(body.ledgerId(), messageQueueMetadata);
+        writableMessageQueueMetadataStore.put(body.ledgerId(), updatedMetadata);
+    }
+
+    // TODO: REMOVE THIS TEST CODE
+    private ClprMessageQueueMetadata initOneMsg(HandleContext context, ClprMessageQueueMetadata metadata) {
+        // check if there are any pending messages to publish
+        final var nexOutgoingMessage = metadata.nextOutgoingMessageId();
+        if (nexOutgoingMessage == 0) {
+            final var messageStore = context.storeFactory().writableStore(WritableClprMessageStore.class);
+
+            final var i = 1;
+            final var msgString = "Message ID: %d; Ledger ID: %d".formatted(i, metadata.ledgerShortId());
+            final var messageKey =
+                    ClprMessageKey.newBuilder().messageId(i).ledgerShortId(0).build();
+            final var message = ClprMessage.newBuilder()
+                    .messageData(Bytes.wrap(msgString.getBytes()))
+                    .build();
+            final var messageValue =
+                    ClprMessageValue.newBuilder().message(message).build();
+            messageStore.put(messageKey, messageValue);
+
+            return metadata.copyBuilder().nextOutgoingMessageId(1).build();
+        }
+
+        return metadata;
     }
 }

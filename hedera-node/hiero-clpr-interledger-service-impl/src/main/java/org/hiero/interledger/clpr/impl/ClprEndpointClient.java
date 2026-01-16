@@ -4,6 +4,7 @@ package org.hiero.interledger.clpr.impl;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -31,6 +32,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.client.ClprClient;
 import org.hiero.interledger.clpr.impl.client.ClprConnectionManager;
@@ -58,7 +62,7 @@ public class ClprEndpointClient {
 
     private record RemoteEndpoint(ServiceEndpoint endpoint, @Nullable AccountID nodeAccountId) {}
 
-    private record QueueMetadata(boolean hasMessages) {}
+    private record QueueMetadata(boolean hasMessages, long nextMessageId) {}
 
     @Inject
     public ClprEndpointClient(
@@ -217,7 +221,13 @@ public class ClprEndpointClient {
                     attempt + 1,
                     maxAttempts);
             if (exchangeWithRemoteEndpoint(
-                    remoteEndpoint, selfNodeInfo, localEndpoint, localProof, remoteLedgerId, storedRemoteConfig)) {
+                    localConfig.ledgerId(),
+                    remoteEndpoint,
+                    selfNodeInfo,
+                    localEndpoint,
+                    localProof,
+                    remoteLedgerId,
+                    storedRemoteConfig)) {
                 cursor.set(Math.floorMod(index + 1, size));
                 return;
             }
@@ -226,6 +236,7 @@ public class ClprEndpointClient {
     }
 
     private boolean exchangeWithRemoteEndpoint(
+            final ClprLedgerId localLedgerId,
             final RemoteEndpoint remoteEndpoint,
             final com.hedera.node.app.spi.info.NodeInfo selfNodeInfo,
             final ServiceEndpoint localEndpoint,
@@ -238,6 +249,7 @@ public class ClprEndpointClient {
                     remoteEndpoint.nodeAccountId() != null ? remoteEndpoint.nodeAccountId() : selfAccount;
             final var protocolOutcome = runProtocolWithRemote(
                     remoteClient,
+                    localLedgerId,
                     selfAccount,
                     nodeAccountId,
                     localEndpoint,
@@ -271,6 +283,7 @@ public class ClprEndpointClient {
 
     private boolean runProtocolWithRemote(
             @NonNull final ClprClient remoteClient,
+            @NonNull final ClprLedgerId localLedgerId,
             @NonNull final AccountID selfAccount,
             @NonNull final AccountID nodeAccountId,
             @NonNull final ServiceEndpoint localEndpoint,
@@ -291,16 +304,48 @@ public class ClprEndpointClient {
             return false;
         }
 
-        final var queueMetadata = pushPullQueueMetadata(remoteClient, remoteLedgerId, remoteServiceEndpoint);
+        final var localMessageQueueMetadataProof = stateProofManager.getMessageQueueMetadataProof();
+        // TODO: How to get local values from state?
+        final var localMessageQueueMetadata = stateProofManager.getMessageQueueMetadata(localLedgerId);
+        final var storedRemoteMetadata = stateProofManager.getMessageQueueMetadata(remoteLedgerId);
+
+        if (localMessageQueueMetadataProof == null) {
+            log.warn("Local CLPR message queue metadata not found!");
+            return false;
+        }
+
+        // exchange queue
+        final var queueMetadata = pushPullQueueMetadata(
+                localLedgerId,
+                remoteClient,
+                selfAccount,
+                nodeAccountId,
+                localEndpoint,
+                localMessageQueueMetadataProof,
+                remoteLedgerId,
+                storedRemoteMetadata,
+                remoteServiceEndpoint);
+
+        // TODO: Here we need to check both the local metadata and the remote metadata
+        //       inorder to determine if we need to push/pull messages!!!
         if (queueMetadata == null) {
             return false;
         }
+
         if (!queueMetadata.hasMessages()) {
+            log.info("CLPR: No new messages to pull");
             return true;
         }
 
-        final var queueContentSucceeded =
-                pushPullQueueContent(remoteClient, remoteLedgerId, queueMetadata, remoteServiceEndpoint);
+        final var queueContentSucceeded = pushPullQueueContent(
+                selfAccount,
+                nodeAccountId,
+                localMessageQueueMetadata,
+                remoteClient,
+                remoteLedgerId,
+                queueMetadata,
+                remoteServiceEndpoint);
+
         return queueContentSucceeded;
     }
 
@@ -352,51 +397,106 @@ public class ClprEndpointClient {
     }
 
     private @Nullable QueueMetadata pushPullQueueMetadata(
+            @NonNull final ClprLedgerId localLedgerId,
             @NonNull final ClprClient remoteClient,
-            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final AccountID selfAccount,
+            @NonNull final AccountID nodeAccount,
+            @NonNull final ServiceEndpoint localEndpoint,
+            @NonNull final StateProof localMessageQueueMetadataProof,
+            @NonNull final ClprLedgerId remoteLedgerId,
+            @Nullable final ClprMessageQueueMetadata storedRemoteMetadata,
             @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-        final var pushSuccess = pushQueueMetadata(remoteClient, remoteLedgerId, remoteServiceEndpoint);
-        if (!pushSuccess) {
-            return null;
+
+        final var pushStatus = pushQueueMetadata(
+                localLedgerId, selfAccount, nodeAccount, remoteClient, localMessageQueueMetadataProof);
+
+        if (!isSuccessful(pushStatus)) {
+            log.warn(
+                    "CLPR Endpoint: Publish message queue metadata failed for remote ledger {} via endpoint {} (status {})",
+                    remoteLedgerId,
+                    remoteServiceEndpoint,
+                    pushStatus);
         }
-        return pullQueueMetadata(remoteClient, remoteLedgerId, remoteServiceEndpoint);
+
+        return pullQueueMetadata(remoteClient, remoteLedgerId, storedRemoteMetadata, remoteServiceEndpoint);
     }
 
     private boolean pushPullQueueContent(
+            @NonNull final AccountID selfAccount,
+            @NonNull final AccountID nodeAccount,
+            @NonNull final ClprMessageQueueMetadata localMessageQueueMetadata,
             @NonNull final ClprClient remoteClient,
             @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
             @NonNull final QueueMetadata queueMetadata,
             @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-        final var pushSuccess = pushQueueContent(remoteClient, remoteLedgerId, queueMetadata, remoteServiceEndpoint);
-        if (!pushSuccess) {
+        final var pushStatus = pushQueueContent(
+                selfAccount,
+                nodeAccount,
+                remoteClient,
+                remoteLedgerId,
+                localMessageQueueMetadata,
+                queueMetadata,
+                remoteServiceEndpoint);
+        if (!isSuccessful(pushStatus)) {
             return false;
         }
+
         return pullQueueContent(remoteClient, remoteLedgerId, queueMetadata, remoteServiceEndpoint);
     }
 
-    private boolean pushQueueMetadata(
+    private ResponseCodeEnum pushQueueMetadata(
+            @NonNull final ClprLedgerId localLedgerId,
+            @NonNull final AccountID selfAccount,
+            @NonNull final AccountID nodeAccountId,
             @NonNull final ClprClient remoteClient,
-            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
-            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-        // TODO: implement queue metadata publish/pull protocol.
-        return true;
+            @NonNull final StateProof localMessageQueueMetadata) {
+        // TODO: Fix the txn payer
+        return remoteClient.updateMessageQueueMetadata(
+                selfAccount, selfAccount, localLedgerId, localMessageQueueMetadata);
     }
 
     private @Nullable QueueMetadata pullQueueMetadata(
             @NonNull final ClprClient remoteClient,
             @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @Nullable final ClprMessageQueueMetadata storedRemoteMessageQueueMetadata,
             @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-        // TODO: implement queue metadata publish/pull protocol.
-        return new QueueMetadata(false);
+        final var fetchedMessageQueue = remoteClient.getMessageQueueMetadata(remoteLedgerId);
+        if (fetchedMessageQueue == null) {
+            return new QueueMetadata(false, 0);
+        }
+
+        var shouldUpdate = !fetchedMessageQueue.equals(storedRemoteMessageQueueMetadata);
+        if (shouldUpdate) {
+            // TODO: submit remote message queue to the local state
+            //      Q: If we publish message queue, do we need to fetch once again?
+        }
+        return new QueueMetadata(
+                fetchedMessageQueue.sentMessageId() != fetchedMessageQueue.nextOutgoingMessageId(),
+                fetchedMessageQueue.nextOutgoingMessageId());
     }
 
-    private boolean pushQueueContent(
+    private ResponseCodeEnum pushQueueContent(
+            @NonNull final AccountID selfAccount,
+            @NonNull final AccountID nodeAccount,
             @NonNull final ClprClient remoteClient,
             @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final ClprMessageQueueMetadata localMessageQueueMetadata,
             @NonNull final QueueMetadata queueMetadata,
             @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-        // TODO: implement queue content publish/pull protocol.
-        return true;
+
+        if (localMessageQueueMetadata.nextOutgoingMessageId() > localMessageQueueMetadata.sentMessageId()) {
+            // get bundle for current remote ledger
+
+        } else {
+            return null;
+        }
+        // TODO: build message bundle.
+        log.info("CLPR: Now sending messages");
+        //        remoteClient.processMessageBundle()
+        final var msgBundle = ClprMessageBundle.DEFAULT;
+
+        final var status = remoteClient.processMessageBundle(selfAccount, nodeAccount, remoteLedgerId, msgBundle);
+        return status;
     }
 
     private boolean pullQueueContent(
@@ -405,6 +505,7 @@ public class ClprEndpointClient {
             @NonNull final QueueMetadata queueMetadata,
             @NonNull final ServiceEndpoint remoteServiceEndpoint) {
         // TODO: implement queue content publish/pull protocol.
+        log.info("CLPR: Now pulling messages");
         return true;
     }
 
