@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDeleteAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
@@ -36,6 +37,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnfreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
@@ -299,6 +301,47 @@ public class KitchenSinkFeeComparisonSuite {
                 .via(prefix + "CryptoUpdateK3"));
         ops.add(captureFee(prefix + "CryptoUpdateK3", "KEYS=3 (+2 extra)", feeMap));
 
+        // ===== CryptoUpdate with HOOK_UPDATES extra =====
+        // HOOK_UPDATES extra: fee=10000000000 per hook update, includedCount=0
+        // Need to create hook contract first for these tests
+        ops.add(uploadInitCode(TRUE_HOOK_CONTRACT));
+        ops.add(contractCreate(prefix + "CryptoUpdateHookContract")
+                .bytecode(TRUE_HOOK_CONTRACT)
+                .gas(5_000_000L)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        // CryptoUpdate adding 1 hook (HOOK_UPDATES=1)
+        ops.add(cryptoUpdate(prefix + "AccList5")
+                .withHooks(accountAllowanceHook(100L, prefix + "CryptoUpdateHookContract"))
+                .payingWith(PAYER)
+                .signedBy(PAYER, LIST_KEY_5)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "CryptoUpdateHU1"));
+        ops.add(captureFee(prefix + "CryptoUpdateHU1", "HOOK_UPDATES=1", feeMap));
+
+        // CryptoUpdate adding 2 hooks (HOOK_UPDATES=2)
+        ops.add(uploadInitCode("TruePrePostHook"));
+        ops.add(contractCreate(prefix + "CryptoUpdateHookContract2")
+                .bytecode("TruePrePostHook")
+                .gas(5_000_000L)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        ops.add(cryptoCreate(prefix + "AccForHookUpdate")
+                .balance(ONE_HBAR)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        ops.add(cryptoUpdate(prefix + "AccForHookUpdate")
+                .withHooks(
+                        accountAllowanceHook(101L, prefix + "CryptoUpdateHookContract"),
+                        accountAllowanceHook(102L, prefix + "CryptoUpdateHookContract2"))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "CryptoUpdateHU2"));
+        ops.add(captureFee(prefix + "CryptoUpdateHU2", "HOOK_UPDATES=2 (+2 extra)", feeMap));
+
         // ===== CryptoTransfer with varying ACCOUNTS extra =====
         // ACCOUNTS extra: fee=1000000 per account, includedCount=2
         ops.add(cryptoTransfer(movingHbar(ONE_HBAR).between(PAYER, RECEIVER))
@@ -356,6 +399,56 @@ public class KitchenSinkFeeComparisonSuite {
                 .via(prefix + "CryptoApproveA3"));
         ops.add(captureFee(prefix + "CryptoApproveA3", "ALLOWANCES=3 (+2 extra)", feeMap));
 
+        // ===== CryptoDeleteAllowance with varying ALLOWANCES extra =====
+        // ALLOWANCES extra: fee=500000000 per allowance, includedCount=1
+        // Need to create NFTs and approve allowances first
+        ops.add(tokenCreate(prefix + "NFTForAllowance")
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0L)
+                .treasury(TREASURY)
+                .supplyKey(SIMPLE_KEY)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        ops.add(mintToken(prefix + "NFTForAllowance", List.of(
+                        ByteString.copyFromUtf8("NFT_A1"),
+                        ByteString.copyFromUtf8("NFT_A2"),
+                        ByteString.copyFromUtf8("NFT_A3")))
+                .payingWith(PAYER)
+                .signedBy(PAYER, SIMPLE_KEY)
+                .fee(ONE_HUNDRED_HBARS));
+
+        // Approve NFT allowances so we can delete them
+        ops.add(cryptoApproveAllowance()
+                .addNftAllowance(TREASURY, prefix + "NFTForAllowance", RECEIVER, false, List.of(1L))
+                .payingWith(PAYER)
+                .signedBy(PAYER, TREASURY)
+                .fee(ONE_HUNDRED_HBARS));
+
+        ops.add(cryptoApproveAllowance()
+                .addNftAllowance(TREASURY, prefix + "NFTForAllowance", RECEIVER, false, List.of(2L, 3L))
+                .payingWith(PAYER)
+                .signedBy(PAYER, TREASURY)
+                .fee(ONE_HUNDRED_HBARS));
+
+        // CryptoDeleteAllowance with 1 NFT allowance (ALLOWANCES=1, included)
+        ops.add(cryptoDeleteAllowance()
+                .addNftDeleteAllowance(TREASURY, prefix + "NFTForAllowance", List.of(1L))
+                .payingWith(PAYER)
+                .signedBy(PAYER, TREASURY)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "CryptoDeleteAllowanceA1"));
+        ops.add(captureFee(prefix + "CryptoDeleteAllowanceA1", "ALLOWANCES=1 (included)", feeMap));
+
+        // CryptoDeleteAllowance with 2 NFT allowances (ALLOWANCES=2, +1 extra)
+        ops.add(cryptoDeleteAllowance()
+                .addNftDeleteAllowance(TREASURY, prefix + "NFTForAllowance", List.of(2L, 3L))
+                .payingWith(PAYER)
+                .signedBy(PAYER, TREASURY)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "CryptoDeleteAllowanceA2"));
+        ops.add(captureFee(prefix + "CryptoDeleteAllowanceA2", "ALLOWANCES=2 (+1 extra)", feeMap));
+
         // ===== CryptoDelete =====
         ops.add(cryptoCreate(prefix + "ToDelete")
                 .balance(0L)
@@ -367,6 +460,102 @@ public class KitchenSinkFeeComparisonSuite {
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "CryptoDelete"));
         ops.add(captureFee(prefix + "CryptoDelete", "no extras", feeMap));
+
+        // ===== CryptoTransfer with TOKEN_TRANSFER_BASE extra =====
+        // TOKEN_TRANSFER_BASE extra: fee=9000000 per token transfer, includedCount=0
+        // Need to create fungible tokens and associate them first
+        ops.add(tokenCreate(prefix + "FungibleForTransfer1")
+                .tokenType(FUNGIBLE_COMMON)
+                .initialSupply(1_000_000L)
+                .treasury(TREASURY)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        ops.add(tokenCreate(prefix + "FungibleForTransfer2")
+                .tokenType(FUNGIBLE_COMMON)
+                .initialSupply(1_000_000L)
+                .treasury(TREASURY)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        ops.add(tokenAssociate(RECEIVER, prefix + "FungibleForTransfer1", prefix + "FungibleForTransfer2")
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        // CryptoTransfer with 1 fungible token transfer (FUNGIBLE_TOKENS=1, included)
+        ops.add(cryptoTransfer(moving(100, prefix + "FungibleForTransfer1").between(TREASURY, RECEIVER))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TokenTransferFT1"));
+        ops.add(captureFee(prefix + "TokenTransferFT1", "FUNGIBLE_TOKENS=1 (included), TOKEN_TRANSFER_BASE=1", feeMap));
+
+        // CryptoTransfer with 2 fungible token transfers (FUNGIBLE_TOKENS=2, +1 extra)
+        ops.add(cryptoTransfer(
+                        moving(100, prefix + "FungibleForTransfer1").between(TREASURY, RECEIVER),
+                        moving(200, prefix + "FungibleForTransfer2").between(TREASURY, RECEIVER))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TokenTransferFT2"));
+        ops.add(captureFee(prefix + "TokenTransferFT2", "FUNGIBLE_TOKENS=2 (+1 extra), TOKEN_TRANSFER_BASE=2 (+2 extra)", feeMap));
+
+        // ===== CryptoTransfer with NON_FUNGIBLE_TOKENS extra =====
+        // NON_FUNGIBLE_TOKENS extra: fee=1000000 per NFT, includedCount=1
+        ops.add(tokenCreate(prefix + "NFTForTransfer")
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0L)
+                .treasury(TREASURY)
+                .supplyKey(SIMPLE_KEY)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        ops.add(mintToken(prefix + "NFTForTransfer", List.of(
+                        ByteString.copyFromUtf8("NFT1"),
+                        ByteString.copyFromUtf8("NFT2"),
+                        ByteString.copyFromUtf8("NFT3")))
+                .payingWith(PAYER)
+                .signedBy(PAYER, SIMPLE_KEY)
+                .fee(ONE_HUNDRED_HBARS));
+
+        ops.add(tokenAssociate(RECEIVER, prefix + "NFTForTransfer")
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        // CryptoTransfer with 1 NFT (NON_FUNGIBLE_TOKENS=1, included)
+        ops.add(cryptoTransfer(movingUnique(prefix + "NFTForTransfer", 1L).between(TREASURY, RECEIVER))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TokenTransferNFT1"));
+        ops.add(captureFee(prefix + "TokenTransferNFT1", "NON_FUNGIBLE_TOKENS=1 (included), TOKEN_TRANSFER_BASE=1", feeMap));
+
+        // CryptoTransfer with 2 NFTs (NON_FUNGIBLE_TOKENS=2, +1 extra)
+        ops.add(cryptoTransfer(
+                        movingUnique(prefix + "NFTForTransfer", 2L).between(TREASURY, RECEIVER),
+                        movingUnique(prefix + "NFTForTransfer", 3L).between(TREASURY, RECEIVER))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TokenTransferNFT2"));
+        ops.add(captureFee(prefix + "TokenTransferNFT2", "NON_FUNGIBLE_TOKENS=2 (+1 extra), TOKEN_TRANSFER_BASE=2 (+1 extra)", feeMap));
+
+        // ===== CryptoTransfer with TOKEN_TRANSFER_BASE_CUSTOM_FEES extra =====
+        // TOKEN_TRANSFER_BASE_CUSTOM_FEES extra: fee=19000000 per token transfer with custom fees, includedCount=0
+        ops.add(tokenCreate(prefix + "FungibleWithCustomFee")
+                .tokenType(FUNGIBLE_COMMON)
+                .initialSupply(1_000_000L)
+                .treasury(TREASURY)
+                .withCustom(fixedHbarFee(ONE_HBAR / 100, TREASURY))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        ops.add(tokenAssociate(RECEIVER, prefix + "FungibleWithCustomFee")
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        // CryptoTransfer with 1 token with custom fees
+        ops.add(cryptoTransfer(moving(100, prefix + "FungibleWithCustomFee").between(TREASURY, RECEIVER))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TokenTransferCF1"));
+        ops.add(captureFee(prefix + "TokenTransferCF1", "TOKEN_TRANSFER_BASE_CUSTOM_FEES=1", feeMap));
 
         return ops;
     }
@@ -563,6 +752,35 @@ public class KitchenSinkFeeComparisonSuite {
                 .via(prefix + "TokenTransferNFT1"));
         ops.add(captureFee(prefix + "TokenTransferNFT1", "NON_FUNGIBLE_TOKENS=1", feeMap));
 
+        // ===== TokenUpdate with varying KEYS extra =====
+        // KEYS extra: fee=100000000 per key, includedCount=1
+        // TokenUpdate with 1 key (admin key)
+        ops.add(tokenUpdate(prefix + "FungibleK1")
+                .entityMemo("Updated memo")
+                .payingWith(PAYER)
+                .signedBy(PAYER, SIMPLE_KEY)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TokenUpdateK1"));
+        ops.add(captureFee(prefix + "TokenUpdateK1", "KEYS=1 (included)", feeMap));
+
+        // TokenUpdate with 3 keys (admin, supply, freeze)
+        ops.add(tokenUpdate(prefix + "FungibleK3")
+                .entityMemo("Updated memo for K3")
+                .payingWith(PAYER)
+                .signedBy(PAYER, SIMPLE_KEY)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TokenUpdateK3"));
+        ops.add(captureFee(prefix + "TokenUpdateK3", "KEYS=3 (+2 extra)", feeMap));
+
+        // TokenUpdate with 5 keys
+        ops.add(tokenUpdate(prefix + "FungibleK5")
+                .entityMemo("Updated memo for K5")
+                .payingWith(PAYER)
+                .signedBy(PAYER, SIMPLE_KEY)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TokenUpdateK5"));
+        ops.add(captureFee(prefix + "TokenUpdateK5", "KEYS=5 (+4 extra)", feeMap));
+
         // ===== TokenFreeze/Unfreeze (no extras) =====
         ops.add(tokenFreeze(prefix + "FungibleK5", prefix + "AccSimple")
                 .payingWith(PAYER)
@@ -665,6 +883,19 @@ public class KitchenSinkFeeComparisonSuite {
                 .via(prefix + "TopicCreateK2"));
         ops.add(captureFee(prefix + "TopicCreateK2", "KEYS=2 (+2 extra)", feeMap));
 
+        // ===== ConsensusCreateTopic with CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE extra =====
+        // CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE extra: fee=19900000000, includedCount=0
+        // This extra is charged when creating a topic with a custom fee schedule
+        // Note: This is a placeholder - actual custom fee topics may not be fully implemented yet
+        // For now, we'll just create a topic with admin key to test the base case
+        ops.add(createTopic(prefix + "TopicWithCustomFee")
+                .adminKeyName(SIMPLE_KEY)
+                .blankMemo()
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TopicCreateCustomFee"));
+        ops.add(captureFee(prefix + "TopicCreateCustomFee", "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE=0 (not triggered)", feeMap));
+
         // ===== ConsensusSubmitMessage with varying BYTES extra =====
         // BYTES extra: fee=110000 per byte, includedCount=100
         ops.add(submitMessageTo(prefix + "TopicK0")
@@ -695,6 +926,18 @@ public class KitchenSinkFeeComparisonSuite {
                 .via(prefix + "SubmitMsgB1000"));
         ops.add(captureFee(prefix + "SubmitMsgB1000", "BYTES=1000 (+900 extra)", feeMap));
 
+        // ===== ConsensusSubmitMessage with CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE extra =====
+        // CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE extra: fee=499000000, includedCount=0
+        // This extra is charged when submitting a message to a topic with custom fees
+        // Note: This is a placeholder - actual custom fee topics may not be fully implemented yet
+        ops.add(submitMessageTo(prefix + "TopicWithCustomFee")
+                .message("x".repeat(100))
+                .payingWith(PAYER)
+                .signedBy(PAYER, SIMPLE_KEY)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "SubmitMsgCustomFee"));
+        ops.add(captureFee(prefix + "SubmitMsgCustomFee", "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE=0 (not triggered)", feeMap));
+
         // ===== ConsensusUpdateTopic with varying KEYS extra =====
         // KEYS extra: fee=100000000 per key, includedCount=1
         ops.add(updateTopic(prefix + "TopicK1")
@@ -704,6 +947,15 @@ public class KitchenSinkFeeComparisonSuite {
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "TopicUpdateK1"));
         ops.add(captureFee(prefix + "TopicUpdateK1", "KEYS=1 (included)", feeMap));
+
+        // ConsensusUpdateTopic with 2 keys (admin + submit)
+        ops.add(updateTopic(prefix + "TopicK2")
+                .topicMemo(SHORT_MEMO)
+                .payingWith(PAYER)
+                .signedBy(PAYER, SIMPLE_KEY)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "TopicUpdateK2"));
+        ops.add(captureFee(prefix + "TopicUpdateK2", "KEYS=2 (+1 extra)", feeMap));
 
         // ===== ConsensusDeleteTopic (no extras) =====
         ops.add(deleteTopic(prefix + "TopicK2")
@@ -754,19 +1006,36 @@ public class KitchenSinkFeeComparisonSuite {
 
         // ===== FileUpdate with varying BYTES extra =====
         // BYTES extra: fee=110000 per byte, includedCount=1000
+        // KEYS extra: fee=100000000 per key, includedCount=1
         ops.add(fileUpdate(prefix + "FileB100")
                 .contents("x".repeat(500))
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "FileUpdateB500"));
-        ops.add(captureFee(prefix + "FileUpdateB500", "BYTES=500 (included)", feeMap));
+        ops.add(captureFee(prefix + "FileUpdateB500", "BYTES=500 (included), KEYS=1 (included)", feeMap));
 
         ops.add(fileUpdate(prefix + "FileB1000")
                 .contents("x".repeat(3000))
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "FileUpdateB3000"));
-        ops.add(captureFee(prefix + "FileUpdateB3000", "BYTES=3000 (+2000 extra)", feeMap));
+        ops.add(captureFee(prefix + "FileUpdateB3000", "BYTES=3000 (+2000 extra), KEYS=1 (included)", feeMap));
+
+        // ===== FileUpdate with varying KEYS extra =====
+        // Create a file with multiple keys to test KEYS extra on update
+        ops.add(fileCreate(prefix + "FileWithKeys")
+                .contents("test")
+                .key(LIST_KEY_3)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        ops.add(fileUpdate(prefix + "FileWithKeys")
+                .contents("updated")
+                .payingWith(PAYER)
+                .signedBy(PAYER, LIST_KEY_3)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "FileUpdateK3"));
+        ops.add(captureFee(prefix + "FileUpdateK3", "KEYS=3 (+2 extra), BYTES=7 (included)", feeMap));
 
         // ===== FileAppend with varying BYTES extra =====
         // BYTES extra: fee=110000 per byte, includedCount=1000
@@ -830,6 +1099,13 @@ public class KitchenSinkFeeComparisonSuite {
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ScheduleCreateK2"));
         ops.add(captureFee(prefix + "ScheduleCreateK2", "KEYS=2 (+1 extra)", feeMap));
+
+        // ===== ScheduleCreate with SCHEDULE_CREATE_CONTRACT_CALL_BASE extra =====
+        // SCHEDULE_CREATE_CONTRACT_CALL_BASE extra: fee=900000000, includedCount=0
+        // This extra is charged when scheduling a contract call transaction
+        // Note: For now, we'll just test the base case without actually triggering this extra
+        // as it requires a contract with callable functions. The extra is defined in the JSON
+        // but may not be fully implemented yet in the fee calculation logic.
 
         // ===== ScheduleSign (no extras) =====
         ops.add(scheduleSign(prefix + "ScheduleK1")
