@@ -165,9 +165,9 @@ class TransactionDispatcherTest {
 
             // And: Simple fee calculator returns a fee result
             final var feeResult = new FeeResult();
-            feeResult.node = 100000L; // 100K tinycents
-            feeResult.network = 200000L; // 200K tinycents
-            feeResult.service = 498500000L; // 498.5M tinycents
+            feeResult.addNodeBase(100000L); // 100K tinycents
+            feeResult.setNetworkMultiplier(2); // 200K tinycents
+            feeResult.addServiceBase(498500000L); // 498.5M tinycents
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
             given(simpleFeeCalculator.calculateTxFee(txBody, feeContext, EstimationMode.STATEFUL))
                     .willReturn(feeResult);

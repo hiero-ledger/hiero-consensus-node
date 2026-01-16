@@ -61,7 +61,7 @@ class CryptoGetInfoFeeCalculatorTest {
 
             // Then: service=1000000 ($0.0001 USD)
             assertThat(result).isNotNull();
-            assertThat(result.total()).isEqualTo(1000000L);
+            assertThat(result.totalTC()).isEqualTo(1000000L);
         }
 
         @Test
@@ -78,7 +78,7 @@ class CryptoGetInfoFeeCalculatorTest {
             final var result = feeCalculator.calculateQueryFee(query, null, EstimationMode.STATEFUL);
 
             // Then: Same fees - context is optional
-            assertThat(result.total()).isEqualTo(1000000L);
+            assertThat(result.totalTC()).isEqualTo(1000000L);
         }
     }
 

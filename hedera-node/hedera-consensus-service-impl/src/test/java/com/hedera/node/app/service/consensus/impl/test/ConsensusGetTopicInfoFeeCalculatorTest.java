@@ -49,7 +49,7 @@ public class ConsensusGetTopicInfoFeeCalculatorTest {
         final var query = Query.newBuilder().consensusGetTopicInfo(op).build();
         final var result = feeCalculator.calculateQueryFee(query, queryContext, EstimationMode.STATEFUL);
 
-        assertThat(result.total()).isEqualTo(GET_INFO_BASE_FEE);
+        assertThat(result.totalTC()).isEqualTo(GET_INFO_BASE_FEE);
     }
 
     private static FeeSchedule createTestFeeSchedule() {

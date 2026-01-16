@@ -61,7 +61,7 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         final FeeResult result = calc.calculate(txn, INTRINSIC);
-        assertThat(result.service).isEqualTo(9999000000L);
+        assertThat(result.serviceTotalTC()).isEqualTo(9999000000L);
         //        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
@@ -142,32 +142,33 @@ public class StandaloneFeeCalculatorTest {
         json.openObject();
 
         json.openKeyObject("node");
-        json.keyValue("baseFee", result.nodeBase);
+        json.keyValue("baseFee", result.getNodeBaseTC());
         json.openKeyArray("extras");
-        for (FeeResult.FeeDetail extra : result.nodeExtras) {
+        for (FeeResult.FeeDetail extra : result.getNodeExtras()) {
             outputExtra(json, extra);
         }
         json.closeKeyArray();
-        json.keyValue("subtotal", result.node);
+        json.keyValue("subtotal", result.nodeTotalTC());
         json.closeKeyObject();
 
         json.openKeyObject("network");
-        json.keyValue("multiplier", result.networkMultiplier);
-        json.keyValue("subtotal", result.network);
+        json.keyValue("multiplier", result.getNetworkMultiplier());
+        json.keyValue("subtotal", result.networkTotalTC());
         json.closeKeyObject();
 
         json.openKeyObject("service");
-        json.keyValue("baseFee", result.serviceBase);
+        json.keyValue("baseFee", result.getServiceBase());
         json.openKeyArray("extras");
-        for (FeeResult.FeeDetail extra : result.serviceExtras) {
+        for (FeeResult.FeeDetail extra : result.getServiceExtras()) {
             outputExtra(json, extra);
         }
         json.closeKeyArray();
+        json.keyValue("subtotal", result.serviceTotalTC());
         json.closeKeyObject();
 
         json.openKeyArray("notes");
         json.closeKeyArray();
-        json.keyValue("total", result.total());
+        json.keyValue("total", result.totalTC());
         json.closeObject();
         return json.toString();
     }
@@ -226,7 +227,7 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         final FeeResult result = calc.calculate(txn, INTRINSIC);
-        assertThat(result.service).isEqualTo(0L);
+        assertThat(result.serviceTotalTC()).isEqualTo(0L);
         System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
@@ -242,7 +243,7 @@ public class StandaloneFeeCalculatorTest {
         // 0.01000
         final FeeResult result = calc.calculate(txn, INTRINSIC);
         final var TINY_CENTS = 100_000_000L;
-        assertThat(result.total()).isEqualTo(1 * TINY_CENTS); // 0.01 USD
+        assertThat(result.totalTC()).isEqualTo(1 * TINY_CENTS); // 0.01 USD
         System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
@@ -264,7 +265,7 @@ public class StandaloneFeeCalculatorTest {
         // 0.01000
         final FeeResult result = calc.calculate(txn, INTRINSIC);
         final var TINY_CENTS = 100_000_000L;
-        assertThat(result.total()).isEqualTo(200 * TINY_CENTS); // 2.00 USD
+        assertThat(result.totalTC()).isEqualTo(200 * TINY_CENTS); // 2.00 USD
         System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
@@ -282,8 +283,8 @@ public class StandaloneFeeCalculatorTest {
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
         final FeeResult result = calc.calculate(txn, INTRINSIC);
-        assertThat(result.service).isEqualTo(0L);
-        assertThat(result.total()).isEqualTo(1_000_000L); // add in the node + network fee
+        assertThat(result.serviceTotalTC()).isEqualTo(0L);
+        assertThat(result.totalTC()).isEqualTo(1_000_000L); // add in the node + network fee
     }
 
     @Test
@@ -315,7 +316,7 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         final FeeResult result = calc.calculate(txn, INTRINSIC);
-        assertThat(result.service).isEqualTo(0L);
+        assertThat(result.serviceTotalTC()).isEqualTo(0L);
         //        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 }

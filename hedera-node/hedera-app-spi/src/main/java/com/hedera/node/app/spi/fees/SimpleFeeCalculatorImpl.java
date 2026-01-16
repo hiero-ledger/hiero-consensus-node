@@ -90,7 +90,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         addNodeExtras(result, feeSchedule.node().extras(), signatures);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
-        result.addNetworkFee(multiplier, result.node);
+        result.setNetworkMultiplier(multiplier);
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());

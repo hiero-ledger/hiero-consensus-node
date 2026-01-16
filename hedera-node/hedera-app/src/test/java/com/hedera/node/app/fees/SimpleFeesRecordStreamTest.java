@@ -131,11 +131,11 @@ public class SimpleFeesRecordStreamTest {
                             final var record = item.getRecord();
                             final var txnFee = record.getTransactionFee();
                             // actual fee charged (in tiny bar)?
-                            var fract = ((double) result.total()) / (double) (txnFee * 12);
+                            var fract = ((double) result.totalTC()) / (double) (txnFee * 12);
                             if (Math.abs(1 - fract) > 0.05) {
                                 System.out.println(
                                         "TXN: data case " + body.data().kind());
-                                System.out.println("simple        is : " + result.total());
+                                System.out.println("simple        is : " + result.totalTC());
                                 System.out.println("record trans fee : " + (txnFee * 12));
                                 System.out.println("fract = " + fract);
                             }

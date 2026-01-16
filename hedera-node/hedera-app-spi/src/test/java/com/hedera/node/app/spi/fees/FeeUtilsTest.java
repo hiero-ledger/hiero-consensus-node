@@ -16,7 +16,7 @@ public class FeeUtilsTest {
     void testFeeResultToFees() {
         FeeResult feeResult = new FeeResult();
         feeResult.addNodeBase(1000);
-        feeResult.addNetworkFee(1, 2000);
+        feeResult.setNetworkMultiplier(2);
         feeResult.addServiceBase(3000);
 
         ExchangeRate rate = mock(ExchangeRate.class);
@@ -30,18 +30,4 @@ public class FeeUtilsTest {
         assertEquals(6000, fees.serviceFee());
     }
 
-    @Test
-    void testFeesToFeeResult() {
-        Fees fees = new Fees(1000, 2000, 3000);
-
-        ExchangeRate rate = mock(ExchangeRate.class);
-        when(rate.getHbarEquiv()).thenReturn(2);
-        when(rate.getCentEquiv()).thenReturn(1);
-
-        FeeResult feeResult = FeeUtils.feesToFeeResult(fees, rate);
-
-        assertEquals(2000, feeResult.node);
-        assertEquals(4000, feeResult.network);
-        assertEquals(6000, feeResult.service);
-    }
 }

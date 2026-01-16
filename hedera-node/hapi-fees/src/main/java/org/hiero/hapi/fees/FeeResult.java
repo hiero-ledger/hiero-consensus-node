@@ -11,22 +11,23 @@ import java.util.List;
  */
 public class FeeResult {
     /** The service component in tinycents. */
-    public long service = 0;
+    private long service = 0;
 
-    public long serviceBase = 0;
-    public List<FeeDetail> serviceExtras = new ArrayList<>();
+    private long serviceBase = 0;
+    private List<FeeDetail> serviceExtras = new ArrayList<>();
     /** The node component in tinycents. */
-    public long node = 0;
+    private long node = 0;
 
-    public long nodeBase = 0;
-    public List<FeeDetail> nodeExtras = new ArrayList<>();
-    /** The network component in tinycents. */
-    public long network = 0;
+    private long nodeBase = 0;
+    public long getNodeBaseTC() {
+        return this.nodeBase;
+    }
+    private List<FeeDetail> nodeExtras = new ArrayList<>();
 
-    public int networkMultiplier = 0;
-    public int congestionMultiplier = 1;
+    private int networkMultiplier = 0;
+    private int congestionMultiplier = 1;
 
-    /** Add a service fee with details.
+    /** Add the service base fee in tiny cents.
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
     public void addServiceBase(long cost) {
@@ -60,29 +61,56 @@ public class FeeResult {
         node = clampedAdd(node, per_unit * charged);
     }
 
-    /** Add a network fee with details.
-     * @param multiplier the network multiplier
-     * @param node the actual computed cost of the node fee in tinycents
-     * */
-    public void addNetworkFee(int multiplier, long node) {
-        networkMultiplier = multiplier;
-        network = clampedAdd(network, node * multiplier);
+    /** Set the network multiplier. This is the factor multiplied by the node fee to calculate the network fee
+     *
+     * @param multiplier new network multiplier
+     */
+    public void setNetworkMultiplier(int multiplier) {
+        this.networkMultiplier = multiplier;
     }
 
     /** the total fee in tinycents. */
-    public long total() {
-        return clampedAdd(clampedAdd(this.node, this.network), this.service);
+    public long totalTC() {
+        return clampedAdd(clampedAdd(this.nodeTotalTC(), this.networkTotalTC()), this.service);
     }
+    /** the total node fee in tinycents. */
+    public long nodeTotalTC() {
+        return this.node;
+    }
+    /** the total network fee in tinycents. */
+    public long networkTotalTC() {
+        return this.nodeTotalTC() * networkMultiplier;
+    }
+    /** the total service fee in tinycents. */
+    public long serviceTotalTC() {
+        return this.service;
+    }
+
+    public Iterable<? extends FeeDetail> getNodeExtras() {
+        return this.nodeExtras;
+    }
+
+    public long getNetworkMultiplier() {
+        return this.networkMultiplier;
+    }
+
+    public long getServiceBase() {
+        return this.serviceBase;
+    }
+
+    public Iterable<? extends FeeDetail> getServiceExtras() {
+        return this.serviceExtras;
+    }
+
 
     public record FeeDetail(String name, long per_unit, long used, long included, long charged) {}
 
     /** Utility class representing the details of a particular fee component. */
     @Override
     public String toString() {
-        return "FeeResult{" + "fee=" + this.total()
+        return "FeeResult{" + "fee=" + this.totalTC()
                 + ", nodeBase=" + nodeBase
                 + ", nodeExtras=" + nodeExtras
-                + ", network=" + network
                 + ", networkMultiplier=" + networkMultiplier
                 + ", serviceBase=" + serviceBase
                 + ", serviceDetails=" + serviceExtras
