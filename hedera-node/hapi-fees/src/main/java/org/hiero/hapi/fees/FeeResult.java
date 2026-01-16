@@ -49,7 +49,7 @@ public class FeeResult {
         node = 0L;
         network = 0L;
         service = 0L;
-        details = new ArrayList<>();
+        details.clear();
     }
 
     /** the total fee in tinycents. */
