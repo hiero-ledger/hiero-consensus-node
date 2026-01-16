@@ -342,7 +342,20 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     }
 
     private boolean shouldUseSimpleFees(QueryContext context) {
-        return context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled();
+        if (!context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            return false;
+        }
+        return switch (context.query().query().kind()) {
+            case CONSENSUS_GET_TOPIC_INFO,
+                    SCHEDULE_GET_INFO,
+                    FILE_GET_CONTENTS,
+                    FILE_GET_INFO,
+                    TOKEN_GET_INFO,
+                    TOKEN_GET_NFT_INFO,
+                    CRYPTO_GET_INFO,
+                    CRYPTO_GET_ACCOUNT_RECORDS -> true;
+            default -> false;
+        };
     }
 
     private Query parseQuery(Bytes requestBuffer) {
