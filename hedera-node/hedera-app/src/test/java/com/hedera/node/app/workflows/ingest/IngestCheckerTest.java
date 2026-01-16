@@ -442,6 +442,89 @@ class IngestCheckerTest extends AppTestBase {
         }
 
         @Test
+        @DisplayName("High volume transaction should throw NOT_SUPPORTED when feature is disabled")
+        void highVolumeTransactionRejectedWhenFeatureDisabled() throws PreCheckException {
+            // Given a transaction with highVolume=true and the feature disabled (default)
+            final TransactionBody highVolumeTxBody = TransactionBody.newBuilder()
+                    .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
+                    .highVolume(true)
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(ALICE.accountID())
+                            .transactionValidStart(
+                                    Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
+                    .nodeAccountID(nodeSelfAccountId)
+                    .build();
+            final var signedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, highVolumeTxBody))
+                    .build();
+            final var serializedHighVolumeTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+
+            final var highVolumeTransactionInfo = new TransactionInfo(
+                    signedTx,
+                    highVolumeTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    signedTx.bodyBytes(),
+                    UNCHECKED_SUBMIT,
+                    serializedHighVolumeTx);
+            when(transactionChecker.parseAndCheck(serializedHighVolumeTx)).thenReturn(highVolumeTransactionInfo);
+
+            // When the transaction is checked, it should be rejected with NOT_SUPPORTED
+            assertThatThrownBy(() -> subject.runAllChecks(
+                            state, serializedHighVolumeTx, configuration, new IngestChecker.Result()))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
+            verify(opWorkflowMetrics, never()).incrementThrottled(any());
+        }
+
+        @Test
+        @DisplayName("High volume transaction should be allowed when feature is enabled")
+        void highVolumeTransactionAllowedWhenFeatureEnabled() throws Exception {
+            // Given a transaction with highVolume=true and the feature enabled
+            final var enabledConfig = new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("networkAdmin.highVolumeThrottlesEnabled", true)
+                            .getOrCreateConfig(),
+                    1L);
+
+            final TransactionBody highVolumeTxBody = TransactionBody.newBuilder()
+                    .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
+                    .highVolume(true)
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(ALICE.accountID())
+                            .transactionValidStart(
+                                    Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
+                    .nodeAccountID(nodeSelfAccountId)
+                    .build();
+            final var signedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, highVolumeTxBody))
+                    .build();
+            final var serializedHighVolumeTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+
+            final var highVolumeTransactionInfo = new TransactionInfo(
+                    signedTx,
+                    highVolumeTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    signedTx.bodyBytes(),
+                    UNCHECKED_SUBMIT,
+                    serializedHighVolumeTx);
+            when(transactionChecker.parseAndCheck(serializedHighVolumeTx)).thenReturn(highVolumeTransactionInfo);
+
+            // Set up signature verification to pass
+            final var verificationResultFuture = mock(SignatureVerificationFuture.class);
+            final var verificationResult = mock(SignatureVerification.class);
+            when(verificationResult.failed()).thenReturn(false);
+            when(verificationResultFuture.get(anyLong(), any())).thenReturn(verificationResult);
+            when(signatureVerifier.verify(any(), any()))
+                    .thenReturn(Map.of(ALICE.account().keyOrThrow(), verificationResultFuture));
+
+            // When the transaction is checked with the feature enabled, it should pass
+            final var result = new IngestChecker.Result();
+            assertThatCode(() -> subject.runAllChecks(state, serializedHighVolumeTx, enabledConfig, result))
+                    .doesNotThrowAnyException();
+            verify(opWorkflowMetrics, never()).incrementThrottled(any());
+        }
+
+        @Test
         @DisplayName("If some random exception is thrown from HapiThrottling, the exception is bubbled up")
         void randomException() {
             // Given a HapiThrottling that will throw a RuntimeException

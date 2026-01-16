@@ -71,4 +71,7 @@ public record NetworkAdminConfig(
         int distinctTxnIdsToTry,
 
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean preserveStateWeightsDuringOverride,
-        @ConfigProperty(defaultValue = "true") boolean createCandidateRosterOnPrepareUpgrade) {}
+        @ConfigProperty(defaultValue = "true") boolean createCandidateRosterOnPrepareUpgrade,
+        // Config for high volume throttles
+        @ConfigProperty(defaultValue = "false") @NodeProperty
+        boolean highVolumeThrottlesEnabled) {}
