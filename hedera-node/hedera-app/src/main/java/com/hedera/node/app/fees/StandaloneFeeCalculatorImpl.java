@@ -3,27 +3,20 @@ package com.hedera.node.app.fees;
 
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Transaction;
-import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.authorization.Authorizer;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import org.hiero.hapi.fees.FeeResult;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 
 public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
@@ -48,64 +41,32 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
     @Override
     public FeeResult calculate(Transaction transaction, EstimationMode mode) throws ParseException {
-        StandaloneFeeContextImpl feeContext = new StandaloneFeeContextImpl();
+        StandaloneFeeContextImpl context = new StandaloneFeeContextImpl();
+        context.setMode(mode);
         final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(
                 BufferedData.wrap(transaction.signedTransactionBytes().toByteArray()));
         if (signedTransaction.hasSigMap()) {
             final var sigMap = signedTransaction.sigMapOrThrow();
-            feeContext.setNumTxnSignatures(sigMap.sigPair().size());
+            context.setNumTxnSignatures(sigMap.sigPair().size());
         } else {
-            feeContext.setNumTxnSignatures(0);
+            context.setNumTxnSignatures(0);
         }
         if (transaction.hasBody()) {
-            return calc.calculateTxFee(transaction.bodyOrThrow(), feeContext, EstimationMode.INTRINSIC);
+            return calc.calculateTxFee(transaction.bodyOrThrow(), context);
+        } else {
+            final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(
+                    BufferedData.wrap(signedTransaction.bodyBytes().toByteArray()));
+            return calc.calculateTxFee(transactionBody, context);
         }
-        final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(
-                BufferedData.wrap(signedTransaction.bodyBytes().toByteArray()));
-        return calc.calculateTxFee(transactionBody, feeContext, EstimationMode.INTRINSIC);
     }
 
-    private class StandaloneFeeContextImpl implements FeeContext {
+    private class StandaloneFeeContextImpl implements SimpleFeeCalculator.SimpleFeeContext {
 
         private int _numTxnSignatures;
+        private EstimationMode mode;
 
         public StandaloneFeeContextImpl() {
             this._numTxnSignatures = 0;
-        }
-
-        @Override
-        public @NonNull AccountID payer() {
-            return null;
-        }
-
-        @Override
-        public @NonNull TransactionBody body() {
-            return null;
-        }
-
-        @Override
-        public @NonNull FeeCalculatorFactory feeCalculatorFactory() {
-            return null;
-        }
-
-        @Override
-        public SimpleFeeCalculator getSimpleFeeCalculator() {
-            return null;
-        }
-
-        @Override
-        public @NonNull <T> T readableStore(@NonNull Class<T> storeInterface) {
-            return null;
-        }
-
-        @Override
-        public @NonNull Configuration configuration() {
-            return null;
-        }
-
-        @Override
-        public @Nullable Authorizer authorizer() {
-            return null;
         }
 
         @Override
@@ -114,22 +75,31 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
         }
 
         @Override
-        public Fees dispatchComputeFees(@NonNull TransactionBody txBody, @NonNull AccountID syntheticPayerId) {
-            return null;
-        }
-
-        @Override
-        public ExchangeRate activeRate() {
-            return null;
-        }
-
-        @Override
-        public long getGasPriceInTinycents() {
+        public int numTxnBytes() {
             return 0;
+        }
+
+        @Override
+        public FeeContext feeContext() {
+            return null;
+        }
+
+        @Override
+        public QueryContext queryContext() {
+            return null;
+        }
+
+        @Override
+        public EstimationMode estimationMode() {
+            return mode;
         }
 
         public void setNumTxnSignatures(int sigcount) {
             this._numTxnSignatures = sigcount;
+        }
+
+        public void setMode(EstimationMode mode) {
+            this.mode = mode;
         }
     }
 }

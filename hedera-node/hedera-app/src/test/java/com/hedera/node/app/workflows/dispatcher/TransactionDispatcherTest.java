@@ -19,7 +19,6 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.impl.handlers.CryptoCreateHandler;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.config.api.Configuration;
@@ -162,6 +161,7 @@ class TransactionDispatcherTest {
             // And: Transaction body is provided
             given(feeContext.body()).willReturn(txBody);
             given(feeContext.activeRate()).willReturn(testExchangeRate);
+            var simpleFeeContext = new TransactionDispatcher.SimpleFeeContextImpl(feeContext);
 
             // And: Simple fee calculator returns a fee result
             final var feeResult = new FeeResult();
@@ -169,14 +169,13 @@ class TransactionDispatcherTest {
             feeResult.setNetworkMultiplier(2); // 200K tinycents
             feeResult.addServiceBaseTC(498500000L); // 498.5M tinycents
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateTxFee(txBody, feeContext, EstimationMode.STATEFUL))
-                    .willReturn(feeResult);
+            given(simpleFeeCalculator.calculateTxFee(txBody, simpleFeeContext)).willReturn(feeResult);
 
             // When
             final var result = subject.dispatchComputeFees(feeContext);
 
             // Then: Should use simple fee calculator
-            verify(simpleFeeCalculator).calculateTxFee(txBody, feeContext, EstimationMode.STATEFUL);
+            verify(simpleFeeCalculator).calculateTxFee(txBody, simpleFeeContext);
 
             // Verify fees are converted from tinycents to tinybars (divide by 12)
             assertThat(result).isNotNull();

@@ -21,7 +21,6 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -48,13 +47,13 @@ public interface ServiceFeeCalculator {
      * Accumulate service fees using the fee context. Using state is allowed.
      *
      * @param txnBody the transaction body
-     * @param feeContext the fee context
+     * @param context the simple fee context
      * @param feeResult the fee result
      * @param feeSchedule the fee schedule
      */
     default void accumulateServiceFee(
             @NonNull TransactionBody txnBody,
-            @Nullable FeeContext feeContext,
+            @NonNull SimpleFeeCalculator.SimpleFeeContext context,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         accumulateServiceFee(txnBody, feeResult, feeSchedule);

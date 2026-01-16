@@ -3,9 +3,8 @@ package com.hedera.node.app.service.token.impl.calculator;
 
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
@@ -14,7 +13,7 @@ public class TokenAirdropFeeCalculator extends CryptoTransferFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
+            @NonNull final SimpleFeeCalculator.SimpleFeeContext context,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final var op = txnBody.tokenAirdropOrThrow();
@@ -27,7 +26,7 @@ public class TokenAirdropFeeCalculator extends CryptoTransferFeeCalculator {
                 .transactionID(txnBody.transactionID())
                 .build();
 
-        super.accumulateServiceFee(syntheticCryptoTransfer, feeContext, feeResult, feeSchedule);
+        super.accumulateServiceFee(syntheticCryptoTransfer, context, feeResult, feeSchedule);
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

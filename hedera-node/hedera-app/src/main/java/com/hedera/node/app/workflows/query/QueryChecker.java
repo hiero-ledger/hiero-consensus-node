@@ -23,10 +23,13 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
@@ -222,8 +225,34 @@ public class QueryChecker {
                 -1,
                 dispatcher);
         if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            var simpleFeeContext = new SimpleFeeCalculator.SimpleFeeContext() {
+                @Override
+                public int numTxnSignatures() {
+                    return feeContext.numTxnSignatures();
+                }
+
+                @Override
+                public int numTxnBytes() {
+                    return 0;
+                }
+
+                @Override
+                public FeeContext feeContext() {
+                    return feeContext;
+                }
+
+                @Override
+                public QueryContext queryContext() {
+                    return null;
+                }
+
+                @Override
+                public EstimationMode estimationMode() {
+                    return null;
+                }
+            };
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                    .calculateTxFee(transactionInfo.txBody(), feeContext, EstimationMode.STATEFUL);
+                    .calculateTxFee(transactionInfo.txBody(), simpleFeeContext);
             final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
             return fees.totalFee();
         }

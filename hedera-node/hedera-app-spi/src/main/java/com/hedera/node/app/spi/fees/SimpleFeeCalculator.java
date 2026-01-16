@@ -28,12 +28,22 @@ import org.hiero.hapi.support.fees.Extra;
 public interface SimpleFeeCalculator {
 
     @NonNull
-    FeeResult calculateTxFee(
-            @NonNull TransactionBody txnBody, @NonNull FeeContext feeContext, ServiceFeeCalculator.EstimationMode mode);
+    FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull SimpleFeeContext context);
 
     @NonNull
-    FeeResult calculateQueryFee(
-            @NonNull Query query, @NonNull QueryContext queryContext, ServiceFeeCalculator.EstimationMode mode);
+    FeeResult calculateQueryFee(@NonNull Query query, @NonNull SimpleFeeContext context);
 
     long getExtraFee(Extra extra);
+
+    interface SimpleFeeContext {
+        int numTxnSignatures(); // number of signatures in the transaction
+
+        int numTxnBytes(); // added in a different PR so we can have BYTE extras in the node fees
+
+        FeeContext feeContext(); // may be null
+
+        QueryContext queryContext(); // may be null
+
+        ServiceFeeCalculator.EstimationMode estimationMode(); // Intrinsic or Stateful
+    }
 }

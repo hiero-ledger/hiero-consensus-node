@@ -16,8 +16,8 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashSet;
@@ -62,11 +62,11 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
+            @NonNull final SimpleFeeCalculator.SimpleFeeContext context,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
 
-        final ReadableTokenStore tokenStore = feeContext.readableStore(ReadableTokenStore.class);
+        final ReadableTokenStore tokenStore = context.feeContext().readableStore(ReadableTokenStore.class);
         final var op = txnBody.cryptoTransferOrThrow();
         final long numAccounts = countUniqueAccounts(op);
         final long numHooks = countHooks(op);

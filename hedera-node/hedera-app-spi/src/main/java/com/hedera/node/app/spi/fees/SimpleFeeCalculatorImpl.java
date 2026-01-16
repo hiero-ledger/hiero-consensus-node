@@ -6,9 +6,7 @@ import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -71,18 +69,14 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * CryptoDelete uses only SIGNATURES extra for the service fee.
      *
      * @param txnBody    the transaction body
-     * @param feeContext the fee context containing signature count
-     * @param mode
+     * @param context the fee context containing signature count
      * @return the calculated fee result
      */
     @NonNull
     @Override
-    public FeeResult calculateTxFee(
-            @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
-            ServiceFeeCalculator.EstimationMode mode) {
+    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext context) {
         // Extract primitive counts (no allocations)
-        final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
+        final long signatures = context.numTxnSignatures();
         final var result = new FeeResult();
 
         // Add node base and extras
@@ -94,11 +88,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
-        if (mode == ServiceFeeCalculator.EstimationMode.STATEFUL) {
-            serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
-        } else {
-            serviceFeeCalculator.accumulateServiceFee(txnBody, result, feeSchedule);
-        }
+        serviceFeeCalculator.accumulateServiceFee(txnBody, context, result, feeSchedule);
         return result;
     }
 
@@ -137,23 +127,15 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Default implementation for query fee calculation.
      *
      * @param query        The query to calculate fees for
-     * @param queryContext the query context
-     * @param mode
+     * @param context the query context
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
     @Override
-    public FeeResult calculateQueryFee(
-            @NonNull final Query query,
-            @NonNull final QueryContext queryContext,
-            ServiceFeeCalculator.EstimationMode mode) {
+    public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final SimpleFeeContext context) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
-        if (mode == ServiceFeeCalculator.EstimationMode.STATEFUL) {
-            queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
-        } else {
-            queryFeeCalculator.accumulateNodePayment(query, result, feeSchedule);
-        }
+        queryFeeCalculator.accumulateNodePayment(query, result, feeSchedule);
         return result;
     }
 }

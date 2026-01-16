@@ -30,7 +30,9 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator.EstimationMode;
+import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -238,7 +240,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             long queryFees = 0;
                             if (shouldUseSimpleFees(context)) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(context.query(), context, EstimationMode.STATEFUL);
+                                        .calculateQueryFee(context.query(), new QuerySimpleFeeContext(context));
                                 queryFees = tinycentsToTinybars(
                                         queryFeeTinyCents.totalTC(),
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
@@ -298,7 +300,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     long queryFees = 0;
                     if (shouldUseSimpleFees(context)) {
                         final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                .calculateQueryFee(context.query(), context, EstimationMode.STATEFUL);
+                                .calculateQueryFee(context.query(), new QuerySimpleFeeContext(context));
                         queryFees = tinycentsToTinybars(
                                 queryFeeTinyCents.totalTC(),
                                 fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
@@ -403,6 +405,39 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             return HapiUtils.functionOf(query);
         } catch (UnknownHederaFunctionality e) {
             return HederaFunctionality.NONE;
+        }
+    }
+
+    public static class QuerySimpleFeeContext implements SimpleFeeCalculator.SimpleFeeContext {
+        private final QueryContext queryContext;
+
+        public QuerySimpleFeeContext(QueryContext queryContext) {
+            this.queryContext = queryContext;
+        }
+
+        @Override
+        public int numTxnSignatures() {
+            return 0;
+        }
+
+        @Override
+        public int numTxnBytes() {
+            return 0;
+        }
+
+        @Override
+        public FeeContext feeContext() {
+            return null;
+        }
+
+        @Override
+        public QueryContext queryContext() {
+            return this.queryContext;
+        }
+
+        @Override
+        public ServiceFeeCalculator.EstimationMode estimationMode() {
+            return ServiceFeeCalculator.EstimationMode.STATEFUL;
         }
     }
 }
