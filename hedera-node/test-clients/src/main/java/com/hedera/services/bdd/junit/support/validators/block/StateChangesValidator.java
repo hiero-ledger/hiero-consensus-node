@@ -297,32 +297,26 @@ public class StateChangesValidator implements BlockStreamValidator {
         if (!(spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork)) {
             throw new IllegalArgumentException("Cannot validate state changes for an embedded network");
         }
-        try {
-            final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
-            final var genesisConfigTxt = node0.metadata().workingDirOrThrow().resolve("genesis-config.txt");
-            Files.writeString(genesisConfigTxt, subProcessNetwork.genesisConfigTxt());
-            final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
-            final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
-            final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");
-            final boolean stateProofsEnabled =
-                    spec.startupProperties().getBoolean("block.stateproof.verification.enabled");
-            return new StateChangesValidator(
-                    rootHash,
-                    node0.getExternalPath(SWIRLDS_LOG),
-                    node0.getExternalPath(APPLICATION_PROPERTIES),
-                    node0.getExternalPath(DATA_CONFIG_DIR),
-                    crsSize,
-                    isHintsEnabled ? HintsEnabled.YES : HintsEnabled.NO,
-                    isHistoryEnabled ? HistoryEnabled.YES : HistoryEnabled.NO,
-                    Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
-                            .map(Long::parseLong)
-                            .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR),
-                    stateProofsEnabled ? StateProofsEnabled.YES : StateProofsEnabled.NO,
-                    spec.shard(),
-                    spec.realm());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+
+        final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
+        final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
+        final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
+        final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");
+        final boolean stateProofsEnabled = spec.startupProperties().getBoolean("block.stateproof.verification.enabled");
+        return new StateChangesValidator(
+                rootHash,
+                node0.getExternalPath(SWIRLDS_LOG),
+                node0.getExternalPath(APPLICATION_PROPERTIES),
+                node0.getExternalPath(DATA_CONFIG_DIR),
+                crsSize,
+                isHintsEnabled ? HintsEnabled.YES : HintsEnabled.NO,
+                isHistoryEnabled ? HistoryEnabled.YES : HistoryEnabled.NO,
+                Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
+                        .map(Long::parseLong)
+                        .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR),
+                stateProofsEnabled ? StateProofsEnabled.YES : StateProofsEnabled.NO,
+                spec.shard(),
+                spec.realm());
     }
 
     public StateChangesValidator(

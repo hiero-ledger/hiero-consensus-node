@@ -45,7 +45,7 @@ public class GenerateKeysCommand extends AbstractCommand {
     public Integer call()
             throws KeyStoreException, ExecutionException, InterruptedException, IOException,
                     CertificateEncodingException {
-        var keysEntries = generateKeysAndCerts(ids.stream().map(NodeId::of).toList(), null);
+        var keysEntries = generateKeysAndCerts(ids.stream().map(NodeId::of).toList());
         if (sigCertPath == null) {
             Files.createDirectories(Path.of(System.getProperty("user.dir")).resolve("data/keys"));
             sigCertPath = Path.of(System.getProperty("user.dir")).resolve("data/keys");
