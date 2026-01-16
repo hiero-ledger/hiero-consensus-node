@@ -36,6 +36,26 @@ public class TransactionDispatcher {
     public static final String SYSTEM_DELETE_WITHOUT_ID_CASE = "SystemDelete without IdCase";
     public static final String SYSTEM_UNDELETE_WITHOUT_ID_CASE = "SystemUndelete without IdCase";
 
+    /**
+     * No-op handler to simplify externalizing informational system txs in the consensus stream.
+     */
+    private static final TransactionHandler NOOP_HANDLER = new TransactionHandler() {
+        @Override
+        public void preHandle(@NonNull PreHandleContext context) {
+            // No-op
+        }
+
+        @Override
+        public void pureChecks(@NonNull PureChecksContext context) {
+            // No-op
+        }
+
+        @Override
+        public void handle(@NonNull HandleContext context) throws HandleException {
+            // No-op
+        }
+    };
+
     protected final TransactionHandlers handlers;
     protected final FeeManager feeManager;
 
@@ -151,13 +171,22 @@ public class TransactionDispatcher {
                     TOKEN_MINT,
                     TOKEN_BURN,
                     TOKEN_DELETION,
-                    TOKEN_PAUSE,
+                    TOKEN_FEE_SCHEDULE_UPDATE,
                     TOKEN_FREEZE,
-                    TOKEN_UNPAUSE,
+                    TOKEN_ASSOCIATE,
+                    TOKEN_DISSOCIATE,
+                    TOKEN_GRANT_KYC,
+                    TOKEN_PAUSE,
+                    TOKEN_REVOKE_KYC,
+                    TOKEN_REJECT,
                     TOKEN_UNFREEZE,
+                    TOKEN_UNPAUSE,
                     TOKEN_AIRDROP,
                     TOKEN_CLAIM_AIRDROP,
-                    TOKEN_CANCEL_AIRDROP -> true;
+                    TOKEN_CANCEL_AIRDROP,
+                    TOKEN_UPDATE,
+                    TOKEN_UPDATE_NFTS,
+                    TOKEN_WIPE -> true;
             default -> false;
         };
     }
@@ -193,7 +222,7 @@ public class TransactionDispatcher {
             case CONTRACT_CALL -> handlers.contractCallHandler();
             case CONTRACT_DELETE_INSTANCE -> handlers.contractDeleteHandler();
             case ETHEREUM_TRANSACTION -> handlers.ethereumTransactionHandler();
-            case LAMBDA_SSTORE -> handlers.lambdaSStoreHandler();
+            case HOOK_STORE -> handlers.hookStoreHandler();
             case HOOK_DISPATCH -> handlers.hookDispatchHandler();
 
             case CRYPTO_CREATE_ACCOUNT -> handlers.cryptoCreateHandler();
@@ -267,6 +296,7 @@ public class TransactionDispatcher {
                     case FILE_ID -> handlers.fileSystemUndeleteHandler();
                     default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
                 };
+            case LEDGER_ID_PUBLICATION -> NOOP_HANDLER;
 
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };
