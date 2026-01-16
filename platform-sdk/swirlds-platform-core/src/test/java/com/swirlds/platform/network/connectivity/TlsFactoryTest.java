@@ -45,7 +45,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
     @BeforeEach
     void setUp() throws Throwable {
         // create addressBook, keysAndCerts
-        final RosterAndCerts rosterAndCerts = CryptoArgsProvider.loadAddressBookWithKeys(2);
+        final RosterAndCerts rosterAndCerts = CryptoArgsProvider.genRosterLoadKeys(2);
         final Roster roster = rosterAndCerts.roster();
         final Map<NodeId, KeysAndCerts> keysAndCerts = rosterAndCerts.nodeIdKeysAndCertsMap();
         assertTrue(roster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
@@ -71,7 +71,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
         Assertions.assertFalse(serverSocket.isClosed());
 
         // create a new address book with keys and new set of nodes
-        final RosterAndCerts updatedRosterAndCerts = CryptoArgsProvider.loadAddressBookWithKeys(6);
+        final RosterAndCerts updatedRosterAndCerts = CryptoArgsProvider.genRosterLoadKeys(6);
         final Roster updatedRoster = Roster.newBuilder()
                 .rosterEntries(updatedRosterAndCerts.roster().rosterEntries().stream()
                         .map(entry -> {

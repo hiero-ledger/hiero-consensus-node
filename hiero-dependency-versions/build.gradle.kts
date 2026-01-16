@@ -13,8 +13,8 @@ val besu = "25.2.2"
 val bouncycastle = "1.81"
 val dagger = "2.56.2"
 val eclipseCollections = "13.0.0"
-val grpc = "1.72.0"
-val hederaCryptography = "3.0.0"
+val grpc = "1.73.0"
+val hederaCryptography = "3.2.0"
 val helidon = "4.3.2"
 val jackson = "2.19.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
@@ -44,7 +44,7 @@ dependencies.constraints {
         because("com.fasterxml.jackson.dataformat.yaml")
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
-    api("com.github.docker-java:docker-java-api:3.5.3") { because("com.github.dockerjava.api") }
+    api("com.github.docker-java:docker-java-api:3.7.0") { because("com.github.dockerjava.api") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
         because("com.github.spotbugs.annotations")
     }
@@ -65,7 +65,7 @@ dependencies.constraints {
     api("com.hedera.pbj:pbj-grpc-helidon:${pbj}") { because("com.hedera.pbj.grpc.helidon") }
     api("com.hedera.pbj:pbj-runtime:$pbj") { because("com.hedera.pbj.runtime") }
     api("com.squareup:javapoet:1.13.0") { because("com.squareup.javapoet") }
-    api("net.java.dev.jna:jna:5.17.0") { because("com.sun.jna") }
+    api("net.java.dev.jna:jna:5.18.1") { because("com.sun.jna") }
     api("com.google.dagger:dagger:$dagger") { because("dagger") }
     api("com.google.dagger:dagger-compiler:$dagger") { because("dagger.compiler") }
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
@@ -83,10 +83,10 @@ dependencies.constraints {
     api("com.goterl:lazysodium-java:5.2.0") { because("com.goterl.lazysodium") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
-    api("commons-codec:commons-codec:1.18.0") { because("org.apache.commons.codec") }
-    api("commons-io:commons-io:2.19.0") { because("org.apache.commons.io") }
+    api("commons-codec:commons-codec:1.19.0") { because("org.apache.commons.codec") }
+    api("commons-io:commons-io:2.20.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.18.0") { because("org.apache.commons.lang3") }
-    api("org.apache.commons:commons-compress:1.27.1") { because("org.apache.commons.compress") }
+    api("org.apache.commons:commons-compress:1.28.0") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }
     api("org.apache.logging.log4j:log4j-core:$log4j") { because("org.apache.logging.log4j.core") }
     api("org.apache.logging.log4j:log4j-slf4j2-impl:$log4j") {
