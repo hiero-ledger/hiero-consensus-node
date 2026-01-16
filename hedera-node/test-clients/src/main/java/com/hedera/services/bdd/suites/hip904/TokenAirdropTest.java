@@ -313,17 +313,22 @@ public class TokenAirdropTest extends TokenAirdropBase {
             @HapiTest
             @DisplayName("charge association fee for FT correctly")
             final Stream<DynamicTest> chargeAssociationFeeForFT() {
+                final double networkAndNodeFee = 0.001;
+                final double airdropFee = 0.05;
+                final double associationFee = 0.05;
                 var receiver = "receiver";
                 return hapiTest(
                         cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
                         tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, receiver))
                                 .payingWith(OWNER)
+                                .signedBy(OWNER)
                                 .via("airdrop"),
                         tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, receiver))
                                 .payingWith(OWNER)
+                                .signedBy(OWNER)
                                 .via("second airdrop"),
-                        validateChargedUsd("airdrop", 0.1, 1),
-                        validateChargedUsd("second airdrop", 0.05, 1));
+                        validateChargedUsd("airdrop", networkAndNodeFee + associationFee + airdropFee),
+                        validateChargedUsd("second airdrop", networkAndNodeFee + airdropFee));
             }
 
             @HapiTest
@@ -964,8 +969,9 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     cryptoTransfer(
                             movingUnique(NFT_WITH_ROYALTY_FEE, 2L).between(TREASURY_FOR_CUSTOM_FEE_TOKENS, OWNER)),
                     tokenAirdrop(movingUnique(NFT_WITH_ROYALTY_FEE, 2L).between(OWNER, HTS_COLLECTOR))
-                            .signedByPayerAnd(HTS_COLLECTOR, OWNER)
+                            .signedBy(HTS_COLLECTOR, OWNER)
                             .payingWith(OWNER)
+                            .memo("Memoo")
                             .via("NFT with royalty fee airdrop to collector"),
                     // assert owner balance
                     withOpContext((spec, log) -> {
@@ -985,7 +991,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     // assert collector balance is not changed
                     withOpContext((spec, log) ->
                             Assertions.assertEquals(currentCollectorBalance.get(), newCollectorBalance.get())),
-                    validateChargedUsd("NFT with royalty fee airdrop to collector", 0.001, 20));
+                    // 0.002 transfer with custom fee and 0.001 for extra signature
+                    validateChargedUsd("NFT with royalty fee airdrop to collector", 0.003));
         }
 
         @HapiTest
@@ -1062,7 +1069,8 @@ public class TokenAirdropTest extends TokenAirdropBase {
                         // assert treasury balance is not changed
                         Assertions.assertEquals(currentTreasuryBalance.get(), newTreasuryBalance.get());
                     }),
-                    validateChargedUsd("NFT with royalty fee airdrop to treasury", 0.001, 20));
+                    // 0.001 airdrop and 0.001 for extra signature
+                    validateChargedUsd("NFT with royalty fee airdrop to treasury", 0.002));
         }
 
         @HapiTest
@@ -1360,8 +1368,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                                         .betweenWithDecimals(OWNER, RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS))
                                 .payingWith(OWNER)
                                 .via("transferTx")
-                                .hasKnownStatus(INVALID_TOKEN_ID),
-                        validateChargedUsd("transferTx", 0.001, 10));
+                                .hasPrecheck(INVALID_TOKEN_ID));
             }));
         }
 
@@ -1800,7 +1807,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                                     TokenID.newBuilder().setTokenNum(5555555L).build())),
                     tokenAirdrop(moving(50L, FUNGIBLE_TOKEN_A).between(ALICE, BOB))
                             .signedByPayerAnd(ALICE)
-                            .hasKnownStatus(INVALID_TOKEN_ID));
+                            .hasPrecheck(INVALID_TOKEN_ID));
         }
 
         @HapiTest
@@ -1829,7 +1836,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     tokenAirdrop(TokenMovement.movingUnique(NON_FUNGIBLE_TOKEN_A, 1L)
                                     .between(ALICE, BOB))
                             .signedByPayerAnd(ALICE)
-                            .hasKnownStatus(INVALID_TOKEN_ID));
+                            .hasPrecheck(INVALID_TOKEN_ID));
         }
 
         @HapiTest
@@ -2061,7 +2068,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     tokenAirdrop(moving(10, FUNGIBLE_TOKEN_A).between(ALICE, BOB))
                             .payingWith(ALICE)
                             .signedByPayerAnd(ALICE)
-                            .hasKnownStatus(TOKEN_IS_PAUSED));
+                            .hasPrecheck(INVALID_TOKEN_ID));
         }
 
         @HapiTest
