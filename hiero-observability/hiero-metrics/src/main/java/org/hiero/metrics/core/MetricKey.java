@@ -12,7 +12,8 @@ import java.util.Objects;
  * Metric name and category must not be blank and must only contain valid characters
  * defined by {@link MetricUtils#METRIC_NAME_REGEX}.
  */
-public record MetricKey<M extends Metric>(@NonNull String name, @NonNull Class<M> type) {
+public record MetricKey<M extends Metric>(
+        @NonNull String name, @NonNull Class<M> type) {
 
     /**
      * Creates a new metric key instance with the specified name and type. <br>
