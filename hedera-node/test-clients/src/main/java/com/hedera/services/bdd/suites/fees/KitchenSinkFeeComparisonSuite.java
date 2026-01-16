@@ -71,6 +71,10 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -109,7 +113,7 @@ public class KitchenSinkFeeComparisonSuite {
      * which is required for switching between simple and legacy fees mid-test.
      */
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) throws IOException {
         testLifecycle.overrideInClass(Map.of(
                 "fees.simpleFeesEnabled", "true",
                 "hooks.hooksEnabled", "true"));
@@ -158,7 +162,9 @@ public class KitchenSinkFeeComparisonSuite {
                 overriding("fees.simpleFeesEnabled", "false"),
                 blockingOrder(runCryptoTransactions("legacy", legacyFees)),
                 // === COMPARE AND LOG RESULTS ===
-                logFeeComparison(legacyFees, simpleFees));
+                logFeeComparison(legacyFees, simpleFees),
+                // === WRITE RESULTS TO CSV ===
+                writeFeeComparisonToCsv(legacyFees, simpleFees, "fee-comparison-crypto.csv"));
     }
 
     /**
@@ -196,7 +202,9 @@ public class KitchenSinkFeeComparisonSuite {
                 overriding("fees.simpleFeesEnabled", "false"),
                 blockingOrder(runAllTransactions("legacy", legacyFees)),
                 // === COMPARE AND LOG RESULTS ===
-                logFeeComparison(legacyFees, simpleFees));
+                logFeeComparison(legacyFees, simpleFees),
+                // === WRITE RESULTS TO CSV ===
+                writeFeeComparisonToCsv(legacyFees, simpleFees, "fee-comparison-full.csv"));
     }
 
     // ==================== KEY CREATION ====================
@@ -1408,6 +1416,74 @@ public class KitchenSinkFeeComparisonSuite {
                     totalDiff,
                     totalPctChange));
             LOG.info("=============================================\n");
+        });
+    }
+
+    /**
+     * Writes fee comparison results to a CSV file.
+     * @param legacyFees Map of legacy fees
+     * @param simpleFees Map of simple fees
+     * @param filename Name of the CSV file to write
+     * @return A SpecOperation that writes the CSV file
+     */
+    private static SpecOperation writeFeeComparisonToCsv(
+            Map<String, Long> legacyFees, Map<String, Long> simpleFees, String filename) {
+        return withOpContext((spec, opLog) -> {
+            try (FileWriter writer = new FileWriter(filename)) {
+                // Write CSV header
+                writer.append("Transaction,Extras,Legacy Fee (tinybars),Simple Fee (tinybars),Difference (tinybars),% Change\n");
+
+                // Write data rows
+                for (String txnKey : legacyFees.keySet()) {
+                    // Parse the key to extract transaction name and emphasis
+                    String[] parts = txnKey.split("\\|", 2);
+                    String txnName = parts[0];
+                    String emphasis = parts.length > 1 ? parts[1] : "";
+
+                    // Extract the base name (remove prefix)
+                    String baseName = txnName.startsWith("legacy") ? txnName.substring(6) : txnName;
+                    String simpleTxnKey = "simple" + baseName + (emphasis.isEmpty() ? "" : "|" + emphasis);
+
+                    Long legacyFee = legacyFees.get(txnKey);
+                    Long simpleFee = simpleFees.get(simpleTxnKey);
+
+                    if (legacyFee != null && simpleFee != null) {
+                        long diff = simpleFee - legacyFee;
+                        double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
+
+                        // Escape commas in transaction name and emphasis
+                        String escapedBaseName = baseName.replace(",", ";");
+                        String escapedEmphasis = emphasis.replace(",", ";");
+
+                        writer.append(String.format(
+                                "%s,%s,%d,%d,%d,%.2f\n",
+                                escapedBaseName,
+                                escapedEmphasis,
+                                legacyFee,
+                                simpleFee,
+                                diff,
+                                pctChange));
+                    }
+                }
+
+                // Write summary row
+                long totalLegacy = legacyFees.values().stream().mapToLong(Long::longValue).sum();
+                long totalSimple = simpleFees.values().stream().mapToLong(Long::longValue).sum();
+                long totalDiff = totalSimple - totalLegacy;
+                double totalPctChange = totalLegacy > 0 ? (totalDiff * 100.0 / totalLegacy) : 0;
+
+                writer.append(String.format(
+                        "TOTAL,,%d,%d,%d,%.2f\n",
+                        totalLegacy,
+                        totalSimple,
+                        totalDiff,
+                        totalPctChange));
+
+                LOG.info("Fee comparison results written to: {}", filename);
+            } catch (IOException e) {
+                LOG.error("Failed to write CSV file: {}", filename, e);
+                throw new RuntimeException("Failed to write CSV file: " + filename, e);
+            }
         });
     }
 }
