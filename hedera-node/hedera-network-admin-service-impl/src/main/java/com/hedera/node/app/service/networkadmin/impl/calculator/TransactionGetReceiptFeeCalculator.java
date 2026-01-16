@@ -23,7 +23,7 @@ public class TransactionGetReceiptFeeCalculator implements QueryFeeCalculator {
             @NonNull Query query, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TRANSACTION_GET_RECEIPT);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     @Override

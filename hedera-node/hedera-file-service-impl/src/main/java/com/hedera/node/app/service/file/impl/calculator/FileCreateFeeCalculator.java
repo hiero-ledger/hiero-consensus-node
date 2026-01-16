@@ -28,7 +28,7 @@ public class FileCreateFeeCalculator implements ServiceFeeCalculator {
                     .sum();
         }
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_CREATE);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keyCount);
         addExtraFee(feeResult, serviceDef, BYTES, feeSchedule, op.contents().length());
     }

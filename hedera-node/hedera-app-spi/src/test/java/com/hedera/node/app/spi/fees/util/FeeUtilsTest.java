@@ -22,9 +22,9 @@ class FeeUtilsTest {
         when(rate.getCentEquiv()).thenReturn(1);
 
         FeeResult feeResult = new FeeResult();
-        feeResult.addNodeBase(10);
+        feeResult.addNodeBaseTC(10);
         feeResult.setNetworkMultiplier(2);
-        feeResult.addServiceBase(30);
+        feeResult.addServiceBaseTC(30);
 
         Fees fees = FeeUtils.feeResultToFees(feeResult, rate);
 

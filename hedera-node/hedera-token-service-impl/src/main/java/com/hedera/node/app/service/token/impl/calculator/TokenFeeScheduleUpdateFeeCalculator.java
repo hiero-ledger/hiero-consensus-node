@@ -22,7 +22,7 @@ public class TokenFeeScheduleUpdateFeeCalculator implements ServiceFeeCalculator
         // Add service base + extras
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_FEE_SCHEDULE_UPDATE);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

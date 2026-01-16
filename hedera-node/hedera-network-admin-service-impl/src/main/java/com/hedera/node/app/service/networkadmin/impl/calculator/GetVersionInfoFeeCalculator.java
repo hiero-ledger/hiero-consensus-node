@@ -19,7 +19,7 @@ public class GetVersionInfoFeeCalculator implements QueryFeeCalculator {
     public void accumulateNodePayment(
             @NonNull Query query, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.GET_VERSION_INFO);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     @Override

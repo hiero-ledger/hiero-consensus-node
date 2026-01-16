@@ -32,7 +32,7 @@ public class FeeResult {
     /** Add the service base fee in tiny cents.
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
-    public void addServiceBase(long cost) {
+    public void addServiceBaseTC(long cost) {
         serviceBase = cost;
         service = clampedAdd(service, cost);
     }
@@ -42,10 +42,10 @@ public class FeeResult {
         service = clampedAdd(service, per_unit * charged);
     }
 
-    /** Add the node base fee with details.
+    /** Add the node base fee in tiny cents.
      * @param cost the actual computed cost of this node base fee in tinycents.
      * */
-    public void addNodeBase(long cost) {
+    public void addNodeBaseTC(long cost) {
         nodeBase = cost;
         node = clampedAdd(node, cost);
     }

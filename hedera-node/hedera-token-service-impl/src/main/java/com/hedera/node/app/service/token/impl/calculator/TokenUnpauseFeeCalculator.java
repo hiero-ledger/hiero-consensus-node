@@ -20,7 +20,7 @@ public class TokenUnpauseFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_UNPAUSE);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

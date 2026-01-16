@@ -22,7 +22,7 @@ public class TokenCreateFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_CREATE);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
         var op = txnBody.tokenCreationOrThrow();
         long keys = 0;
         if (op.hasAdminKey()) {

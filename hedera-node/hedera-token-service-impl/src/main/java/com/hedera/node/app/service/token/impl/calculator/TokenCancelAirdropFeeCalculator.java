@@ -18,7 +18,7 @@ public class TokenCancelAirdropFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_CANCEL_AIRDROP);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

@@ -56,7 +56,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
     public void accumulateServiceFee(
             @NonNull TransactionBody txnBody, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     @Override
@@ -73,7 +73,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
 
         final Extra transferType = determineTransferType(tokenCounts);
         if (transferType != null) {

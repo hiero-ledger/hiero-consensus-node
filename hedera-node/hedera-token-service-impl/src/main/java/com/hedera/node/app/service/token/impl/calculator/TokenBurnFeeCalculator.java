@@ -22,7 +22,7 @@ public class TokenBurnFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.tokenBurnOrThrow();
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_BURN);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

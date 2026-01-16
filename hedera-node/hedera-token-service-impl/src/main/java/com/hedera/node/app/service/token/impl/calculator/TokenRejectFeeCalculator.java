@@ -21,7 +21,7 @@ public class TokenRejectFeeCalculator implements ServiceFeeCalculator {
 
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_REJECT);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

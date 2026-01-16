@@ -86,7 +86,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
 
         // Add node base and extras
-        result.addNodeBase(feeSchedule.node().baseFee());
+        result.addNodeBaseTC(feeSchedule.node().baseFee());
         addNodeExtras(result, feeSchedule.node().extras(), signatures);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();

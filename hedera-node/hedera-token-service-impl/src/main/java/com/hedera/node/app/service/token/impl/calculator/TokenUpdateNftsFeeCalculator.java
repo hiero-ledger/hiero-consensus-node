@@ -19,7 +19,7 @@ public class TokenUpdateNftsFeeCalculator implements ServiceFeeCalculator {
             @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_UPDATE_NFTS);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

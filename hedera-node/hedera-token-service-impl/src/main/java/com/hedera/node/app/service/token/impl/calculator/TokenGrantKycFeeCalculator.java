@@ -21,7 +21,7 @@ public class TokenGrantKycFeeCalculator implements ServiceFeeCalculator {
         // Add service base + extras
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_GRANT_KYC_TO_ACCOUNT);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

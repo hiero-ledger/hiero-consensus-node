@@ -19,7 +19,7 @@ public class CryptoGetInfoFeeCalculator implements QueryFeeCalculator {
     public void accumulateNodePayment(
             @NonNull final Query query, @NonNull final FeeResult feeResult, @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_GET_INFO);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     @Override

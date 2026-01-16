@@ -1152,7 +1152,7 @@ class QueryWorkflowImplTest extends AppTestBase {
 
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
             final var result = new FeeResult();
-            result.addNodeBase(100000L);
+            result.addNodeBaseTC(100000L);
             given(simpleFeeCalculator.calculateQueryFee(query, queryContext, EstimationMode.STATEFUL))
                     .willReturn(result);
 

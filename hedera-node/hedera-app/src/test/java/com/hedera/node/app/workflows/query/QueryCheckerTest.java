@@ -557,9 +557,9 @@ class QueryCheckerTest extends AppTestBase {
         final var simpleFeeCalculator = mock(SimpleFeeCalculator.class);
         final var transferFeeResult = new FeeResult();
         // create object with total fee 1000
-        transferFeeResult.addNodeBase(400);
+        transferFeeResult.addNodeBaseTC(400);
         transferFeeResult.setNetworkMultiplier(2);
-        transferFeeResult.addServiceBase(100);
+        transferFeeResult.addServiceBaseTC(100);
         // hbar equivalent should be 120
         final var expectedFee = 156;
 

@@ -20,7 +20,7 @@ public class TokenAssociateFeeCalculator implements ServiceFeeCalculator {
         // Add service base + extras
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

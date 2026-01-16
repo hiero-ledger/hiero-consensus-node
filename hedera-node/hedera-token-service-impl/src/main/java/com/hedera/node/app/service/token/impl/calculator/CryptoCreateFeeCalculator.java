@@ -25,7 +25,7 @@ public class CryptoCreateFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.cryptoCreateAccountOrThrow();
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_CREATE);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
         if (op.hasKey()) {
             addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, countKeys(op.key()));
         }

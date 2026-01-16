@@ -80,7 +80,7 @@ public class HookStoreHandler implements TransactionHandler {
             // TODO: what does this code do? why is it multiplying the base fee times a count instead of using an extra?
             //      feeResult.addServiceFee(slotCount(op.storageUpdates()), fee.baseFee());
             final var slots = slotCount(op.storageUpdates());
-            feeResult.addServiceBase(slots * fee.baseFee());
+            feeResult.addServiceBaseTC(slots * fee.baseFee());
         }
     }
 

@@ -23,7 +23,7 @@ public class CryptoGetAccountBalanceFeeCalculator implements QueryFeeCalculator 
             @NonNull Query query, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_GET_ACCOUNT_BALANCE);
-        feeResult.addServiceBase(serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
     }
 
     @Override
