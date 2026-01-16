@@ -29,15 +29,21 @@ public final class ThrottleBucket<E extends Enum<E>> {
     private long burstPeriodMs;
     private String name;
     private List<ThrottleGroup<E>> throttleGroups = new ArrayList<>();
+    private boolean highVolume;
 
     public ThrottleBucket() {
         // Needed by Jackson
     }
 
     public ThrottleBucket(long burstPeriodMs, String name, List<ThrottleGroup<E>> throttleGroups) {
+        this(burstPeriodMs, name, throttleGroups, false);
+    }
+
+    public ThrottleBucket(long burstPeriodMs, String name, List<ThrottleGroup<E>> throttleGroups, boolean highVolume) {
         this.burstPeriodMs = burstPeriodMs;
         this.name = name;
         this.throttleGroups = throttleGroups;
+        this.highVolume = highVolume;
     }
 
     public long getBurstPeriodMs() {
@@ -70,6 +76,24 @@ public final class ThrottleBucket<E extends Enum<E>> {
 
     public void setThrottleGroups(List<ThrottleGroup<E>> throttleGroups) {
         this.throttleGroups = throttleGroups;
+    }
+
+    /**
+     * Returns whether this bucket is designated for high-volume transactions.
+     *
+     * @return true if this bucket is for high-volume transactions, false otherwise
+     */
+    public boolean isHighVolume() {
+        return highVolume;
+    }
+
+    /**
+     * Sets whether this bucket is designated for high-volume transactions.
+     *
+     * @param highVolume true if this bucket is for high-volume transactions
+     */
+    public void setHighVolume(final boolean highVolume) {
+        this.highVolume = highVolume;
     }
 
     /**

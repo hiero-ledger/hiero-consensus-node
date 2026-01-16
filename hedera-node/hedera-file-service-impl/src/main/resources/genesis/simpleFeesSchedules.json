@@ -119,6 +119,11 @@
           "extras": [
             { "name": "ALLOWANCES", "includedCount": 1 }
           ]
+        },
+        {
+          "name": "CryptoGetAccountBalance",
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },
@@ -373,6 +378,46 @@
         {
           "name": "ScheduleGetInfo",
           "baseFee": 0,
+          "extras": []
+        }
+      ]
+    },
+    {
+      "name": "Network",
+      "schedule": [
+        {
+          "name": "GetVersionInfo",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "TransactionGetRecord",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "TransactionGetReceipt",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "GetByKey",
+          "baseFee": 0,
+          "extras": []
+        }
+      ]
+    },
+    {
+      "name": "Util",
+      "schedule": [
+        {
+          "name": "UtilPrng",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "AtomicBatch",
+          "baseFee": 9000000,
           "extras": []
         }
       ]

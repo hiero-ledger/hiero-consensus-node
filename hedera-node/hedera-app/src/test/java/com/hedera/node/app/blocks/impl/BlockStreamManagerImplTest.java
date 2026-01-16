@@ -35,6 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
+import com.hedera.hapi.block.stream.AggregatedNodeSignatures;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.block.stream.RecordFileItem;
@@ -994,7 +995,12 @@ class BlockStreamManagerImplTest {
 
         // Set up the signature future to complete immediately
         given(blockHashSigner.sign(any()))
-                .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, ChainOfTrustProof.DEFAULT, mockSigningFuture));
+                .willReturn(new BlockHashSigner.Attempt(
+                        Bytes.EMPTY,
+                        ChainOfTrustProof.newBuilder()
+                                .aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT)
+                                .build(),
+                        mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
@@ -1058,7 +1064,12 @@ class BlockStreamManagerImplTest {
 
         // Set up the signature future
         given(blockHashSigner.sign(any()))
-                .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, ChainOfTrustProof.DEFAULT, mockSigningFuture));
+                .willReturn(new BlockHashSigner.Attempt(
+                        Bytes.EMPTY,
+                        ChainOfTrustProof.newBuilder()
+                                .aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT)
+                                .build(),
+                        mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
