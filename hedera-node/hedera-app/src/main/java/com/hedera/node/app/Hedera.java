@@ -363,7 +363,7 @@ public final class Hedera
     /**
      * The action to take, if any, when a consensus round is sealed.
      */
-    private final BiPredicate<Round, State> onSealConsensusRound;
+    private final BiPredicate<Round, MerkleNodeState> onSealConsensusRound;
 
     private final boolean quiescenceEnabled;
 
@@ -466,16 +466,14 @@ public final class Hedera
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
         this.blockHashSignerFactory = requireNonNull(blockHashSignerFactory);
         this.storeMetricsService = new StoreMetricsServiceImpl(metrics);
-        logger.info(
-                """
+        logger.info("""
 
                         {}
 
                         Welcome to Hedera! Developed with ❤\uFE0F by the Open Source Community.
                         https://github.com/hashgraph/hedera-services
 
-                        """,
-                HEDERA);
+                        """, HEDERA);
         bootstrapConfigProvider = new BootstrapConfigProviderImpl();
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
         hapiVersion = bootstrapConfig.getConfigData(VersionConfig.class).hapiVersion();
@@ -1365,7 +1363,7 @@ public final class Hedera
         return root;
     }
 
-    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
+    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
         daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
         return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
     }
