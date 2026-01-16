@@ -263,6 +263,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void init(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
+        final boolean isGenesis = Objects.equals(ZERO_BLOCK_HASH, lastBlockHash);
+
         final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
                 .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
                 .get();

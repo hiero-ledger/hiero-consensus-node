@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -8,6 +11,7 @@ import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -21,6 +25,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -151,10 +156,21 @@ public class HistoryServiceImpl implements HistoryService {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        final var tssConfig = bootstrapConfig.getConfigData(TssConfig.class);
-        if (tssConfig.historyEnabled()) {
-            registry.register(new V059HistorySchema(this));
-            registry.register(new V069HistorySchema());
-        }
+        registry.register(new V059HistorySchema(this));
+        registry.register(new V069HistorySchema());
+    }
+
+    @Override
+    public void doGenesisSetup(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        requireNonNull(writableStates);
+        requireNonNull(configuration);
+        writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID).put(ProtoBytes.DEFAULT);
+        writableStates
+                .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
+                .put(HistoryProofConstruction.DEFAULT);
+        writableStates
+                .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
+                .put(HistoryProofConstruction.DEFAULT);
     }
 }

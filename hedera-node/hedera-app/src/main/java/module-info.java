@@ -128,7 +128,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.records.impl.producers;
     exports com.hedera.node.app.records.impl.producers.formats;
     exports com.hedera.node.app.grpc.impl.netty;
-    exports com.hedera.node.app.tss.schemas;
     exports com.hedera.node.app.blocks.schemas;
     exports com.hedera.node.app.records.schemas;
     exports com.hedera.node.app.hints.schemas;

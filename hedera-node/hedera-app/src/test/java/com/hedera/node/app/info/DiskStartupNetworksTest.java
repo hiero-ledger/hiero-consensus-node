@@ -36,7 +36,6 @@ import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
-import com.hedera.node.app.tss.TssBaseServiceImpl;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -48,6 +47,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -286,7 +286,6 @@ class DiskStartupNetworksTest {
     private State stateContainingInfoFrom(@NonNull final Network network) {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
-        final var tssBaseService = new TssBaseServiceImpl();
         given(startupNetworks.genesisNetworkOrThrow(DEFAULT_CONFIG)).willReturn(network);
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         SemanticVersion currentVersion =
@@ -294,7 +293,6 @@ class DiskStartupNetworksTest {
         PLATFORM_STATE_SERVICE.setAppVersionFn(
                 config -> config.getConfigData(VersionConfig.class).servicesVersion());
         Set.of(
-                        tssBaseService,
                         PLATFORM_STATE_SERVICE,
                         new EntityIdServiceImpl(),
                         new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state),
@@ -313,6 +311,9 @@ class DiskStartupNetworksTest {
                 configProvider);
         addRosterInfo(state, network);
         addAddressBookInfo(state, network);
+        final var writableStates = state.getWritableStates(PlatformStateService.NAME);
+        PLATFORM_STATE_SERVICE.doGenesisSetup(writableStates, DEFAULT_CONFIG);
+        ((CommittableWritableStates) writableStates).commit();
         return state;
     }
 

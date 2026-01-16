@@ -9,7 +9,6 @@ import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
-import com.hedera.hapi.node.state.history.RecordedHistorySignature;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.SingletonType;
@@ -48,8 +47,7 @@ public class V059HistorySchema extends Schema<SemanticVersion> {
             SemanticVersion.newBuilder().minor(59).build();
 
     private static final long MAX_PROOF_KEYS = 1L << 21;
-    private static final long MAX_ASSEMBLY_SIGNATURES = MAX_PROOF_KEYS;
-    private static final long MAX_PROOF_VOTES = MAX_ASSEMBLY_SIGNATURES;
+    private static final long MAX_PROOF_VOTES = MAX_PROOF_KEYS;
 
     public static final String LEDGER_ID_KEY = "LEDGER_ID";
     public static final int LEDGER_ID_STATE_ID = SingletonType.HISTORYSERVICE_I_LEDGER_ID.protoOrdinal();
@@ -65,10 +63,6 @@ public class V059HistorySchema extends Schema<SemanticVersion> {
     public static final String PROOF_KEY_SETS_KEY = "PROOF_KEY_SETS";
     public static final int PROOF_KEY_SETS_STATE_ID =
             StateKey.KeyOneOfType.HISTORYSERVICE_I_PROOF_KEY_SETS.protoOrdinal();
-
-    public static final String HISTORY_SIGNATURES_KEY = "HISTORY_SIGNATURES";
-    public static final int HISTORY_SIGNATURES_STATE_ID =
-            StateKey.KeyOneOfType.HISTORYSERVICE_I_HISTORY_SIGNATURES.protoOrdinal();
 
     public static final String PROOF_VOTES_KEY = "PROOF_VOTES";
     public static final int PROOF_VOTES_STATE_ID = StateKey.KeyOneOfType.HISTORYSERVICE_I_PROOF_VOTES.protoOrdinal();
@@ -99,12 +93,6 @@ public class V059HistorySchema extends Schema<SemanticVersion> {
                         ProofKeySet.PROTOBUF,
                         MAX_PROOF_KEYS),
                 StateDefinition.onDisk(
-                        HISTORY_SIGNATURES_STATE_ID,
-                        HISTORY_SIGNATURES_KEY,
-                        ConstructionNodeId.PROTOBUF,
-                        RecordedHistorySignature.PROTOBUF,
-                        MAX_ASSEMBLY_SIGNATURES),
-                StateDefinition.onDisk(
                         PROOF_VOTES_STATE_ID,
                         PROOF_VOTES_KEY,
                         ConstructionNodeId.PROTOBUF,
@@ -113,18 +101,22 @@ public class V059HistorySchema extends Schema<SemanticVersion> {
     }
 
     @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        final var states = ctx.newStates();
-        states.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID).put(ProtoBytes.DEFAULT);
-        states.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
-                .put(HistoryProofConstruction.DEFAULT);
-        states.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
-                .put(HistoryProofConstruction.DEFAULT);
-    }
-
-    @Override
     public void restart(@NonNull final MigrationContext ctx) {
         final var states = ctx.newStates();
+        final var ledgerIdState = states.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID);
+        if (ledgerIdState.get() == null) {
+            ledgerIdState.put(ProtoBytes.DEFAULT);
+        }
+        final var activeConstructionState =
+                states.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
+        if (activeConstructionState.get() == null) {
+            activeConstructionState.put(HistoryProofConstruction.DEFAULT);
+        }
+        final var nextConstructionState =
+                states.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
+        if (nextConstructionState.get() == null) {
+            nextConstructionState.put(HistoryProofConstruction.DEFAULT);
+        }
         final var activeConstruction =
                 requireNonNull(states.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
                         .get());

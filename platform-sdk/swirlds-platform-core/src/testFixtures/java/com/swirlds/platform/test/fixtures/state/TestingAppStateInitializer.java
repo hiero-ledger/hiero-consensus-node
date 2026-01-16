@@ -5,7 +5,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.output.StateChanges.Builder;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -77,8 +76,7 @@ public final class TestingAppStateInitializer {
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
     public static List<Builder> initPlatformState(@NonNull final MerkleNodeState state) {
-        final var schema = new V0540PlatformStateSchema(
-                config -> SemanticVersion.newBuilder().minor(1).build());
+        final var schema = new V0540PlatformStateSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {

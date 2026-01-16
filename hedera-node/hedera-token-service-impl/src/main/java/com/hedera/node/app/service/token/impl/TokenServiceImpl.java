@@ -3,7 +3,6 @@ package com.hedera.node.app.service.token.impl;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.calculator.CryptoApproveAllowanceFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
@@ -54,11 +53,8 @@ public class TokenServiceImpl implements TokenService {
     public static final long HBARS_TO_TINYBARS = 100_000_000L;
     public static final ZoneId ZONE_UTC = ZoneId.of("UTC");
 
-    private final EntityIdFactory idFactory;
-
     public TokenServiceImpl(@NonNull final AppContext appContext) {
         requireNonNull(appContext);
-        this.idFactory = appContext.idFactory();
     }
 
     @Override

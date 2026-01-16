@@ -4,7 +4,6 @@ package com.hedera.node.app.hints.schemas;
 import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
@@ -67,31 +66,11 @@ public class V060HintsSchema extends Schema<SemanticVersion> {
     }
 
     @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        // We have to ensure non-null singletons in restart() due to the sequencing of
-        // hinTS feature flag enablements, so doing here for CRS is redundant
-    }
-
-    @Override
     public void restart(@NonNull final MigrationContext ctx) {
-        final var states = ctx.newStates();
-        // Ensure non-null singletons no matter if hinTS is enabled
-        final var activeConstructionState = states.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID);
-        if (activeConstructionState.get() == null) {
-            activeConstructionState.put(HintsConstruction.DEFAULT);
-        }
-        final var nextConstructionState = states.<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID);
-        if (nextConstructionState.get() == null) {
-            nextConstructionState.put(HintsConstruction.DEFAULT);
-        }
-        final var crsStateSingleton = states.<CRSState>getSingleton(CRS_STATE_STATE_ID);
-        if (crsStateSingleton.get() == null) {
-            crsStateSingleton.put(CRSState.DEFAULT);
-        }
-
-        // And now if hinTS is enabled, ensure everything is ready for that
         final var tssConfig = ctx.appConfig().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
+            final var states = ctx.newStates();
+            final var crsStateSingleton = states.<CRSState>getSingleton(CRS_STATE_STATE_ID);
             final var crsState = requireNonNull(crsStateSingleton.get());
             if (crsState.equals(CRSState.DEFAULT)) {
                 log.info("Initializing CRS for {} parties", tssConfig.initialCrsParties());

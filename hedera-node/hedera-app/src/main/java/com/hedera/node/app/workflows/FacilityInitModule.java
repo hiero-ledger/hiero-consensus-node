@@ -16,11 +16,14 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.FeeService;
+import com.hedera.node.app.fees.schemas.V0490FeeSchema;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.file.ReadableFileStore;
@@ -181,16 +184,19 @@ public interface FacilityInitModule {
                         configProvider.update(properties, permissions);
                     }
                 });
-                throttleServiceManager.init(state, throttleDefinitionsFrom(state, configProvider));
+                throttleServiceManager.init(state, throttleDefinitionsFrom(state, configProvider), false);
             } else {
                 final var schema = fileService.fileSchema();
                 final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
-                exchangeRateManager.init(state, schema.genesisExchangeRates(bootstrapConfig));
+                exchangeRateManager.init(
+                        state,
+                        schema.genesisExchangeRatesBytes(bootstrapConfig),
+                        schema.genesisMidnightRates(bootstrapConfig));
                 feeManager.update(schema.genesisFeeSchedules(bootstrapConfig));
                 if (bootstrapConfig.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
                     feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
                 }
-                throttleServiceManager.init(state, schema.genesisThrottleDefinitions(bootstrapConfig));
+                throttleServiceManager.init(state, schema.genesisThrottleDefinitions(bootstrapConfig), true);
             }
             workingStateAccessor.setState(state);
         };
@@ -205,7 +211,12 @@ public interface FacilityInitModule {
         final var file = requireNonNull(
                 getFileFromStorage(state, configProvider, fileNum),
                 "The initialized state had no exchange rates file 0.0." + fileNum);
-        exchangeRateManager.init(state, file.contents());
+        final var midnightRates = requireNonNull(
+                state.getReadableStates(FeeService.NAME)
+                        .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID)
+                        .get(),
+                "The initialized state had no midnight rates");
+        exchangeRateManager.init(state, file.contents(), midnightRates);
     }
 
     private static void initializeFeeManager(

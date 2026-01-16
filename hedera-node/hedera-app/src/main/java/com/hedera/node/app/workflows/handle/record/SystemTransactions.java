@@ -61,6 +61,7 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
+import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -95,6 +96,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -153,6 +155,7 @@ public class SystemTransactions {
     private final DispatchProcessor dispatchProcessor;
     private final ConfigProvider configProvider;
     private final EntityIdFactory idFactory;
+    private final ServicesRegistry servicesRegistry;
     private final BlockRecordManager blockRecordManager;
     private final BlockStreamManager blockStreamManager;
     private final ExchangeRateManager exchangeRateManager;
@@ -175,6 +178,7 @@ public class SystemTransactions {
             @NonNull final ConfigProvider configProvider,
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final AppContext appContext,
+            @NonNull final ServicesRegistry servicesRegistry,
             @NonNull final BlockRecordManager blockRecordManager,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ExchangeRateManager exchangeRateManager,
@@ -193,6 +197,7 @@ public class SystemTransactions {
                 .getConfigData(BlockStreamConfig.class)
                 .streamMode();
         this.idFactory = appContext.idFactory();
+        this.servicesRegistry = requireNonNull(servicesRegistry);
         this.blockRecordManager = requireNonNull(blockRecordManager);
         this.blockStreamManager = requireNonNull(blockStreamManager);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
@@ -218,6 +223,15 @@ public class SystemTransactions {
     public void doGenesisSetup(@NonNull final Instant now, @NonNull final State state) {
         requireNonNull(now);
         requireNonNull(state);
+        // Ensure all singletons exist (will be externalized in state changes at end of genesis block)
+        final var config = configProvider.getConfiguration();
+        for (final var r : servicesRegistry.registrations()) {
+            final var service = r.service();
+            final var writableStates = state.getWritableStates(service.getServiceName());
+            service.doGenesisSetup(writableStates, config);
+            ((CommittableWritableStates) writableStates).commit();
+        }
+
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
         final var systemContext = newSystemContext(
                 now,
@@ -226,7 +240,6 @@ public class SystemTransactions {
                 UseReservedConsensusTimes.YES,
                 TriggerStakePeriodSideEffects.NO);
 
-        final var config = configProvider.getConfiguration();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var accountsConfig = config.getConfigData(AccountsConfig.class);
         final var bootstrapConfig = config.getConfigData(BootstrapConfig.class);

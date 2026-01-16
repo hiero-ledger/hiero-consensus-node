@@ -93,7 +93,6 @@ import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
-import com.hedera.node.app.tss.TssBaseServiceImpl;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
@@ -466,16 +465,14 @@ public final class Hedera
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
         this.blockHashSignerFactory = requireNonNull(blockHashSignerFactory);
         this.storeMetricsService = new StoreMetricsServiceImpl(metrics);
-        logger.info(
-                """
+        logger.info("""
 
                         {}
 
                         Welcome to Hedera! Developed with ❤\uFE0F by the Open Source Community.
                         https://github.com/hashgraph/hedera-services
 
-                        """,
-                HEDERA);
+                        """, HEDERA);
         bootstrapConfigProvider = new BootstrapConfigProviderImpl();
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
         hapiVersion = bootstrapConfig.getConfigData(VersionConfig.class).hapiVersion();
@@ -542,7 +539,6 @@ public final class Hedera
                         fileServiceImpl,
                         hintsService,
                         historyService,
-                        new TssBaseServiceImpl(),
                         new FreezeServiceImpl(),
                         scheduleServiceImpl,
                         new TokenServiceImpl(appContext),
@@ -734,10 +730,12 @@ public final class Hedera
             logger.fatal("Critical failure during schema migration", t);
             throw new IllegalStateException("Critical failure during migration", t);
         }
-        logger.info(
-                "Platform state includes freeze time={} and last frozen={}",
-                freezeTimeOf(state),
-                lastFrozenTimeOf(state));
+        if (trigger != GENESIS) {
+            logger.info(
+                    "Platform state includes freeze time={} and last frozen={}",
+                    freezeTimeOf(state),
+                    lastFrozenTimeOf(state));
+        }
     }
 
     /**
@@ -1246,11 +1244,13 @@ public final class Hedera
         }
         // For other triggers the initial state hash must have been set already
         requireNonNull(initialStateHashFuture);
-        final var roundNum = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
-                        .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
-                        .get())
-                .consensusSnapshotOrThrow()
-                .round();
+        final var roundNum = trigger == GENESIS
+                ? 0
+                : requireNonNull(state.getReadableStates(PlatformStateService.NAME)
+                                .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
+                                .get())
+                        .consensusSnapshotOrThrow()
+                        .round();
         final var initialStateHash = new InitialStateHash(initialStateHashFuture, roundNum);
 
         final var rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
