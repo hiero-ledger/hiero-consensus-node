@@ -103,21 +103,9 @@ public final class EventUtils {
         final Set<EventImpl> eventsEncountered = new HashSet<>();
 
         for (final EventImpl event : events) {
-            final EventImpl selfParent = event.getSelfParent();
-            final EventImpl otherParent = event.getOtherParent();
-
-            if (selfParent != null) {
-                if (!eventsEncountered.contains(selfParent)) {
-                    return false;
-                }
+            if(event.getAllParents().stream().anyMatch(eventsEncountered::contains)){
+                return false;
             }
-
-            if (otherParent != null) {
-                if (!eventsEncountered.contains(otherParent)) {
-                    return false;
-                }
-            }
-
             eventsEncountered.add(event);
         }
         return true;
