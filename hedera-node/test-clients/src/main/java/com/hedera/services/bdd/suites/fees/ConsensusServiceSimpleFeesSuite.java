@@ -33,9 +33,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class ConsensusServiceSimpleFeesSuite {
     private static final double EXPECTED_CRYPTO_TRANSFER_FEE = 0.0001;
-    private static final String PAYER = "payer";
-    private static final String ADMIN = "admin";
-
     @Nested
     class TopicFeesComparison {
         private static final String PAYER = "payer";
@@ -224,6 +221,7 @@ public class ConsensusServiceSimpleFeesSuite {
                             submitMessageTo("testTopic")
                                     .blankMemo()
                                     .payingWith(PAYER)
+                                    .signedBy(PAYER)
                                     .message(new String(messageBytes))
                                     .fee(ONE_HBAR)
                                     .via("submit-message-txn")),
@@ -233,7 +231,7 @@ public class ConsensusServiceSimpleFeesSuite {
                     // extra bytes = 1023-100= 923
                     // byte cost = 110000
                     // total = 102530000
-                    0.0235629996,
+                    0.0245529996,
                     1,
                     0.01025,
                     1);
