@@ -131,8 +131,7 @@ public class AbstractShadowgraphSynchronizer {
 
         final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
         this.nonAncestorFilterThreshold = syncConfig.nonAncestorFilterThreshold();
-        this.ancestorAndSelfFilterThreshold =
-                syncConfig.broadcast() ? syncConfig.ancestorAndSelfFilterThreshold() : Duration.ZERO;
+        this.ancestorAndSelfFilterThreshold = syncConfig.ancestorAndSelfFilterThreshold();
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
@@ -160,6 +159,7 @@ public class AbstractShadowgraphSynchronizer {
      *                         added to during this method)
      * @param myEventWindow    the event window of this node
      * @param theirEventWindow the event window of the peer
+     * @param broadcastRunning is broadcast running currently, which would suggest delaying syncing self events
      * @return a list of events to send to the peer
      */
     @NonNull
@@ -167,7 +167,8 @@ public class AbstractShadowgraphSynchronizer {
             @NonNull final NodeId selfId,
             @NonNull final Set<ShadowEvent> knownSet,
             @NonNull final EventWindow myEventWindow,
-            @NonNull final EventWindow theirEventWindow) {
+            @NonNull final EventWindow theirEventWindow,
+            final boolean broadcastRunning) {
 
         Objects.requireNonNull(selfId);
         Objects.requireNonNull(knownSet);
@@ -207,7 +208,11 @@ public class AbstractShadowgraphSynchronizer {
         if (filterLikelyDuplicates) {
             final long startFilterTime = time.nanoTime();
             sendList = filterLikelyDuplicates(
-                    selfId, nonAncestorFilterThreshold, ancestorAndSelfFilterThreshold, time.now(), eventsTheyMayNeed);
+                    selfId,
+                    nonAncestorFilterThreshold,
+                    broadcastRunning ? ancestorAndSelfFilterThreshold : Duration.ZERO,
+                    time.now(),
+                    eventsTheyMayNeed);
             final long endFilterTime = time.nanoTime();
             syncMetrics.recordSyncFilterTime(endFilterTime - startFilterTime);
         } else {

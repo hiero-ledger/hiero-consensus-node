@@ -41,6 +41,8 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      */
     private final SyncGuard syncGuard;
 
+    private final Duration disableBroadcastPingThreshold;
+
     /**
      * Constructs a new ShadowgraphSynchronizer.
      *
@@ -76,6 +78,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
 
         this.selfId = selfId;
         this.sleepAfterSync = syncConfig.rpcSleepAfterSync();
+        this.disableBroadcastPingThreshold = syncConfig.disableBroadcastPingThreshold();
 
         this.syncGuard = SyncGuardFactory.create(
                 syncConfig.fairMaxConcurrentSyncs(), syncConfig.fairMinimalRoundRobinSize(), numberOfNodes);
@@ -100,6 +103,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
                 intakeEventCounter,
                 eventHandler,
                 syncGuard,
-                fallenBehindMonitor);
+                fallenBehindMonitor,
+                disableBroadcastPingThreshold);
     }
 }

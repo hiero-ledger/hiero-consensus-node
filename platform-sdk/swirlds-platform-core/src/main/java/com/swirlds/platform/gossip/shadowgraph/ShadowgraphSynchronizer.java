@@ -200,7 +200,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
             } else {
                 // create a send list based on the known set
                 sendList = createSendList(
-                        connection.getSelfId(), eventsTheyHave, myWindow, theirTipsAndEventWindow.eventWindow());
+                        connection.getSelfId(), eventsTheyHave, myWindow, theirTipsAndEventWindow.eventWindow(), false);
             }
         }
 
