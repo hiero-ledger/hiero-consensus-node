@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.hip1340;
+package com.hedera.services.bdd.suites.contract.hips.hip1340;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
