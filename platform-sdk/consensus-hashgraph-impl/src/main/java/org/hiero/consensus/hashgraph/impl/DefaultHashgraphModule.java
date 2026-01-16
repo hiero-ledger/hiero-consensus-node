@@ -3,6 +3,7 @@ package org.hiero.consensus.hashgraph.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.google.auto.service.AutoService;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
@@ -26,6 +27,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 /**
  * Default implementation of the {@link HashgraphModule}.
  */
+@AutoService(HashgraphModule.class)
 public class DefaultHashgraphModule implements HashgraphModule {
 
     @Nullable
