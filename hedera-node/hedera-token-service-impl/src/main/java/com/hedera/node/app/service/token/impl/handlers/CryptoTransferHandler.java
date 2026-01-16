@@ -21,6 +21,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.SubType;
@@ -356,12 +357,12 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         int numHooks = 0;
         if (hasPreTxHook) {
             gas = clampedAdd(
-                    gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+                    gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrElse(EvmHookCall.DEFAULT).gasLimit());
             numHooks++;
         }
         if (hasPrePostTxHook) {
             final long gasPerCall =
-                    aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit();
+                    aa.prePostTxAllowanceHookOrThrow().evmHookCallOrElse(EvmHookCall.DEFAULT).gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
             numHooks += 2;
         }
@@ -384,12 +385,12 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         if (hasSenderPre) {
             gas = clampedAdd(
                     gas,
-                    nft.preTxSenderAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+                    nft.preTxSenderAllowanceHookOrThrow().evmHookCallOrElse(EvmHookCall.DEFAULT).gasLimit());
             numHooks++;
         }
         if (hasSenderPrePost) {
             final long gasPerCall = nft.prePostTxSenderAllowanceHookOrThrow()
-                    .evmHookCallOrThrow()
+                    .evmHookCallOrElse(EvmHookCall.DEFAULT)
                     .gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
             numHooks += 2;
@@ -397,12 +398,12 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         if (hasReceiverPre) {
             gas = clampedAdd(
                     gas,
-                    nft.preTxReceiverAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+                    nft.preTxReceiverAllowanceHookOrThrow().evmHookCallOrElse(EvmHookCall.DEFAULT).gasLimit());
             numHooks++;
         }
         if (hasReceiverPrePost) {
             final long gasPerCall = nft.prePostTxReceiverAllowanceHookOrThrow()
-                    .evmHookCallOrThrow()
+                    .evmHookCallOrElse(EvmHookCall.DEFAULT)
                     .gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
             numHooks += 2;
