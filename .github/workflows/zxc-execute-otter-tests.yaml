@@ -110,7 +110,7 @@ jobs:
 
       - name: Compile
         id: gradle-build
-        run: ${GRADLE_EXEC} assemble :yahcli:assemble
+        run: ${GRADLE_EXEC} assemble :yahcli:yahCliJar
 
       - name: Fast Otter Testing
         id: gradle-fast-otter-tests
