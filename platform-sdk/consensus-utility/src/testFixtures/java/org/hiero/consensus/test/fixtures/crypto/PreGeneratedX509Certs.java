@@ -2,20 +2,21 @@
 package org.hiero.consensus.test.fixtures.crypto;
 
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.security.Principal;
 import java.security.PublicKey;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.exceptions.ResourceNotFoundException;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.SerializableX509Certificate;
 
 /**
  * A utility class for generating and retrieving pre-generated X.509 certificates for testing purposes.
@@ -27,8 +28,8 @@ public class PreGeneratedX509Certs {
     public static final String SIG_CERT_FILE = "sigCerts.data";
     public static final String AGREE_CERT_FILE = "agrCerts.data";
 
-    private static final Map<NodeId, SerializableX509Certificate> sigCerts = new HashMap<>();
-    private static final Map<NodeId, SerializableX509Certificate> agreeCerts = new HashMap<>();
+    private static final Map<NodeId, X509Certificate> sigCerts = new HashMap<>();
+    private static final Map<NodeId, X509Certificate> agreeCerts = new HashMap<>();
 
     /**
      * Utility class
@@ -44,14 +45,14 @@ public class PreGeneratedX509Certs {
      * @return the X.509 certificate
      */
     @Nullable
-    public static SerializableX509Certificate getSigCert(final long nodeId) {
+    public static X509Certificate getSigCert(final long nodeId) {
         if (sigCerts.isEmpty()) {
             loadCerts();
             if (sigCerts.isEmpty()) {
                 return null;
             }
         }
-        long index = nodeId % sigCerts.size();
+        final long index = nodeId % sigCerts.size();
         return sigCerts.get(NodeId.of(index));
     }
 
@@ -61,14 +62,14 @@ public class PreGeneratedX509Certs {
      * @param nodeId the node ID
      * @return the X.509 certificate
      */
-    public static SerializableX509Certificate getAgreeCert(final long nodeId) {
+    public static X509Certificate getAgreeCert(final long nodeId) {
         if (agreeCerts.isEmpty()) {
             loadCerts();
             if (agreeCerts.isEmpty()) {
                 return null;
             }
         }
-        long index = nodeId % agreeCerts.size();
+        final long index = nodeId % agreeCerts.size();
         return agreeCerts.get(NodeId.of(index));
     }
 
@@ -93,25 +94,29 @@ public class PreGeneratedX509Certs {
             return;
         }
 
-        final SerializableDataInputStream sigCertDis = new SerializableDataInputStream(sigCertIs);
-        final SerializableDataInputStream agreeCertDis = new SerializableDataInputStream(agreeCertIs);
+        final DataInputStream sigCertDis = new DataInputStream(sigCertIs);
+        final DataInputStream agreeCertDis = new DataInputStream(agreeCertIs);
         try {
             // load signing certs
             final int numSigCerts = sigCertDis.readInt();
             for (int i = 0; i < numSigCerts; i++) {
-                SerializableX509Certificate sigCert =
-                        sigCertDis.readSerializable(false, SerializableX509Certificate::new);
-                sigCerts.put(NodeId.of(i), sigCert);
+                sigCertDis.readInt(); // read and ignore obsolete self serializable version
+                sigCertDis.readInt(); // read and ignore obsolete self serializable array length
+                final X509Certificate certificate = (X509Certificate)
+                        CertificateFactory.getInstance("X.509").generateCertificate(sigCertDis);
+                sigCerts.put(NodeId.of(i), certificate);
             }
 
             // load agreement certs
             final int numAgreeCerts = agreeCertDis.readInt();
             for (int i = 0; i < numAgreeCerts; i++) {
-                SerializableX509Certificate agreeCert =
-                        agreeCertDis.readSerializable(false, SerializableX509Certificate::new);
-                agreeCerts.put(NodeId.of(i), agreeCert);
+                agreeCertDis.readInt(); // read and ignore obsolete self serializable version
+                agreeCertDis.readInt(); // read and ignore obsolete self serializable array length
+                final X509Certificate certificate = (X509Certificate)
+                        CertificateFactory.getInstance("X.509").generateCertificate(agreeCertDis);
+                agreeCerts.put(NodeId.of(i), certificate);
             }
-        } catch (final IOException e) {
+        } catch (final IOException | CertificateException e) {
             throw new IllegalStateException("critical failure in loading certificates", e);
         }
     }
