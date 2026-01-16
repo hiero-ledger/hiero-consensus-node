@@ -7,8 +7,8 @@ import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPh
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R3;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
+import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;

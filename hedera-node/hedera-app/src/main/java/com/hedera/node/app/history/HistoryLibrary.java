@@ -4,8 +4,8 @@ package com.hedera.node.app.history;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.hex;
 
-import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
+import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
