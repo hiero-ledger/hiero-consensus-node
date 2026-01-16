@@ -16,14 +16,14 @@ hashed as a byte array. For internal nodes, hashes are produced from their left 
 child node hashes.
 
 Historically hashes are stored on disk by path. MerkleDb has a data collection for hashes,
-its index is mapping paths to hash record locations on disk (file + offset). Hash records 
+its index is mapping paths to hash record locations on disk (file + offset). Hash records
 contain a path and a hash. This approach has pros and cons:
 
 * Individual hash lookups are fast. Disk location lookup in index, plus one disk read
 * Memory utilization is great. During hashing, only dirty hashes are stored in the node
-    cache and eventually flushed to disk
-* Multiple disk reads for every dirty leaf during hashes. For example, if a dirty leaf is
-    at rank 20, to calculate a root hash needs 20 sibling hash lookups
+  cache and eventually flushed to disk
+* Multiple disk reads for every dirty leaf during hashing. For example, if a dirty leaf is
+  at rank 20, to calculate a root hash needs 20 sibling hash lookups on the path to the root
 
 ## Hash chunks
 
@@ -42,9 +42,13 @@ All chunks are of the same height. When a virtual map is first created, hash chu
 read from config. After that, the height may not be changed, since it would result in rehashing
 the whole virtual tree.
 
-With a fixed height, every chunk may be assigned an ID. The root chunk at path 0 has ID 0. If
-chunk height is 2, every chunk has 4 child chunks, that is the root chunk will have the following
-children: 1 (at path 3), 2 (at path 4), 3 (at path 5), and 4 (at path 6).
+Chunks may also be identified by IDs. The root chunk at path 0 has ID 0. Chunk with ID 1 may be
+located at path 1 (chunk height 1), or path 3 (chunk height 2), or path 7 (chunk height 3), and
+so on. Chunk with ID 2 is a sibling of chunk with ID 1. If chunk height is 1, chunk with ID 3
+is at path 3. If chunk height is 2, chunk with ID 2 is at path 5.
+
+Chunk paths are handful during hashing. Chunk IDs are used in the node cache and in the data
+source.
 
 Here is a diagram for chunk height 2. Node names are `C/P`, where `C` is a chunk ID, and `P` is
 a node path.
@@ -65,14 +69,24 @@ graph TB
     1/8 --> 1/18
 ```
 
+Hash chunk pros and cons:
+
+* Fewer number of disk reads during hashing. For example, a dirty leaf at rank 20 will result
+  in only 4 disk reads, when chunk height is 5. However, total number of bytes read from disk
+  is greater, since some clean (unchanged) hashes are read, too
+* Greater memory consumption in virtual node cache. Even if a hash isn't changed in some round,
+  but some other hash in the same chunk is updated, the whole chunk is stored in the cache
+* Fewer number of disk writes during flushes, since the number of chunks is less than the
+  number of hashes. However, total number of bytes written is greater
+
 ### Chunk math
 
 A few handful facts related to chunks:
 
-* Chunks of height `N` cover `2 ^ (N + 1) - 2` nodes
-* Chunks of height `N` have `2 ^ N` child chunks, this is equal to the number of nodes at the last
-    chunk rank
-* A path `P` is a root of a chunk of height `N`, iff `rank(P) % N == 0`
+* Chunks of height `N` cover `2^(N+1)-2` nodes
+* Chunks of height `N` have `2^N` child chunks, this is equal to the number of nodes at the lowest
+  chunk rank
+* A path `P` is a root of a chunk of height `N`, iff `rank(P)%N == 0`
 
 ## Partial and complete chunks
 
@@ -114,51 +128,47 @@ each.
 
 ## Chunk storage on disk
 
-There are two ways to identify a chunk: by path and by ID. Paths are always the same, but IDs depend
-on chunk height. For example, chunk 1 of height 3 has path 7, but chunk 1 of height 4 has path 15.
-This is why chunk height is fixed, when a virtual map is created, and may not be changed in the
-future.
+There are two ways to identify a chunk: by path and by ID. Chunk path is the parent of the first
+two hashes in a chunk, but chunk IDs depend on chunk height. For example, chunk 1 of height 3 is
+located at path 7, but chunk 1 of height 4 is at path 15. Chunk height is fixed, when a virtual map
+is created, and may not be changed in the future, to make sure chunk path to chunk ID mapping is
+never changed.
 
 Chunks are stored on disk in MerkleDb as any other entities like leaf records. There is a hash chunk
 index to lookup chunk location on disk (file + offset), and a file collection with chunks as data
 items. Index is based on chunk IDs. If it was based on chunk paths, index size would be comparable
-to virtual map size. Using IDs reduces index size in hash size times.
+to virtual map size. Using IDs reduces index size in hash chunk size times.
 
 ### How hashes are stored in chunks
 
-A naive approach is to store all `2 ^ (N + 1) - 2` hashes in every chunk, one hash for every path
+A naive approach is to store all `2^(N+1)-2` hashes in every chunk, one hash for every path
 in a chunk (keeping in mind the hash at the chunk path is stored in the parent chunk). Unfortunately,
-this appeared to be costly. First, every dirty chunk in the node cache requires
-
-```
-48 * 2 ^ (N + 1) - 2
-```
-
+this appeared to be costly. First, every dirty chunk in the node cache requires `48*2^(N+1)-2`
 bytes to store all its hash data. Second, whenever a chunk is read from disk or written to disk,
 all hashes need to be read/written, even if some or most of them are dirty.
 
-This is why a different schema is used. Only hashes at the last chunk rank are stored. For chunks
+This is why a different schema is used. Only hashes at the lowest chunk rank are stored. For chunks
 of height 4 it means only 16 hashes at chunk rank 4 are stored, while top 14 hashes at ranks 1, 2,
 and 3 are not stored. If a hash at these internal ranks is needed, it's calculated from its grand
-child nodes at the last rank.
+child nodes at the lowest rank.
 
 ### Hashes in partial chunks
 
-Partial chunks are chunks with some paths outside of the current leaf range. However, these chunks
-still store all `2 ^ N` hashes, this is the number of paths at their last, `Nth`, rank. Check the
+Partial chunks are chunks with some paths outside the current leaf range. However, these chunks
+still store all `2^N` hashes, this is the number of paths at their lowest, `Nth`, rank. Check the
 example above with current leaf range `[10, 20]` and chunk height 2:
 
 * For chunk 2 (at path 4), hash 19 is stored at path 19, hash 20 is stored at path 20, but hash 10
-    is stored at path 21, which is the left child path for 10. This happens because paths 21 and 22
-    are outside of the leaf range
+  is stored at path 21, which is the left child path for 10. This happens because paths 21 and 22
+  are outside the leaf range
 * For chunk 3 (at path 5), only two hashes are stored: hash 11 at path 23 and hash 12 at path 25
 * Chunk 4 (at path 6) is similar to chunk 3, its two hashes are stored at paths 27 and 29
 
 There is something to be very careful about here. Given a chunk, there is no way to understand if
 a hash at a path is for that very path, or for some of its parents. This really depends on the
-current leaf range. If a hash was set for path `P`, which is not at the last chunk rank, it must
-never be queried for path `P * 2 + 1`, which is a left child of `P`. The hash will be the same,
-but the end result will be wrong, since this is not the has for `P * 2 + 1`.
+current leaf range. If a hash was set for path `P`, which is not at the lowest chunk rank, it must
+never be queried for path `P*2+1`, which is a left child of `P`. The hash will be the same, but
+the end result will be wrong, since this is not the has for `P*2+1`.
 
 What if a partial chunk was stored for one leaf range, and later the range increased, so the
 chunk now contains more hashes in the range? It may even become a complete chunk. In the example
