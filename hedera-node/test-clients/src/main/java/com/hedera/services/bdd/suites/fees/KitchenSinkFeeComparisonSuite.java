@@ -853,7 +853,9 @@ public class KitchenSinkFeeComparisonSuite {
     // ==================== HOOK TRANSACTIONS ====================
 
     private static final String HOOK_CONTRACT = "PayableConstructor";
+    private static final String TRUE_HOOK_CONTRACT = "TruePreHook";
     private static final String HOOK_OWNER = "hookOwner";
+    private static final long HOOK_GAS_LIMIT = 25000L;
 
     private static List<SpecOperation> hookTransactions(String prefix, Map<String, Long> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
@@ -915,6 +917,59 @@ public class KitchenSinkFeeComparisonSuite {
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "HookStoreRemove1"));
         ops.add(captureFee(prefix + "HookStoreRemove1", "REMOVE_SLOTS=1", feeMap));
+
+        // ===== CryptoTransfer with HOOK_EXECUTION extra =====
+        // HOOK_EXECUTION extra: fee=10000000000 per hook execution, includedCount=0
+        // Upload TruePreHook contract for successful hook executions
+        ops.add(uploadInitCode(TRUE_HOOK_CONTRACT));
+        ops.add(contractCreate(prefix + "TrueHookContract")
+                .bytecode(TRUE_HOOK_CONTRACT)
+                .gas(5_000_000L)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        // Create sender account with TruePreHook attached
+        ops.add(cryptoCreate(prefix + "HookSender")
+                .balance(ONE_HUNDRED_HBARS)
+                .withHooks(accountAllowanceHook(10L, prefix + "TrueHookContract"))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        // Create receiver account
+        ops.add(cryptoCreate(prefix + "HookReceiver")
+                .balance(ONE_HBAR)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        // CryptoTransfer with 1 hook execution (pre-hook on sender)
+        ops.add(cryptoTransfer(tinyBarsFromTo(prefix + "HookSender", prefix + "HookReceiver", ONE_HBAR))
+                .withPreHookFor(prefix + "HookSender", 10L, HOOK_GAS_LIMIT, "")
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "CryptoTransferHE1"));
+        ops.add(captureFee(prefix + "CryptoTransferHE1", "HOOK_EXECUTION=1 (pre)", feeMap));
+
+        // Create sender with pre-post hook for 2 hook executions
+        ops.add(uploadInitCode("TruePrePostHook"));
+        ops.add(contractCreate(prefix + "TruePrePostHookContract")
+                .bytecode("TruePrePostHook")
+                .gas(5_000_000L)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        ops.add(cryptoCreate(prefix + "HookSender2")
+                .balance(ONE_HUNDRED_HBARS)
+                .withHooks(accountAllowanceHook(20L, prefix + "TruePrePostHookContract"))
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        // CryptoTransfer with 2 hook executions (pre-post hook on sender)
+        ops.add(cryptoTransfer(tinyBarsFromTo(prefix + "HookSender2", prefix + "HookReceiver", ONE_HBAR))
+                .withPrePostHookFor(prefix + "HookSender2", 20L, HOOK_GAS_LIMIT, "")
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(prefix + "CryptoTransferHE2"));
+        ops.add(captureFee(prefix + "CryptoTransferHE2", "HOOK_EXECUTION=2 (pre+post)", feeMap));
 
         return ops;
     }
