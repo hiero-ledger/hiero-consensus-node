@@ -933,13 +933,10 @@ public class ConsensusImpl implements Consensus {
         return ancient(x.getSelfParent()) ? null : x.getSelfParent();
     }
 
-    //    /**
-    //     * @return the other-parent of event x, or ∅ if none or ancient
-    //     */
-    //    private @Nullable EventImpl otherParent(@NonNull final EventImpl x) {
-    //        return ancient(x.getOtherParent()) ? null : x.getOtherParent();
-    //    }
 
+    /**
+     * @return all non-ancient parents of event x
+     */
     private @NonNull List<EventImpl> parents(@NonNull final EventImpl x) {
         return x.getAllParents().stream().filter(Predicate.not(this::ancient)).toList();
     }
