@@ -154,7 +154,7 @@ public final class CompareStatesCommand extends AbstractCommand {
         BootstrapUtils.setupConstructableRegistry();
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
-                ConfigurationBuilder.create(), getAbsolutePath("settings.txt"), configurationPaths);
+                ConfigurationBuilder.create(), getAbsolutePath("settings.txt"));
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         try (final ReservedSignedState stateA = loadAndHashState(platformContext, stateAPath)) {
