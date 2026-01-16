@@ -174,7 +174,7 @@ var updateDockerEnvTask =
         commandLine("./update-env.sh", project.version)
     }
 
-dependencies { implementation(project(":config")) }
+dependencies { api(project(":config")) }
 
 tasks.register<Exec>("createDockerImage") {
     description = "Creates the docker image of the services based on the current version"
