@@ -9,7 +9,7 @@ import java.util.Objects;
  */
 public final class LabelValues {
 
-    public static final LabelValues EMPTY = new LabelValues();
+    static final LabelValues EMPTY = new LabelValues();
 
     private final String[] namesAndValues;
 

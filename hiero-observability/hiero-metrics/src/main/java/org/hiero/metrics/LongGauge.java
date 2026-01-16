@@ -109,6 +109,7 @@ public final class LongGauge extends SettableMetric<LongSupplier, LongGauge.Meas
 
     /**
      * A measurement holding the latest set {@code long} value.
+     * Operations are thread-safe and atomic.
      */
     public static final class Measurement {
 

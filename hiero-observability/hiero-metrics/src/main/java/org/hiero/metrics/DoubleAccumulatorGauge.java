@@ -145,6 +145,7 @@ public final class DoubleAccumulatorGauge extends SettableMetric<DoubleSupplier,
 
     /**
      * A measurement that accumulates {@code double} values using a specified operator.
+     * Operations are thread-safe and atomic.
      */
     public static final class Measurement {
 

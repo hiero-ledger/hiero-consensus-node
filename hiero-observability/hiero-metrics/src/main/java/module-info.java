@@ -8,5 +8,4 @@ module org.hiero.metrics {
 
     requires static transitive com.swirlds.config.api;
     requires static transitive com.github.spotbugs.annotations;
-    requires static transitive com.google.auto.service;
 }

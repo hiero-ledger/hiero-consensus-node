@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics;
 
-import static org.hiero.metrics.core.MetricUtils.ONE;
-import static org.hiero.metrics.core.MetricUtils.ZERO;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.atomic.DoubleAdder;
@@ -97,7 +94,7 @@ public final class DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCo
          */
         @NonNull
         public Builder setDefaultInitValue(double defaultInitValue) {
-            if (defaultInitValue < ZERO) {
+            if (defaultInitValue < 0.0) {
                 throw new IllegalArgumentException(
                         "Default initial value for counter must be non-negative, but was: " + defaultInitValue);
             }
@@ -118,6 +115,7 @@ public final class DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCo
 
     /**
      * The measurement data holding a non-decreasing {@code double} value.
+     * Operations are thread-safe and atomic.
      */
     public static final class Measurement {
 
@@ -136,10 +134,10 @@ public final class DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCo
          * @throws IllegalArgumentException if the given value is negative
          */
         public void increment(double value) {
-            if (value < ZERO) {
+            if (value < 0.0) {
                 throw new IllegalArgumentException("Increment value must be non-negative, but was: " + value);
             }
-            if (value != ZERO) {
+            if (value != 0.0) {
                 container.add(value);
             }
         }
@@ -148,7 +146,7 @@ public final class DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCo
          * Increment the counter by {@code 1.0}.
          */
         public void increment() {
-            container.add(ONE);
+            container.add(1.0);
         }
 
         double get() {

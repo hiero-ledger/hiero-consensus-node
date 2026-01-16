@@ -109,6 +109,7 @@ public final class DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaug
 
     /**
      * The measurement data holding last set {@code double} value.
+     * Operations are thread-safe and atomic.
      */
     public static final class Measurement {
 
@@ -127,23 +128,15 @@ public final class DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaug
          * @param value the value to set
          */
         public void set(double value) {
-            container.set(fromDouble(value));
+            container.set(Double.doubleToRawLongBits(value));
         }
 
         double get() {
-            return toDouble(container.get());
+            return Double.longBitsToDouble(container.get());
         }
 
         void reset() {
             set(initializer.getAsDouble());
-        }
-
-        private static long fromDouble(double value) {
-            return Double.doubleToRawLongBits(value);
-        }
-
-        private static double toDouble(long value) {
-            return Double.longBitsToDouble(value);
         }
     }
 }

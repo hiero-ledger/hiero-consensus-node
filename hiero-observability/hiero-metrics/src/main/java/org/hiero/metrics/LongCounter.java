@@ -115,6 +115,7 @@ public final class LongCounter extends SettableMetric<LongSupplier, LongCounter.
 
     /**
      * A measurement holding a non-decreasing {@code long} value.
+     * Operations are thread-safe and atomic.
      */
     public static final class Measurement {
 

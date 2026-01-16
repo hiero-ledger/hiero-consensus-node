@@ -15,23 +15,11 @@ public abstract class MeasurementSnapshot {
     }
 
     /**
-     * Returns the dynamic label value at the specified index.
-     *
-     * @param idx the index of the dynamic label value to return
-     * @return the dynamic label value at the specified index
+     * @return the dynamic label values associated with this measurement snapshot.
      */
     @NonNull
-    public final String labelValue(int idx) {
-        return dynamicLabelValues.get(idx);
-    }
-
-    /**
-     * Returns the number of dynamic label values in this measurement snapshot.
-     *
-     * @return the number of dynamic label values
-     */
-    public final int getLabelValuesCount() {
-        return dynamicLabelValues.size();
+    public LabelValues getDynamicLabelValues() {
+        return dynamicLabelValues;
     }
 
     /**

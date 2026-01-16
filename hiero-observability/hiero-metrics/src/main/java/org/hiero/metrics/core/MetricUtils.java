@@ -23,10 +23,7 @@ public final class MetricUtils {
     private static final Pattern METRIC_NAME_PATTERN = Pattern.compile(METRIC_NAME_REGEX);
     private static final Pattern UNIT_LABEL_NAME_PATTERN = Pattern.compile(UNIT_LABEL_NAME_REGEX);
 
-    public static final double ZERO = 0.0;
-    public static final double ONE = 1.0;
-
-    public static final DoubleSupplier DOUBLE_ZERO_INIT = () -> ZERO;
+    public static final DoubleSupplier DOUBLE_ZERO_INIT = () -> 0.0;
     public static final LongSupplier LONG_ZERO_INIT = () -> 0L;
 
     private MetricUtils() {}
@@ -134,6 +131,6 @@ public final class MetricUtils {
      */
     @NonNull
     public static DoubleSupplier asSupplier(double value) {
-        return value == ZERO ? DOUBLE_ZERO_INIT : () -> value;
+        return value == 0.0 ? DOUBLE_ZERO_INIT : () -> value;
     }
 }

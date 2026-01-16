@@ -144,6 +144,7 @@ public final class LongAccumulatorGauge extends SettableMetric<LongSupplier, Lon
 
     /**
      * The measurement data holding an accumulated {@code long} value.
+     * Operations are thread-safe and atomic.
      */
     public static final class Measurement {
 
