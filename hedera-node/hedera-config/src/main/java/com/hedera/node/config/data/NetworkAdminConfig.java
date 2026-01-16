@@ -71,8 +71,7 @@ public record NetworkAdminConfig(
         int distinctTxnIdsToTry,
 
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean preserveStateWeightsDuringOverride,
-        // Default value is the working directory
-        @ConfigProperty(defaultValue = "") @NodeProperty String configTxtPath,
+        @ConfigProperty(defaultValue = "true") boolean createCandidateRosterOnPrepareUpgrade,
         // Config for high volume throttles
         @ConfigProperty(defaultValue = "false") @NodeProperty
         boolean highVolumeThrottlesEnabled) {}

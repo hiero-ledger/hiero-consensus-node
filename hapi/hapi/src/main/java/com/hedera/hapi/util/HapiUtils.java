@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
@@ -59,6 +60,10 @@ public class HapiUtils {
                     + "(?:\\."
                     + "(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)"
                     + "*))?$");
+
+    /** pattern to match an IPv4 address */
+    private static final Pattern IPV4_ADDRESS_PATTERN =
+            Pattern.compile("^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$");
 
     /** A {@link Comparator} for {@link AccountID}s. Sorts first by account number, then by alias. */
     public static final Comparator<AccountID> ACCOUNT_ID_COMPARATOR = (o1, o2) -> {
@@ -414,6 +419,30 @@ public class HapiUtils {
      */
     public static String asAccountString(@NonNull final AccountID accountID) {
         return String.format("%d.%d.%d", accountID.shardNum(), accountID.realmNum(), accountID.accountNum());
+    }
+
+    /**
+     * Given a host or ip and port, creates a {@link ServiceEndpoint} object with either an IP address or domain name
+     * depending on the given hostOrIp.
+     *
+     * @param hostOrIp the hostname or ip address
+     * @param port the port
+     * @return the {@link ServiceEndpoint} object
+     */
+    public static ServiceEndpoint endpointFor(@NonNull final String hostOrIp, final int port) {
+        final var builder = ServiceEndpoint.newBuilder().port(port);
+        if (IPV4_ADDRESS_PATTERN.matcher(hostOrIp).matches()) {
+            final var octets = hostOrIp.split("[.]");
+            builder.ipAddressV4(Bytes.wrap(new byte[] {
+                (byte) Integer.parseInt(octets[0]),
+                (byte) Integer.parseInt(octets[1]),
+                (byte) Integer.parseInt(octets[2]),
+                (byte) Integer.parseInt(octets[3])
+            }));
+        } else {
+            builder.domainName(hostOrIp);
+        }
+        return builder.build();
     }
 
     private static int parsedAlphaIntOrMaxValue(@NonNull final String s) {
