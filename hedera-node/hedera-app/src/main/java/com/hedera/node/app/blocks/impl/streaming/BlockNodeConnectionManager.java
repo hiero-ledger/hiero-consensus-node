@@ -51,8 +51,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -146,9 +148,13 @@ public class BlockNodeConnectionManager {
 
     private final BlockNodeClientFactory clientFactory;
     /**
+     * Supplier for getting instances of an executor service to use for blocking I/O operations.
+     */
+    private final Supplier<ExecutorService> blockingIoExecutorSupplier;
+    /**
      * Executor service used to execute blocking I/O operations - e.g. retrieving block node status.
      */
-    private final ExecutorService blockingIoExecutor;
+    private ExecutorService blockingIoExecutor;
 
     /**
      * A class that holds retry state for a block node connection.
@@ -185,21 +191,24 @@ public class BlockNodeConnectionManager {
      * @param configProvider the configuration to use
      * @param blockBufferService the block stream state manager
      * @param blockStreamMetrics the block stream metrics to track
-     * @param blockingIoExecutor executor to perform blocking I/O operations
+     * @param blockingIoExecutorSupplier supplier to get an executor to perform blocking I/O operations
      */
     @Inject
     public BlockNodeConnectionManager(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull final ExecutorService blockingIoExecutor) {
+            @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
-        this.blockingIoExecutor = requireNonNull(blockingIoExecutor, "Blocking I/O executor is required");
+        this.blockingIoExecutorSupplier =
+                requireNonNull(blockingIoExecutorSupplier, "Blocking I/O executor supplier is required");
         this.nodeStats = new ConcurrentHashMap<>();
         this.blockNodeConfigDirectory = getAbsolutePath(blockNodeConnectionFileDir());
         this.clientFactory = new BlockNodeClientFactory();
+
+        blockingIoExecutor = this.blockingIoExecutorSupplier.get();
     }
 
     /**
@@ -394,6 +403,11 @@ public class BlockNodeConnectionManager {
         }
         logger.info("Shutting down block node connection manager.");
 
+        if (blockingIoExecutor != null) {
+            blockingIoExecutor.shutdownNow();
+            blockingIoExecutor = null;
+        }
+
         stopConfigWatcher();
         blockBufferService.shutdown();
         shutdownScheduledExecutorService();
@@ -451,6 +465,16 @@ public class BlockNodeConnectionManager {
             return;
         }
         logger.info("Starting connection manager.");
+
+        if (blockingIoExecutor == null) {
+            /*
+            Why the null check? We initialize the blocking I/O executor in the constructor by calling the supplier,
+            but an instance of the connection manager can be shutdown and technically can be restarted. During the
+            shutdown process, the executor is also shutdown (and set to null) so if the manager was started again we
+            need to get another instance from the blocking I/O executor from the supplier.
+             */
+            blockingIoExecutor = blockingIoExecutorSupplier.get();
+        }
 
         // Start the block buffer service
         blockBufferService.start();
@@ -761,7 +785,7 @@ public class BlockNodeConnectionManager {
                 blockBufferService,
                 blockStreamMetrics,
                 sharedExecutorService,
-                Executors.newVirtualThreadPerTaskExecutor(),
+                blockingIoExecutorSupplier.get(),
                 initialBlockToStream,
                 clientFactory);
 

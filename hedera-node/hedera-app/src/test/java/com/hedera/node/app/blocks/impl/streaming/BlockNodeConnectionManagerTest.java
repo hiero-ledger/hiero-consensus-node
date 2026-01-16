@@ -64,6 +64,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -155,6 +156,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private BlockStreamMetrics metrics;
     private ScheduledExecutorService scheduledExecutor;
     private ExecutorService blockingIoExecutor;
+    private Supplier<ExecutorService> blockingIoExecutorSupplier;
 
     @TempDir
     Path tempDir;
@@ -180,8 +182,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         metrics = mock(BlockStreamMetrics.class);
         scheduledExecutor = mock(ScheduledExecutorService.class);
         blockingIoExecutor = mock(ExecutorService.class);
-
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutor);
+        blockingIoExecutorSupplier = () -> blockingIoExecutor;
+        connectionManager =
+                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
         replaceLocalhostWithPbjUnitTestHost();
 
         // Inject mock executor to control scheduling behavior in tests.
@@ -272,7 +275,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockNode.protocolExpBackoffTimeframeReset", "1s");
         final ConfigProvider configProvider = createConfigProvider(configBuilder);
 
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutor);
+        connectionManager =
+                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
         replaceLocalhostWithPbjUnitTestHost();
         // Inject the mock executor service to control scheduling in tests
         sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
@@ -355,6 +359,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node2Conn).close();
         verify(node3Conn).close();
         verify(bufferService).shutdown();
+        verify(blockingIoExecutor).shutdownNow();
         verifyNoMoreInteractions(node1Conn);
         verifyNoMoreInteractions(node2Conn);
         verifyNoMoreInteractions(node3Conn);
@@ -996,7 +1001,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1L);
 
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutor);
+        connectionManager =
+                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
 
         // Verify that the manager was created but has no available nodes
         final List<BlockNodeConfiguration> availableNodes = availableNodes();
@@ -1012,7 +1018,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1L);
 
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutor);
+        connectionManager =
+                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
 
         sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
 
@@ -1541,8 +1548,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Path dir = tempDir;
         final Path file = dir.resolve("block-nodes.json");
 
-        final String json =
-                """
+        final String json = """
                 {
                   "nodes": [
                     {
@@ -1693,7 +1699,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                         fileNotDir.toAbsolutePath().toString()));
 
         // This should trigger IOException when trying to create WatchService on a file
-        final var manager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutor);
+        final var manager =
+                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
         manager.start();
 
         // Manager should start successfully even though config watcher failed
@@ -2465,7 +2472,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockNode.blockNodeConnectionFileDir", "/tmp/non-existent-test-dir-" + System.nanoTime()));
 
         // Create the manager
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutor);
+        connectionManager =
+                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
 
         // Inject the mock executor service to control scheduling in tests
         sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
@@ -2564,7 +2572,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         final ConfigProvider disabledProvider = () -> new VersionedConfigImpl(config, 1L);
         connectionManager =
-                new BlockNodeConnectionManager(disabledProvider, bufferService, metrics, blockingIoExecutor);
+                new BlockNodeConnectionManager(disabledProvider, bufferService, metrics, blockingIoExecutorSupplier);
         sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
     }
 

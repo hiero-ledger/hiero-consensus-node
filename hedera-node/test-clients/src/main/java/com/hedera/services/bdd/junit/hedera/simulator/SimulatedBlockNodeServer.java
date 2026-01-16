@@ -243,7 +243,7 @@ public class SimulatedBlockNodeServer {
      * @param blockNumber the last verified block number to include in the response
      */
     public void sendNodeBehindPublisherImmediately(final long blockNumber) {
-        serviceImpl.sendNodeBehindPublisherToAllStreams(blockNumber);
+        streamingImpl.sendNodeBehindPublisherToAllStreams(blockNumber);
         log.info("Sent immediate NodeBehindPublisher response for block {} on port {}", blockNumber, port);
     }
 
