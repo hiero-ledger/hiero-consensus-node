@@ -45,6 +45,13 @@ public class FeeResult {
         network = clampedAdd(network, cost);
     }
 
+    public void clearFees() {
+        node = 0L;
+        network = 0L;
+        service = 0L;
+        details = new ArrayList<>();
+    }
+
     /** the total fee in tinycents. */
     public long total() {
         return clampedAdd(clampedAdd(this.node, this.network), this.service);

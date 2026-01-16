@@ -95,7 +95,7 @@ import org.junit.jupiter.api.Tag;
 @TargetEmbeddedMode(CONCURRENT)
 public class Hip1195BasicTests {
     private static final String BATCH_OPERATOR = "batchOperator";
-    private static final double HOOK_INVOCATION_USD = 1;
+    private static final double HOOK_INVOCATION_USD = 0.005;
     private static final long HOOK_GAS_LIMIT = 25000;
     private static final double HBAR_TRANSFER_BASE_USD = 0.0001;
     private static final double NFT_TRANSFER_BASE_USD = 0.001;
@@ -636,13 +636,9 @@ public class Hip1195BasicTests {
         return hapiTest(
                 newKeyNamed("supplyKey"),
                 newKeyNamed("receiverKey"),
-                cryptoCreate("treasury")
-                        .withHooks(accountAllowanceHook(241L, FALSE_TRUE_ALLOWANCE_HOOK.name()))
-                        .balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("treasury").withHooks(accountAllowanceHook(241L, FALSE_TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("feeCollector"),
-                cryptoCreate("sender")
-                        .withHooks(accountAllowanceHook(242L, TRUE_ALLOWANCE_HOOK.name()))
-                        .balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("sender").withHooks(accountAllowanceHook(242L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiver")
                         .receiverSigRequired(true)
                         .key("receiverKey")
@@ -670,13 +666,17 @@ public class Hip1195BasicTests {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("nftTransferFails"),
                 sourcingContextual(spec -> {
-                    // There are 6 hooks - 2 pre and 2 pre-post.
+                    // There are 4 hooks - 2 pre and 2 pre-post.
                     // 2 pre hooks succeed and third pre hook call fails
                     // so we should refund the gas and hook invocation cost of other treasury post hook = 2 *
                     // HOOK_GAS_LIMIT
                     //  and also the receiver pre-post hook = 2 (2 * HOOK_GAS_LIMIT)
+                    final long tinybarGasCost =
+                            (7 * HOOK_GAS_LIMIT) * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
                     return validateChargedUsd(
-                            "nftTransferFails", NFT_TRANSFER_WITH_CUSTOM_BASE_USD + (6 * HOOK_INVOCATION_USD));
+                            "nftTransferFails",
+                            NFT_TRANSFER_WITH_CUSTOM_BASE_USD + (3 * HOOK_INVOCATION_USD) + usdGasCost);
                 }));
     }
 
@@ -1083,8 +1083,12 @@ public class Hip1195BasicTests {
                         .via("feeTxn"),
                 sourcingContextual(spec -> {
                     // There are two pre-post hooks, pre parts are run before and post are run after.
-                    // second pre hook fails, so we should refund the hook invocation cost of two calls
-                    return validateChargedUsd("feeTxn", HBAR_TRANSFER_BASE_USD + (4 * HOOK_INVOCATION_USD));
+                    // second pre hook fails, so we should refund the gas and hook invocation cost of two calls
+                    final long tinybarGasCost =
+                            (2 * HOOK_GAS_LIMIT) * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "feeTxn", HBAR_TRANSFER_BASE_USD + (2 * HOOK_INVOCATION_USD) + usdGasCost);
                 }));
     }
 
