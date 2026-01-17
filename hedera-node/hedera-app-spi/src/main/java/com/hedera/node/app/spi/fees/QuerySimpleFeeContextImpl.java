@@ -12,7 +12,7 @@ public class QuerySimpleFeeContextImpl implements SimpleFeeContext {
 
     @Override
     public int numTxnSignatures() {
-        return 0;
+        return 0; // queries never have signatures
     }
 
     @Override
