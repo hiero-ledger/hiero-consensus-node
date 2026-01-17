@@ -282,6 +282,8 @@ public final class Hedera
      */
     private final FileServiceImpl fileServiceImpl;
 
+    private final AddressBookServiceImpl addressBookServiceImpl;
+
     /**
      * The block stream service singleton, kept as a field here to reuse information learned
      * during the state migration phase in the later initialization phase.
@@ -494,6 +496,7 @@ public final class Hedera
                 () -> HapiUtils.toString(version),
                 () -> HapiUtils.toString(hapiVersion));
         fileServiceImpl = new FileServiceImpl();
+        addressBookServiceImpl = new AddressBookServiceImpl();
 
         final Supplier<Configuration> configSupplier = () -> configProvider().getConfiguration();
         this.appContext = new AppContextImpl(
@@ -554,7 +557,7 @@ public final class Hedera
                         new FeeService(),
                         new CongestionThrottleService(),
                         networkServiceImpl,
-                        new AddressBookServiceImpl(),
+                        addressBookServiceImpl,
                         new RosterServiceImpl(
                                 this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState)),
                         PLATFORM_STATE_SERVICE)
@@ -1274,6 +1277,7 @@ public final class Hedera
                 .tokenServiceImpl(tokenServiceImpl)
                 .consensusServiceImpl(consensusServiceImpl)
                 .scheduleService(scheduleServiceImpl)
+                .addressBookService(addressBookServiceImpl)
                 .initTrigger(trigger)
                 .softwareVersion(version)
                 .self(networkInfo.selfNodeInfo())

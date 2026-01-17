@@ -6,7 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
+import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
@@ -114,9 +114,9 @@ public final class PlatformBuilder {
     private KeysAndCerts keysAndCerts;
 
     /**
-     * The path to the configuration file (i.e. the file with the address book).
+     * The path to the settings file (i.e. the file with the optional settings).
      */
-    private final Path configPath = getAbsolutePath(DEFAULT_CONFIG_FILE_NAME);
+    private final Path settingsPath = getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME);
 
     /**
      * The wiring model to use for this platform.
@@ -459,7 +459,7 @@ public final class PlatformBuilder {
             executorFactory = ExecutorFactory.create("platform", null, DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
         }
 
-        final boolean firstPlatform = doStaticSetup(configuration, configPath);
+        final boolean firstPlatform = doStaticSetup(configuration, settingsPath);
 
         final Roster currentRoster = rosterHistory.getCurrentRoster();
 
