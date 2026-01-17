@@ -19,6 +19,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.ServiceSimpleFeeContextImpl;
 import java.util.List;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -100,7 +101,7 @@ public class HookStoreHandlerTest {
                 FeeSchedule.newBuilder().services(List.of(hookFeeSchedule)).build();
         final var subject = new HookStoreHandler.FeeCalculator();
 
-        subject.accumulateServiceFee(tx, feeContext, feeResult, feeSchedule);
+        subject.accumulateServiceFee(tx, new ServiceSimpleFeeContextImpl(feeContext), feeResult, feeSchedule);
 
         verify(feeResult).addServiceBaseTC(3 * 1000000000L);
     }
