@@ -4,9 +4,7 @@ package com.hedera.node.app.spi.fees;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
 import com.hedera.hapi.node.transaction.Query;
-import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -15,28 +13,18 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 public interface QueryFeeCalculator {
     /**
-     * Accumulate query fees using only the transaction body (no state access).
+     * Accumulate query fees using the transaction body and query context.
      *
      * @param query        the query body
      * @param feeResult    the fee result
      * @param feeSchedule  the fee schedule
      */
-    void accumulateNodePayment(@NonNull Query query, @NonNull FeeResult feeResult, @NonNull FeeSchedule feeSchedule);
-
-    /**
-     * Accumulate query fees using the transaction body and query context. State access allowed.
-     *
-     * @param query        the query body
-     * @param feeResult    the fee result
-     * @param feeSchedule  the fee schedule
-     */
-    default void accumulateNodePayment(
+    void accumulateNodePayment(
             @NonNull Query query,
-            @Nullable QueryContext queryContext,
+            @NonNull SimpleFeeContext context,
             @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule) {
-        accumulateNodePayment(query, feeResult, feeSchedule);
-    }
+            @NonNull FeeSchedule feeSchedule);
+
     /**
      * Returns the query type this calculator is for.
      * @return the query type
