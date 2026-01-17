@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.bonneville;
 
+import com.goterl.lazysodium.interfaces.Hash;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.SidecarType;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
-import com.hedera.node.app.service.contract.impl.exec.operations.CustomCreateOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeSizeOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
 import com.hedera.node.app.service.contract.impl.exec.processors.*;
@@ -17,6 +17,7 @@ import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
+import com.swirlds.config.api.Configuration;
 
 import com.google.common.collect.ImmutableList;
 import com.hedera.node.config.data.ContractsConfig;
@@ -29,9 +30,9 @@ import java.io.PrintStream;
 import java.util.*;
 
 // BESU imports
+import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
-import org.hyperledger.besu.crypto.Hash;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
@@ -45,13 +46,17 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.log.LogTopic;
+import org.hyperledger.besu.evm.operation.AbstractOperation;
+import org.hyperledger.besu.evm.operation.ChainIdOperation;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.operation.OperationRegistry;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
+import org.hyperledger.besu.evm.worldstate.WorldUpdater;
+import org.hyperledger.besu.evm.frame.BlockValues;
+import org.hyperledger.besu.evm.blockhash.BlockHashLookup;
 
 public class BonnevilleEVM extends HEVM {
     @NonNull final FeatureFlags _flags;
-    final boolean _hasOpers;    // Only required because EVM is BESU-private
 
     public BonnevilleEVM(
             @NonNull OperationRegistry operations,
@@ -61,13 +66,22 @@ public class BonnevilleEVM extends HEVM {
             @NonNull FeatureFlags featureFlags) {
         super(operations, gasCalc, evmConfiguration, evmSpecVersion );
         _flags = featureFlags;
-        _hasOpers = operations != null;
     }
+
+
+    private static final ArrayList<BEVM> FREE = new ArrayList<>();
 
     @Override
     public void runToHalt(@NotNull MessageFrame frame, @NotNull OperationTracer tracing) {
+        BEVM bevm;
+        synchronized(FREE) {
+            bevm = FREE.isEmpty()
+                ? new BEVM(this,getOperationsUnsafe())
+                : FREE.removeLast();
+        }
         // Run the contract bytecodes
-        new BEVM(this,frame,tracing,_hasOpers ? getOperationsUnsafe() : null).run();
+        bevm.init(frame,tracing).run().reset();
+        synchronized(FREE) { FREE.add(bevm); }
     }
 
 
@@ -95,10 +109,10 @@ public class BonnevilleEVM extends HEVM {
     }
     private static final String[] OPNAMES = new String[]{
         /* 00 */ "stop", "add ", "mul ", "sub ", "div ", "sdiv", "mod ", "smod", "amod", "mmod", "exp ", "sign", "0C  ", "0D  ", "0E  ", "0F  ",
-        /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "18  ", "not ", "1A  ", "shl ", "shr ", "1D  ", "1E  ", "1F  ",
+        /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "xor ", "not ", "byte", "shl ", "shr ", "sar ", "1E  ", "1F  ",
         /* 20 */ "kecc", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
-        /* 30 */ "addr", "31  ", "orig", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "gasP", "3C  ", "retZ", "retC", "hash",
-        /* 40 */ "40  ", "Coin", "42  ", "43  ", "seed", "limi", "chid", "47  ", "fee ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
+        /* 30 */ "addr", "bala", "orig", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "gasP", "3C  ", "retZ", "retC", "hash",
+        /* 40 */ "blkH", "Coin", "time", "43  ", "seed", "limi", "chid", "47  ", "fee ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
         /* 50 */ "pop ", "mld ", "mst ", "53  ", "Csld", "Csst", "jmp ", "jmpi", "58  ", "59  ", "gas ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
         };
 }
@@ -114,45 +128,52 @@ public class BonnevilleEVM extends HEVM {
  */
 class BEVM {
     @NotNull BonnevilleEVM _bevm;
-    @NonNull final MessageFrame _frame;
 
     @NonNull final GasCalculator _gasCalc;
 
+    final FeatureFlags _flags;
+    final AddressChecks _adrChk;
+
+    // Custom Self-Destruct
+    final AbstractOperation _selfDestruct;
+
+    // ChainID from BESU, not *CustomChainID*
+    final long _chainID;
+
+
+    // per-contract temp storage
+    final Memory _mem;
+
+    // Wrap a UInt256 in a Supplier for short-term usage, without allocating
+    // per-bytecode.
+    final UI256.Wrap _wrap0 = new UI256.Wrap(), _wrap1 = new UI256.Wrap();
+
+
+    // Per-invocation fields
+
+    OperationTracer _tracing;
+
+    MessageFrame _frame;
+
     // Contract bytecodes
-    final byte[] _codes;
+    byte[] _codes;
+    // Per-code valid targets
+    private BitSet _jmpDest;
 
     // Gas available, runs down to zero
-    private final long _startGas;
+    private long _startGas;
     private long _gas;
 
     // Recipient
     @NonNull Account _recv;     // Always have a readable aocount
     MutableAccount _recvMutable;// Sometimes a writable account
 
-    // Temp per-contract storage
-    final Memory _mem;
+    Configuration _config;
 
     // Custom SLoad asks this global question
-    final boolean _isSidecarEnabled;
+    boolean _isSidecarEnabled;
     // Custom SLoad optional tracking
-    final StorageAccessTracker _tracker;
-    //
-    final ContractID _contractId;
-
-    // Custom ExtCodeSize needs this
-    final FeatureFlags _flags;
-    final AddressChecks _adrChk;
-
-    // Custom Create needs this
-    final CustomCreateOperation _cccp;
-
-    // Custom Self-Destruct
-    final CustomSelfDestructOperation _selfDestruct;
-
-
-    // Wrap a UInt256 in a Supplier for short-term usage, without allocating
-    // per-bytecode.
-    final UI256.Wrap _wrap0 = new UI256.Wrap(), _wrap1 = new UI256.Wrap();
+    StorageAccessTracker _tracker;
 
     // Last Storage key, value.  Used to inform the Frame that storage was updated.
     UInt256 _lastSKey, _lastSVal;
@@ -160,72 +181,91 @@ class BEVM {
     // Input data
     byte[] _callData;
 
-    @NotNull final OperationTracer _tracing;
+    //
+    ContractID _contractId;
 
-    BEVM( @NotNull BonnevilleEVM bevm, @NotNull MessageFrame frame, @NotNull OperationTracer tracing, @NotNull Operation[] operations ) {
+
+    BEVM( BonnevilleEVM bevm, @NotNull Operation[] operations ) {
         _bevm = bevm;
 
-        _frame = frame;
-
         _flags = bevm._flags;   // Feature Flags
-
-        // Bytecodes
-        _codes = frame.getCode().getBytes().toArrayUnsafe();
-        if( frame.getCode().getEofVersion() != 0 )
-            throw new TODO("Expect eofVersion==0");
 
         _gasCalc = bevm.getGasCalculator();
         // If SSTore minimum gas is ever not-zero, will need to check in sStore
         if( _gasCalc.getVeryLowTierGasCost() > 10 )
             throw new TODO("Need to restructure how gas is computed");
 
+        // Local temp storage
+        _mem = new Memory();
+
+        // Address Check
+        _adrChk = operations[0x3B] instanceof CustomExtCodeSizeOperation cecso ? cecso.addressChecks : null;
+        //if( cExt.enableEIP3540 )
+        //    throw new TODO();   // Assumed never in customExtCodeSize
+
+        // Custom Self-Destruct hook
+        _selfDestruct = (AbstractOperation)operations[0xFF];
+        // ChainID from BESU, if no custom op overrides
+        _chainID = ((ChainIdOperation)operations[0x46]).getChainId().getLong(0);
+    }
+
+
+    BEVM init( MessageFrame frame, OperationTracer tracing ) {
+        _tracing = tracing;
+
+        _frame = frame;
+
+        // Bytecodes
+        _codes = frame.getCode().getBytes().toArrayUnsafe();
+        if( frame.getCode().getEofVersion() != 0 )
+            throw new TODO("Expect eofVersion==0");
+        assert _jmpDest == null;
+        assert _sp == 0;
+
         // Starting and current gas
         _startGas = frame.getRemainingGas();
         _gas = _startGas;
 
         // Account receiver
-        _recv        = frame.getWorldUpdater().get       (frame.getRecipientAddress());
-        _recvMutable = frame.getWorldUpdater().getAccount(frame.getRecipientAddress());
+        WorldUpdater updater = frame.getWorldUpdater();
+        _recv        = updater.get       (frame.getRecipientAddress());
+        _recvMutable = updater.getAccount(frame.getRecipientAddress());
         assert _recv != null;
 
-        // Local temp storage
-        _mem = new Memory();
+        assert _mem._len == 0;
+
+        _config = FrameUtils.initialFrameOf(_frame).getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE);
 
         // Hedera custom sidecar
-        _isSidecarEnabled = bevm._hasOpers && _flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
+        _isSidecarEnabled = _config!=null && _flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
         // Hedera optional tracking first SLOAD
         _tracker = FrameUtils.accessTrackerFor(frame);
-
-        // Address Check
-        CustomExtCodeSizeOperation cExt = bevm._hasOpers ? (CustomExtCodeSizeOperation)operations[0x3B] : null;
-        _adrChk = bevm._hasOpers ? cExt.addressChecks : null;
-        //if( cExt.enableEIP3540 )
-        //    throw new TODO();   // Assumed never in customExtCodeSize
-
-        // Custom Contract Creation Processor
-        _cccp = bevm._hasOpers ? (CustomCreateOperation)operations[0xF0] : null;
-        // Custom Self-Destruct hook
-        _selfDestruct = bevm._hasOpers ? (CustomSelfDestructOperation)operations[0xFF] : null;
-
 
         // Preload input data
         _callData = _frame.getInputData().toArrayUnsafe();
 
-        _contractId = bevm._hasOpers ? FrameUtils.proxyUpdaterFor(_frame).getHederaContractId(_frame.getRecipientAddress()) : null;
+        _contractId = updater instanceof ProxyWorldUpdater proxy ? proxy.getHederaContractId(_frame.getRecipientAddress()) : null;
 
-        _tracing = tracing;
-    }
+        assert _lastSKey==null && _lastSVal == null;
 
-    public BEVM run() {
-        // TODO: setup
-        var halt = _run();
-        if( halt != ExceptionalHaltReason.NONE ) {
-            _frame.setExceptionalHaltReason(Optional.of(halt));
-            _frame.setState(MessageFrame.State.EXCEPTIONAL_HALT);
-        }
         return this;
     }
 
+    BEVM reset() {
+        _mem._len = 0;
+        _frame = null;
+        _codes = null;
+        _sp = 0;
+        _callData = null;
+        _contractId = null;
+        _recv = null;
+        _recvMutable = null;
+        _isSidecarEnabled = false;
+        _lastSKey = _lastSVal = null;
+        _callData = null;
+        _jmpDest = null;
+        return this;
+    }
 
     private ExceptionalHaltReason useGas( long used ) {
         return (_gas -= used) < 0 ? ExceptionalHaltReason.INSUFFICIENT_GAS : null;
@@ -273,8 +313,16 @@ class BEVM {
                     UI256.getLong(val,0));
     }
 
+
+    // Address.delegate
+    // -- delegate is ArrayWrappingBytes
+    // -- -- wrapped bytes has offset 0, len== 20 == bytes[].length
+    // 4 calls to getLong() accumulating bytes
+    //
     private ExceptionalHaltReason push( Address adr ) {
-        return adr==null ? push0() : push(adr.toArrayUnsafe(),0,20);
+        if( adr == null ) return push0();
+        byte[] bs = adr.toArrayUnsafe();
+        return push(bs,0,20);
     }
 
     // Push a byte array little-endian; short arrays are zero-filled high.
@@ -287,8 +335,16 @@ class BEVM {
         long x3 = getLong(src,off, len);
         return push(x0,x1,x2,x3);
     }
+    //private static long getLongQ( byte[] src, int off, len ) {
+    //    long adr = 0;
+    //    for( int i=0; i<len; i++ )
+    //        adr = (adr << 8) | (src[off+i]&0xFF);
+    //    return adr;
+    //}
+
     // TODO, common case, optimize
     private ExceptionalHaltReason push32( byte[] src ) {
+        assert src.length==32;
         return push(src,0,32);
     }
 
@@ -356,9 +412,7 @@ class BEVM {
 
     // -----------------------------------------------------------
     // Execute bytecodes until done
-    ExceptionalHaltReason _run() {
-        if( _codes.length==0 )
-            return stop();
+    BEVM run() {
         SB trace = null; // new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null )
@@ -368,7 +422,7 @@ class BEVM {
         ExceptionalHaltReason halt = null;
 
         while( halt==null ) {
-            if( pc == _codes.length )
+            if( pc >= _codes.length )
                 { halt = stop(); break; }
             int op = _codes[pc] & 0xFF;
             preTrace(trace,pc,op);
@@ -398,14 +452,18 @@ class BEVM {
             case 0x15 -> eqz();
             case 0x16 -> and();
             case 0x17 -> or ();
+            case 0x18 -> xor();
             case 0x19 -> not();
+            case 0x1A -> xbyte();
             case 0x1B -> shl();
             case 0x1C -> shr();
+            case 0x1D -> sar();
 
             case 0x20 -> keccak256();
 
             // call/input/output arguments
             case 0x30 -> address();
+            case 0x31 -> balance();
             case 0x32 -> origin();
             case 0x33 -> caller();
             case 0x34 -> callValue();
@@ -421,7 +479,9 @@ class BEVM {
             case 0x3E -> returnDataCopy();
             case 0x3F -> customExtCodeHash();
 
+            case 0x40 -> blockHash();
             case 0x41 -> coinBase();
+            case 0x42 -> timeStamp();
             case 0x44 -> PRNGSeed();
             case 0x45 -> gasLimit();
             case 0x46 -> customChainId();
@@ -500,8 +560,11 @@ class BEVM {
         _frame.setGasRemaining(_gas);
         if( _lastSKey != null )
             _frame.storageWasUpdated(_lastSKey, _lastSVal );
-
-        return halt;
+        if( halt != ExceptionalHaltReason.NONE ) {
+            _frame.setExceptionalHaltReason(Optional.of(halt));
+            _frame.setState(MessageFrame.State.EXCEPTIONAL_HALT);
+        }
+        return this;
     }
 
     private void preTrace(SB trace, int pc, int op) {
@@ -526,7 +589,10 @@ class BEVM {
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-
+        return add(lhs0,lhs1,lhs2,lhs3, rhs0,rhs1,rhs2,rhs3);
+    }
+    private ExceptionalHaltReason add(long lhs0, long lhs1, long lhs2, long lhs3,
+                                      long rhs0, long rhs1, long rhs2, long rhs3) {
         // If both sign bits are the same and differ from the result, we overflowed
         long add0 = lhs0 + rhs0;
         long add1 = lhs1 + rhs1;
@@ -548,6 +614,10 @@ class BEVM {
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        return mul(lhs0,lhs1,lhs2,lhs3, rhs0,rhs1,rhs2,rhs3);
+    }
+    private ExceptionalHaltReason mul(long lhs0, long lhs1, long lhs2, long lhs3,
+                                      long rhs0, long rhs1, long rhs2, long rhs3) {
         // Multiply by 0,1,2^n shortcuts
         if( (lhs1 | lhs2 | lhs3)==0 ) {
             if( lhs0==0 ) return push0();
@@ -560,20 +630,12 @@ class BEVM {
 
         int lbc0 = Long.bitCount(lhs0), lbc1 = Long.bitCount(lhs1), lbc2 = Long.bitCount(lhs2), lbc3 = Long.bitCount(lhs3);
         if( lbc0+lbc1+lbc2+lbc3 == 1 ) {
-            int shf;
-            if( lbc0==1 )      shf =     Long.numberOfTrailingZeros(lhs0);
-            else if( lbc1==1 ) shf =  64+Long.numberOfTrailingZeros(lhs1);
-            else if( lbc2==1 ) shf = 128+Long.numberOfTrailingZeros(lhs2);
-            else               shf = 192+Long.numberOfTrailingZeros(lhs3);
+            int shf = shf(lbc0,lbc1,lbc2,lbc3, lhs0, lhs1, lhs2, lhs3);
             return shl(shf,rhs0,rhs1,rhs2,rhs3);
         }
         int rbc0 = Long.bitCount(rhs0), rbc1 = Long.bitCount(rhs1), rbc2 = Long.bitCount(rhs2), rbc3 = Long.bitCount(rhs3);
         if( rbc0+rbc1+rbc2+rbc3 == 1 ) {
-            int shf;
-            if( rbc0==1 )      shf =     Long.numberOfTrailingZeros(rhs0);
-            else if( rbc1==1 ) shf =  64+Long.numberOfTrailingZeros(rhs1);
-            else if( rbc2==1 ) shf = 128+Long.numberOfTrailingZeros(rhs2);
-            else               shf = 192+Long.numberOfTrailingZeros(rhs3);
+            int shf = shf(rbc0,rbc1,rbc2,rbc3, rhs0, rhs1, rhs2, rhs3);
             return shl(shf,lhs0,lhs1,lhs2,lhs3);
         }
 
@@ -606,6 +668,15 @@ class BEVM {
     // computed but ignored.
     private static boolean overflowSub( long x, long y, long sum ) { return ((x^~y) & (x^sum)) < 0; }
 
+    private int shf( int  rbc0, int  rbc1, int  rbc2, int  rbc3,
+                     long rhs0, long rhs1, long rhs2, long rhs3) {
+        if( rbc0==1 ) return Long.numberOfTrailingZeros(rhs0)    ;
+        if( rbc1==1 ) return Long.numberOfTrailingZeros(rhs1)+ 64;
+        if( rbc1==2 ) return Long.numberOfTrailingZeros(rhs2)+128;
+        return               Long.numberOfTrailingZeros(rhs3)+192;
+
+    }
+
     // Unsigned divide
     private ExceptionalHaltReason div() {
         var halt = useGas(_gasCalc.getLowTierGasCost());
@@ -623,37 +694,110 @@ class BEVM {
         }
         int rbc0 = Long.bitCount(rhs0), rbc1 = Long.bitCount(rhs1), rbc2 = Long.bitCount(rhs2), rbc3 = Long.bitCount(rhs3);
         if( rbc0+rbc1+rbc2+rbc3 == 1 ) {
-            int shf;
-            if( rbc0==1 )      shf =     Long.numberOfTrailingZeros(rhs0);
-            else if( rbc1==1 ) shf =  64+Long.numberOfTrailingZeros(rhs1);
-            else if( rbc2==1 ) shf = 128+Long.numberOfTrailingZeros(rhs2);
-            else               shf = 192+Long.numberOfTrailingZeros(rhs3);
+            int shf = shf(rbc0,rbc1,rbc2,rbc3, rhs0,rhs1,rhs2,rhs3);
             return shr(shf,lhs0,lhs1,lhs2,lhs3);
         }
+        if( lhs0==rhs0 && lhs1==rhs1 && lhs2==rhs2 && lhs3==rhs3 )
+            return push(1);
 
         throw new TODO();
     }
 
     private ExceptionalHaltReason sdiv() {
-        return ExceptionalHaltReason.INVALID_OPERATION;
+        var halt = useGas(_gasCalc.getLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        // Divide by 0,1,2^n shortcuts
+        if( (lhs1 | lhs2 | lhs3)==0 ) {
+            if( lhs0==0 ) return push0();
+        }
+        if( (rhs1 | rhs2 | rhs3)==0 ) {
+            if( rhs0==0 ) return push0();
+            if( rhs0==1 ) return push(lhs0,lhs1,lhs2,lhs3);
+        }
+        int rbc0 = Long.bitCount(rhs0), rbc1 = Long.bitCount(rhs1), rbc2 = Long.bitCount(rhs2), rbc3 = Long.bitCount(rhs3);
+        if( rbc0+rbc1+rbc2+rbc3 == 1 ) {
+            int shf = shf(rbc0,rbc1,rbc2,rbc3, rhs0,rhs1,rhs2,rhs3);
+            return sar(shf,lhs0,lhs1,lhs2,lhs3);
+        }
+        if( lhs0==rhs0 && lhs1==rhs1 && lhs2==rhs2 && lhs3==rhs3 )
+            return push(1);
+        throw new TODO();
     }
 
     private ExceptionalHaltReason mod() {
         var halt = useGas(_gasCalc.getLowTierGasCost());
         if( halt!=null ) return halt;
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
-        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        long num0 = STK0[--_sp], num1 = STK1[_sp], num2 = STK2[_sp], num3 = STK3[_sp];
+        long div0 = STK0[--_sp], div1 = STK1[_sp], div2 = STK2[_sp], div3 = STK3[_sp];
+        return mod(num0,num1,num2,num3,
+                   div0,div1,div2,div3);
+    }
+    private ExceptionalHaltReason mod(long num0, long num1, long num2, long num3,
+                                      long div0, long div1, long div2, long div3) {
+        // Mod by power of 2?
+        int dbc0 = Long.bitCount(div0), dbc1 = Long.bitCount(div1), dbc2 = Long.bitCount(div2), dbc3 = Long.bitCount(div3);
+        if( dbc0+dbc1+dbc2+dbc3 == 1 ) {
+            int shf = shf(dbc0,dbc1,dbc2,dbc3, div0,div1,div2,div3);
+            return mask(shf,num0,num1,num2,num3);
+        }
+        // Mod of self is 0
+        if( num0==div0 && num1==div1 && num2==div2 && num3==div3 )
+            return push(0);
         return ExceptionalHaltReason.INVALID_OPERATION;
     }
+
+    // Just the low shf bits
+    private ExceptionalHaltReason mask( int shf, long num0, long num1, long num2, long num3 ) {
+        if( shf < 64 ) return push(((1L<<shf)-1) & num0, 0,0,0);
+        throw new TODO();
+    }
+
+
     private ExceptionalHaltReason smod() {
+        var halt = useGas(_gasCalc.getLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        if( lhs0==rhs0 && lhs1==rhs1 && lhs2==rhs2 && lhs3==rhs3 )
+            return push(1);
         return ExceptionalHaltReason.INVALID_OPERATION;
     }
     private ExceptionalHaltReason addmod() {
-        return ExceptionalHaltReason.INVALID_OPERATION;
+        var halt = useGas(_gasCalc.getMidTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        long div0 = STK0[--_sp], div1 = STK1[_sp], div2 = STK2[_sp], div3 = STK3[_sp];
+        if( (div1 | div2 | div3)==0 ) {
+            if( div0==0 ) return push0();
+        }
+        add(lhs0,lhs1,lhs2,lhs3,
+            rhs0,rhs1,rhs2,rhs3);
+        long num0 = STK0[--_sp], num1 = STK1[_sp], num2 = STK2[_sp], num3 = STK3[_sp];
+        return mod(num0,num1,num2,num3,
+                   div0,div1,div2,div3);
     }
     private ExceptionalHaltReason mulmod() {
-        return ExceptionalHaltReason.INVALID_OPERATION;
+        var halt = useGas(_gasCalc.getMidTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        long div0 = STK0[--_sp], div1 = STK1[_sp], div2 = STK2[_sp], div3 = STK3[_sp];
+        if( (div1 | div2 | div3)==0 ) {
+            if( div0==0 ) return push0();
+        }
+        mul(lhs0,lhs1,lhs2,lhs3,
+            rhs0,rhs1,rhs2,rhs3);
+        long num0 = STK0[--_sp], num1 = STK1[_sp], num2 = STK2[_sp], num3 = STK3[_sp];
+        return mod(num0,num1,num2,num3,
+                   div0,div1,div2,div3);
     }
 
 
@@ -824,6 +968,16 @@ class BEVM {
         return push(lhs0 | rhs0, lhs1 | rhs1, lhs2 | rhs2, lhs3 | rhs3);
     }
 
+    // XOR
+    private ExceptionalHaltReason xor() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        return push(lhs0 ^ rhs0, lhs1 & rhs1, lhs2 ^ rhs2, lhs3 ^ rhs3);
+    }
+
     // not, bitwise complement (as opposed to a logical not)
     private ExceptionalHaltReason not() {
         var halt = useGas(_gasCalc.getVeryLowTierGasCost());
@@ -832,6 +986,23 @@ class BEVM {
         long not0 = STK0[--_sp], not1 = STK1[_sp], not2 = STK2[_sp], not3 = STK3[_sp];
         return push(~not0, ~not1, ~not2, ~not3);
     }
+
+
+    // index byte
+    private ExceptionalHaltReason xbyte() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        int off = 31 - popInt();
+        if( off<0 || off >= 32 ) return push0();
+        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
+        while( off >= 8 ) {
+            val0 = val1;  val1 = val2;  val2 = val3;  val3 = 0;
+            off -= 8;
+        }
+        return push((val0 >> ((8-off)<<3)) & 0xff);
+    }
+
 
     // Shl
     private ExceptionalHaltReason shl() {
@@ -887,6 +1058,31 @@ class BEVM {
         }
         return push(val0,val1,val2,val3);
     }
+    private ExceptionalHaltReason sar(  ) {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        int shf = popInt();
+        if( shf >= 256 )
+            return push0();
+        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
+        return sar(shf,val0,val1,val2,val3);
+    }
+    private ExceptionalHaltReason sar( int shf, long val0, long val1, long val2, long val3 ) {
+        // While shift is large, shift by whole registers
+        while( shf >= 64 ) {
+            val0 = val1;  val1 = val2;  val2 = val3;  val3 >>= 63;
+            shf -= 64;
+        }
+        // Remaining partial shift has to merge across word boundries
+        if( shf != 0 ) {
+            val0 = (val0>>>shf) | (val1<<(64-shf));
+            val1 = (val1>>>shf) | (val2<<(64-shf));
+            val2 = (val2>>>shf) | (val3<<(64-shf));
+            val3 >>= shf;
+        }
+        return push(val0,val1,val2,val3);
+    }
 
     // ---------------------
     // keccak256
@@ -902,7 +1098,7 @@ class BEVM {
         if( halt!=null ) return halt;
 
         Bytes bytes = _mem.asBytes(adr, len);
-        Bytes keccak = Hash.keccak256(bytes);
+        Bytes keccak = org.hyperledger.besu.crypto.Hash.keccak256(bytes);
         assert keccak.size()==32; // Base implementation has changed?
         return push32(keccak.toArrayUnsafe());
     }
@@ -916,6 +1112,21 @@ class BEVM {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
         return push(_frame.getRecipientAddress());
+    }
+
+    // Balance
+    private ExceptionalHaltReason balance() {
+        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        var address = popAddress();
+        boolean isWarm = _frame.warmUpAddress(address) || _gasCalc.isPrecompile(address);
+        long gas = _gasCalc.getBalanceOperationGasCost() +
+            (isWarm ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+        var halt = useGas(gas);
+        if( halt!=null ) return halt;
+
+        Account account = _frame.getWorldUpdater().get(address);
+        if( account == null ) return push0();
+        return push((UInt256)account.getBalance().toBytes());
     }
 
     // Push passed originator address
@@ -981,7 +1192,7 @@ class BEVM {
 
     // Push size of code
     private ExceptionalHaltReason codeSize() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
         return push( _codes.length );
     }
@@ -1212,7 +1423,15 @@ class BEVM {
 
     private ExceptionalHaltReason customSelfDestruct() {
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        Operation.OperationResult opr = _selfDestruct.execute(_frame,_bevm, popAddress());
+        Address beneAdr = popAddress();
+        Operation.OperationResult opr;
+        if( _selfDestruct instanceof CustomSelfDestructOperation csdo ) {
+            // TODO: gas calc is not using Bonneville isWarm
+            opr = csdo.execute(_frame, _bevm, beneAdr);
+        } else {
+            boolean isWarm = _frame.warmUpAddress(beneAdr) || _gasCalc.isPrecompile(beneAdr);
+            opr = CustomSelfDestructOperation.executeOldSelfDestruct(_frame,beneAdr,isWarm, _gasCalc);
+        }
         var halt = opr.getHaltReason();
         if( halt!=null ) return halt;
         halt = useGas(opr.getGasCost());
@@ -1229,7 +1448,7 @@ class BEVM {
         long dst  = popLong();
         long cond = popLong();
         if( cond == 0 ) return nextpc; // No jump is jump-to-nextpc
-        return dst < 0 || dst >= _codes.length || !jumpValid((int)dst)
+        return dst < 0 || dst >= _codes.length || jumpInvalid( (int) dst )
             ? -1                // Error
             : (int)dst;         // Target
     }
@@ -1238,15 +1457,15 @@ class BEVM {
         if( _sp < 1 ) return -3;
         if( useGas(_gasCalc.getMidTierGasCost())!=null ) return -2;
         long dst = popLong();
-        return dst < 0 || dst >= _codes.length || !jumpValid((int)dst)
+        return dst < 0 || dst >= _codes.length || jumpInvalid( (int) dst )
             ? -1                // Error
             : (int)dst;         // Target
     }
 
     // Must jump to a jump dest, opcode 91/0x5B
-    private BitSet _jmpDest;
-    private boolean jumpValid( int x ) {
+    private boolean jumpInvalid( int x ) {
         if( _jmpDest == null ) {
+            // One-time fill jmpDest cache
             _jmpDest = new BitSet();
             for( int i=0; i<_codes.length; i++ ) {
                 int op = _codes[i] & 0xFF;
@@ -1255,13 +1474,11 @@ class BEVM {
                     i += op - 0x60 + 1; // Skip immediate bytes
             }
         }
-        return _jmpDest.get(x);
+        return !_jmpDest.get( x );
     }
 
     private ExceptionalHaltReason noop() {
-        var halt = useGas(_gasCalc.getJumpDestOperationGasCost());
-        if( halt!=null ) return halt;
-        return null;
+        return useGas(_gasCalc.getJumpDestOperationGasCost());
     }
 
     private ExceptionalHaltReason gas() {
@@ -1276,17 +1493,42 @@ class BEVM {
         return push((UInt256)_frame.getGasPrice().toBytes());
     }
 
+    private ExceptionalHaltReason blockHash() {
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        var halt = useGas(_gasCalc.getBlockHashOperationGasCost());
+        if( halt!=null ) return halt;
+        long soughtBlock = popLong();
+        if( soughtBlock == Long.MAX_VALUE )
+            return push0();
+
+        BlockValues blockValues = _frame.getBlockValues();
+        long currentBlockNumber = blockValues.getNumber();
+        BlockHashLookup blockHashLookup = _frame.getBlockHashLookup();
+        if( !(soughtBlock >= 0L && soughtBlock < currentBlockNumber && soughtBlock >= currentBlockNumber - blockHashLookup.getLookback()) )
+            return push0();
+        org.hyperledger.besu.datatypes.Hash blockHash = blockHashLookup.apply(_frame, soughtBlock);
+        //return push(blockHash);
+        throw new TODO();
+    }
+
     private ExceptionalHaltReason coinBase() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
         return push(_frame.getMiningBeneficiary() );
     }
 
+    private ExceptionalHaltReason timeStamp() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        return push(_frame.getBlockValues().getTimestamp());
+    }
+
     private ExceptionalHaltReason PRNGSeed() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
-        final Bytes entropy = FrameUtils.proxyUpdaterFor(_frame).entropy();
-        return push32(entropy.toArrayUnsafe());
+        if( _frame.getBlockValues().getMixHashOrPrevRandao() != Bytes32.ZERO )
+            throw new TODO();
+        return push0();
     }
 
     private ExceptionalHaltReason gasLimit() {
@@ -1298,7 +1540,11 @@ class BEVM {
     private ExceptionalHaltReason customChainId() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
-        int chainIdAsInt = FrameUtils.configOf(_frame).getConfigData( ContractsConfig.class).chainId();
+        // Check for having a custom chain id
+        var config = FrameUtils.initialFrameOf(_frame).getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE);
+        long chainIdAsInt = config==null
+            ? _chainID
+            : FrameUtils.configOf(_frame).getConfigData( ContractsConfig.class).chainId();
         return push(chainIdAsInt);
     }
 
@@ -1578,8 +1824,7 @@ class BEVM {
         var sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
             ? FrameUtils.hookOwnerAddress(_frame)
             : _frame.getRecipientAddress();
-        ProxyWorldUpdater updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
-        var senderAccount = updater.getAccount(sender);
+        var senderAccount = _frame.getWorldUpdater().getAccount(sender);
 
         _frame.clearReturnData();
 
@@ -1598,7 +1843,8 @@ class BEVM {
         Address contract = Address.contractAddress(sender, senderNonce - 1);
         assert contract != null;
 
-        updater.setupInternalAliasedCreate(sender, contract);
+        if( _frame.getWorldUpdater() instanceof ProxyWorldUpdater proxyUpdater )
+            proxyUpdater.setupInternalAliasedCreate(sender, contract);
         _frame.warmUpAddress(contract);
 
         // gas cost for making the contract
@@ -1673,6 +1919,8 @@ class BEVM {
     public void complete( MessageFrame frame, MessageFrame child ) {/*nothing*/}
 
     private ExceptionalHaltReason customCreate2(SB trace, String str) {
+        if( !(_frame.getWorldUpdater() instanceof ProxyWorldUpdater)  || !_flags.isCreate2Enabled(_frame) )
+            return ExceptionalHaltReason.INVALID_OPERATION;
         throw new TODO();
     }
 

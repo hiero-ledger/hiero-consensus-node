@@ -104,11 +104,11 @@ public class HederaEVM extends HEVM {
         Operation[] operationArray = this.operations.getOperations();
 
         final OpsDurationCounter opsDurationCounter = FrameUtils.opsDurationCounter(frame);
-        final OpsDurationSchedule opsDurationSchedule = opsDurationCounter.schedule();
-        final long opsDurationMultiplier = opsDurationSchedule.opsGasBasedDurationMultiplier();
-        final long opsDurationDenominator = opsDurationSchedule.multipliersDenominator();
+        final OpsDurationSchedule opsDurationSchedule = opsDurationCounter==null ? null : opsDurationCounter.schedule();
+        final long opsDurationMultiplier = opsDurationCounter==null ? 0 : opsDurationSchedule.opsGasBasedDurationMultiplier();
+        final long opsDurationDenominator = opsDurationCounter==null ? 1 : opsDurationSchedule.multipliersDenominator();
 
-        final SB trace = new SB();
+        SB trace = null; // new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null ) {
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
@@ -126,12 +126,12 @@ public class HederaEVM extends HEVM {
             int pc = frame.getPC();
 
             Operation currentOperation;
-            try {
-                opcode = code[pc] & 255;
-                currentOperation = operationArray[opcode];
-            } catch (ArrayIndexOutOfBoundsException var15) {
+            if( pc >= code.length ) {
                 opcode = 0;
                 currentOperation = this.endOfScriptStop;
+            } else {
+                opcode = code[pc] & 255;
+                currentOperation = operationArray[opcode];
             }
 
             frame.setCurrentOperation(currentOperation);
@@ -233,11 +233,13 @@ public class HederaEVM extends HEVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                final var opCodeCost = opsDurationSchedule.opCodeCost(opcode);
-                final var opsDurationUnitsCost = opCodeCost == 0
+                if( opsDurationCounter!=null ) {
+                    final var opCodeCost = opsDurationSchedule.opCodeCost(opcode);
+                    final var opsDurationUnitsCost = opCodeCost == 0
                         ? result.getGasCost() * opsDurationMultiplier / opsDurationDenominator
                         : opCodeCost;
-                opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
+                    opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
+                }
             }
 
             if( trace != null ) {
