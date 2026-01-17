@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_EQUALITY_STATE_ID;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_EXPIRY_SEC_STATE_ID;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
@@ -22,7 +23,7 @@ import java.util.Set;
 /**
  * General schema for the schedule service.
  */
-public final class V0570ScheduleSchema extends Schema {
+public final class V0570ScheduleSchema extends Schema<SemanticVersion> {
 
     private static final long MAX_SCHEDULED_COUNTS = 50_000L;
     private static final long MAX_SCHEDULED_ORDERS = 50_000L;
@@ -80,7 +81,7 @@ public final class V0570ScheduleSchema extends Schema {
      * Instantiates a new V0570 (version 0.57.0) schedule schema.
      */
     public V0570ScheduleSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @SuppressWarnings("rawtypes")

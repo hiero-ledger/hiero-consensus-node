@@ -6,11 +6,11 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
-import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
@@ -179,7 +179,7 @@ public interface HandleContext {
              */
             EXPLICIT_WRITE_TRACING,
             /**
-             * Batch inner transaction bytes. Used to prehandle inner transaction while dispatching them.
+             * Batch inner transaction bytes. Used to pre-handle inner transaction while dispatching them.
              */
             INNER_TRANSACTION_BYTES,
             /**

@@ -124,11 +124,13 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.suites.utils.contracts.ContractCallResult;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenID;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
@@ -828,7 +830,7 @@ public class ContractCallSuite {
                         .initialSupply(0)
                         .supplyKey(DEFAULT_PAYER)
                         .treasury(DEFAULT_PAYER),
-                mintToken("nft", List.of(ByteString.copyFrom(CommonUtils.unhex(hexedNonUtf8Meta)))),
+                mintToken("nft", List.of(ByteString.copyFrom(Objects.requireNonNull(unhex(hexedNonUtf8Meta))))),
                 sourcing(() -> contractCall(
                                 contractAlternatives, "canGetMetadataViaERC", nftAddr.get(), BigInteger.valueOf(1))
                         .via(viaErc721TokenURI)),
@@ -1304,7 +1306,7 @@ public class ContractCallSuite {
                     var codeSize = 0;
                     if (result != null && result.length > 0) {
                         final var retResults = function.decodeReturn(result);
-                        if (retResults != null && retResults.size() > 0) {
+                        if (retResults != null && !retResults.isEmpty()) {
                             final var retBi = (BigInteger) retResults.get(0);
                             codeSize = retBi.intValue();
                         }
@@ -1328,7 +1330,7 @@ public class ContractCallSuite {
                     codeSize = 0;
                     if (result != null && result.length > 0) {
                         final var retResults = function.decodeReturn(result);
-                        if (retResults != null && retResults.size() > 0) {
+                        if (retResults != null && !retResults.isEmpty()) {
                             final var retBi = (BigInteger) retResults.get(0);
                             codeSize = retBi.intValue();
                         }
@@ -2256,7 +2258,7 @@ public class ContractCallSuite {
                     final var contractBalanceAfterCall =
                             spec.registry().getContractInfo(CONTRACT_FROM).getBalance();
 
-                    assertEquals(contractBalanceAfterCall, 10_000L);
+                    assertEquals(10_000L, contractBalanceAfterCall);
                 }),
                 getAccountBalance(RECEIVER).hasTinyBars(10_000L));
     }
@@ -2416,7 +2418,7 @@ public class ContractCallSuite {
                                 .gas(GAS_TO_OFFER)
                                 .hasKnownStatus(SUCCESS))),
                 withOpContext((spec, opLog) -> {
-                    /** 1. Retrieves sorted list of all contracts deployed in the constructor (parent contracts) */
+                    /* 1. Retrieves sorted list of all contracts deployed in the constructor (parent contracts) */
                     final var opCreateTxRecord = getTxnRecord(contractCreateTx);
                     allRunFor(spec, opCreateTxRecord);
 
@@ -2432,7 +2434,7 @@ public class ContractCallSuite {
                                     .equals(spec.registry().getContractId(contract)))
                             .toList();
 
-                    /** 2. Asserts main contract (NoncesExternalization) nonce is 5 */
+                    /* 2. Asserts main contract (NoncesExternalization) nonce is 5 */
                     final var opAssertMain = getTxnRecord(deployContractTx)
                             .logged()
                             .hasPriority(recordWith()
@@ -2440,10 +2442,10 @@ public class ContractCallSuite {
                                             .contractWithNonce(spec.registry().getContractId(contract), 5L)));
                     allRunFor(spec, opAssertMain);
 
-                    /**
-                     * 3. Deploys child from the first parent contract deployed in the constructor (index 0).
-                     * Asserts parent's nonce is 2.
-                     */
+                    /*
+                     3. Deploys child from the first parent contract deployed in the constructor (index 0).
+                     Asserts parent's nonce is 2.
+                    */
                     final var deployChild = contractCall(contract, deployChildFromParentContractFn, BigInteger.ZERO)
                             .gas(GAS_TO_OFFER)
                             .via(committedInnerCreationTx);
@@ -2451,7 +2453,8 @@ public class ContractCallSuite {
                     allRunFor(spec, deployChild, deployChildTxnRecord);
 
                     /* Retrieves contractId of the first deployed contract in the constructor - index 0 */
-                    final var firstParentContractId = parentContractsList.get(0).getContractId();
+                    final var firstParentContractId =
+                            parentContractsList.getFirst().getContractId();
                     spec.registry().saveContractId("firstParentContractId", firstParentContractId);
 
                     HapiGetTxnRecord opFirstParentNonce = getTxnRecord(committedInnerCreationTx)
@@ -2463,7 +2466,7 @@ public class ContractCallSuite {
                                                     spec.registry().getContractId("firstParentContractId"), 2L)));
                     allRunFor(spec, opFirstParentNonce);
 
-                    /** 4. Tries to deploy child from parent and reverts. Asserts contract_nonces entries are null. */
+                    /* 4. Tries to deploy child from parent and reverts. Asserts contract_nonces entries are null. */
                     final var deployChildAndRevert = contractCall(
                                     contract, deployChildAndRevertFromParentContractFn, BigInteger.ONE)
                             .gas(GAS_TO_OFFER)
@@ -2557,20 +2560,50 @@ public class ContractCallSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> badEvmAddressResultsInPrecheckFail() {
-        final var BAD_EVM_ADDRESS = "123456";
+    final Stream<DynamicTest> contractIdResultsInPrecheckFail(
+            final String contractName, final java.util.function.Function<HapiSpec, ContractID> contractId) {
         final var NAME = "name";
         final var ERC_721_ABI = "ERC721ABI";
-        final var BAD_EVM_ADDRESS_CONTRACT = "badEvmAddressContract";
 
         return hapiTest(
-                withOpContext((spec, ctxLog) -> spec.registry()
-                        .saveContractId(BAD_EVM_ADDRESS_CONTRACT, spec, ByteString.copyFrom(unhex(BAD_EVM_ADDRESS)))),
+                withOpContext((spec, ctxLog) -> spec.registry().saveContractId(contractName, contractId.apply(spec))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
-                        contractCallWithFunctionAbi(BAD_EVM_ADDRESS_CONTRACT, getABIFor(FUNCTION, NAME, ERC_721_ABI))
+                        contractCallWithFunctionAbi(contractName, getABIFor(FUNCTION, NAME, ERC_721_ABI))
                                 .notTryingAsHexedliteral()
                                 .hasPrecheck(INVALID_CONTRACT_ID))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> badEvmAddressResultsInPrecheckFail() {
+        final var address = "123456";
+        final var contract = "badEvmAddressContract";
+
+        return contractIdResultsInPrecheckFail(contract, spec -> ContractID.newBuilder()
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
+                .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(address))))
+                .build());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> zeroContractIdResultsInPrecheckFail() {
+        final var contract = "zeroIdContract";
+
+        return contractIdResultsInPrecheckFail(
+                contract, spec -> ContractID.newBuilder().setContractNum(0).build());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> zeroEvmAddressContractIdResultsInPrecheckFail() {
+        final var address = "0000000000000000000000000000000000000000";
+        final var contract = "zeroEvmAddressContract";
+
+        return contractIdResultsInPrecheckFail(contract, spec -> ContractID.newBuilder()
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
+                .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(address))))
+                .build());
     }
 
     private String getNestedContractAddress(final String contract, final HapiSpec spec) {

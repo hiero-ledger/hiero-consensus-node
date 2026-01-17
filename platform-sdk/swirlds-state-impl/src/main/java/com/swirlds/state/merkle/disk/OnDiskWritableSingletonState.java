@@ -3,9 +3,6 @@ package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForSingleton;
-import static com.swirlds.state.merkle.logging.StateLogger.logSingletonRead;
-import static com.swirlds.state.merkle.logging.StateLogger.logSingletonRemove;
-import static com.swirlds.state.merkle.logging.StateLogger.logSingletonWrite;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -55,10 +52,7 @@ public class OnDiskWritableSingletonState<V> extends WritableSingletonStateBase<
     protected V readFromDataSource() {
         final Bytes stateKey = getStateKeyForSingleton(stateId);
         final StateValue<V> stateValue = virtualMap.get(stateKey, stateValueCodec);
-        final V value = stateValue != null ? stateValue.value() : null;
-        // Log to transaction state log, what was read
-        logSingletonRead(label, value);
-        return value;
+        return stateValue != null ? stateValue.value() : null;
     }
 
     /** {@inheritDoc} */
@@ -68,8 +62,6 @@ public class OnDiskWritableSingletonState<V> extends WritableSingletonStateBase<
         final StateValue<V> stateValue = getStateValueForSingleton(stateId, value);
 
         virtualMap.put(stateKey, stateValue, stateValueCodec);
-        // Log to transaction state log, what was put
-        logSingletonWrite(label, value);
     }
 
     /** {@inheritDoc} */
@@ -78,7 +70,5 @@ public class OnDiskWritableSingletonState<V> extends WritableSingletonStateBase<
         final Bytes stateKey = getStateKeyForSingleton(stateId);
         final StateValue<V> stateValue = virtualMap.remove(stateKey, stateValueCodec);
         final var removedValue = stateValue != null ? stateValue.value() : null;
-        // Log to transaction state log, what was removed
-        logSingletonRemove(label, removedValue);
     }
 }

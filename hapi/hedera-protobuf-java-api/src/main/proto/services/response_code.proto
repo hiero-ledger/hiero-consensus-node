@@ -1733,7 +1733,7 @@ enum ResponseCodeEnum {
      * The batch key is not valid
      */
     INVALID_BATCH_KEY = 394;
-    
+
     /**
      * The provided schedule expiry time is not configurable.
      */
@@ -1770,6 +1770,11 @@ enum ResponseCodeEnum {
      * A HAPI client cannot set the SignedTransaction#use_serialized_tx_message_hash_algorithm field.
      */
     INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
+
+    /**
+     * A LambdaSStore referenced a valid entity number but with the wrong entity type.
+     */
+    WRONG_HOOK_ENTITY_TYPE = 499;
 
     /**
      * An EVM hook execution was throttled due to high network gas utilization.
@@ -1868,4 +1873,54 @@ enum ResponseCodeEnum {
      * A hook admin key was invalid.
      */
     INVALID_HOOK_ADMIN_KEY = 518;
+
+    /**
+     * The hook deletion requires the hook to have zero storage slots.
+    */
+    HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS = 519;
+
+    /**
+     * Cannot set both a hook call and an approval on the same AccountAmount or NftTransfer message.
+     */
+    CANNOT_SET_HOOKS_AND_APPROVAL = 520;
+
+    /**
+     * The attempted operation is invalid until all the target entity's hooks have been deleted.
+     */
+    TRANSACTION_REQUIRES_ZERO_HOOKS = 521;
+
+    /**
+     * The HookCall set in the transaction is invalid
+     */
+    INVALID_HOOK_CALL = 522;
+
+    /**
+     *  Hooks are not supported to be used in TokenAirdrop transactions
+     */
+    HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS = 523;
+
+    /**
+     * This operation cannot be completed because the target
+     * account is a "Node Account".<br/>
+     * This account is currently in use as the "Node Account" for a
+     * consensus node, and therefore the requested change is
+     * not permitted. The transaction may be resubmitted once the
+     * account is no longer in use as a "Node Account" for any
+     * consensus node.
+     */
+    ACCOUNT_IS_LINKED_TO_A_NODE = 524;
+
+    /**
+     *  Hooks are not supported to be used in Batch transactions and Scheduled transactions.
+     * They are only supported in a top level CryptoTransfer transaction.
+     */
+    HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER = 525;
+
+    /**
+     * This operation cannot be completed because the target
+     * account has a zero balance.<br/>
+     * Node accounts require a positive balance. The transaction may be
+     * resubmitted once the account has been funded.
+     */
+    NODE_ACCOUNT_HAS_ZERO_BALANCE = 526;
 }

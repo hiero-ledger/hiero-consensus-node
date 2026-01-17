@@ -7,7 +7,7 @@ import static com.hedera.hapi.node.state.hints.CRSStage.WAITING_FOR_ADOPTING_FIN
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
-import static com.hedera.node.app.roster.RosterTransitionWeights.moreThanTwoThirdsOfTotal;
+import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanTwoThirdsOfTotal;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
@@ -24,7 +24,7 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.ReadableHintsStore.HintsKeyPublication;
 import com.hedera.node.app.hints.WritableHintsStore;
-import com.hedera.node.app.roster.RosterTransitionWeights;
+import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -272,8 +272,7 @@ public class HintsControllerImpl implements HintsController {
                         .contributionEndTime((Timestamp) null)
                         .build();
                 hintsStore.setCrsState(updatedState);
-                log.info("CRS construction complete");
-                context.setCrs(crs);
+                log.info("Finished constructing CRS");
             }
         }
     }
@@ -342,7 +341,7 @@ public class HintsControllerImpl implements HintsController {
                         .findFirst()
                         .orElse("No remaining nodes to consider"));
         hintsStore.moveToNextNode(
-                optionalNextNodeId,
+                optionalNextNodeId.isEmpty() ? null : optionalNextNodeId.getAsLong(),
                 now.plusSeconds(tssConfig.crsUpdateContributionTime().toSeconds()));
     }
 
@@ -600,7 +599,7 @@ public class HintsControllerImpl implements HintsController {
      *     <Li>{@code (7, 12)}</Li>
      *     <Li>{@code (0, 2, 3)}</Li>
      * </ul>
-     * And no matter which node publishes their key next, they still the same id as expected.
+     * And no matter which node publishes their key next, they still get the same id as before.
      *
      * @throws IndexOutOfBoundsException if the node id has already been assigned a party id
      */

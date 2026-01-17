@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -10,14 +11,23 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterEntryBuilder;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,8 +53,19 @@ class EventCreatorTests {
                 .getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
 
+        Random random = new Random();
+        List<RosterEntry> rosterEntries = new ArrayList<>(5);
+        for (int i = 1; i <= 5; i++) {
+            rosterEntries.add(RandomRosterEntryBuilder.create(random)
+                    .withNodeId(i)
+                    .withWeight(10)
+                    .build());
+        }
+
+        final Roster roster = new Roster(rosterEntries);
+
         manager = new DefaultEventCreator();
-        manager.initialize(configuration, metrics, time, () -> false, creator);
+        manager.initialize(configuration, metrics, time, () -> false, creator, roster, NodeId.of(1));
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
     }
@@ -87,6 +108,50 @@ class EventCreatorTests {
         time.tick(Duration.ofSeconds(1));
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
+        final PlatformEvent e1 = manager.maybeCreateEvent();
+        assertNotNull(e1);
+        verify(creator, times(2)).maybeCreateEvent();
+        assertSame(eventsToCreate.get(1), e1);
+    }
+
+    @Test
+    void quiescencePreventsCreation() {
+        final PlatformEvent e0 = manager.maybeCreateEvent();
+        verify(creator, times(1)).maybeCreateEvent();
+        assertNotNull(e0);
+        assertSame(eventsToCreate.getFirst(), e0);
+
+        time.tick(Duration.ofSeconds(1));
+
+        manager.quiescenceCommand(QuiescenceCommand.QUIESCE);
+        assertNull(manager.maybeCreateEvent());
+        verify(creator, times(1)).maybeCreateEvent();
+
+        time.tick(Duration.ofSeconds(1));
+
+        manager.quiescenceCommand(QuiescenceCommand.DONT_QUIESCE);
+        final PlatformEvent e1 = manager.maybeCreateEvent();
+        assertNotNull(e1);
+        verify(creator, times(2)).maybeCreateEvent();
+        assertSame(eventsToCreate.get(1), e1);
+    }
+
+    @Test
+    void breakQuiescenceAllowsCreation() {
+        final PlatformEvent e0 = manager.maybeCreateEvent();
+        verify(creator, times(1)).maybeCreateEvent();
+        assertNotNull(e0);
+        assertSame(eventsToCreate.getFirst(), e0);
+
+        time.tick(Duration.ofSeconds(1));
+
+        manager.quiescenceCommand(QuiescenceCommand.QUIESCE);
+        assertNull(manager.maybeCreateEvent());
+        verify(creator, times(1)).maybeCreateEvent();
+
+        time.tick(Duration.ofSeconds(1));
+
+        manager.quiescenceCommand(QuiescenceCommand.BREAK_QUIESCENCE);
         final PlatformEvent e1 = manager.maybeCreateEvent();
         assertNotNull(e1);
         verify(creator, times(2)).maybeCreateEvent();
@@ -213,6 +278,18 @@ class EventCreatorTests {
         manager.setEventWindow(
                 EventWindowBuilder.builder().setNewEventBirthRound(5).build());
         verify(creator, times(0)).registerEvent(any(PlatformEvent.class));
+    }
+
+    @Test
+    void lagComputeAndBlockEventCreation() {
+        var genesisWindow = new EventWindow(100, 101, 1, 1);
+        for (int i = 5; i >= 2; i--) {
+            var otherNodeId = NodeId.of(i);
+            manager.reportSyncProgress(
+                    new SyncProgress(otherNodeId, genesisWindow, new EventWindow(120 + i, 120 + i, 100, 95)));
+        }
+        assertEquals(23.5, manager.getSyncRoundLag());
+        assertNull(manager.maybeCreateEvent());
     }
 
     private PlatformEvent eventWithBirthRound(final long birthRound) {

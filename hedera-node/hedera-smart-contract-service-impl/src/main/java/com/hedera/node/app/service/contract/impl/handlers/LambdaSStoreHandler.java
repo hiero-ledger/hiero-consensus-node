@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
-import static com.hedera.hapi.node.base.HookEntityId.EntityIdOneOfType.ACCOUNT_ID;
+import static com.hedera.hapi.node.base.HookEntityId.EntityIdOneOfType.UNSET;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UPDATE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
@@ -11,12 +10,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_B
 import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE_UPDATES;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
@@ -55,7 +56,7 @@ public class LambdaSStoreHandler implements TransactionHandler {
         final var hookId = op.hookIdOrThrow();
         validateTruePreCheck(hookId.hasEntityId(), INVALID_HOOK_ID);
         final var ownerType = hookId.entityIdOrThrow().entityId().kind();
-        validateTruePreCheck(ownerType == ACCOUNT_ID, INVALID_HOOK_ID);
+        validateTruePreCheck(ownerType != UNSET, INVALID_HOOK_ID);
         for (final var update : op.storageUpdates()) {
             if (update.hasStorageSlot()) {
                 validateSlot(update.storageSlotOrThrow());
@@ -76,11 +77,14 @@ public class LambdaSStoreHandler implements TransactionHandler {
         requireNonNull(context);
         final var op = context.body().lambdaSstoreOrThrow();
         final var store = context.createStore(ReadableEvmHookStore.class);
-        final var hook = store.getEvmHook(op.hookIdOrThrow());
+        // We translate any contract id used at the HAPI boundary for internal simplicity
+        final var hookId = effectiveHookId(op.hookIdOrThrow());
+        final var hook = store.getEvmHook(hookId);
+        // Since we only create hooks using numeric ids, this implicitly asserts hookEntityId uses a numeric id
         validateTruePreCheck(hook != null, HOOK_NOT_FOUND);
-        validateFalsePreCheck(hook.deleted(), HOOK_DELETED);
         validateTruePreCheck(hook.type() == LAMBDA, HOOK_IS_NOT_A_LAMBDA);
-        final var ownerAccountId = hook.hookIdOrThrow().entityIdOrThrow().accountIdOrThrow();
+        // (FUTURE) As non-account entities acquire hooks, switch on more cases here
+        final var ownerAccountId = hookId.entityIdOrThrow().accountIdOrThrow();
         if (hook.hasAdminKey()) {
             // Storage for a lambda with an admin key can be managed by either the creator or the admin
             context.requireKeyOrThrow(
@@ -104,12 +108,15 @@ public class LambdaSStoreHandler implements TransactionHandler {
         final var storageUpdates = op.storageUpdates();
         final var config = context.configuration().getConfigData(HooksConfig.class);
         validateTrue(storageUpdates.size() <= config.maxLambdaSStoreUpdates(), TOO_MANY_LAMBDA_STORAGE_UPDATES);
-        final int delta = lambdaStore.updateStorage(op.hookIdOrThrow(), op.storageUpdates());
-        if (delta != 0) {
-            final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-            final var ownerAccountId = op.hookIdOrThrow().entityIdOrThrow().accountIdOrThrow();
-            tokenServiceApi.updateLambdaStorageSlots(ownerAccountId, delta);
-        }
+        // We translate any contract id used at the HAPI boundary for internal simplicity
+        final var hookId = effectiveHookId(op.hookIdOrThrow());
+        final int delta = lambdaStore.updateStorage(hookId, op.storageUpdates());
+        final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
+        tokenServiceApi.updateLambdaStorageSlots(
+                hookId.entityIdOrThrow().accountIdOrThrow(),
+                delta,
+                // But if the user expected a contract, enforce that here
+                op.hookIdOrThrow().entityIdOrThrow().hasContractId());
     }
 
     private void validateSlot(@NonNull final LambdaStorageSlot slot) throws PreCheckException {
@@ -118,9 +125,6 @@ public class LambdaSStoreHandler implements TransactionHandler {
     }
 
     private void validateEntry(@NonNull final LambdaMappingEntry entry) throws PreCheckException {
-        if (entry.hasKey()) {
-            validateWord(entry.keyOrThrow());
-        }
         validateWord(entry.value());
     }
 
@@ -128,5 +132,21 @@ public class LambdaSStoreHandler implements TransactionHandler {
         validateTruePreCheck(bytes.length() <= MAX_UPDATE_BYTES_LEN, LAMBDA_STORAGE_UPDATE_BYTES_TOO_LONG);
         final var minimalBytes = minimalRepresentationOf(bytes);
         validateTruePreCheck(bytes == minimalBytes, LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION);
+    }
+
+    /**
+     * Returns the effective hook id for the given hook id.  If the given hook id uses a contract id,
+     * returns a hook id that uses the account id of the contract. Otherwise, returns the given hook id.
+     * @param hookId the hook id
+     * @return the effective hook id
+     */
+    private static HookId effectiveHookId(@NonNull final HookId hookId) {
+        final var entityId = hookId.entityIdOrThrow();
+        return entityId.hasContractId()
+                ? HookId.newBuilder()
+                        .entityId(HookEntityId.newBuilder().accountId(asAccountId(entityId.contractIdOrThrow())))
+                        .hookId(hookId.hookId())
+                        .build()
+                : hookId;
     }
 }

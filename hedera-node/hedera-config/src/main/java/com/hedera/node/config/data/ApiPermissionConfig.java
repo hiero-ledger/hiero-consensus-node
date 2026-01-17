@@ -46,6 +46,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
@@ -280,7 +281,8 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyProofVote,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange crsPublication,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange lambdaSStore,
-        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange hookDispatch) {
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
@@ -369,6 +371,7 @@ public record ApiPermissionConfig(
         permissionKeys.put(HISTORY_ASSEMBLY_SIGNATURE, c -> c.historyAssemblySignature);
         permissionKeys.put(HISTORY_PROOF_VOTE, c -> c.historyProofVote);
         permissionKeys.put(CRS_PUBLICATION, c -> c.crsPublication);
+        permissionKeys.put(NODE_STAKE_UPDATE, c -> c.nodeStakeUpdate);
     }
 
     /**

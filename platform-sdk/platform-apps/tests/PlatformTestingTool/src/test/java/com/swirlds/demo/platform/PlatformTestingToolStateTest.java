@@ -126,7 +126,7 @@ class PlatformTestingToolStateTest {
 
         final PlatformSigner signer = new PlatformSigner(keysAndCerts);
         final Hash stateHash = randotron.nextHash();
-        final Bytes signature = signer.signImmutable(stateHash);
+        final Bytes signature = signer.sign(stateHash.getBytes());
 
         stateSignatureTransaction = StateSignatureTransaction.newBuilder()
                 .round(1000L)
@@ -175,7 +175,7 @@ class PlatformTestingToolStateTest {
 
         main.submitStateSignature(stateSignatureTransaction);
         final var stateSignatureTransactionBytes =
-                main.getTransactionsForEvent().getFirst();
+                main.getTransactionsForEvent().getFirst().transaction();
 
         when(transaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
         when(secondConsensusTransaction.getApplicationTransaction()).thenReturn(stateSignatureTransactionBytes);
@@ -229,7 +229,7 @@ class PlatformTestingToolStateTest {
 
         main.submitStateSignature(stateSignatureTransaction);
         final var stateSignatureTransactionBytes =
-                main.getTransactionsForEvent().getFirst();
+                main.getTransactionsForEvent().getFirst().transaction();
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
@@ -252,7 +252,7 @@ class PlatformTestingToolStateTest {
 
         main.submitStateSignature(stateSignatureTransaction);
         final var stateSignatureTransactionBytes =
-                main.getTransactionsForEvent().getFirst();
+                main.getTransactionsForEvent().getFirst().transaction();
 
         final EventCore eventCore = mock(EventCore.class);
         final GossipEvent gossipEvent = GossipEvent.newBuilder()

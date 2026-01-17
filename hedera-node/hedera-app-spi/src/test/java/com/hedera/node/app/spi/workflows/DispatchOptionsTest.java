@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -23,12 +23,12 @@ class DispatchOptionsTest {
                 StreamBuilder.class,
                 DispatchOptions.StakingRewards.OFF,
                 DispatchOptions.UsePresetTxnId.YES,
-                NOOP_FEE_CHARGING,
+                UNIVERSAL_NOOP_FEE_CHARGING,
                 DispatchOptions.PropagateFeeChargingStrategy.YES);
 
         final var maybeFeeCharging = options.dispatchMetadata().getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class);
         assertTrue(maybeFeeCharging.isPresent());
-        assertSame(NOOP_FEE_CHARGING, maybeFeeCharging.get());
+        assertSame(UNIVERSAL_NOOP_FEE_CHARGING, maybeFeeCharging.get());
     }
 
     @Test
@@ -41,7 +41,7 @@ class DispatchOptionsTest {
                 StreamBuilder.class,
                 DispatchOptions.StakingRewards.OFF,
                 DispatchOptions.UsePresetTxnId.YES,
-                NOOP_FEE_CHARGING,
+                UNIVERSAL_NOOP_FEE_CHARGING,
                 DispatchOptions.PropagateFeeChargingStrategy.NO);
 
         final var maybeFeeCharging = options.dispatchMetadata().getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class);

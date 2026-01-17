@@ -10,11 +10,8 @@ import com.swirlds.base.function.CheckedSupplier;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
@@ -192,7 +189,7 @@ public class VirtualPipeline {
 
     /**
      * Slow down the fast copy operation if total size of all (unreleased) virtual root copies
-     * in this pipeline exceeds {@link VirtualMapConfig#familyThrottleThreshold()}.
+     * in this pipeline exceeds {@link VirtualMapConfig#getFamilyThrottleThreshold()}.
      */
     private void applyFamilySizeBackpressure() {
         final long sleepTimeMillis = calculateFamilySizeBackpressurePause();
@@ -217,7 +214,7 @@ public class VirtualPipeline {
             } while (timeSleptSoFar < sleepTimeMillis);
 
             // Record actual sleep time
-            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Total size backpressure: {} ms", timeSleptSoFar);
+            logger.warn(VIRTUAL_MERKLE_STATS.getMarker(), "Total size backpressure: {} ms", timeSleptSoFar);
             statistics.recordFamilySizeBackpressureMs((int) timeSleptSoFar);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -225,7 +222,7 @@ public class VirtualPipeline {
     }
 
     long calculateFamilySizeBackpressurePause() {
-        final long sizeThreshold = config.familyThrottleThreshold();
+        final long sizeThreshold = config.getFamilyThrottleThreshold();
         if (sizeThreshold <= 0) {
             return 0;
         }
@@ -365,50 +362,6 @@ public class VirtualPipeline {
     }
 
     /**
-     * Put a copy into a detached state. A detached copy will split off from the regular chain of caches. This
-     * allows for merges and flushes to continue even if this copy is long-lived.
-     *
-     * <p>This method waits for the current pipeline job to complete, then puts the pipeline on hold, and
-     * calls copy's {@link VirtualRoot#detach()} method on the current thread. It prevents any merging of
-     * flushing while the snapshot is being taken. Then the pipeline is resumed.
-     *
-     * @param copy
-     * 		the copy to detach
-     * @return a reference to the detached state
-     */
-    public RecordAccessor detachCopy(final VirtualRoot copy) {
-        validatePipelineRegistration(copy);
-        final RecordAccessor ret = pausePipelineAndExecute("detach", copy::detach);
-        if (alive) {
-            scheduleWork();
-        }
-        return ret;
-    }
-
-    /**
-     * Takes a snapshot of the given copy to the specified directory.
-     *
-     * <p>This method waits for the current pipeline job to complete, then puts the pipeline on hold, and
-     * calls copy's {@link VirtualRoot#detach()} method on the current thread. It prevents any merging of
-     * flushing while the snapshot is being taken. Then the pipeline is resumed.
-     *
-     * @param copy
-     * 		The copy. Cannot be null. Should be a member of this pipeline, but technically doesn't need to be.
-     * @param targetDirectory
-     * 		the location where detached files are written. If null then default location is used.
-     */
-    public void snapshot(final VirtualRoot copy, final Path targetDirectory) throws IOException {
-        validatePipelineRegistration(copy);
-        pausePipelineAndExecute("snapshot", () -> {
-            copy.snapshot(targetDirectory);
-            return null;
-        });
-        if (alive) {
-            scheduleWork();
-        }
-    }
-
-    /**
      * Posts a new hash/flush/merge job to the lifecycle thread executor, if no job has been
      * scheduled yet.
      */
@@ -438,7 +391,7 @@ public class VirtualPipeline {
      */
     private boolean shouldBeFlushed(final VirtualRoot copy) {
         return copy.shouldBeFlushed() // either explicitly marked to flush or based on its size
-                && (copy.isDestroyed() || copy.isDetached()); // destroyed or detached
+                && copy.isDestroyed();
     }
 
     /**
@@ -482,7 +435,7 @@ public class VirtualPipeline {
         final PipelineListNode<VirtualRoot> mergeTarget = mergeCandidate.getNext();
 
         return !copy.shouldBeFlushed() // shouldn't be flushed
-                && (copy.isDestroyed() || copy.isDetached()) // copy must be destroyed or detached
+                && copy.isDestroyed() // copy must be destroyed
                 && mergeTarget != null // target must exist
                 && mergeTarget.getValue().isImmutable(); // target must be immutable
     }
@@ -665,7 +618,6 @@ public class VirtualPipeline {
             sb.append(", flushed = ").append(uppercaseBoolean(copy.isMerged()));
             sb.append(", destroyed = ").append(uppercaseBoolean(copy.isDestroyed()));
             sb.append(", hashed = ").append(uppercaseBoolean(copy.isHashed()));
-            sb.append(", detached = ").append(uppercaseBoolean(copy.isDetached()));
             sb.append("\n");
 
             index++;

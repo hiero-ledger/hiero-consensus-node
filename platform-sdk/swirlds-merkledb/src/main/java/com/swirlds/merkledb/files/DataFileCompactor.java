@@ -191,7 +191,9 @@ public class DataFileCompactor {
             return Collections.emptyList();
         }
 
-        interruptFlag = false;
+        if (interruptFlag) {
+            return Collections.emptyList();
+        }
 
         // create a merge time stamp, this timestamp is the newest time of the set of files we are
         // merging
@@ -427,7 +429,25 @@ public class DataFileCompactor {
      * @return true if compaction is currently running, false otherwise.
      */
     public boolean isCompactionRunning() {
-        return currentCompactionStartTime.get() != null;
+        snapshotCompactionLock.lock();
+        try {
+            return currentCompactionStartTime.get() != null;
+        } finally {
+            snapshotCompactionLock.unlock();
+        }
+    }
+
+    /**
+     * @return true if compaction was started and now is complete (successfully or
+     * exceptionally), false otherwise.
+     */
+    public boolean isCompactionComplete() {
+        snapshotCompactionLock.lock();
+        try {
+            return (currentCompactionStartTime.get() == null) && !newCompactedFiles.isEmpty();
+        } finally {
+            snapshotCompactionLock.unlock();
+        }
     }
 
     /**

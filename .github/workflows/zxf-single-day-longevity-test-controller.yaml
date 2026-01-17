@@ -16,7 +16,7 @@ permissions:
 jobs:
   verify-tag:
     name: Verify Tag
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     continue-on-error: true
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
@@ -69,13 +69,13 @@ jobs:
       nlg-time: "960"
       add-app-props: ""
       add-settings: ""
+      delete-namespace: true
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - run-single-day-longevity-test
       - verify-tag
@@ -126,7 +126,7 @@ jobs:
 
   get-commit-info:
     name: Get Commit Information
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - verify-tag
     outputs:
@@ -176,7 +176,7 @@ jobs:
 
   report-success:
     name: Report SDLT execution success
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - verify-tag
       - tag-sdlt-result
@@ -300,7 +300,7 @@ jobs:
 
   report-failure:
     name: Report SDLT execution failure
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - verify-tag
       - run-single-day-longevity-test
@@ -402,7 +402,7 @@ jobs:
           details: ${{ steps.rootly-summary.outputs.summary }}
           notification_target_type: "Service"
           notification_target: ${{ steps.set-service.outputs.service }}
-          set_as_noise: "true"
+          set_as_noise: "false"
           alert_urgency: "High"
           environments: "CITR"
           external_id: ${{ github.run_id }}

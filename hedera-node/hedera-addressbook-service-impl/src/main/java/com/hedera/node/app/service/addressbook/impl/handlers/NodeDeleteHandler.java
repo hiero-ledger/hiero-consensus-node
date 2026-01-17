@@ -14,6 +14,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -83,6 +84,7 @@ public class NodeDeleteHandler implements TransactionHandler {
         var nodeId = transactionBody.nodeId();
 
         final var nodeStore = context.storeFactory().writableStore(WritableNodeStore.class);
+        final var accountNodeRelStore = context.storeFactory().writableStore(WritableAccountNodeRelStore.class);
 
         Node node = nodeStore.get(nodeId);
 
@@ -96,6 +98,7 @@ public class NodeDeleteHandler implements TransactionHandler {
         /* --- Put the modified node. It will be in underlying state's modifications map.
         It will not be committed to state until commit is called on the state.--- */
         nodeStore.put(nodeBuilder.build());
+        accountNodeRelStore.remove(node.accountId());
     }
 
     @NonNull

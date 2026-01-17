@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.node.app.hapi.fees.pricing.BaseOperationUsage.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
+import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.HOUR_TO_SECOND_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.UPDATE_SLOT_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
@@ -34,6 +35,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
@@ -185,24 +187,24 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final Account targetAccount,
             final CryptoUpdateTransactionBody op,
             final Account.Builder builder) {
-        // compute head after deletes
-        long currentHead = targetAccount.firstHookId();
-        long headAfterDeletes = currentHead;
-        // Dispatch all the hooks to delete
+        final var hookEntityId = HookEntityId.newBuilder()
+                .accountId(op.accountIDToUpdateOrThrow())
+                .build();
+        var headAfterDeletes = targetAccount.numberHooksInUse() > 0 ? targetAccount.firstHookId() : null;
         if (!op.hookIdsToDelete().isEmpty()) {
-            headAfterDeletes =
-                    dispatchHookDeletions(context, op.hookIdsToDelete(), currentHead, op.accountIDToUpdate());
+            headAfterDeletes = dispatchHookDeletions(context, op.hookIdsToDelete(), headAfterDeletes, hookEntityId);
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, op.accountIDToUpdate());
+            final var updatedSlots =
+                    dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, hookEntityId);
+            builder.numberLambdaStorageSlots(targetAccount.numberLambdaStorageSlots() + updatedSlots);
         }
-        // Update firstHookId in the account if needed.
-        // If there are creations, always the first hookId created will be the firstHookId.
-        // If there are only deletions, then set as the head after deletions
+        // If there are creations, the updated account's first hook id is the first creation no matter what deletions
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
         } else if (!op.hookIdsToDelete().isEmpty()) {
-            builder.firstHookId(headAfterDeletes);
+            // Otherwise the first hook id is the head after deletions; or zero if none are left
+            builder.firstHookId(headAfterDeletes == null ? 0 : headAfterDeletes);
         }
     }
 
@@ -495,10 +497,16 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 Math.max(explicitAutoAssocSlotLifetime, oldLifetime),
                 newSlotsUsage,
                 Math.max(explicitAutoAssocSlotLifetime, newLifetime));
-        return feeCalculator
+        final var fees = feeCalculator
                 .addBytesPerTransaction(baseSize)
                 .addRamByteSeconds(rbsDelta > 0 ? rbsDelta : 0)
-                .addRamByteSeconds(slotRbsDelta > 0 ? slotRbsDelta : 0)
-                .calculate();
+                .addRamByteSeconds(slotRbsDelta > 0 ? slotRbsDelta : 0);
+        if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
+            // Using SBS here because this part us not used in other calculations. It is a per hour cost
+            // so we convert to per second by multiplying by 1/3600. This will be changed with simple fees.
+            fees.addStorageBytesSeconds(
+                    (op.hookCreationDetails().size() + op.hookIdsToDelete().size()) * HOUR_TO_SECOND_MULTIPLIER);
+        }
+        return fees.calculate();
     }
 }

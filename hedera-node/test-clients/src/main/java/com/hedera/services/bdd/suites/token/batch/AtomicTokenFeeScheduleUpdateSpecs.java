@@ -53,14 +53,12 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @Tag(TOKEN)
 @Tag(MATS)
-public class AtomicTokenFeeScheduleUpdateSpecs {
+class AtomicTokenFeeScheduleUpdateSpecs {
 
     private static final String BATCH_OPERATOR = "batchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

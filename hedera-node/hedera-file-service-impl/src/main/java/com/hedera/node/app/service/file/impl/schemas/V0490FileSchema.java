@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.file.impl.schemas;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
@@ -83,7 +84,7 @@ import org.apache.logging.log4j.Logger;
  * this schema is always correct for the current version of the software.
  */
 @Singleton
-public class V0490FileSchema extends Schema {
+public class V0490FileSchema extends Schema<SemanticVersion> {
 
     private static final Logger logger = LogManager.getLogger(V0490FileSchema.class);
 
@@ -119,7 +120,7 @@ public class V0490FileSchema extends Schema {
      */
     @Inject
     public V0490FileSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull
@@ -280,6 +281,22 @@ public class V0490FileSchema extends Schema {
                 config.getConfigData(FilesConfig.class).feeSchedules());
     }
 
+    public void createGenesisSimpleFeesSchedule(@NonNull final SystemContext systemContext) {
+        requireNonNull(systemContext);
+        final var config = systemContext.configuration();
+        final var bootstrapConfig = config.getConfigData(BootstrapConfig.class);
+        final var masterKey =
+                Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build();
+        systemContext.dispatchCreation(
+                b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
+                                .contents(genesisSimpleFeesSchedules(config))
+                                .keys(KeyList.newBuilder().keys(masterKey))
+                                .expirationTime(maxLifetimeExpiry(systemContext))
+                                .build())
+                        .build(),
+                config.getConfigData(FilesConfig.class).simpleFeesSchedules());
+    }
+
     /**
      * Returns the genesis fee schedules for the given configuration.
      *
@@ -292,6 +309,18 @@ public class V0490FileSchema extends Schema {
             final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
             final var feeSchedule = parseFeeSchedules(feeScheduleJsonBytes);
             return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedule);
+        } catch (IOException | NullPointerException e) {
+            throw new IllegalArgumentException(
+                    "Fee schedule (" + resourceName + ") " + "could not be found in the class path", e);
+        }
+    }
+
+    public Bytes genesisSimpleFeesSchedules(@NonNull final Configuration config) {
+        final var resourceName = config.getConfigData(BootstrapConfig.class).simpleFeesSchedulesJsonResource();
+        try (final var in = loadResourceInPackage(resourceName)) {
+            final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
+            final var feeSchedule = parseSimpleFeesSchedules(feeScheduleJsonBytes);
+            return org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.toBytes(feeSchedule);
         } catch (IOException | NullPointerException e) {
             throw new IllegalArgumentException(
                     "Fee schedule (" + resourceName + ") " + "could not be found in the class path", e);
@@ -371,7 +400,7 @@ public class V0490FileSchema extends Schema {
     }
 
     private static FeeComponents parseFeeComponents(@NonNull final JsonNode componentNode) {
-        return FeeComponents.newBuilder()
+        final var feeComponents = FeeComponents.newBuilder()
                 .constant(componentNode.get("constant").asLong())
                 .bpt(componentNode.get("bpt").asLong())
                 .vpt(componentNode.get("vpt").asLong())
@@ -381,8 +410,23 @@ public class V0490FileSchema extends Schema {
                 .bpr(componentNode.get("bpr").asLong())
                 .sbpr(componentNode.get("sbpr").asLong())
                 .min(componentNode.get("min").asLong())
-                .max(componentNode.get("max").asLong())
-                .build();
+                .max(componentNode.get("max").asLong());
+        // This is only used for ContractUpdate
+        if (componentNode.get("tv") != null) {
+            feeComponents.tv(componentNode.get("tv").asLong());
+        }
+        return feeComponents.build();
+    }
+
+    public static org.hiero.hapi.support.fees.FeeSchedule parseSimpleFeesSchedules(
+            @NonNull final byte[] feeScheduleJsonBytes) {
+        try {
+            final org.hiero.hapi.support.fees.FeeSchedule feeSchedule =
+                    org.hiero.hapi.support.fees.FeeSchedule.JSON.parse(Bytes.wrap(feeScheduleJsonBytes));
+            return feeSchedule;
+        } catch (final Exception e) {
+            throw new IllegalArgumentException("Unable to parse simple fee schedule file", e);
+        }
     }
 
     // ================================================================================================================

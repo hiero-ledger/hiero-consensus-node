@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support;
 
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.isBlockMarkerFile;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.isRecordFile;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.isSidecarMarkerFile;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.isBlockMarkerFile;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.nio.file.Files;

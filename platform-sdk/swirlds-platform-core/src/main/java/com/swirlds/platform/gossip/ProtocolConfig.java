@@ -18,4 +18,4 @@ import com.swirlds.config.api.ConfigProperty;
 public record ProtocolConfig(
         @ConfigProperty(defaultValue = "false") boolean tolerateMismatchedVersion,
         @ConfigProperty(defaultValue = "false") boolean tolerateMismatchedEpochHash,
-        @ConfigProperty(defaultValue = "false") boolean rpcGossip) {}
+        @ConfigProperty(defaultValue = "true") boolean rpcGossip) {}

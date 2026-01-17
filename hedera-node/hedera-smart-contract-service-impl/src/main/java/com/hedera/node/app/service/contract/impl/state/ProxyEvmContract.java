@@ -15,13 +15,17 @@ import org.hyperledger.besu.evm.code.CodeFactory;
  */
 public class ProxyEvmContract extends AbstractProxyEvmAccount {
 
-    public ProxyEvmContract(final AccountID accountID, @NonNull final EvmFrameState state) {
+    private final CodeFactory codeFactory;
+
+    public ProxyEvmContract(
+            final AccountID accountID, @NonNull final EvmFrameState state, @NonNull final CodeFactory codeFactory) {
         super(accountID, state);
+        this.codeFactory = codeFactory;
     }
 
     @Override
-    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector) {
-        return CodeFactory.createCode(getCode(), 0, false);
+    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull final CodeFactory codeFactory) {
+        return codeFactory.createCode(getCode(), false);
     }
 
     @Override
@@ -31,6 +35,6 @@ public class ProxyEvmContract extends AbstractProxyEvmAccount {
 
     @Override
     public @NonNull Hash getCodeHash() {
-        return state.getCodeHash(hederaContractId());
+        return state.getCodeHash(hederaContractId(), codeFactory);
     }
 }

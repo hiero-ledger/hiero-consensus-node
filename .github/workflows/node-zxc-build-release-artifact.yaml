@@ -863,7 +863,7 @@ jobs:
           echo "create-release=${CREATE_RELEASE}" >> "${GITHUB_OUTPUT}"
 
       - name: Create github release
-        if: ${{ steps.set-gh-release-flag.outputs.create-release == 'true' }}
+        if: ${{ steps.set-gh-release-flags.outputs.create-release == 'true' }}
         uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
         with:
           tag: ${{ inputs.ref-name }}

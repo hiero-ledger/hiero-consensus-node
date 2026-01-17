@@ -8,7 +8,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractUpdateHandlerTest.hookDetails;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
@@ -41,7 +40,9 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
@@ -105,6 +106,9 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     private PureChecksContext pureChecksContext;
 
     @Mock
+    private EntityIdFactory entityIdFactory;
+
+    @Mock
     private GasCalculator gasCalculator;
 
     @Mock(strictness = Strictness.LENIENT)
@@ -119,6 +123,9 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     @Mock
     private TokenServiceApi tokenServiceApi;
 
+    @Mock
+    private EvmFrameStates evmFrameStates;
+
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     private final Metrics metrics = new NoOpMetrics();
@@ -131,7 +138,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     void setUp() {
         contractMetrics.createContractPrimaryMetrics();
         given(contractServiceComponent.contractMetrics()).willReturn(contractMetrics);
-        subject = new ContractCreateHandler(() -> factory, gasCalculator, contractServiceComponent);
+        subject = new ContractCreateHandler(() -> factory, gasCalculator, entityIdFactory, contractServiceComponent);
     }
 
     @Test
@@ -139,7 +146,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         final var account = mock(Account.class);
         final var builder = Account.newBuilder();
 
-        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE)).willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
@@ -156,7 +164,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
                 null);
@@ -166,7 +174,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(streamBuilder.createdEvmAddress(any())).willReturn(streamBuilder);
         given(streamBuilder.evmCreateTransactionResult(any())).willReturn(streamBuilder);
         given(streamBuilder.contractCreateResult(expectedResult)).willReturn(streamBuilder);
-        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(streamBuilder);
+        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(streamBuilder);
         when(storeFactory.serviceApi(TokenServiceApi.class)).thenReturn(tokenServiceApi);
 
         given(context.storeFactory()).willReturn(storeFactory);
@@ -187,7 +196,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void delegatesToCreatedComponentAndThrowsFailure() {
-        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE)).willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
         given(context.savepointStack()).willReturn(stack);
@@ -201,7 +211,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                HALT_RESULT.asEvmTxResultOf(null, null),
+                HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 null,
                 null,
                 null);
@@ -211,7 +221,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(streamBuilder.contractCreateResult(expectedResult)).willReturn(streamBuilder);
         given(streamBuilder.createdEvmAddress(any())).willReturn(streamBuilder);
         given(streamBuilder.evmCreateTransactionResult(any())).willReturn(streamBuilder);
-        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(streamBuilder);
+        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(streamBuilder);
         assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
     }
 
@@ -279,7 +290,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     void validatePureChecks() {
         // check at least intrinsic gas
         final var txn1 = contractCreateTransactionWithInsufficientGas();
-        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true))
+        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true, 0L))
                 .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
         given(pureChecksContext.body()).willReturn(txn1);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));

@@ -109,7 +109,7 @@ public final class ParsedBucket extends Bucket {
      * {@inheritDoc}
      */
     @Override
-    public void putValue(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
+    public boolean putValue(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
         final boolean needCheckOldValue = oldValue != INVALID_VALUE;
         try {
             final int entryIndex = findEntryIndex(keyHashCode, keyBytes);
@@ -117,28 +117,32 @@ public final class ParsedBucket extends Bucket {
                 if (entryIndex >= 0) { // if found
                     final BucketEntry entry = entries.get(entryIndex);
                     if (needCheckOldValue && (oldValue != entry.getValue())) {
-                        return;
+                        return false;
                     }
                     entries.remove(entryIndex);
+                    return true;
                 } else {
                     // entry not found, nothing to delete
+                    return false;
                 }
-                return;
             }
             if (entryIndex >= 0) {
                 // yay! we found it, so update value
                 final BucketEntry entry = entries.get(entryIndex);
                 if (needCheckOldValue && (oldValue != entry.getValue())) {
-                    return;
+                    return false;
                 }
+                final long entryOldValue = entry.getValue();
                 entry.setValue(value);
+                return value == entryOldValue;
             } else {
                 if (needCheckOldValue) {
-                    return;
+                    return false;
                 }
                 final BucketEntry newEntry = new BucketEntry(keyHashCode, value, keyBytes);
                 entries.add(newEntry);
                 checkLargestBucket(entries.size());
+                return true;
             }
         } catch (IOException e) {
             logger.error(EXCEPTION.getMarker(), "Failed putting key={} value={} in a bucket", keyBytes, value, e);

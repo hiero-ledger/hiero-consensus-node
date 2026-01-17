@@ -18,7 +18,6 @@ import org.hiero.otter.fixtures.result.OtterResult;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link MultipleNodePlatformStatusResults}
@@ -87,7 +86,7 @@ public class MultipleNodePlatformStatusResultsImpl implements MultipleNodePlatfo
      * {@inheritDoc}
      */
     @Override
-    public @NotNull MultipleNodePlatformStatusResults suppressingNodes(@NotNull final Collection<Node> nodes) {
+    public @NonNull MultipleNodePlatformStatusResults suppressingNodes(@NonNull final Collection<Node> nodes) {
         final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodePlatformStatusResult> filtered = results.stream()
                 .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))

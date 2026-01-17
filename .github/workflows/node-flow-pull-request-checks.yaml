@@ -78,6 +78,22 @@ jobs:
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
+  integration-tests:
+    name: Integration Tests
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: Standard
+      enable-unit-tests: false
+      enable-integration-tests: true
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
   hapi-tests-misc:
     name: HAPI Tests (Misc)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
@@ -123,6 +139,24 @@ jobs:
       enable-unit-tests: false
       enable-hapi-tests-crypto: true
       enable-network-log-capture: true
+      mats-suffix: MATS
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  hapi-tests-simplefees:
+    name: HAPI Tests (Simple Fees)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: Standard
+      enable-unit-tests: false
+      enable-hapi-tests-simplefees: true
+      enable-network-log-capture: true
+      mats-suffix: MATS
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
@@ -212,14 +246,13 @@ jobs:
 
   otter-tests:
     name: Otter Tests
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     needs:
       - dependency-check
       - spotless
     with:
       custom-job-label: Standard
-      enable-unit-tests: false
-      enable-otter-tests: true
+      enable-fast-otter-tests: true
       enable-network-log-capture: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}

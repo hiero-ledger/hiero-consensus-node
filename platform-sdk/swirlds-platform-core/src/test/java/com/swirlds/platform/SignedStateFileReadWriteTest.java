@@ -3,15 +3,17 @@ package com.swirlds.platform;
 
 import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
 import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
+import static com.swirlds.platform.StateFileManagerTests.hashState;
+import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeHashInfoFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignatureSetFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static java.nio.file.Files.exists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -20,25 +22,26 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
-import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.State;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -59,6 +62,7 @@ class SignedStateFileReadWriteTest {
 
     private static SemanticVersion platformVersion;
     private static PlatformStateFacade stateFacade;
+    private StateLifecycleManager stateLifecycleManager;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -70,14 +74,15 @@ class SignedStateFileReadWriteTest {
         registry.registerConstructables("com.swirlds.state");
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.merkledb");
-        registerMerkleStateRootClassIds();
+        registerConstructablesForStorage(CONFIGURATION);
         stateFacade = new PlatformStateFacade();
     }
 
     @BeforeEach
     void beforeEach() throws IOException {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
-                "SignedStateFileReadWriteTest", TestingAppStateInitializer.CONFIGURATION);
+        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("SignedStateFileReadWriteTest", CONFIGURATION);
+        stateLifecycleManager =
+                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
     }
 
@@ -126,30 +131,20 @@ class SignedStateFileReadWriteTest {
         assertFalse(exists(stateFile), "signed state file should not yet exist");
         assertFalse(exists(signatureSetFile), "signature set file should not yet exist");
 
-        State state = signedState.getState();
+        MerkleNodeState state = signedState.getState();
         state.copy().release();
-        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
-        TestMerkleCryptoFactory.getInstance()
-                .digestTreeSync(signedState.getState().getRoot());
-        state.createSnapshot(testDirectory);
+        hashState(signedState);
+        stateLifecycleManager.createSnapshot(signedState.getState(), testDirectory);
         writeSignatureSetFile(testDirectory, signedState);
 
         assertTrue(exists(stateFile), "signed state file should be present");
         assertTrue(exists(signatureSetFile), "signature set file should be present");
 
-        Configuration configuration =
-                TestPlatformContextBuilder.create().build().getConfiguration();
-        final DeserializedSignedState deserializedSignedState = readStateFile(
-                stateFile,
-                TestHederaVirtualMapState::new,
-                TEST_PLATFORM_STATE_FACADE,
-                PlatformContext.create(configuration));
-        TestMerkleCryptoFactory.getInstance()
-                .digestTreeSync(deserializedSignedState
-                        .reservedSignedState()
-                        .get()
-                        .getState()
-                        .getRoot());
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
+        final DeserializedSignedState deserializedSignedState =
+                readState(testDirectory, TestVirtualMapState::new, TEST_PLATFORM_STATE_FACADE, platformContext);
+        hashState(deserializedSignedState.reservedSignedState().get());
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");
         assertEquals(signedState.getState().getHash(), deserializedSignedState.originalHash(), "hash should match");
@@ -157,8 +152,8 @@ class SignedStateFileReadWriteTest {
                 signedState.getState().getHash(),
                 deserializedSignedState.reservedSignedState().get().getState().getHash(),
                 "hash should match");
-        assertNotSame(signedState, deserializedSignedState.reservedSignedState(), "state should be a different object");
-        signedState.getState().release();
+        assertNotSame(
+                signedState, deserializedSignedState.reservedSignedState().get(), "state should be a different object");
         deserializedSignedState.reservedSignedState().get().getState().release();
     }
 
@@ -169,6 +164,7 @@ class SignedStateFileReadWriteTest {
                 .setSoftwareVersion(platformVersion)
                 .build();
         final Path directory = testDirectory.resolve("state");
+        stateLifecycleManager.initState(signedState.getState(), true);
 
         final Path stateFile = directory.resolve(SIGNED_STATE_FILE_NAME);
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
@@ -183,19 +179,17 @@ class SignedStateFileReadWriteTest {
                 .withConfiguration(configuration)
                 .build();
 
-        // make immutable
-        signedState.getState().copy().release();
-        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
-        TestMerkleCryptoFactory.getInstance()
-                .digestTreeSync(signedState.getState().getRoot());
+        stateLifecycleManager.getMutableState().release();
+        hashState(signedState);
 
         writeSignedStateToDisk(
                 platformContext,
                 NodeId.of(0),
                 directory,
-                signedState,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
-                stateFacade);
+                signedState,
+                stateFacade,
+                stateLifecycleManager);
 
         assertTrue(exists(stateFile), "state file should exist");
         assertTrue(exists(hashInfoFile), "hash info file should exist");

@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.queries;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
@@ -88,6 +89,7 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
 
     @HapiTest
     @DisplayName("Only node operators don't need to sign file contents queries")
+    @Tag(MATS)
     final Stream<DynamicTest> fileGetContentsNoSigRequired() {
         final var filename = "anyFile.txt";
         final var someoneElse = "someoneElse";
@@ -220,6 +222,7 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
     }
 
     @LeakyHapiTest(requirement = THROTTLE_OVERRIDES)
+    @Tag(MATS)
     final Stream<DynamicTest> nodeOperatorCryptoGetInfoNotThrottled() {
         return hapiTest(flattened(
                 overridingThrottles("testSystemFiles/node-operator-throttles.json"),

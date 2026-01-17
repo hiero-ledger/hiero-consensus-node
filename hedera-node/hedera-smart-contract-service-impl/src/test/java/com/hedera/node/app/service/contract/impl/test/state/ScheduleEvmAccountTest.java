@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.state;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,7 +22,6 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -92,8 +92,9 @@ class ScheduleEvmAccountTest {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(state.getScheduleRedirectCode(SCHEDULE_ADDRESS)).willReturn(code);
         assertEquals(
-                CodeFactory.createCode(code, 0, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.fromHexString(SIGN_SCHEDULE_FUNCTION_SELECTOR)));
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(
+                        org.apache.tuweni.bytes.Bytes.fromHexString(SIGN_SCHEDULE_FUNCTION_SELECTOR), CODE_FACTORY));
     }
 
     @Test
@@ -144,14 +145,15 @@ class ScheduleEvmAccountTest {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(state.getScheduleRedirectCode(SCHEDULE_ADDRESS)).willReturn(code);
         assertEquals(
-                CodeFactory.createCode(code, 0, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.fromHexString(SIGN_SCHEDULE_FUNCTION_SELECTOR)));
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(
+                        org.apache.tuweni.bytes.Bytes.fromHexString(SIGN_SCHEDULE_FUNCTION_SELECTOR), CODE_FACTORY));
     }
 
     @Test
     void returnEmptyEvmCodeWhenCalledWithUnexpectedFunctionSelectorBytes() {
         assertEquals(
-                CodeFactory.createCode(org.apache.tuweni.bytes.Bytes.EMPTY, 0, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector())));
+                CODE_FACTORY.createCode(org.apache.tuweni.bytes.Bytes.EMPTY, false),
+                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector()), CODE_FACTORY));
     }
 }

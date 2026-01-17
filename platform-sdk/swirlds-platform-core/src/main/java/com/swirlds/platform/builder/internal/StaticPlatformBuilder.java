@@ -29,7 +29,7 @@ public final class StaticPlatformBuilder {
     private static final Logger logger = LogManager.getLogger(StaticPlatformBuilder.class);
 
     // @formatter:off
-    private static final String STARTUP_MESSAGE =
+    public static final String STARTUP_MESSAGE =
             """
               //////////////////////
              // Node is Starting //

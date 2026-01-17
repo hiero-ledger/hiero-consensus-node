@@ -47,6 +47,7 @@ import org.apache.commons.lang3.builder.HashCodeBuilder;
  *       effects are visible. Units are {@code sbh} (“storage byte-hours”).
  *   <li>Computation needed to verify a Ed25519 cryptographic signature. Units are {@code vpt}
  *       (“verifications per transaction”).
+ *   <li>Transferred value, in tinybars. Units are {@code tv} (“tinybar value”).
  *   <li>Computation needed for incremental execution of a Solidity smart contract. Units are {@code
  *       gas}.
  * </ol>
@@ -68,6 +69,7 @@ public class UsageAccumulator {
     private long rbs;
     private long sbs;
     private long networkRbs;
+    private long tv;
 
     public static UsageAccumulator fromGrpc(final FeeData usage) {
         final var into = new UsageAccumulator();
@@ -88,6 +90,7 @@ public class UsageAccumulator {
         final var serviceUsage = usage.getServicedata();
         into.setRbs(serviceUsage.getRbh() * HRS_DIVISOR);
         into.setSbs(serviceUsage.getSbh() * HRS_DIVISOR);
+        into.setTv(into.getServiceTv());
 
         return into;
     }
@@ -96,7 +99,7 @@ public class UsageAccumulator {
         final int memoBytes = baseMeta.memoUtf8Bytes();
         final int numTransfers = baseMeta.numExplicitTransfers();
 
-        gas = sbs = sbpr = 0;
+        gas = sbs = sbpr = tv = 0;
 
         bpr = INT_SIZE;
         vpt = sigUsage.numSigs();
@@ -122,6 +125,7 @@ public class UsageAccumulator {
         rbs = 0;
         sbs = 0;
         networkRbs = 0;
+        tv = 0;
     }
 
     /* Resource accumulator methods */
@@ -194,6 +198,10 @@ public class UsageAccumulator {
         return ESTIMATOR_UTILS.nonDegenerateDiv(sbs, HRS_DIVISOR);
     }
 
+    public long getServiceTv() {
+        return tv;
+    }
+
     public long get(final ResourceProvider provider, final UsableResource resource) {
         switch (provider) {
             case NETWORK:
@@ -252,6 +260,7 @@ public class UsageAccumulator {
                 .add("serviceRbh", getServiceRbh())
                 .add("gas", getGas())
                 .add("rbs", getRbs())
+                .add("serviceTv", getServiceTv())
                 .toString();
     }
 
@@ -328,6 +337,10 @@ public class UsageAccumulator {
 
     private void setSbs(final long sbs) {
         this.sbs = sbs;
+    }
+
+    private void setTv(final long tv) {
+        this.tv = tv;
     }
 
     private void setNetworkRbs(final long networkRbs) {

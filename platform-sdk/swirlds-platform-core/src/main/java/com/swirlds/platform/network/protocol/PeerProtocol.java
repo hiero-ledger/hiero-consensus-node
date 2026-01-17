@@ -64,12 +64,6 @@ public interface PeerProtocol extends ProtocolRunnable {
      */
     boolean acceptOnSimultaneousInitiate();
 
-    /**
-     * Will be called after connection is broken, to clean up possible internal resources if needed. Default
-     * implementation is no-op
-     */
-    default void cleanup() {}
-
     /** @return a string name representing this protocol */
     default String getProtocolName() {
         return this.getClass().getSimpleName();

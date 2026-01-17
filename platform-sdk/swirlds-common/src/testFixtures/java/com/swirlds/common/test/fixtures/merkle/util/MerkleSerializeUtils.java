@@ -15,7 +15,7 @@ public class MerkleSerializeUtils {
             final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
             io.getOutput().writeMerkleTree(directory, root);
             io.startReading();
-            return io.getInput().readMerkleTree(configuration, directory, Integer.MAX_VALUE);
+            return io.getInput().readMerkleTree(directory, Integer.MAX_VALUE);
         }
     }
 }

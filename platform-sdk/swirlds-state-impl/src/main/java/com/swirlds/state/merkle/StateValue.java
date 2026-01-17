@@ -11,6 +11,8 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.Objects;
 
 /**
@@ -41,7 +43,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
 
     /**
      * Given state value bytes, extract state ID from them. Value bytes must be in
-     * com.hedera.hapi.platform.state.StateValue format, that it a domain value wrapped into a
+     * com.hedera.hapi.platform.state.StateValue format that it is a domain value wrapped into a
      * OneOf field.
      */
     public static int extractStateIdFromStateValueOneOf(@NonNull final Bytes stateValue) {
@@ -113,7 +115,8 @@ public record StateValue<V>(int stateId, @NonNull V value) {
                 @NonNull final ReadableSequentialData in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
-                final int maxDepth)
+                final int maxDepth,
+                final int maxSize)
                 throws ParseException {
             final int tag = in.readVarInt(false);
             final int fieldNum = tag >> ProtoParserTools.TAG_FIELD_OFFSET;
@@ -132,10 +135,26 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             } else {
                 final long limit = in.limit();
                 in.limit(in.position() + size);
-                value = valueCodec.parse(in, strictMode, parseUnknownFields, maxDepth);
+                value = valueCodec.parse(in, strictMode, parseUnknownFields, maxDepth, maxSize);
                 in.limit(limit);
             }
             return new StateValue<>(stateId, value);
+        }
+
+        @NonNull
+        public static Bytes unwrap(@NonNull final Bytes stateValueBytes) {
+            ReadableSequentialData sequentialData = stateValueBytes.toReadableSequentialData();
+            // skipping tag
+            sequentialData.readVarInt(false);
+            int valueSize = sequentialData.readVarInt(false);
+
+            assert valueSize == sequentialData.remaining() : "Value size mismatch";
+
+            try (InputStream is = sequentialData.asInputStream()) {
+                return Bytes.wrap(is.readAllBytes());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         @Override

@@ -50,7 +50,7 @@ class SynchronizedThrottleAccumulatorTest {
 
         // then
         verify(throttleAccumulator, times(1))
-                .checkAndEnforceThrottle(eq(transactionInfo), any(), eq(state), eq(usages));
+                .checkAndEnforceThrottle(eq(transactionInfo), any(), eq(state), eq(usages), eq(false));
     }
 
     @Test

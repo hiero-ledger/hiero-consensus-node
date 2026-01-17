@@ -3,18 +3,11 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 import static java.util.Objects.requireNonNull;
 
-import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.Fraction;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.TokenID;
-import com.hedera.hapi.node.transaction.FixedFee;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
 import org.apache.tuweni.bytes.Bytes;
@@ -23,19 +16,6 @@ import org.apache.tuweni.bytes.Bytes;
  * Literal representations of output types used by HTS system contract functions.
  */
 public class ReturnTypes {
-    private ReturnTypes() {
-        throw new UnsupportedOperationException("Utility class");
-    }
-
-    // When no value is set for AccountID, ContractID or TokenId the return value is set to 0.
-    public static final AccountID ZERO_ACCOUNT_ID =
-            AccountID.newBuilder().accountNum(0).build();
-    public static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
-    public static final ContractID ZERO_CONTRACT_ID =
-            ContractID.newBuilder().contractNum(0).build();
-    public static final TokenID ZERO_TOKEN_ID = TokenID.newBuilder().tokenNum(0).build();
-    public static final Fraction ZERO_FRACTION = new Fraction(0, 1);
-    public static final FixedFee ZERO_FIXED_FEE = new FixedFee(0, null);
 
     // Token info fields
     protected static final String TOKEN_FIELDS =
@@ -217,6 +197,10 @@ public class ReturnTypes {
 
     public static final TupleType<Tuple> RC_AND_ADDRESS_ENCODER = TupleType.parse(RESPONSE_CODE_ADDRESS);
     private static final TupleType<Tuple> RC_ENCODER = TupleType.parse(INT_64);
+
+    private ReturnTypes() {
+        throw new UnsupportedOperationException("Utility class");
+    }
 
     public static Bytes tuweniEncodedRc(@NonNull final ResponseCodeEnum status) {
         return Bytes.wrap(encodedRc(status).array());

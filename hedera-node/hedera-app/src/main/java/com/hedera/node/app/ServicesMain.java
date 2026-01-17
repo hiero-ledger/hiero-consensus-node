@@ -31,11 +31,11 @@ import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.state.ConsensusStateEventHandlerImpl;
@@ -43,7 +43,6 @@ import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -63,7 +62,6 @@ import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -71,6 +69,7 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -92,6 +91,7 @@ import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -160,8 +160,9 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * Specifically, {@link HederaVirtualMapState}.
      */
     @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap() {
-        return hederaOrThrow().stateRootFromVirtualMap();
+    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
+            @NonNull final Metrics metrics, @NonNull final Time time) {
+        return hederaOrThrow().stateRootFromVirtualMap(metrics, time);
     }
 
     /**
@@ -191,7 +192,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     @Override
-    public @NonNull List<Bytes> getTransactionsForEvent() {
+    public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return hederaOrThrow().getTransactionsForEvent();
     }
 
@@ -305,16 +306,16 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
 
         // --- Initialize the platform metrics and the Hedera instance ---
         setupGlobalMetrics(platformConfig);
+        final var time = Time.getCurrent();
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-        hedera = newHedera(metrics, platformStateFacade, platformConfig);
+        hedera = newHedera(platformStateFacade, platformConfig, metrics, time);
         final var version = hedera.getSemanticVersion();
         final AtomicReference<Network> genesisNetwork = new AtomicReference<>();
         logger.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
         BootstrapUtils.setupConstructableRegistryWithConfiguration(platformConfig);
-        final var time = Time.getCurrent();
         final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
@@ -345,7 +346,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 selfId,
                 platformStateFacade,
                 platformContext,
-                hedera.stateRootFromVirtualMap());
+                hedera.stateRootFromVirtualMap(metrics, time));
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
         if (genesisNetwork.get() == null) {
@@ -380,11 +381,12 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                                 .orElseGet(() -> canonicalEventStreamLoc(selfId.id(), state)),
                         rosterHistory,
                         platformStateFacade,
-                        hedera.stateRootFromVirtualMap())
+                        hedera.stateRootFromVirtualMap(metrics, time))
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(hedera);
+                .withExecutionLayer(hedera)
+                .withStaleEventCallback(hedera);
         final var platform = platformBuilder.build();
         hedera.init(platform, selfId);
 
@@ -443,16 +445,21 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     /**
      * Creates a canonical {@link Hedera} instance for the given node id and metrics.
      *
-     * @param metrics             the metrics
      * @param platformStateFacade an object to access the platform state
-     * @param platformConfig      platform configuration
+     * @param configuration the platform configuration instance to use when creating the new instance of state
+     * @param metrics       the platform metric instance to use when creating the new instance of state
+     * @param time          the time instance to use when creating the new instance of state
      * @return the {@link Hedera} instance
      */
     public static Hedera newHedera(
-            @NonNull final Metrics metrics,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull Configuration platformConfig) {
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time) {
+        requireNonNull(platformStateFacade);
+        requireNonNull(configuration);
         requireNonNull(metrics);
+        requireNonNull(time);
         return new Hedera(
                 ConstructableRegistry.getInstance(),
                 ServicesRegistryImpl::new,
@@ -470,7 +477,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 TssBlockHashSigner::new,
                 metrics,
                 platformStateFacade,
-                () -> new HederaVirtualMapState(platformConfig, metrics));
+                () -> new HederaVirtualMapState(configuration, metrics, time));
     }
 
     /**

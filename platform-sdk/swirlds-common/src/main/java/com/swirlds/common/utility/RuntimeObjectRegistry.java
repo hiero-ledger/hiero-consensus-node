@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -123,20 +124,42 @@ public final class RuntimeObjectRegistry {
     /**
      * Get the record associated with the oldest runtime object of the specified class tracked in this registry.
      *
-     * @param cls
-     * 		the object class
+     * @param cls the object class
      * @return the oldest record, or null if there are no records available for this class
      */
-    public static <T> RuntimeObjectRecord getOldestActiveObjectRecord(final Class<T> cls) {
+    public static RuntimeObjectRecord getOldestActiveObjectRecord(final Class<?> cls) {
+        return getActiveObjectRecord(cls, true);
+    }
+
+    /**
+     * Get the record associated with the newest runtime object of the specified class tracked in this registry.
+     *
+     * @param cls the object class
+     * @return the newest record, or null if there are no records available for this class
+     */
+    public static RuntimeObjectRecord getNewestActiveObjectRecord(final Class<?> cls) {
+        return getActiveObjectRecord(cls, false);
+    }
+
+    /**
+     * Get a record associated with the runtime object of the specified class tracked in this registry.
+     *
+     * @param cls    the object class
+     * @param oldest if true, get the oldest record; if false, get the newest record
+     * @return the record requested, or null if there are no records available for this class
+     */
+    private static RuntimeObjectRecord getActiveObjectRecord(final Class<?> cls, final boolean oldest) {
         final List<RuntimeObjectRecord> classRecords = RECORDS.get(cls);
-        if (classRecords == null) {
+        if (classRecords == null || classRecords.isEmpty()) {
             return null;
         }
         try {
-            // It doesn't make sense to check if the list is empty, as it may become empty at any moment, as
-            // the method isn't synchronized. Instead, just catch IOOBE
-            return classRecords.get(0);
-        } catch (final IndexOutOfBoundsException e) {
+            // The list may become empty at any moment, as the method isn't synchronized, so we catch the exception
+            return oldest ? classRecords.getFirst() : classRecords.getLast();
+        } catch (final IndexOutOfBoundsException | NoSuchElementException e) {
+            // NoSuchElementException can be thrown by getFirst() or getLast()
+            // since getFirst() & getLast() are not synchronized, the get() within them may throw
+            // IndexOutOfBoundsException
             return null;
         }
     }

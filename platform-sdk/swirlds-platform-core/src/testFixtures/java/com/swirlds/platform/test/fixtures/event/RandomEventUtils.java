@@ -43,7 +43,7 @@ public class RandomEventUtils {
         final byte[] sig = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(sig);
 
-        return new EventImpl(new PlatformEvent(unsignedEvent, sig), selfParent, otherParent);
+        return new EventImpl(new PlatformEvent(unsignedEvent, Bytes.wrap(sig)), selfParent, otherParent);
     }
 
     /**

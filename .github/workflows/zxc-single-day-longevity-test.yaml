@@ -39,13 +39,15 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      delete-namespace:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, automatically delete namespace when done"
     secrets:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDLT outputs notifications"
-      rootly-api-token:
-        required: true
-        description: "Rootly API Token for creating alerts/incidents"
     outputs:
       result:
         description: "Result of the SDLT Run"
@@ -54,19 +56,24 @@ on:
 permissions:
   contents: write
   id-token: write
+  actions: write
 
 env:
   NAMESPACE_PREFIX: solo-sdlt-n
   TIMEOUT_6H_LIMIT: 340
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
+  GRAFANA_SYSADM_DAL: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P5C24830FD6F1746E&var-job=performance-dallas-node-exporter
+  GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
+
   #Release version from jFrog
   NLG_VERSION: 0.11.1
+
 
 jobs:
   longevity-tests-start:
     name: Start
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     outputs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
@@ -93,10 +100,14 @@ jobs:
         id: set-k8s-cluster
         run: |
           K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          grafana_url="${{ env.GRAFANA_SYSADM_DAL }}"
           if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
             K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
+            grafana_url="${{ env.GRAFANA_SYSADM_CHI }}"
           fi
           echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "grafana-url=${grafana_url}" >> "${GITHUB_OUTPUT}"
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -106,7 +117,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -185,6 +196,30 @@ jobs:
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
 
+      - name: Check for namespace collision
+        run: |
+          set +e
+          set +x
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "solo-.*t-n${NETWORK_ID}"
+          if [ ${?} -eq 0 ]
+          then
+            echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
+            exit 13
+          fi
+
+      - name: Cancelling in case of namespace collision
+        if: failure()
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 #v6
+        with:
+          script: |
+            github.rest.actions.cancelWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+
       - name: Print parameters
         run: |
           echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -240,11 +275,6 @@ jobs:
           set +x
           set +e
           curdir="$(pwd)"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep "${{ steps.set-namespace.outputs.namespace }}"
-          if [ ${?} -eq 0 ]
-          then
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ steps.set-namespace.outputs.namespace }}"
-          fi
 
           # Create the solo directory
           mkdir -p "${{ github.workspace }}"/solo && cd "${{ github.workspace}}"/solo
@@ -378,6 +408,16 @@ jobs:
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
 
+      - name: Distribution of K8S nodes, SysAdmin Grafana
+        run: |
+          set +x
+          set +e
+
+          start_date=$(date +%Y-%m-%dT%T)
+          echo "NODE                                      POD" | tee -a "${GITHUB_STEP_SUMMARY}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods -o=custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep -v -w NODE |\
+            perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
       - name: Start Longevity test
         run: |
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
@@ -407,7 +447,8 @@ jobs:
 
   longevity-tests-wait:
     name: Wait for Longevity test
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
+    if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
     strategy:
@@ -439,7 +480,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -553,8 +594,8 @@ jobs:
 
   longevity-tests-finish:
     name: Read results of Longevity test
-    runs-on: hiero-citr-linux-large
-    if: always()
+    runs-on: hl-cn-citr-lin-lg
+    if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
       - longevity-tests-wait
@@ -583,7 +624,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -630,6 +671,11 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.longevity-tests-start.outputs.namespace }}" "${{ github.workspace }}"/report/
+
+      - name: Delete namespace
+        if: ${{ inputs.delete-namespace == true }}
+        run: |
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.longevity-tests-start.outputs.namespace }}"
 
       - name: Extract benchmark score of NftTransferLoadTest test
         id: NftTransferLoadTestLogs
@@ -694,8 +740,8 @@ jobs:
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
     name: Calculate Result
-    runs-on: hiero-citr-linux-large
-    if: ${{ always() }}
+    runs-on: hl-cn-citr-lin-lg
+    if: ${{ !cancelled() }}
     needs:
       - longevity-tests-finish
     outputs:
@@ -723,15 +769,23 @@ jobs:
             RESULT="success"
           fi
 
-          echo "### Single Day Longevity Result" >> "${GITHUB_STEP_SUMMARY}"
-          echo "result=${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "## Single Day Longevity Result" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "result=${RESULT}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
 
-  longevity-report-to-rootly:
-    name: Report Failures to Rootly
-    runs-on: hiero-citr-linux-medium
+          echo "## Individual Results" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- NftTransferLoadTest TPS: ${NFT}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- HeliSwapLoadTest TPS: ${HELI}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- CryptoTransferLoadTest TPS: ${CRYPTO}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- HCSLoadTest TPS: ${HCS}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- SmartContractLoadTest TPS: ${SMART}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
+  longevity-report-failures:
+    name: Report Failures
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - longevity-tests-start
+      - longevity-tests-wait
       - longevity-tests-finish
       - single-day-longevity-test-result
     if: ${{ (needs.longevity-tests-finish.result != 'success' ||
@@ -743,23 +797,8 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Check Test Asset
-        id: check-test-asset
-        run: |
-          ADHOC="false"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
-            ADHOC="true"
-          fi
-          echo "is-adhoc=${ADHOC}" >> "${GITHUB_OUTPUT}"
-
-      - name: Set Rootly Service Name
-        id: set-rootly-service
-        run: |
-          ROOTLY_SERVICE_NAME="CITR SDLT"
-          echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
-
-      - name: Build Rootly Summary
-        id: rootly-summary
+      - name: Build Summary Details
+        id: summary
         run: |
           title="The Single Day Longevity Test workflow failed (SDLT ${{ inputs.test-asset }} - ${{ inputs.ref }})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
@@ -767,7 +806,9 @@ jobs:
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each jobs:"
-            echo "- Longevity Tests Start: ${{ needs.longevity-tests-finish.result }}"
+            echo "- Longevity Tests Start: ${{ needs.longevity-tests-start.result }}"
+            echo "- Longevity Tests Wait: ${{ needs.longevity-tests-wait.result }}"
+            echo "- Longevity Tests Finish: ${{ needs.longevity-tests-finish.result }}"
             echo "- Single Day Longevity Test Result: ${{ needs.single-day-longevity-test-result.result }}"
             echo "------------------------------------"
             echo "Commit information:"
@@ -776,35 +817,14 @@ jobs:
             echo EOF
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Log Rootly Summary
+      - name: Log Job Summary
         run: |
-          echo "## Rootly Summary" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### AdHoc Run?" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.check-test-asset.outputs.is-adhoc }}" >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Create Rootly Alert
-        id: rootly-alert
-        if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
-        continue-on-error: true
-        with:
-          api_key: ${{ secrets.rootly-api-token }}
-          summary: ${{ steps.rootly-summary.outputs.title }}
-          details: ${{ steps.rootly-summary.outputs.summary }}
-          notification_target_type: "Service"
-          notification_target: ${{ steps.set-rootly-service.outputs.service }}
-          set_as_noise: "true"
-          alert_urgency: "High"
-          external_id: ${{ github.run_id }}
-          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          environments: "CITR"
+          echo "## Rootly Summary" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${{ steps.summary.outputs.title }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.summary.outputs.summary }}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   longevity-report-to-Slack:
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - longevity-tests-finish
       - single-day-longevity-test-result

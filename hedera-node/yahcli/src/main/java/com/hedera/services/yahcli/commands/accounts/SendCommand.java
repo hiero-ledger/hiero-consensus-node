@@ -81,20 +81,16 @@ public class SendCommand implements Callable<Integer> {
             amount = validatedUnits(amountRepr, decimals);
         }
         final var effectiveMemo = memo != null ? memo : "";
+        final var isScheduled = accountsCommand.getYahcli().isScheduled();
         var delegate = new SendSuite(
-                config,
-                normalizedBeneficiary,
-                amount,
-                effectiveMemo,
-                denomination,
-                accountsCommand.getYahcli().isScheduled(),
-                insideBatch);
+                config, normalizedBeneficiary, amount, effectiveMemo, denomination, isScheduled, insideBatch);
         delegate.runSuiteSync();
 
         final var firstSpec = delegate.getFinalSpecs().getFirst();
         if (firstSpec.getStatus() == HapiSpec.SpecStatus.PASSED) {
             config.output()
                     .info("SUCCESS - "
+                            + maybeScheduleSuccess(isScheduled)
                             + "sent "
                             + amountRepr
                             + " "
@@ -103,11 +99,12 @@ public class SendCommand implements Callable<Integer> {
                             + asEntityString(firstSpec.shard(), firstSpec.realm(), normalizedBeneficiary)
                             + " with memo: '"
                             + memo
-                            + "'");
+                            + "'"
+                            + maybeScheduleId(isScheduled, delegate));
         } else {
             config.output()
                     .info("FAILED - "
-                            + "could not send "
+                            + maybeScheduleFail(isScheduled)
                             + amountRepr
                             + " "
                             + originalDenomination
@@ -168,5 +165,34 @@ public class SendCommand implements Callable<Integer> {
             return integral;
         }
         return integral;
+    }
+
+    private String maybeScheduleSuccess(boolean isSchedule) {
+        final var message = new StringBuilder();
+        if (isSchedule) {
+            message.append("Scheduled ");
+        }
+        return message.toString();
+    }
+
+    private String maybeScheduleFail(boolean isSchedule) {
+        final var message = new StringBuilder();
+        if (isSchedule) {
+            message.append("could not schedule send ");
+        } else {
+            message.append("could not send ");
+        }
+        return message.toString();
+    }
+
+    private String maybeScheduleId(boolean isSchedule, SendSuite delegate) {
+        final var message = new StringBuilder();
+        if (isSchedule) {
+            final var scheduleId = delegate.getScheduleId().get();
+            message.append(" and schedule ID ");
+            message.append(
+                    asEntityString(scheduleId.getShardNum(), scheduleId.getRealmNum(), scheduleId.getScheduleNum()));
+        }
+        return message.toString();
     }
 }

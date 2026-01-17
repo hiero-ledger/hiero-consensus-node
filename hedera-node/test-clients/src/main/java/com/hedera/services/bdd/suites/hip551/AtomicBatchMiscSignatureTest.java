@@ -29,27 +29,16 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 
-@HapiTestLifecycle
-public class AtomicBatchMiscSignatureTest {
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
+class AtomicBatchMiscSignatureTest {
 
     @Nested
     @DisplayName("Airdrop Tests")
@@ -133,10 +122,12 @@ public class AtomicBatchMiscSignatureTest {
         @DisplayName("Node delete inside of a batch can be executed only with privileged account")
         final Stream<DynamicTest> nodeDeleteCanBeExecutedOnlyWithPrivilegedAccount()
                 throws CertificateEncodingException {
+            final var nodeAccount = "nodeAccount";
             return hapiTest(
                     cryptoCreate("payer"),
                     cryptoCreate("batchOperator"),
-                    nodeCreate("node100")
+                    cryptoCreate(nodeAccount),
+                    nodeCreate("node100", nodeAccount)
                             .description("desc")
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                     // The inner txn is not signed by system account, so the transaction will fail
@@ -155,11 +146,13 @@ public class AtomicBatchMiscSignatureTest {
         @DisplayName("Node update inside of a batch can be executed only with privileged account")
         final Stream<DynamicTest> nodeUpdateCanBeExecutedOnlyWithPrivilegedAccount()
                 throws CertificateEncodingException {
+            final var nodeAccount = "nodeAccount";
             return hapiTest(
                     newKeyNamed("adminKey"),
                     cryptoCreate("payer"),
                     cryptoCreate("batchOperator"),
-                    nodeCreate("node100")
+                    cryptoCreate(nodeAccount),
+                    nodeCreate("node100", nodeAccount)
                             .adminKey("adminKey")
                             .description("desc")
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),

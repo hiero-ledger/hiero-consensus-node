@@ -12,6 +12,9 @@ public record BootstrapConfig(
         @ConfigProperty(value = "feeSchedulesJson.resource", defaultValue = "genesis/feeSchedules.json")
                 @NetworkProperty
                 String feeSchedulesJsonResource,
+        @ConfigProperty(value = "simpleFeesSchedulesJson.resource", defaultValue = "genesis/simpleFeesSchedules.json")
+                @NetworkProperty
+                String simpleFeesSchedulesJsonResource,
         @ConfigProperty(
                         value = "genesisPublicKey",
                         defaultValue = "0aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92")

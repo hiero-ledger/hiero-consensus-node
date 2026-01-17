@@ -48,7 +48,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @Tag(TOKEN)
 @Tag(MATS)
-public class AtomicTokenManagementSpecsStateful {
+class AtomicTokenManagementSpecsStateful {
 
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     public static final String INVALID_ACCOUNT = "999.999.999";
@@ -56,8 +56,6 @@ public class AtomicTokenManagementSpecsStateful {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

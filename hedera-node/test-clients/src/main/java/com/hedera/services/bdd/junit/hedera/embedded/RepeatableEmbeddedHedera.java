@@ -34,6 +34,7 @@ import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 
 /**
  * An embedded Hedera node that handles transactions synchronously on ingest and thus
@@ -178,10 +179,12 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
      * Executes the transaction in the last-created event within its own round.
      */
     public void handleNextRoundIfPresent() {
-        final List<Bytes> bufferedTransactions = hedera.getTransactionsForEvent();
+        final List<TimestampedTransaction> bufferedTransactions = hedera.getTransactionsForEvent();
         if (!bufferedTransactions.isEmpty()) {
-            platform.lastCreatedEvent =
-                    new FakeEvent(defaultNodeId, time.now(), createAppPayloadWrapper(bufferedTransactions.getFirst()));
+            platform.lastCreatedEvent = new FakeEvent(
+                    defaultNodeId,
+                    time.now(),
+                    createAppPayloadWrapper(bufferedTransactions.getFirst().transaction()));
         }
         if (platform.lastCreatedEvent != null) {
             hedera.onPreHandle(platform.lastCreatedEvent, state, preHandleStateSignatureCallback);

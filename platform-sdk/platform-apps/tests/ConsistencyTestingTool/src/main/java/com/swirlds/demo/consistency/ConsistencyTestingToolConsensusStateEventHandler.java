@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.consistency;
 
+import static com.swirlds.demo.consistency.ConsistencyTestingToolMain.CONFIGURATION;
 import static com.swirlds.demo.consistency.ConsistencyTestingToolState.isSystemTransaction;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
@@ -81,7 +82,7 @@ public class ConsistencyTestingToolConsensusStateEventHandler
 
         state.initState(logFilePath);
 
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
     }
 
     /**

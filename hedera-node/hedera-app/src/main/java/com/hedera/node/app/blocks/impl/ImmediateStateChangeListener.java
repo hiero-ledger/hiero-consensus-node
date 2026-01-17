@@ -245,6 +245,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     private static <V> MapChangeValue mapChangeValueFor(@NonNull final V value) {
         return switch (value) {
             case Node node -> new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.NODE_VALUE, node));
+            case NodeId nodeId ->
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.NODE_ID_VALUE, nodeId));
             case Account account ->
                 new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.ACCOUNT_VALUE, account));
             case AccountID accountID ->

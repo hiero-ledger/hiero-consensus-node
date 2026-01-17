@@ -165,7 +165,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 1);
 
         // And create the checker itself
-        checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+        checker = new TransactionChecker(props, metrics);
     }
 
     @Nested
@@ -175,12 +175,8 @@ final class TransactionCheckerTest extends AppTestBase {
         @SuppressWarnings("ConstantConditions")
         @DisplayName("Constructor throws on illegal arguments")
         void testConstructorWithIllegalArguments() {
-            assertThatThrownBy(() -> new TransactionChecker(null, props, metrics))
-                    .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new TransactionChecker(nodeSelfAccountId, null, metrics))
-                    .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new TransactionChecker(nodeSelfAccountId, props, null))
-                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new TransactionChecker(null, metrics)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new TransactionChecker(props, null)).isInstanceOf(NullPointerException.class);
         }
     }
 
@@ -340,7 +336,7 @@ final class TransactionCheckerTest extends AppTestBase {
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+            checker = new TransactionChecker(props, metrics);
 
             int maxJumboTxnSize = props.getConfiguration()
                     .getConfigData(JumboTransactionsConfig.class)
@@ -361,7 +357,7 @@ final class TransactionCheckerTest extends AppTestBase {
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+            checker = new TransactionChecker(props, metrics);
 
             // assert that even if we are sending a transaction with more than 6KB,
             // it will not fail with TRANSACTION_OVERSIZE
@@ -385,7 +381,7 @@ final class TransactionCheckerTest extends AppTestBase {
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+            checker = new TransactionChecker(props, metrics);
 
             final var maxJumboEthereumCallDataSize = props.getConfiguration()
                     .getConfigData(JumboTransactionsConfig.class)
@@ -419,7 +415,7 @@ final class TransactionCheckerTest extends AppTestBase {
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
+            checker = new TransactionChecker(props, metrics);
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
             when(txInfo.signedTx())

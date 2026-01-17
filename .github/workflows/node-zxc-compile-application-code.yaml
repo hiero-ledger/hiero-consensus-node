@@ -23,6 +23,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable-integration-tests:
+        description: "Integration Testing Enabled"
+        type: boolean
+        required: false
+        default: false
       enable-hapi-tests-misc:
         description: "HAPI Testing (misc) Enabled"
         type: boolean
@@ -35,6 +40,11 @@ on:
         default: false
       enable-hapi-tests-crypto:
         description: "HAPI Testing (crypto) Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-hapi-tests-simplefees:
+        description: "HAPI Testing (simplefees) Enabled"
         type: boolean
         required: false
         default: false
@@ -70,11 +80,6 @@ on:
         default: false
       enable-hapi-tests-nd-reconnect:
         description: "HAPI Testing (node death reconnect) Enabled"
-        type: boolean
-        required: false
-        default: false
-      enable-otter-tests:
-        description: "Otter Testing Enabled"
         type: boolean
         required: false
         default: false
@@ -316,6 +321,46 @@ jobs:
           path: "**/build/test-results/hammer/TEST-*.xml"
           retention-days: 7
 
+      - name: Integration Tests
+        id: gradle-integration-tests
+        if: ${{ inputs.enable-integration-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        run: ${GRADLE_EXEC} testIntegration --continue
+
+      - name: Publish Integration Test Report
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        if: ${{ inputs.enable-integration-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          check_name: "Node: Integration Test Results"
+          json_thousands_separator: ","
+          junit_files: "**/build/test-results/testIntegration/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload Integration Test Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-integration-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          name: Integration Test Report
+          path: "**/build/test-results/testIntegration/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload Otter Integration Tests Turtle Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: Otter Integration Tests Turtle Logs
+          path: |
+            platform-sdk/consensus-otter-tests/build/turtle/**
+          retention-days: 7
+
+      - name: Upload Otter Integration Tests Container Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: Otter Integration Tests Container Logs
+          path: |
+            platform-sdk/consensus-otter-tests/build/container/**
+          retention-days: 7
+
       - name: HAPI Testing (Misc)
         id: gradle-hapi-misc
         if: ${{ inputs.enable-hapi-tests-misc && steps.gradle-build.conclusion == 'success' && !cancelled() }}
@@ -395,7 +440,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestCrypto
+        run: ${GRADLE_EXEC} hapiTestCrypto${{ inputs.mats-suffix || '' }}
 
       - name: Publish HAPI Test (Crypto) Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
@@ -419,6 +464,42 @@ jobs:
         if: ${{ inputs.enable-hapi-tests-crypto && inputs.enable-network-log-capture && steps.gradle-hapi-crypto.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Crypto) Network Logs
+          path: |
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: HAPI Testing (Simple Fees)
+        id: gradle-hapi-simplefees
+        if: ${{ inputs.enable-hapi-tests-simplefees && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiTestSimpleFees${{ inputs.mats-suffix || '' }}
+
+      - name: Publish HAPI Test (Simple Fees) Report
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        if: ${{ inputs.enable-hapi-tests-simplefees && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          check_name: "Node: HAPI Test (Simple Fees) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload HAPI Test (Simple Fees) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-simplefees && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          name: HAPI Test (Simple Fees) Report
+          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload HAPI Test (Simple Fees) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-simplefees && inputs.enable-network-log-capture && steps.gradle-hapi-simplefees.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Simple Fees) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
@@ -675,49 +756,6 @@ jobs:
             hedera-node/test-clients/build/*-test/**/output/**
           retention-days: 7
 
-      - name: Otter Testing
-        id: gradle-otter-tests
-        if: ${{ inputs.enable-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        env:
-          LC_ALL: en.UTF-8
-          LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} :consensus-otter-tests:testIntegration
-
-      - name: Publish Otter Testing Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        if: ${{ inputs.enable-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        with:
-          check_name: "Node: Otter Tests Results"
-          json_thousands_separator: ","
-          junit_files: "**/consensus-otter-tests/build/test-results/testIntegration/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload Otter Tests Report Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        with:
-          name: Otter Tests Report
-          path: "**/consensus-otter-tests/build/test-results/testIntegration/TEST-*.xml"
-          retention-days: 7
-
-      - name: Upload Otter Turtle Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-otter-tests && inputs.enable-network-log-capture && steps.gradle-otter-tests.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: Otter Tests Turtle Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/turtle/**
-          retention-days: 7
-
-      - name: Upload Otter Container Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-otter-tests && inputs.enable-network-log-capture && steps.gradle-otter-tests.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: Otter Tests Container Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/container/**
-          retention-days: 7
-
       - name: Publish To Codecov
         if: ${{ inputs.enable-unit-tests && !cancelled() }}
         uses: codecov/codecov-action@5c47607acb93fed5485fdbf7232e8a31425f672a # v5.0.2
@@ -864,6 +902,7 @@ jobs:
             "${{ steps.gradle-timing-sensitive.outcome || 'skipped' }}"
             "${{ steps.gradle-time-consuming.outcome || 'skipped' }}"
             "${{ steps.gradle-hammer-tests.outcome || 'skipped' }}"
+            "${{ steps.gradle-integration-tests.outcome || 'skipped' }}"
             "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}"
             "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}"
             "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}"
@@ -874,7 +913,6 @@ jobs:
             "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}"
             "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}"
             "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}"
-            "${{ steps.gradle-otter-tests.outcome || 'skipped' }}"
           )
 
           failure_mode="none"

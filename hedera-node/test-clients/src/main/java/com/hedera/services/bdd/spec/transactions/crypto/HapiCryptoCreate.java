@@ -126,11 +126,14 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
         return this;
     }
 
-    public HapiCryptoCreate withHooks(final Function<HapiSpec, HookCreationDetails>... hooks) {
+    @SafeVarargs
+    public final HapiCryptoCreate withHooks(final Function<HapiSpec, HookCreationDetails>... hooks) {
         if (this.hookFactories.isEmpty()) {
             this.hookFactories = new ArrayList<>();
         }
-        this.hookFactories.addAll(Arrays.asList(hooks));
+        for (final var hook : hooks) {
+            hookFactories.add(hook);
+        }
         return this;
     }
 

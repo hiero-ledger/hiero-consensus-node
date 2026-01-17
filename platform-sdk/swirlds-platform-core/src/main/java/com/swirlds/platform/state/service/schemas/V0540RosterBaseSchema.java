@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -17,7 +19,7 @@ import org.hiero.consensus.roster.RosterStateId;
 /**
  * Roster Schema
  */
-public class V0540RosterBaseSchema extends Schema {
+public class V0540RosterBaseSchema extends Schema<SemanticVersion> {
 
     private static final Logger log = LogManager.getLogger(V0540RosterBaseSchema.class);
     /**
@@ -35,7 +37,7 @@ public class V0540RosterBaseSchema extends Schema {
      * Create a new instance
      */
     public V0540RosterBaseSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull

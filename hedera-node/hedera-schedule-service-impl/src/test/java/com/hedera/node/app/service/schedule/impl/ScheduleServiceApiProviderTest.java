@@ -12,10 +12,10 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleCreateHandler;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -51,7 +51,7 @@ class ScheduleServiceApiProviderTest {
     private WritableEntityCounters writableEntityCounters;
 
     @Mock
-    private Throttle throttle;
+    private ScheduleThrottle throttle;
 
     private ScheduleServiceApiProvider subject;
 

@@ -9,10 +9,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.time.Duration;
+import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -29,7 +31,7 @@ public interface EventCreatorModule {
      * @param metrics                   provides the metrics for the event creator
      * @param time                      provides the time source for the event creator
      * @param random                    provides the secure random source for the event creator
-     * @param keysAndCerts              provides the key for signing events
+     * @param signer              signs data
      * @param roster                    provides the current roster
      * @param selfId                    the ID of this node
      * @param transactionSupplier       provides transactions to include in events
@@ -40,7 +42,7 @@ public interface EventCreatorModule {
             @NonNull Metrics metrics,
             @NonNull Time time,
             @NonNull SecureRandom random,
-            @NonNull KeysAndCerts keysAndCerts,
+            @NonNull BytesSigner signer,
             @NonNull Roster roster,
             @NonNull NodeId selfId,
             @NonNull EventTransactionSupplier transactionSupplier,
@@ -84,11 +86,20 @@ public interface EventCreatorModule {
     void reportUnhealthyDuration(@NonNull final Duration duration);
 
     /**
-     * Report the lag in rounds behind the other nodes. A negative value means we are ahead of the other nodes.
+     * Report the current sync information against specific peer; EventCreator can use information inside to compute the
+     * round lag or any other information it needs to control event creation
      *
-     * @param lag the lag in rounds behind the other nodes
+     * @param syncProgress status of sync in progress
      */
-    void reportSyncRoundLag(@NonNull Double lag);
+    void reportSyncProgress(@NonNull SyncProgress syncProgress);
+
+    /**
+     * Set the quiescence state of this event creator. The event creator will always behave according to the most recent
+     * quiescence command that it has been given.
+     *
+     * @param quiescenceCommand the quiescence command
+     */
+    void quiescenceCommand(@NonNull QuiescenceCommand quiescenceCommand);
 
     /**
      * Clear the internal state of the event creation manager.

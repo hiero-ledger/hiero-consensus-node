@@ -3,6 +3,7 @@ package com.hedera.node.app.hints.impl;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -16,7 +17,7 @@ import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.Schema;
@@ -95,6 +96,14 @@ class HintsServiceImplTest {
     }
 
     @Test
+    void delegatesActiveConstruction() {
+        given(context.activeConstruction()).willReturn(HintsConstruction.DEFAULT);
+        given(component.signingContext()).willReturn(context);
+
+        assertSame(HintsConstruction.DEFAULT, subject.activeConstruction());
+    }
+
+    @Test
     void doesNothingAtBootstrapIfTheConstructionIsComplete() {
         given(activeRosters.phase()).willReturn(ActiveRosters.Phase.BOOTSTRAP);
         final var construction =
@@ -114,7 +123,9 @@ class HintsServiceImplTest {
         given(hintsStore.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
                 .willReturn(construction);
         given(component.controllers()).willReturn(controllers);
-        given(controllers.getOrCreateFor(activeRosters, construction, hintsStore))
+        given(component.signingContext()).willReturn(context);
+        given(context.activeConstruction()).willReturn(HintsConstruction.DEFAULT);
+        given(controllers.getOrCreateFor(activeRosters, construction, hintsStore, HintsConstruction.DEFAULT))
                 .willReturn(controller);
 
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
@@ -123,6 +134,7 @@ class HintsServiceImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void registersTwoSchemasWhenHintsEnabled() {
         given(component.signingContext()).willReturn(context);
 

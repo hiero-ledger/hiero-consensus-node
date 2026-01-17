@@ -53,13 +53,6 @@ public class ReadableKVStateBaseTest extends StateTestBase {
         assertThat(state.getStateId()).isEqualTo(FRUIT_STATE_ID);
     }
 
-    /** Make sure the constructor is holding onto the state label properly */
-    @Test
-    @DisplayName("The state label must match what was provided in the constructor")
-    void testStateLabel() {
-        assertThat(state.label).isEqualTo(FRUIT_STATE_LABEL);
-    }
-
     /**
      * When we are asked to get an unknown item (something not in the backing store), the {@link
      * ReadableKVStateBase} still needs to remember this key and include it in the set of read keys,

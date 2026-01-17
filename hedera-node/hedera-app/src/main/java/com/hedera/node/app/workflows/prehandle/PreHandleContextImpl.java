@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.prehandle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
@@ -517,6 +518,21 @@ public class PreHandleContextImpl implements PreHandleContext {
             throw new PreCheckException(UNRESOLVABLE_REQUIRED_SIGNERS);
         }
         return context;
+    }
+
+    @Override
+    public Key getAccountKey(@NonNull final AccountID accountID) throws PreCheckException {
+        requireNonNull(accountID);
+        final var account = accountStore.getAccountById(accountID);
+        if (account == null) {
+            throw new PreCheckException(INVALID_ACCOUNT_ID);
+        }
+        if (account.deleted()) {
+            throw new PreCheckException(ACCOUNT_DELETED);
+        }
+        // Verify this key isn't for an immutable account
+        verifyNotStakingAccounts(account.accountIdOrThrow(), INVALID_ACCOUNT_ID);
+        return account.keyOrThrow();
     }
 
     @Override

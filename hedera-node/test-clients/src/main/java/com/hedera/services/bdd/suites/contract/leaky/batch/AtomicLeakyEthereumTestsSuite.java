@@ -44,21 +44,14 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
 @HapiTestLifecycle
-public class AtomicLeakyEthereumTestsSuite {
+class AtomicLeakyEthereumTestsSuite {
     private static final String PAY_RECEIVABLE_CONTRACT = "PayReceivable";
     private static final String BATCH_OPERATOR = "batchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false",
-                "cryptoCreateWithAlias.enabled",
-                "false"));
+        testLifecycle.overrideInClass(
+                Map.of("contracts.throttle.throttleByGas", "false", "cryptoCreateWithAlias.enabled", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

@@ -3,12 +3,12 @@ package com.hedera.node.app.services;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -35,7 +35,7 @@ public record AppContextImpl(
         @NonNull Supplier<Configuration> configSupplier,
         @NonNull Supplier<NodeInfo> selfNodeInfoSupplier,
         @NonNull Supplier<Metrics> metricsSupplier,
-        @NonNull Throttle.Factory throttleFactory,
+        @NonNull ScheduleThrottle.Factory throttleFactory,
         @NonNull Supplier<FeeCharging> feeChargingSupplier,
         @NonNull EntityIdFactory idFactory)
         implements AppContext {

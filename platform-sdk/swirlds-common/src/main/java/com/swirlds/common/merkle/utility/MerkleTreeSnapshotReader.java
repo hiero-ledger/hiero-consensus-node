@@ -5,14 +5,12 @@ import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebug
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Set;
-import org.hiero.base.crypto.Hash;
 
 /**
  * Utility class for reading a snapshot of a Merkle tree from disk.
@@ -41,55 +39,30 @@ public class MerkleTreeSnapshotReader {
     public static final int MAX_MERKLE_NODES_IN_STATE = Integer.MAX_VALUE;
 
     /**
-     * This is a helper class to hold the data read from a state file.
-     * @param stateRoot the root of Merkle tree state
-     * @param hash the hash of the state
-     */
-    public record StateFileData(@NonNull MerkleNode stateRoot, @NonNull Hash hash) {}
-
-    /**
      * Reads a state file from disk
      *
-     * @param configuration the configuration for this node
-     * @param stateFile the file to read from
+     * @param stateDirectory the file to read from
      * @return a signed state with it's associated hash (as computed when the state was serialized)
      * @throws IOException if there is any problems with reading from a file
      */
     @NonNull
-    public static StateFileData readStateFileData(
-            @NonNull final Configuration configuration, @NonNull final Path stateFile) throws IOException {
+    public static MerkleNode readStateFileData(@NonNull final Path stateDirectory) throws IOException {
+        final Path stateFile = stateDirectory.resolve(SIGNED_STATE_FILE_NAME);
+
         return deserializeAndDebugOnFailure(
                 () -> new BufferedInputStream(new FileInputStream(stateFile.toFile())),
                 (final MerkleDataInputStream in) -> {
                     final int fileVersion = readAndCheckStateFileVersion(in);
-
-                    final Path directory = stateFile.getParent();
                     if (fileVersion == SIG_SET_SEPARATE_STATE_FILE_VERSION) {
-                        return readStateFileData(configuration, stateFile, in, directory);
+                        try {
+                            return in.readMerkleTree(stateDirectory, MAX_MERKLE_NODES_IN_STATE);
+                        } catch (final IOException e) {
+                            throw new IOException("Failed to read snapshot file " + stateDirectory.toFile(), e);
+                        }
                     } else {
                         throw new IOException("Unsupported state file version: " + fileVersion);
                     }
                 });
-    }
-
-    /**
-     * This method reads the state file data from state file.
-     */
-    @NonNull
-    private static StateFileData readStateFileData(
-            @NonNull final Configuration configuration,
-            @NonNull final Path stateFile,
-            @NonNull final MerkleDataInputStream in,
-            @NonNull final Path directory)
-            throws IOException {
-        try {
-            final MerkleNode state = in.readMerkleTree(configuration, directory, MAX_MERKLE_NODES_IN_STATE);
-            final Hash hash = in.readSerializable();
-            return new StateFileData(state, hash);
-
-        } catch (final IOException e) {
-            throw new IOException("Failed to read snapshot file " + stateFile.toFile(), e);
-        }
     }
 
     /**

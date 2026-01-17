@@ -108,7 +108,7 @@ class AppThrottleFactoryTest {
         given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);
         given(throttleAccumulator.opsDurationThrottle()).willReturn(opsDurationThrottle);
 
-        final var throttle = subject.newThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS);
+        final var throttle = subject.newScheduleThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS);
 
         verify(throttleAccumulator).applyGasConfig();
         verify(throttleAccumulator).rebuildFor(ThrottleDefinitions.DEFAULT);
@@ -116,7 +116,7 @@ class AppThrottleFactoryTest {
         verify(lastThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getLast());
         verify(gasThrottle).resetUsageTo(FAKE_SNAPSHOTS.gasThrottleOrThrow());
 
-        given(throttleAccumulator.checkAndEnforceThrottle(TXN_INFO, CONSENSUS_NOW, state, null))
+        given(throttleAccumulator.checkAndEnforceThrottle(TXN_INFO, CONSENSUS_NOW, state, null, true))
                 .willReturn(true);
         assertThat(throttle.allow(PAYER_ID, TXN_INFO.txBody(), TXN_INFO.functionality(), CONSENSUS_NOW))
                 .isFalse();

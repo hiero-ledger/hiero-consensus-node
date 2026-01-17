@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
@@ -15,25 +15,23 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.reflect.Field;
+import java.security.PublicKey;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -78,15 +78,12 @@ public class RandomSignedStateGenerator {
     private SemanticVersion softwareVersion;
     private List<NodeId> signingNodeIds;
     private Map<NodeId, Signature> signatures;
-    private Hash stateHash = null;
+    private Function<Hash, Map<NodeId, Signature>> signatureSupplier;
     private Integer roundsNonAncient = null;
-    private Hash epoch = null;
     private ConsensusSnapshot consensusSnapshot;
     private SignatureVerifier signatureVerifier;
     private boolean deleteOnBackgroundThread;
     private boolean pcesRound;
-    private boolean useBlockingState = false;
-    private boolean calculateHash = false;
 
     /**
      * Create a new signed state generator with a random seed.
@@ -143,7 +140,6 @@ public class RandomSignedStateGenerator {
         }
 
         final MerkleNodeState stateInstance;
-        registerMerkleStateRootClassIds();
         final long roundInstance;
         if (round == null) {
             roundInstance = Math.abs(random.nextLong());
@@ -153,19 +149,9 @@ public class RandomSignedStateGenerator {
 
         TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
         if (state == null) {
-            if (useBlockingState) {
-                stateInstance = new BlockingState(platformStateFacade);
-            } else {
-                final String virtualMapLabel =
-                        "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-                stateInstance = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
-            }
-            stateInstance.init(
-                    Time.getCurrent(),
-                    CONFIGURATION,
-                    new NoOpMetrics(),
-                    TestMerkleCryptoFactory.getInstance(),
-                    () -> platformStateFacade.roundOf(stateInstance));
+            final String virtualMapLabel =
+                    "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+            stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
         } else {
             stateInstance = state;
         }
@@ -215,7 +201,7 @@ public class RandomSignedStateGenerator {
         } else {
             consensusSnapshotInstance = consensusSnapshot;
         }
-        TestingAppStateInitializer.DEFAULT.initPlatformState(stateInstance);
+        TestingAppStateInitializer.initPlatformState(stateInstance);
 
         platformStateFacade.bulkUpdateOf(stateInstance, v -> {
             v.setSnapshot(consensusSnapshotInstance);
@@ -225,7 +211,7 @@ public class RandomSignedStateGenerator {
             v.setConsensusTimestamp(consensusTimestampInstance);
         });
 
-        TestingAppStateInitializer.DEFAULT.initRosterState(stateInstance);
+        TestingAppStateInitializer.initRosterState(stateInstance, CONFIGURATION);
         RosterUtils.setActiveRoster(stateInstance, rosterInstance, roundInstance);
 
         if (signatureVerifier == null) {
@@ -246,18 +232,11 @@ public class RandomSignedStateGenerator {
                 deleteOnBackgroundThread,
                 pcesRound,
                 platformStateFacade);
-        signedState.init(PlatformContext.create(configuration));
-
-        if (calculateHash) {
-            TestMerkleCryptoFactory.getInstance().digestTreeSync(stateInstance.getRoot());
-        }
-
-        if (stateHash != null) {
-            stateInstance.setHash(stateHash);
-        }
 
         final Map<NodeId, Signature> signaturesInstance;
-        if (signatures == null) {
+        if (signatureSupplier != null) {
+            signaturesInstance = signatureSupplier.apply(stateInstance.getRoot().getHash());
+        } else if (signatures == null) {
             final List<NodeId> signingNodeIdsInstance;
             if (signingNodeIds == null) {
                 signingNodeIdsInstance = new LinkedList<>();
@@ -281,7 +260,8 @@ public class RandomSignedStateGenerator {
         }
 
         for (final NodeId nodeId : signaturesInstance.keySet()) {
-            signedState.getSigSet().addSignature(nodeId, signaturesInstance.get(nodeId));
+            // this call results in the hash calculation of the state
+            signedState.addSignature(nodeId, signaturesInstance.get(nodeId));
         }
 
         builtSignedStates.get().add(signedState);
@@ -412,14 +392,14 @@ public class RandomSignedStateGenerator {
     }
 
     /**
-     * Set the hash for the state. If unset the state is hashed like normal.
+     * Configures the generator to use the signature supplier that generates signatures
      *
      * @return this object
      */
     @NonNull
-    public RandomSignedStateGenerator setStateHash(@NonNull final Hash stateHash) {
-        Objects.requireNonNull(stateHash, "stateHash must not be null");
-        this.stateHash = stateHash;
+    public RandomSignedStateGenerator useSignatureSupplierFromRoster() {
+        Objects.requireNonNull(roster, "roster must not be null");
+        this.signatureSupplier = createSignatureSupplier(roster);
         return this;
     }
 
@@ -430,16 +410,6 @@ public class RandomSignedStateGenerator {
      */
     public RandomSignedStateGenerator setRoundsNonAncient(final int roundsNonAncient) {
         this.roundsNonAncient = roundsNonAncient;
-        return this;
-    }
-
-    /**
-     * Set the epoch hash.
-     *
-     * @return this object
-     */
-    public RandomSignedStateGenerator setEpoch(Hash epoch) {
-        this.epoch = epoch;
         return this;
     }
 
@@ -469,28 +439,6 @@ public class RandomSignedStateGenerator {
     @NonNull
     public RandomSignedStateGenerator setPcesRound(final boolean pcesRound) {
         this.pcesRound = pcesRound;
-        return this;
-    }
-
-    /**
-     * Set if this state should use a {@link BlockingState} instead of a {@link MerkleStateRoot}.
-     * This flag is false by default.
-     *
-     * @param useBlockingState true if this state should use {@link BlockingState}
-     * @return this object
-     */
-    public RandomSignedStateGenerator setUseBlockingState(boolean useBlockingState) {
-        this.useBlockingState = useBlockingState;
-        return this;
-    }
-
-    /**
-     * FUTURE WORK: <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/19905">See GitHub Issue</a>
-     * @param calculateHash  Set true if the state needs root hash calculated
-     * @return this object
-     */
-    public RandomSignedStateGenerator setCalculateHash(final boolean calculateHash) {
-        this.calculateHash = calculateHash;
         return this;
     }
 
@@ -537,5 +485,35 @@ public class RandomSignedStateGenerator {
      */
     public static void forgetAllBuiltSignedStatesWithoutReleasing() {
         builtSignedStates.get().clear();
+    }
+
+    public static void changeStateHashRandomly(@NonNull final SignedState state) {
+        try {
+            final Field hashField = VirtualMap.class.getDeclaredField("hash");
+            hashField.setAccessible(true);
+            final AtomicReference<Hash> hashRef =
+                    (AtomicReference<Hash>) hashField.get(state.getState().getRoot());
+            final Hash newHash = randomHash();
+            hashRef.set(newHash);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Given the roster, create a function that will return a map of node IDs to signatures.
+     * @param roster roster to use for creating signatures
+     * @return a function that takes a hash and returns a map of node IDs to signatures
+     */
+    public static Function<Hash, Map<NodeId, Signature>> createSignatureSupplier(Roster roster) {
+        return hash -> {
+            final Map<NodeId, Signature> signatures = new HashMap<>();
+            for (final RosterEntry node : roster.rosterEntries()) {
+                final PublicKey publicKey =
+                        RosterUtils.fetchGossipCaCertificate(node).getPublicKey();
+                signatures.put(NodeId.of(node.nodeId()), buildFakeSignature(publicKey, hash));
+            }
+            return signatures;
+        };
     }
 }

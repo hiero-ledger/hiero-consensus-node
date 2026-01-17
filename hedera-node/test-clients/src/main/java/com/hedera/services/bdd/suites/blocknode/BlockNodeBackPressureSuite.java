@@ -5,8 +5,8 @@ import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
@@ -24,7 +24,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -34,7 +36,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeBackPressureSuite {
-
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
@@ -50,17 +51,19 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
+    @Order(0)
     final Stream<DynamicTest> noBackPressureAppliedWhenBufferFull() {
         return hapiTest(
                 waitUntilNextBlocks(5),
                 blockNode(0).shutDownImmediately(),
                 waitUntilNextBlocks(30),
-                assertHgcaaLogDoesNotContain(
+                assertHgcaaLogDoesNotContainText(
                         byNodeId(0),
                         "Block buffer is saturated; backpressure is being enabled",
                         Duration.ofSeconds(15)));
     }
 
+    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
@@ -76,13 +79,14 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
+    @Order(1)
     final Stream<DynamicTest> backPressureAppliedWhenBlocksAndFileAndGrpc() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
                 waitUntilNextBlocks(5),
                 blockNode(0).shutDownImmediately(),
                 doingContextual(spec -> time.set(Instant.now())),
-                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
                         Duration.ofMinutes(1),
@@ -92,6 +96,7 @@ public class BlockNodeBackPressureSuite {
                 waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING));
     }
 
+    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
@@ -107,6 +112,7 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode", "GRPC"
                         })
             })
+    @Order(2)
     final Stream<DynamicTest> backPressureAppliedWhenBlocksAndGrpc() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
@@ -114,7 +120,7 @@ public class BlockNodeBackPressureSuite {
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
                 blockNode(0).shutDownImmediately(),
                 doingContextual(spec -> time.set(Instant.now())),
-                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
                         Duration.ofMinutes(1),

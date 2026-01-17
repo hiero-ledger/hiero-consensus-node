@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -112,15 +113,7 @@ public final class RosterUtils {
             return serviceEndpoint.domainName();
         }
         if (length == 4) {
-            return "%d.%d.%d.%d"
-                    .formatted(
-                            // Java expands a byte into an int, and the "sign bit" of the byte gets extended,
-                            // making it possibly a negative integer for values > 0x7F. So we AND 0xFF
-                            // to get rid of the extended "sign bits" to keep this an actual, positive byte.
-                            ipAddressV4.getByte(0) & 0xFF,
-                            ipAddressV4.getByte(1) & 0xFF,
-                            ipAddressV4.getByte(2) & 0xFF,
-                            ipAddressV4.getByte(3) & 0xFF);
+            return HapiUtils.asReadableIp(ipAddressV4);
         }
         throw new IllegalArgumentException("Invalid IP address: " + ipAddressV4 + " in RosterEntry: " + entry);
     }

@@ -59,7 +59,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
-public class AtomicBatchPrecompileSCTest {
+class AtomicBatchPrecompileSCTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
     public static final BigInteger MAX_LONG_PLUS_1_BIG_INT =
             new BigInteger(1, Bytes.fromHex("010000000000000000").toByteArray());
@@ -67,10 +67,7 @@ public class AtomicBatchPrecompileSCTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         // enable atomic batch
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
-                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         // create default batch operator
         testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
@@ -80,7 +77,7 @@ public class AtomicBatchPrecompileSCTest {
      */
     @HapiTest
     @DisplayName("Atomic FT redirect proxy approve(address,uint256)")
-    public Stream<DynamicTest> atomicFailToApproveViaProxyFungibleToken(
+    Stream<DynamicTest> atomicFailToApproveViaProxyFungibleToken(
             @Contract(contract = "NumericContract", creationGas = 8_000_000L) final SpecContract numericContract,
             @FungibleToken(
                             name = "NumericValidationTestFT",
@@ -119,7 +116,7 @@ public class AtomicBatchPrecompileSCTest {
     @HapiTest
     @DisplayName("atomic use updateMetadataForNFTs to correctly update metadata for 1 NFT")
     @Tag(MATS)
-    public Stream<DynamicTest> atomicUsingUpdateMetadataForNFTsWorksForSingleNFT(
+    Stream<DynamicTest> atomicUsingUpdateMetadataForNFTsWorksForSingleNFT(
             @NonFungibleToken(
                             numPreMints = 10,
                             keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, METADATA_KEY})
@@ -144,7 +141,7 @@ public class AtomicBatchPrecompileSCTest {
      */
     @HapiTest
     @DisplayName("cannot transfer value to HTS")
-    public Stream<DynamicTest> atomicCannotTransferValueToHts(
+    Stream<DynamicTest> atomicCannotTransferValueToHts(
             @Contract(contract = "InternalCall", creationGas = 1_000_000L) final SpecContract internalCall,
             @FungibleToken(name = "fungibleToken") final SpecFungibleToken fungibleToken) {
         return hapiTest(internalCall
@@ -156,7 +153,7 @@ public class AtomicBatchPrecompileSCTest {
 
     @HapiTest
     @DisplayName("atomic get token type")
-    public Stream<DynamicTest> atomicCannotUpdateMissingToken(
+    Stream<DynamicTest> atomicCannotUpdateMissingToken(
             @Contract(contract = "TokenAndTypeCheck", creationGas = 4_000_000L, variant = VARIANT_16C)
                     final SpecContract tokenTypeCheckContract,
             @FungibleToken(

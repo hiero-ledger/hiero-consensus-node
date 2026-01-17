@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
@@ -80,21 +79,20 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
     /**
      * Create a new scratchpad.
      *
-     * @param platformContext the platform context
-     * @param selfId          the ID of this node
-     * @param clazz           the enum class that defines the scratchpad fields
-     * @param id              the unique ID of this scratchpad (creating multiple scratchpad instances on the same node
-     *                        with the same unique ID has undefined (and possibly undesirable) behavior. Must not
-     *                        contain any non-alphanumeric characters, with the exception of the following characters:
-     *                        "_", "-", and ".". Must not be empty.
+     * @param configuration the configuration to use
+     * @param selfId the ID of this node
+     * @param clazz the enum class that defines the scratchpad fields
+     * @param id the unique ID of this scratchpad (creating multiple scratchpad instances on the same node with the same
+     * unique ID has undefined (and possibly undesirable) behavior. Must not contain any non-alphanumeric characters,
+     * with the exception of the following characters: "_", "-", and ".". Must not be empty.
      */
     public StandardScratchpad(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
             @NonNull final Class<K> clazz,
             @NonNull final String id) {
-        this.configuration = platformContext.getConfiguration();
-        final StateCommonConfig stateConfig = platformContext.getConfiguration().getConfigData(StateCommonConfig.class);
+        this.configuration = configuration;
+        final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
         scratchpadDirectory = stateConfig
                 .savedStateDirectory()
                 .resolve(SCRATCHPAD_DIRECTORY_NAME)

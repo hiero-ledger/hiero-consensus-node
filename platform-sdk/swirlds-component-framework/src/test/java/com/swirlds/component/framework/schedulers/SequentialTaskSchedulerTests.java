@@ -273,7 +273,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
     void backpressureTest(final String typeString) {
 
         this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
-                .withHardBackpressureEnabled(true)
+                .enableHardBackpressure()
                 .build();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
         final int capacity = 11;
@@ -358,7 +358,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
     void uninterruptableTest(final String typeString) {
 
         this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
-                .withHardBackpressureEnabled(true)
+                .enableHardBackpressure()
                 .build();
 
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
@@ -660,7 +660,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
     void multipleChannelBackpressureTest(final String typeString) {
 
         this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
-                .withHardBackpressureEnabled(true)
+                .enableHardBackpressure()
                 .build();
 
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
@@ -857,7 +857,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
     void flushTest(final String typeString) {
 
         this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
-                .withHardBackpressureEnabled(true)
+                .enableHardBackpressure()
                 .build();
 
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
@@ -1441,7 +1441,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
     void injectionSolderingTest(final String typeString) {
 
         this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
-                .withHardBackpressureEnabled(true)
+                .enableHardBackpressure()
                 .build();
 
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
@@ -1938,7 +1938,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
     void multipleCountersInternalBackpressureTest(final String typeString) {
 
         this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
-                .withHardBackpressureEnabled(true)
+                .enableHardBackpressure()
                 .build();
 
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
@@ -2051,7 +2051,7 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
     void offerSolderingTest(final String typeString) {
 
         this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
-                .withHardBackpressureEnabled(true)
+                .enableHardBackpressure()
                 .build();
 
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);

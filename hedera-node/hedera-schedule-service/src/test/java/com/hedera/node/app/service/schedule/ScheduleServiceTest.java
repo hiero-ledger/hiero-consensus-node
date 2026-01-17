@@ -37,4 +37,11 @@ class ScheduleServiceTest {
     void verifyRpcDefs() {
         Assertions.assertThat(subject.rpcDefinitions()).containsExactlyInAnyOrder(ScheduleServiceDefinition.INSTANCE);
     }
+
+    @Test
+    void instanceCantLoadWithoutImplementation() {
+        Assertions.assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(ScheduleService::getInstance)
+                .isNotNull();
+    }
 }

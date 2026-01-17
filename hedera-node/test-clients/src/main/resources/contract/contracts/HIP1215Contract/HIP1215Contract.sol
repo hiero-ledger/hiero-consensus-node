@@ -21,25 +21,25 @@ contract HIP1215Contract is HederaScheduleService_HIP1215 {
         }
     }
 
-    function scheduleCallWithSenderExample(address sender, uint256 expiryShift)
+    function scheduleCallWithPayerExample(address payer, uint256 expiryShift)
     external returns (int64 responseCode, address scheduleAddress) {
         uint256 expirySecond = block.timestamp + expiryShift;
         // callData bytes for calling 'hasScheduleCapacity' on 'expirySecond' + 10 minutes time
         bytes memory hasScheduleCapacityBytes = abi.encodeWithSelector(IHederaScheduleService_HIP1215.hasScheduleCapacity.selector, expirySecond + 600, HAS_SCHEDULE_CAPACITY_GAS_LIMIT);
         // schedule call
-        (responseCode, scheduleAddress) = scheduleCallWithSender(HSS, sender, expirySecond, SCHEDULE_GAS_LIMIT, 0, hasScheduleCapacityBytes);
+        (responseCode, scheduleAddress) = scheduleCallWithPayer(HSS, payer, expirySecond, SCHEDULE_GAS_LIMIT, 0, hasScheduleCapacityBytes);
         if (responseCode != HederaResponseCodes.SUCCESS) {
             revert("Failed to schedule");
         }
     }
 
-    function executeCallOnSenderSignatureExample(address sender, uint256 expiryShift)
+    function executeCallOnPayerSignatureExample(address payer, uint256 expiryShift)
     external returns (int64 responseCode, address scheduleAddress) {
         uint256 expirySecond = block.timestamp + expiryShift;
         // callData bytes for calling 'hasScheduleCapacity' on 'expirySecond' + 10 minutes time
         bytes memory hasScheduleCapacityBytes = abi.encodeWithSelector(IHederaScheduleService_HIP1215.hasScheduleCapacity.selector, expirySecond + 600, HAS_SCHEDULE_CAPACITY_GAS_LIMIT);
         // schedule call
-        (responseCode, scheduleAddress) = executeCallOnSenderSignature(HSS, sender, expirySecond, SCHEDULE_GAS_LIMIT, 0, hasScheduleCapacityBytes);
+        (responseCode, scheduleAddress) = executeCallOnPayerSignature(HSS, payer, expirySecond, SCHEDULE_GAS_LIMIT, 0, hasScheduleCapacityBytes);
         if (responseCode != HederaResponseCodes.SUCCESS) {
             revert("Failed to schedule");
         }
@@ -64,10 +64,6 @@ contract HIP1215Contract is HederaScheduleService_HIP1215 {
         return hasScheduleCapacity(expirySecond, SCHEDULE_GAS_LIMIT);
     }
 
-    function hasScheduleCapacityProxy(uint256 expiry, uint256 gasLimit) external returns (bool hasCapacity) {
-        return hasScheduleCapacity(expiry, gasLimit);
-    }
-
     function scheduleCallWithCapacityCheckAndDeleteExample(uint256 expiryShift)
     external returns (int64 responseCode, address scheduleAddress) {
         uint256 expirySecond = block.timestamp + expiryShift;
@@ -89,5 +85,16 @@ contract HIP1215Contract is HederaScheduleService_HIP1215 {
         } else {
             revert("Failed to schedule. Has no capacity");
         }
+    }
+
+    function scheduleCallWithDefaultCallData(uint256 expirySecond, uint256 gasLimit)
+    external payable returns (int64 responseCode, address scheduleAddress) {
+        // callData bytes for calling 'hasScheduleCapacity' on 'expirySecond' + 10 minutes time
+        bytes memory hasScheduleCapacityBytes = abi.encodeWithSelector(IHederaScheduleService_HIP1215.hasScheduleCapacity.selector, expirySecond + 600, HAS_SCHEDULE_CAPACITY_GAS_LIMIT);
+        (responseCode, scheduleAddress) = scheduleCall(HSS, expirySecond, gasLimit, 0, hasScheduleCapacityBytes);
+    }
+
+    function hasScheduleCapacityProxy(uint256 expirySecond, uint256 gasLimit) external returns (bool hasCapacity) {
+        return hasScheduleCapacity(expirySecond, gasLimit);
     }
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
@@ -155,10 +155,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
          * The builder to resume work on the block's proof.
          */
         public BlockProof.Builder proofBuilder() {
-            return BlockProof.newBuilder()
-                    .block(pendingProof().block())
-                    .previousBlockRootHash(pendingProof.previousBlockHash())
-                    .startOfBlockStateRootHash(pendingProof.startOfBlockStateRootHash());
+            return BlockProof.newBuilder().block(pendingProof().block());
         }
 
         /**
@@ -186,10 +183,15 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * {@code .pnd} files.
      * @param blockDirPath the directory containing subdirectories to load pending blocks from
      * @param followingBlockNumber the block number the pending blocks should be immediately preceding
+     * @param maxReadDepth the max allowed depth of nested protobuf messages
+     * @param maxReadSize the max size of protobuf messages to read
      * @return the list of pending blocks
      */
     public static List<OnDiskPendingBlock> loadContiguousPendingBlocks(
-            @NonNull final Path blockDirPath, final long followingBlockNumber) {
+            @NonNull final Path blockDirPath,
+            final long followingBlockNumber,
+            final int maxReadDepth,
+            final int maxReadSize) {
         requireNonNull(blockDirPath);
         final List<OnDiskPendingBlock> pendingBlocks = new LinkedList<>();
         final File[] pendingBlocksPaths = blockDirPath.toFile().listFiles();
@@ -240,17 +242,17 @@ public class FileBlockItemWriter implements BlockItemWriter {
             Path contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd.gz"));
             if (contentsPath.toFile().exists()) {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(contentsPath))) {
-                    partialBlock = Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
+                    partialBlock = parseBlock(in.readAllBytes(), maxReadDepth, maxReadSize);
                 } catch (IOException | ParseException e) {
-                    logger.warn("Error reading zipped pending block contents from {}", contentsPath, e);
+                    logger.error("Error reading zipped pending block contents from {}", contentsPath, e);
                 }
             } else {
                 contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd"));
                 if (contentsPath.toFile().exists()) {
                     try {
-                        partialBlock = Block.PROTOBUF.parse(Bytes.wrap(Files.readAllBytes(contentsPath)));
+                        partialBlock = parseBlock(Files.readAllBytes(contentsPath), maxReadDepth, maxReadSize);
                     } catch (IOException | ParseException e) {
-                        logger.warn("Error reading pending block contents from {}", contentsPath, e);
+                        logger.error("Error reading pending block contents from {}", contentsPath, e);
                     }
                 }
             }
@@ -266,6 +268,12 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
         }
         return pendingBlocks;
+    }
+
+    private static Block parseBlock(final byte[] bytes, final int maxReadDepth, final int maxReadSize)
+            throws ParseException {
+        return Block.PROTOBUF.parse(
+                Bytes.wrap(bytes).toReadableSequentialData(), false, false, maxReadDepth, maxReadSize);
     }
 
     /**

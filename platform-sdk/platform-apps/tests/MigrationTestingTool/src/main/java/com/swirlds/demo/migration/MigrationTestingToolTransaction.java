@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.migration;
 
-import com.swirlds.demo.migration.virtual.AccountVirtualMapKey;
-import com.swirlds.demo.migration.virtual.AccountVirtualMapValue;
-import com.swirlds.demo.migration.virtual.AccountVirtualMapValueCodec;
-import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.util.Random;
@@ -23,18 +19,6 @@ public class MigrationTestingToolTransaction implements SelfSerializable {
         public static final int ORIGINAL = 1;
     }
 
-    public enum TransactionType {
-        /**
-         * Insert a random value into a merkle map.
-         */
-        MERKLE_MAP,
-        /**
-         * Insert a random value into a virtual map.
-         */
-        VIRTUAL_MAP
-    }
-
-    private TransactionType type;
     private long seed;
 
     public MigrationTestingToolTransaction() {}
@@ -42,13 +26,9 @@ public class MigrationTestingToolTransaction implements SelfSerializable {
     /**
      * Create a new transaction.
      *
-     * @param type
-     * 		the type of the transaction
-     * @param seed
-     * 		the source of all randomness used by the transaction
+     * @param seed the source of all randomness used by the transaction
      */
-    public MigrationTestingToolTransaction(final TransactionType type, final long seed) {
-        this.type = type;
+    public MigrationTestingToolTransaction(final long seed) {
         this.seed = seed;
     }
 
@@ -58,43 +38,15 @@ public class MigrationTestingToolTransaction implements SelfSerializable {
      * @param state
      * 		a mutable state
      */
-    public void applyTo(final MigrationTestingToolState state) {
+    public void applyToState(final MigrationTestingToolState state) {
         final Random random = new Random(seed);
-        switch (type) {
-            case MERKLE_MAP:
-                applyMerkleMapTransaction(state, random);
-                break;
-            case VIRTUAL_MAP:
-                applyVirtualMapTransaction(state, random);
-                break;
-            default:
-                throw new IllegalStateException("unhandled type " + type);
-        }
-    }
-
-    /**
-     * Perform a {@link TransactionType#MERKLE_MAP} transaction.
-     */
-    private void applyMerkleMapTransaction(final MigrationTestingToolState state, final Random random) {
-        final MerkleMap<AccountID, MapValue> map = state.getMerkleMap();
+        final VirtualMap map = (VirtualMap) state.getRoot();
 
         final AccountID key = new AccountID(0, 0, Math.abs(random.nextLong()));
-        final MapValue value = MapValue.generateRandom(random, key);
-
-        map.put(key, value);
-    }
-
-    /**
-     * Perform a {@link TransactionType#VIRTUAL_MAP} transaction.
-     */
-    private void applyVirtualMapTransaction(final MigrationTestingToolState state, final Random random) {
-        final VirtualMap map = state.getVirtualMap();
-
-        final AccountVirtualMapKey key = new AccountVirtualMapKey(0, 0, Math.abs(random.nextLong()));
-        final AccountVirtualMapValue value = new AccountVirtualMapValue(
+        final Account value = new Account(
                 random.nextLong(), random.nextLong(), random.nextLong(), random.nextBoolean(), random.nextLong());
 
-        map.put(key.toBytes(), value, AccountVirtualMapValueCodec.INSTANCE);
+        map.put(key.toBytes(), value, AccountCodec.INSTANCE);
     }
 
     /**
@@ -110,7 +62,6 @@ public class MigrationTestingToolTransaction implements SelfSerializable {
      */
     @Override
     public void serialize(final SerializableDataOutputStream out) throws IOException {
-        out.writeInt(type.ordinal());
         out.writeLong(seed);
     }
 
@@ -119,7 +70,6 @@ public class MigrationTestingToolTransaction implements SelfSerializable {
      */
     @Override
     public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        type = TransactionType.values()[in.readInt()];
         seed = in.readLong();
     }
 
@@ -136,6 +86,6 @@ public class MigrationTestingToolTransaction implements SelfSerializable {
      */
     @Override
     public String toString() {
-        return "MigrationTestingToolTransaction{" + "type=" + type + ", seed=" + seed + '}';
+        return "MigrationTestingToolTransaction{" + "seed=" + seed + '}';
     }
 }

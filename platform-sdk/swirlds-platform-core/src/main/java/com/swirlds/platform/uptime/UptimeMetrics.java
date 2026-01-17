@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.uptime;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Metrics;
@@ -51,14 +50,11 @@ class UptimeMetrics {
      * Construct a new uptime metrics object.
      *
      * @param metrics     the metrics for this node
-     * @param roster      the current roster
      * @param isDegraded  a supplier that returns true if this node is degraded, false otherwise
      */
-    public UptimeMetrics(
-            @NonNull final Metrics metrics, @NonNull final Roster roster, @NonNull final Supplier<Boolean> isDegraded) {
+    public UptimeMetrics(@NonNull final Metrics metrics, @NonNull final Supplier<Boolean> isDegraded) {
 
         this.metrics = Objects.requireNonNull(metrics);
-        Objects.requireNonNull(roster);
         Objects.requireNonNull(isDegraded);
 
         healthyNetworkFraction = metrics.getOrCreate(HEALTHY_NETWORK_FRACTION_CONFIG);
@@ -70,8 +66,6 @@ class UptimeMetrics {
         metrics.getOrCreate(degradedConfig);
 
         uptimeComputationTime = metrics.getOrCreate(UPTIME_COMPUTATION_TIME);
-
-        roster.rosterEntries().forEach(entry -> addMetricsForNode(NodeId.of(entry.nodeId())));
     }
 
     /**
@@ -81,13 +75,7 @@ class UptimeMetrics {
      */
     public void addMetricsForNode(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, "nodeId must not be null");
-
-        final RunningAverageMetric.Config roundsSinceLastConensusEventConfig = new RunningAverageMetric.Config(
-                        CATEGORY, ROUNDS_SINCE_LAST_CONSENSUS_EVENT + nodeId)
-                .withUnit("rounds")
-                .withDescription(
-                        "The number of rounds since the last consensus event created by this node was observed");
-        roundsSinceLastConsensusEvent.put(nodeId, metrics.getOrCreate(roundsSinceLastConensusEventConfig));
+        roundsSinceLastConsensusEvent.put(nodeId, createRoundsSinceLastConsensusMetric(nodeId));
 
         // Temporarily disabled until we properly detect judges in a round
         //        final RunningAverageMetric.Config roundsSinceLastJudgeConfig = new RunningAverageMetric.Config(
@@ -96,6 +84,23 @@ class UptimeMetrics {
         //                .withDescription("The number of rounds since the last judge created by this node was
         // observed");
         //        roundsSinceLastJudge.put(nodeId, metrics.getOrCreate(roundsSinceLastJudgeConfig));
+    }
+
+    /**
+     * Create the metric that tracks the number of rounds since the last consensus event was observed from a node.
+     *
+     * @param nodeId the id of the node
+     * @return the metric
+     */
+    private RunningAverageMetric createRoundsSinceLastConsensusMetric(@NonNull final NodeId nodeId) {
+        Objects.requireNonNull(nodeId, "nodeId must not be null");
+
+        final RunningAverageMetric.Config roundsSinceLastConensusEventConfig = new RunningAverageMetric.Config(
+                        CATEGORY, ROUNDS_SINCE_LAST_CONSENSUS_EVENT + nodeId)
+                .withUnit("rounds")
+                .withDescription(
+                        "The number of rounds since the last consensus event created by this node was observed");
+        return metrics.getOrCreate(roundsSinceLastConensusEventConfig);
     }
 
     /**
@@ -123,10 +128,8 @@ class UptimeMetrics {
      */
     public @NonNull RunningAverageMetric getRoundsSinceLastConsensusEventMetric(@NonNull final NodeId id) {
         Objects.requireNonNull(id, "id must not be null");
-        final RunningAverageMetric metric = roundsSinceLastConsensusEvent.get(id);
-        if (metric == null) {
-            throw new NoSuchElementException("No metric for node " + id + " found.");
-        }
+        final RunningAverageMetric metric =
+                roundsSinceLastConsensusEvent.computeIfAbsent(id, this::createRoundsSinceLastConsensusMetric);
         return metric;
     }
 

@@ -64,21 +64,14 @@ import org.junit.jupiter.api.Tag;
  * <a href="https://hips.hedera.com/hip/hip-583">HIP-583, "Expand alias support in CryptoCreate &amp; CryptoTransfer Transactions"</a>.
  */
 @HapiTestLifecycle
-public class AtomicCreateWithAliasDisabledTest {
+class AtomicCreateWithAliasDisabledTest {
 
     private static final String BATCH_OPERATOR = "batchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false",
-                "cryptoCreateWithAlias.enabled",
-                "false"));
+        testLifecycle.overrideInClass(
+                Map.of("contracts.throttle.throttleByGas", "false", "cryptoCreateWithAlias.enabled", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -10,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 
@@ -33,13 +33,14 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
      */
     public InstrumentedTurtleNode(
             @NonNull final Randotron randotron,
-            @NonNull final Time time,
+            @NonNull final TurtleTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
-            @NonNull final Path outputDirectory) {
-        super(randotron, time, selfId, keysAndCerts, network, logging, outputDirectory);
+            @NonNull final Path outputDirectory,
+            @NonNull final NetworkConfiguration networkConfiguration) {
+        super(randotron, timeManager, selfId, keysAndCerts, network, logging, outputDirectory, networkConfiguration);
     }
 
     /**

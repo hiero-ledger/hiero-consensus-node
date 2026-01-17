@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFER
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_TOKEN_TRANSFER_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NFT_ID;
@@ -18,6 +19,7 @@ import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.get
 import static com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator.validateTokenTransfers;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -74,12 +76,25 @@ public class TokenAirdropValidator {
                 final var allNftsHaveTheSameSender = tokenTransfer.nftTransfers().stream()
                         .allMatch(nftTransfer -> sender.equals(nftTransfer.senderAccountID()));
                 validateTruePreCheck(allNftsHaveTheSameSender, AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN);
+                for (final var nftTransfer : tokenTransfer.nftTransfers()) {
+                    validateFalsePreCheck(
+                            nftTransfer.hasPreTxSenderAllowanceHook()
+                                    || nftTransfer.hasPrePostTxSenderAllowanceHook()
+                                    || nftTransfer.hasPreTxReceiverAllowanceHook()
+                                    || nftTransfer.hasPrePostTxReceiverAllowanceHook(),
+                            HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS);
+                }
             }
             if (!tokenTransfer.transfers().isEmpty()) {
                 List<AccountAmount> negativeTransfers = tokenTransfer.transfers().stream()
                         .filter(fungibleTransfer -> fungibleTransfer.amount() < 0)
                         .toList();
                 validateTruePreCheck(negativeTransfers.size() == 1, AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN);
+                for (final var adjust : tokenTransfer.transfers()) {
+                    validateFalsePreCheck(
+                            adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(),
+                            HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS);
+                }
             }
         }
         validateTokenTransfers(op.tokenTransfers(), CryptoTransferValidator.AllowanceStrategy.ALLOWANCES_REJECTED);
@@ -163,6 +178,7 @@ public class TokenAirdropValidator {
 
     /**
      * Check if the sender is credited with fungible value in the given airdrop.
+     *
      * @param op the token airdrop transaction body
      * @param senderId the sender account ID
      * @return true if the sender is credited with fungible value, false otherwise

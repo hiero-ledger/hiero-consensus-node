@@ -24,14 +24,15 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.EntityNumGeneratorImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
@@ -70,6 +71,7 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -77,7 +79,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -96,6 +98,7 @@ public class ParentTxnFactory {
     private final Authorizer authorizer;
     private final NetworkInfo networkInfo;
     private final FeeManager feeManager;
+    private final AppFeeCharging appFeeCharging;
     private final DispatchProcessor dispatchProcessor;
     private final ServiceScopeLookup serviceScopeLookup;
     private final ExchangeRateManager exchangeRateManager;
@@ -117,6 +120,7 @@ public class ParentTxnFactory {
             @NonNull final Authorizer authorizer,
             @NonNull final NetworkInfo networkInfo,
             @NonNull final FeeManager feeManager,
+            @NonNull final AppFeeCharging appFeeCharging,
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final ServiceScopeLookup serviceScopeLookup,
             @NonNull final ExchangeRateManager exchangeRateManager,
@@ -134,6 +138,7 @@ public class ParentTxnFactory {
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
         this.feeManager = requireNonNull(feeManager);
+        this.appFeeCharging = requireNonNull(appFeeCharging);
         this.dispatcher = requireNonNull(dispatcher);
         this.networkUtilizationManager = requireNonNull(networkUtilizationManager);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -167,34 +172,46 @@ public class ParentTxnFactory {
      * @param creatorInfo the node information of the creator
      * @param platformTxn the transaction itself
      * @param consensusNow the current consensus time
-     * @param stateSignatureTxnCallback a callback to be called when encountering a {@link StateSignatureTransaction}
-     * @return the new user transaction, or {@code null} if the transaction is not a user transaction
+     * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
+     *                                transaction type
+     * @return the new top-level transaction, or {@code null} if the transaction is not parseable
      */
-    public @Nullable ParentTxn createUserTxn(
+    public @Nullable ParentTxn createTopLevelTxn(
             @NonNull final State state,
-            @NonNull final NodeInfo creatorInfo,
+            @Nullable final NodeInfo creatorInfo,
             @NonNull final ConsensusTransaction platformTxn,
             @NonNull final Instant consensusNow,
-            @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
+            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
         requireNonNull(state);
-        requireNonNull(creatorInfo);
         requireNonNull(platformTxn);
         requireNonNull(consensusNow);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state);
         final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
-                creatorInfo, platformTxn, readableStoreFactory, stateSignatureTxnCallback);
+                creatorInfo, platformTxn, readableStoreFactory, shortCircuitTxnCallback);
+        // In case we got this without a prehandle call, ensure there's metadata for quiescence controller
+        if (platformTxn.getMetadata() == null) {
+            log.error(
+                    "Transaction {} has no metadata (preHandleResult={}), creating one", platformTxn, preHandleResult);
+            platformTxn.setMetadata(preHandleResult);
+        }
         final var txnInfo = preHandleResult.txInfo();
         if (txnInfo == null) {
-            log.error("Node {} submitted an unparseable transaction {}", creatorInfo.nodeId(), platformTxn);
+            log.error(
+                    "Node {} submitted an unparseable transaction {}",
+                    creatorInfo != null ? creatorInfo.nodeId() : null,
+                    platformTxn);
             return null;
         }
-        if (txnInfo.functionality() == STATE_SIGNATURE_TRANSACTION) {
+        if (creatorInfo == null || txnInfo.functionality() == STATE_SIGNATURE_TRANSACTION) {
             return null;
         }
         final var tokenContext = new TokenContextImpl(
-                config, stack, consensusNow, new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)));
+                config,
+                stack,
+                consensusNow,
+                new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME)));
         return new ParentTxn(
                 txnInfo.functionality(),
                 consensusNow,
@@ -238,7 +255,7 @@ public class ParentTxnFactory {
         final var functionality = functionOfTxn(body);
         final var preHandleResult =
                 preHandleSystemTransaction(body, payerId, config, readableStoreFactory, creatorInfo, type);
-        final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
+        final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
         final var tokenContext = new TokenContextImpl(config, stack, consensusNow, entityIdStore);
         return new ParentTxn(
                 functionality,
@@ -310,7 +327,7 @@ public class ParentTxnFactory {
         final var consensusNow = parentTxn.consensusNow();
         final var creatorInfo = parentTxn.creatorInfo();
         final var tokenContextImpl = parentTxn.tokenContextImpl();
-        final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
+        final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
 
         final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
@@ -323,7 +340,6 @@ public class ParentTxnFactory {
         final var throttleAdvisor = new AppThrottleAdviser(networkUtilizationManager, consensusNow);
         final var feeAccumulator = new FeeAccumulator(
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder, stack);
-
         final var dispatchHandleContext = new DispatchHandleContext(
                 consensusNow,
                 creatorInfo,
@@ -333,6 +349,7 @@ public class ParentTxnFactory {
                 streamMode != RECORDS ? blockStreamManager : blockRecordManager,
                 priceCalculator,
                 feeManager,
+                appFeeCharging,
                 storeFactory,
                 requireNonNull(txnInfo.payerID()),
                 keyVerifier,

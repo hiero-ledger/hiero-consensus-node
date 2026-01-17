@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.contract.SlotValue;
@@ -20,7 +22,7 @@ import java.util.Set;
  *     <li>A key/value state for lambda hook storage slots.</li>
  * </ul>
  */
-public class V065ContractSchema extends Schema {
+public class V065ContractSchema extends Schema<SemanticVersion> {
 
     private static final int MAX_LAMBDA_STORAGE = 1_000_000;
     private static final int MAX_EVM_HOOK_STATES = 50_000;
@@ -37,7 +39,7 @@ public class V065ContractSchema extends Schema {
             StateKey.KeyOneOfType.CONTRACTSERVICE_I_LAMBDA_STORAGE.protoOrdinal();
 
     public V065ContractSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull

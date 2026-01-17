@@ -36,16 +36,13 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-public class AtomicBatchTokenTest {
+class AtomicBatchTokenTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         // enable atomic batch
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
-                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         // create default batch operator
         testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
@@ -55,7 +52,7 @@ public class AtomicBatchTokenTest {
      */
     @HapiTest
     @DisplayName("atomic cannot get a nonsense key type")
-    public Stream<DynamicTest> atomicCannotGetNonsenseKeyType(
+    Stream<DynamicTest> atomicCannotGetNonsenseKeyType(
             @Contract(contract = "UpdateTokenInfoContract", creationGas = 4_000_000L)
                     final SpecContract getTokenKeyContract,
             @NonFungibleToken(
@@ -81,7 +78,7 @@ public class AtomicBatchTokenTest {
     @HapiTest
     @DisplayName("atomic transferring owner's tokens using transferToken function without explicit allowance")
     @Tag(MATS)
-    public Stream<DynamicTest> atomicTransferUsingTransferToken(
+    Stream<DynamicTest> atomicTransferUsingTransferToken(
             @Contract(contract = "TokenTransferContract", creationGas = 10_000_000L)
                     final SpecContract tokenTransferContract,
             @Contract(contract = "NestedHTSTransferrer", creationGas = 10_000_000L)
@@ -106,7 +103,7 @@ public class AtomicBatchTokenTest {
      */
     @HapiTest
     @DisplayName("atomic can update the name")
-    public Stream<DynamicTest> atomicCanUpdateName(
+    Stream<DynamicTest> atomicCanUpdateName(
             @Contract(contract = "TokenInfoSingularUpdate", creationGas = 4_000_000L)
                     final SpecContract updateTokenPropertyContract,
             @NonFungibleToken(

@@ -7,7 +7,6 @@ plugins {
 }
 
 testModuleInfo {
-    requires("com.swirlds.config.api")
     requires("com.swirlds.base")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.merkle.test.fixtures")

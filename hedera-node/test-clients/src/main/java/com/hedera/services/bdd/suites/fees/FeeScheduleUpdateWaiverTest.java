@@ -55,6 +55,10 @@ public class FeeScheduleUpdateWaiverTest {
                         .hasKnownStatusFrom(acceptable)
                         .payingWith(FEE_SCHEDULE_CONTROL)
                         .path(Path.of("./", "part4-feeSchedule.bin").toString()),
+                fileAppend(FEE_SCHEDULE)
+                        .hasKnownStatusFrom(acceptable)
+                        .payingWith(FEE_SCHEDULE_CONTROL)
+                        .path(Path.of("./", "part5-feeSchedule.bin").toString()),
                 getAccountBalance(FEE_SCHEDULE_CONTROL).hasTinyBars(changeFromSnapshot("pre", 0)));
     }
 }

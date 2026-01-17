@@ -46,17 +46,13 @@ import org.junit.jupiter.api.Order;
 
 @OrderedInIsolation
 @HapiTestLifecycle
-public class AtomicBatchTokenAirdropTest {
+class AtomicBatchTokenAirdropTest {
 
     private static final String DEFAULT_BATCH_OPERATOR = "batchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        // enable atomic batch
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
-                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         // create default batch operator
         testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
@@ -70,7 +66,7 @@ public class AtomicBatchTokenAirdropTest {
     @Order(1)
     @HapiTest
     @DisplayName("Atomic Contract Airdrops a token to a receiver who is associated to the token")
-    public Stream<DynamicTest> atomicAirdropTokenToAccount(
+    Stream<DynamicTest> atomicAirdropTokenToAccount(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
             @NonNull @Contract(contract = "EmptyOne", creationGas = 10_000_000L) final SpecContract sender,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token) {
@@ -99,7 +95,7 @@ public class AtomicBatchTokenAirdropTest {
     @Order(2)
     @HapiTest
     @DisplayName("Atomic Airdrop token")
-    public Stream<DynamicTest> atomicAirdropToken(
+    Stream<DynamicTest> atomicAirdropToken(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 10_000L * ONE_MILLION_HBARS)
                     final SpecAccount sender,
             @NonNull @Account(maxAutoAssociations = -1) final SpecAccount receiver,
@@ -122,7 +118,7 @@ public class AtomicBatchTokenAirdropTest {
     @Order(3)
     @HapiTest
     @DisplayName("Can atomic airdrop fungible token to a contract that is already associated to it")
-    public Stream<DynamicTest> atomicAirdropToContract(
+    Stream<DynamicTest> atomicAirdropToContract(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 10_000L * ONE_MILLION_HBARS)
                     final SpecAccount sender,
             @NonNull @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
@@ -146,7 +142,7 @@ public class AtomicBatchTokenAirdropTest {
      */
     @Order(4)
     @HapiTest
-    public Stream<DynamicTest> atomicHrcSetUnlimitedAutoAssociations() {
+    Stream<DynamicTest> atomicHrcSetUnlimitedAutoAssociations() {
         final AtomicReference<AccountID> accountNum = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate("account")
@@ -184,7 +180,7 @@ public class AtomicBatchTokenAirdropTest {
     @Order(5)
     @HapiTest
     @DisplayName("Can cancel atomic airdrop of fungible token")
-    public Stream<DynamicTest> canCancelAtomicAirdropOfFungibleToken(
+    Stream<DynamicTest> canCancelAtomicAirdropOfFungibleToken(
             @NonNull @FungibleToken(initialSupply = 1_000L) final SpecFungibleToken token,
             @NonNull @Account(tinybarBalance = 10_000L * ONE_MILLION_HBARS) final SpecAccount sender,
             @NonNull @Account(maxAutoAssociations = 0) final SpecAccount receiver) {
@@ -205,7 +201,7 @@ public class AtomicBatchTokenAirdropTest {
     @Order(6)
     @HapiTest
     @DisplayName("Can claim atomic airdrop of fungible token")
-    public Stream<DynamicTest> canClaimAtomicAirdropOfFungibleToken(
+    Stream<DynamicTest> canClaimAtomicAirdropOfFungibleToken(
             @NonNull @FungibleToken(initialSupply = 1_000L) final SpecFungibleToken token,
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount sender,
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount receiver) {
@@ -228,7 +224,7 @@ public class AtomicBatchTokenAirdropTest {
     @Order(7)
     @HapiTest
     @DisplayName("Atomic HRC rejectTokenFT works")
-    public Stream<DynamicTest> atomicHrcFungibleWorks(
+    Stream<DynamicTest> atomicHrcFungibleWorks(
             @NonNull @FungibleToken(initialSupply = 1000) SpecFungibleToken token,
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount sender) {
         return hapiTest(
@@ -249,7 +245,7 @@ public class AtomicBatchTokenAirdropTest {
     @Order(8)
     @HapiTest
     @DisplayName("Atomic Can cancel 1 fungible airdrop")
-    public Stream<DynamicTest> atomicCancelAirdrop(
+    Stream<DynamicTest> atomicCancelAirdrop(
             @NonNull @Contract(contract = "CancelAirdrop", creationGas = 2_000_000L) final SpecContract cancelAirdrop,
             @NonNull @FungibleToken(initialSupply = 1_000L) final SpecFungibleToken token,
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount sender,
@@ -280,7 +276,7 @@ public class AtomicBatchTokenAirdropTest {
     @Order(9)
     @HapiTest
     @DisplayName("Atomic can claim 1 fungible airdrop")
-    public Stream<DynamicTest> atomicClaimAirdrop(
+    Stream<DynamicTest> atomicClaimAirdrop(
             @NonNull @Contract(contract = "ClaimAirdrop", creationGas = 2_000_000L) final SpecContract claimAirdrop,
             @NonNull @FungibleToken(initialSupply = 1_000L) final SpecFungibleToken token,
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount sender,
@@ -314,7 +310,7 @@ public class AtomicBatchTokenAirdropTest {
     @Order(10)
     @HapiTest
     @DisplayName("Atomic reject fungible token")
-    public Stream<DynamicTest> atomicTokenRejectSystemContractTest(
+    Stream<DynamicTest> atomicTokenRejectSystemContractTest(
             @NonNull @Contract(contract = "TokenReject", creationGas = 1_000_000L) final SpecContract tokenReject,
             @NonNull @FungibleToken(initialSupply = 1000) final SpecFungibleToken token,
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount sender) {

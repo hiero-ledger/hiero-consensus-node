@@ -68,7 +68,8 @@ module com.swirlds.platform.core {
             com.swirlds.config.impl,
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.app,
-            org.hiero.otter.fixtures;
+            org.hiero.otter.fixtures,
+            org.hiero.otter.test;
     exports com.swirlds.platform.event.linking to
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures;
@@ -83,12 +84,6 @@ module com.swirlds.platform.core {
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.test.clients;
-    exports com.swirlds.platform.proof to
-            com.swirlds.common,
-            org.hiero.base.utility;
-    exports com.swirlds.platform.proof.tree to
-            com.swirlds.common,
-            org.hiero.base.utility;
 
     opens com.swirlds.platform.cli to
             info.picocli;
@@ -103,7 +98,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
     exports com.swirlds.platform.event.orphan;
-    exports com.swirlds.platform.publisher;
     exports com.swirlds.platform.components.consensus;
     exports com.swirlds.platform.state.snapshot;
     exports com.swirlds.platform.state.service.schemas;
@@ -112,6 +106,8 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.freeze;
     exports com.swirlds.platform.network.protocol.rpc;
+    exports com.swirlds.platform.state.iss to
+            org.hiero.otter.test;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -127,7 +123,6 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.creator;
-    requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
     requires transitive com.fasterxml.jackson.annotation;
@@ -136,8 +131,8 @@ module com.swirlds.platform.core {
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
-    requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
+    requires com.swirlds.state.impl;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;

@@ -6,21 +6,20 @@ import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
 import static com.hedera.node.app.state.merkle.VersionUtils.alreadyIncludesStateDefs;
 import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
-import static com.swirlds.state.merkle.StateUtils.registerWithSystem;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.services.MigrationStateChanges;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.VirtualMapState.MerkleWritableStates;
@@ -37,7 +36,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ConstructableRegistry;
 
 /**
  * An implementation of {@link SchemaRegistry}.
@@ -52,7 +50,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
  * MerkleNodeState}. The registry determines which {@link Schema}s to apply, possibly taking multiple migration steps,
  * to transition the merkle tree from its current version to the final version.
  */
-public class MerkleSchemaRegistry implements SchemaRegistry {
+public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
     private static final Logger logger = LogManager.getLogger(MerkleSchemaRegistry.class);
 
     /**
@@ -60,20 +58,9 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
      */
     private final String serviceName;
     /**
-     * The current bootstrap configuration of the network; note this ideally would be a
-     * provider of {@link com.hedera.node.config.VersionedConfiguration}s per version,
-     * in case a service's states evolved with changing config. But this is a very edge
-     * affordance that we have no example of needing.
-     */
-    private final Configuration bootstrapConfig;
-    /**
-     * The registry to use when deserializing from saved states
-     */
-    private final ConstructableRegistry constructableRegistry;
-    /**
      * The ordered set of all schemas registered by the service
      */
-    private final SortedSet<Schema> schemas = new TreeSet<>();
+    private final SortedSet<Schema<SemanticVersion>> schemas = new TreeSet<>();
     /**
      * The analysis to use when determining how to apply a schema.
      */
@@ -82,19 +69,12 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
     /**
      * Create a new instance with the default {@link SchemaApplications}.
      *
-     * @param constructableRegistry The {@link ConstructableRegistry} to register states with for
-     * deserialization
      * @param serviceName The name of the service using this registry.
      * @param schemaApplications the analysis to use when determining how to apply a schema
      */
     public MerkleSchemaRegistry(
-            @NonNull final ConstructableRegistry constructableRegistry,
-            @NonNull final String serviceName,
-            @NonNull final Configuration bootstrapConfig,
-            @NonNull final SchemaApplications schemaApplications) {
-        this.constructableRegistry = requireNonNull(constructableRegistry);
+            @NonNull final String serviceName, @NonNull final SchemaApplications schemaApplications) {
         this.serviceName = StateMetadata.validateServiceName(requireNonNull(serviceName));
-        this.bootstrapConfig = requireNonNull(bootstrapConfig);
         this.schemaApplications = requireNonNull(schemaApplications);
     }
 
@@ -104,20 +84,13 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
      * @return
      */
     @Override
-    public SchemaRegistry register(@NonNull Schema schema) {
+    public SchemaRegistry register(@NonNull Schema<SemanticVersion> schema) {
         schemas.remove(schema);
         schemas.add(requireNonNull(schema));
         logger.debug(
                 "Registering schema {} for service {} ",
                 () -> HapiUtils.toString(schema.getVersion()),
                 () -> serviceName);
-
-        // Any states being created, need to be registered for deserialization
-        schema.statesToCreate(bootstrapConfig).forEach(def -> {
-            //noinspection rawtypes,unchecked
-            final var md = new StateMetadata<>(serviceName, schema, def);
-            registerWithSystem(md, constructableRegistry);
-        });
 
         return this;
     }
@@ -248,8 +221,8 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
     }
 
     private RedefinedWritableStates applyStateDefinitions(
-            @NonNull final Schema schema,
-            @NonNull final List<Schema> schemasAlreadyInState,
+            @NonNull final Schema<SemanticVersion> schema,
+            @NonNull final List<Schema<SemanticVersion>> schemasAlreadyInState,
             @NonNull final Configuration nodeConfiguration,
             @NonNull final MerkleNodeState stateRoot) {
         // Create the new states (based on the schema) which, thanks to the above, does not
@@ -264,7 +237,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                         return;
                     }
                     logger.info("  Ensuring {} has state {}", serviceName, stateKey);
-                    final var md = new StateMetadata<>(serviceName, schema, def);
+                    final var md = new StateMetadata<>(serviceName, def);
                     stateRoot.initializeState(md);
                 });
 

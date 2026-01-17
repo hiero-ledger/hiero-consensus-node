@@ -29,9 +29,6 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
 
     private static final Object marker = new Object();
 
-    /** State label used in logs, typically serviceName.stateKey */
-    protected final String label;
-
     /** The state ID */
     protected final int stateId;
 
@@ -55,7 +52,6 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
     // This constructor is used by some consumers of the API that are outside of this repository.
     protected ReadableKVStateBase(final int stateId, final String label, @NonNull ConcurrentMap<K, V> readCache) {
         this.stateId = stateId;
-        this.label = label;
         this.readCache = Objects.requireNonNull(readCache);
         this.unmodifiableReadKeys = Collections.unmodifiableSet(readCache.keySet());
     }

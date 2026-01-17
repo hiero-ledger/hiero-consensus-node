@@ -106,15 +106,20 @@ public class MultipleNodeReconnectResultsContinuousAssert
         isNotNull();
         return checkContinuously((notification) -> {
             switch (notification) {
-                case final SynchronizationCompleteNotification syncNotification ->
-                    failWithMessage(
-                            "Expected maximum reconnect time to be <%s> but node %s took <%s>%n%s",
-                            maximumReconnectTime,
-                            syncNotification.nodeId() == null
-                                    ? "unknown"
-                                    : syncNotification.nodeId().id(),
-                            Duration.ofSeconds((long) syncNotification.payload().getTimeInSeconds()),
-                            syncNotification.payload());
+                case final SynchronizationCompleteNotification syncNotification -> {
+                    final Duration actualTime =
+                            Duration.ofSeconds((long) syncNotification.payload().getTimeInSeconds());
+                    if (actualTime.compareTo(maximumReconnectTime) > 0) {
+                        failWithMessage(
+                                "Expected maximum reconnect time to be <%s> but node %s took <%s>%n%s",
+                                maximumReconnectTime,
+                                syncNotification.nodeId() == null
+                                        ? "unknown"
+                                        : syncNotification.nodeId().id(),
+                                actualTime,
+                                syncNotification.payload());
+                    }
+                }
                 default -> {
                     // Ignore other notifications
                 }
@@ -134,15 +139,20 @@ public class MultipleNodeReconnectResultsContinuousAssert
         isNotNull();
         return checkContinuously(notification -> {
             switch (notification) {
-                case final SynchronizationCompleteNotification syncNotification ->
-                    failWithMessage(
-                            "Expected maximum tree initialization time to be <%s> but node %s took <%s> to initialize the tree%n%s",
-                            maximumTreeInitializationTime,
-                            syncNotification.nodeId() == null
-                                    ? "unknown"
-                                    : syncNotification.nodeId().id(),
-                            Duration.ofSeconds((long) syncNotification.payload().getInitializationTimeInSeconds()),
-                            syncNotification.payload());
+                case final SynchronizationCompleteNotification syncNotification -> {
+                    final Duration actualTime =
+                            Duration.ofSeconds((long) syncNotification.payload().getInitializationTimeInSeconds());
+                    if (actualTime.compareTo(maximumTreeInitializationTime) > 0) {
+                        failWithMessage(
+                                "Expected maximum tree initialization time to be <%s> but node %s took <%s> to initialize the tree%n%s",
+                                maximumTreeInitializationTime,
+                                syncNotification.nodeId() == null
+                                        ? "unknown"
+                                        : syncNotification.nodeId().id(),
+                                actualTime,
+                                syncNotification.payload());
+                    }
+                }
                 default -> {
                     // Ignore other notifications
                 }

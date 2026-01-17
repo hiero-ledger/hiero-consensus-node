@@ -3,7 +3,11 @@ package org.hiero.otter.fixtures.internal;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
+import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.otter.fixtures.internal.AbstractNode.UNSET_WEIGHT;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -13,14 +17,16 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.utility.Threshold;
+import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -36,9 +42,13 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.assertj.core.data.Percentage;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
@@ -46,29 +56,36 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
+import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
+import org.hiero.otter.fixtures.internal.result.MultipleNodeEventStreamResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
-import org.hiero.otter.fixtures.internal.result.MultipleNodeMarkerFileResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
+import org.hiero.otter.fixtures.network.Connection;
+import org.hiero.otter.fixtures.network.DirectionalConnection;
+import org.hiero.otter.fixtures.network.LatencyRange;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
-import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
-import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
-import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -76,9 +93,14 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
  */
 public abstract class AbstractNetwork implements Network {
     /**
+     * The fraction of nodes that must consider a node behind for the node to be considered behind by the network.
+     */
+    private static final double BEHIND_FRACTION = 0.5;
+
+    /**
      * The state of the network.
      */
-    protected enum State {
+    protected enum Lifecycle {
         INIT,
         RUNNING,
         SHUTDOWN
@@ -99,19 +121,31 @@ public abstract class AbstractNetwork implements Network {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2L);
 
     private final Random random;
-    private final Map<NodeId, PartitionImpl> partitions = new HashMap<>();
-    private final Topology topology = new MeshTopologyImpl(this::createNodes, this::createInstrumentedNode);
+    private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
+    private final Map<ConnectionKey, Boolean> connected = new HashMap<>();
+    private final Map<ConnectionKey, LatencyOverride> latencyOverrides = new HashMap<>();
+    private final Map<ConnectionKey, BandwidthLimit> bandwidthOverrides = new HashMap<>();
+    private final Topology topology;
+    private final boolean useRandomNodeIds;
 
-    protected State state = State.INIT;
-    protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
+    protected final NetworkConfiguration networkConfiguration;
+
+    protected Lifecycle lifecycle = Lifecycle.INIT;
+
+    protected WeightGenerator weightGenerator = WeightGenerators.REAL_NETWORK_GAUSSIAN;
+
+    protected Roster roster;
 
     @Nullable
-    private PartitionImpl remainingPartition;
+    private PartitionImpl remainingNetworkPartition;
 
     private NodeId nextNodeId = NodeId.FIRST_NODE_ID;
 
-    protected AbstractNetwork(@NonNull final Random random) {
+    protected AbstractNetwork(@NonNull final Random random, final boolean useRandomNodeIds) {
         this.random = requireNonNull(random);
+        this.topology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
+        this.useRandomNodeIds = useRandomNodeIds;
+        this.networkConfiguration = new NetworkConfiguration();
     }
 
     /**
@@ -152,16 +186,35 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void setWeightGenerator(@NonNull final WeightGenerator weightGenerator) {
-        if (!nodes().isEmpty()) {
-            throw new IllegalStateException("Cannot set weight generator after nodes have been added to the network.");
-        }
+    public void weightGenerator(@NonNull final WeightGenerator weightGenerator) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot set weight generator when the network is running.");
         this.weightGenerator = requireNonNull(weightGenerator);
     }
 
     /**
-     * Creates a new node with the given ID and keys and certificates. This is a factory method that must be
-     * implemented by subclasses to create nodes specific to the environment.
+     * {@inheritDoc}
+     */
+    @Override
+    public void nodeWeight(final long weight) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot set weight generator when the network is running.");
+        if (weight <= 0) {
+            throw new IllegalArgumentException("Weight must be positive");
+        }
+        networkConfiguration.weight(weight);
+        nodes().forEach(n -> n.weight(weight));
+    }
+
+    @Override
+    public @NotNull Roster roster() {
+        if (lifecycle == Lifecycle.INIT) {
+            throw new IllegalStateException("The roster is not available before the network is started.");
+        }
+        return roster;
+    }
+
+    /**
+     * Creates a new node with the given ID and keys and certificates. This is a factory method that subclasses must
+     * implement to create nodes specific to the environment.
      *
      * @param nodeId the ID of the node to create
      * @param keysAndCerts the keys and certificates for the node
@@ -170,14 +223,14 @@ public abstract class AbstractNetwork implements Network {
     protected abstract Node doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts);
 
     private List<Node> createNodes(final int count) {
-        throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
-        throwIfInState(State.SHUTDOWN, "Cannot add nodes after the network has been started.");
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot add nodes while the network is running.");
+        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Cannot add nodes after the network has been started.");
 
         try {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
             return CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet().stream()
-                    .map(entry -> doCreateNode(entry.getKey(), entry.getValue()))
+                    .map(e -> doCreateNode(e.getKey(), e.getValue()))
                     .toList();
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
@@ -196,8 +249,8 @@ public abstract class AbstractNetwork implements Network {
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts);
 
     private InstrumentedNode createInstrumentedNode() {
-        throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
-        throwIfInState(State.SHUTDOWN, "Cannot add nodes after the network has been started.");
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot add nodes while the network is running.");
+        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Cannot add nodes after the network has been started.");
 
         try {
             final NodeId nodeId = getNextNodeId();
@@ -212,8 +265,9 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     private NodeId getNextNodeId() {
         final NodeId nextId = nextNodeId;
-        // randomly advance between 1 and 3 steps
-        final int randomAdvance = random.nextInt(3);
+        // If enabled, advance by a random number of steps between 1 and 3
+        final int randomAdvance = (useRandomNodeIds) ? random.nextInt(3) : 0;
+
         nextNodeId = nextNodeId.getOffset(randomAdvance + 1L);
         return nextId;
     }
@@ -237,22 +291,13 @@ public abstract class AbstractNetwork implements Network {
     protected abstract void preStartHook(@NonNull final Roster roster);
 
     private void doStart(@NonNull final Duration timeout) {
-        throwIfInState(State.RUNNING, "Network is already running.");
+        throwIfInLifecycle(Lifecycle.RUNNING, "Network is already running.");
         log.info("Starting network...");
 
-        final int count = nodes().size();
-        final Iterator<Long> weightIterator =
-                weightGenerator.getWeights(random.nextLong(), count).iterator();
-
-        final List<RosterEntry> rosterEntries = nodes().stream()
-                .sorted(Comparator.comparing(Node::selfId))
-                .map(node -> createRosterEntry(node, weightIterator.next()))
-                .toList();
-        final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
-
+        roster = createRoster();
         preStartHook(roster);
 
-        state = State.RUNNING;
+        lifecycle = Lifecycle.RUNNING;
         updateConnections();
         for (final Node node : nodes()) {
             ((AbstractNode) node).roster(roster);
@@ -263,6 +308,28 @@ public abstract class AbstractNetwork implements Network {
 
         log.debug("Waiting for nodes to become active...");
         timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout);
+        log.info("Network started.");
+    }
+
+    private Roster createRoster() {
+        final boolean anyNodeHasExplicitWeight = nodes().stream().anyMatch(node -> node.weight() > 0);
+        final List<RosterEntry> rosterEntries;
+        if (anyNodeHasExplicitWeight) {
+            rosterEntries = nodes().stream()
+                    .sorted(Comparator.comparing(Node::selfId))
+                    .map(node -> createRosterEntry(node, node.weight() == UNSET_WEIGHT ? 0 : node.weight()))
+                    .toList();
+        } else {
+            final int count = nodes().size();
+            final Iterator<Long> weightIterator =
+                    weightGenerator.getWeights(random.nextLong(), count).iterator();
+
+            rosterEntries = nodes().stream()
+                    .sorted(Comparator.comparing(Node::selfId))
+                    .map(node -> createRosterEntry(node, weightIterator.next()))
+                    .toList();
+        }
+        return Roster.newBuilder().rosterEntries(rosterEntries).build();
     }
 
     private RosterEntry createRosterEntry(final Node node, final long weight) {
@@ -285,11 +352,72 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
+     * The actual implementation of sending a quiescence command, to be provided by subclasses.
+     *
+     * @param command the quiescence command to send
+     * @param timeout the maximum duration to wait for the command to be processed
+     */
+    protected abstract void doSendQuiescenceCommand(@NonNull QuiescenceCommand command, @NonNull Duration timeout);
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
+        doSendQuiescenceCommand(command, DEFAULT_TIMEOUT);
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
     @NonNull
-    public Partition createPartition(@NonNull final Collection<Node> partitionNodes) {
+    public Connection connection(@NonNull final Node node1, @NonNull final Node node2) {
+        return new ConnectionImpl(directionalConnection(node1, node2), directionalConnection(node2, node1));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public DirectionalConnection directionalConnection(@NonNull final Node sender, @NonNull final Node receiver) {
+        return new DirectionalConnectionImpl(sender, receiver);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ConnectionState connectionState(@NonNull final Node sender, @NonNull final Node receiver) {
+        final ConnectionKey key = new ConnectionKey(sender.selfId(), receiver.selfId());
+        ConnectionState connectionState = topology().getConnectionData(sender, receiver);
+        if (getNetworkPartitionContaining(sender) != getNetworkPartitionContaining(receiver)) {
+            connectionState = connectionState.withConnected(false);
+        }
+        final Boolean isConnected = connected.get(key);
+        if (isConnected != null) {
+            connectionState = connectionState.withConnected(isConnected);
+        }
+        final LatencyOverride latencyOverride = latencyOverrides.get(key);
+        if (latencyOverride != null) {
+            connectionState = connectionState.withLatencyAndJitter(latencyOverride.latency(), latencyOverride.jitter());
+        }
+        final BandwidthLimit bandwidthOverride = bandwidthOverrides.get(key);
+        if (bandwidthOverride != null) {
+            connectionState = connectionState.withBandwidthLimit(bandwidthOverride);
+        }
+        return connectionState;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Partition createNetworkPartition(@NonNull final Collection<Node> partitionNodes) {
+        log.info("Creating network partition...");
         if (partitionNodes.isEmpty()) {
             throw new IllegalArgumentException("Cannot create a partition with no nodes.");
         }
@@ -299,21 +427,22 @@ public abstract class AbstractNetwork implements Network {
             throw new IllegalArgumentException("Cannot create a partition with all nodes.");
         }
         for (final Node node : partitionNodes) {
-            final PartitionImpl oldPartition = partitions.put(node.selfId(), partition);
+            final PartitionImpl oldPartition = networkPartitions.put(node.selfId(), partition);
             if (oldPartition != null) {
                 oldPartition.nodes.remove(node);
             }
         }
-        if (remainingPartition == null) {
+        if (remainingNetworkPartition == null) {
             final List<Node> remainingNodes = allNodes.stream()
                     .filter(node -> !partitionNodes.contains(node))
                     .toList();
-            remainingPartition = new PartitionImpl(remainingNodes);
+            remainingNetworkPartition = new PartitionImpl(remainingNodes);
             for (final Node node : remainingNodes) {
-                partitions.put(node.selfId(), remainingPartition);
+                networkPartitions.put(node.selfId(), remainingNetworkPartition);
             }
         }
         updateConnections();
+        log.info("Network partition created.");
         return partition;
     }
 
@@ -321,23 +450,25 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void removePartition(@NonNull final Partition partition) {
-        final Set<Partition> allPartitions = partitions();
+    public void removeNetworkPartition(@NonNull final Partition partition) {
+        log.info("Removing network partition...");
+        final Set<Partition> allPartitions = networkPartitions();
         if (!allPartitions.contains(partition)) {
             throw new IllegalArgumentException("Partition does not exist in the network: " + partition);
         }
         if (allPartitions.size() == 2) {
             // If only two partitions exist, clear all
-            partitions.clear();
-            remainingPartition = null;
+            networkPartitions.clear();
+            remainingNetworkPartition = null;
         } else {
-            assert remainingPartition != null; // because there are at least 3 partitions
+            assert remainingNetworkPartition != null; // because there are at least 3 partitions
             for (final Node node : partition.nodes()) {
-                partitions.put(node.selfId(), remainingPartition);
-                remainingPartition.nodes.add(node);
+                networkPartitions.put(node.selfId(), remainingNetworkPartition);
+                remainingNetworkPartition.nodes.add(node);
             }
         }
         updateConnections();
+        log.info("Network partition removed.");
     }
 
     /**
@@ -345,8 +476,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Set<Partition> partitions() {
-        return Set.copyOf(partitions.values());
+    public Set<Partition> networkPartitions() {
+        return Set.copyOf(networkPartitions.values());
     }
 
     /**
@@ -354,8 +485,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @Nullable
-    public Partition getPartitionContaining(@NonNull final Node node) {
-        return partitions.get(node.selfId());
+    public Partition getNetworkPartitionContaining(@NonNull final Node node) {
+        return networkPartitions.get(node.selfId());
     }
 
     /**
@@ -364,7 +495,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Partition isolate(@NonNull final Node node) {
-        return createPartition(Set.of(node));
+        return createNetworkPartition(Set.of(node));
     }
 
     /**
@@ -372,11 +503,11 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void rejoin(@NonNull final Node node) {
-        final Partition partition = partitions.get(node.selfId());
+        final Partition partition = networkPartitions.get(node.selfId());
         if (partition == null) {
             throw new IllegalArgumentException("Node is not isolated: " + node.selfId());
         }
-        removePartition(partition);
+        removeNetworkPartition(partition);
     }
 
     /**
@@ -384,7 +515,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean isIsolated(@NonNull final Node node) {
-        final Partition partition = partitions.get(node.selfId());
+        final Partition partition = networkPartitions.get(node.selfId());
         return partition != null && partition.size() == 1;
     }
 
@@ -392,8 +523,78 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
+    public void setLatencyForAllConnections(@NonNull final Node node, @NonNull final LatencyRange latencyRange) {
+        log.info("Setting latency for all connections from node {} to range {}", node.selfId(), latencyRange);
+        for (final Node otherNode : nodes()) {
+            if (!node.equals(otherNode)) {
+                setLatencyRange(node, otherNode, latencyRange);
+                setLatencyRange(otherNode, node, latencyRange);
+            }
+        }
+        updateConnections();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void restoreLatencyForAllConnections(@NonNull final Node node) {
+        log.info("Restoring latency for all connections from node {}", node);
+        for (final Node otherNode : nodes()) {
+            if (!node.equals(otherNode)) {
+                latencyOverrides.remove(new ConnectionKey(node.selfId(), otherNode.selfId()));
+                latencyOverrides.remove(new ConnectionKey(otherNode.selfId(), node.selfId()));
+            }
+        }
+        updateConnections();
+    }
+
+    private void setLatencyRange(
+            @NonNull final Node sender, @NonNull final Node receiver, @NonNull final LatencyRange latencyRange) {
+        final long nanos = latencyRange.min().equals(latencyRange.max())
+                ? latencyRange.max().toNanos()
+                : random.nextLong(
+                        latencyRange.min().toNanos(), latencyRange.max().toNanos());
+        final LatencyOverride latencyOverride =
+                new LatencyOverride(Duration.ofNanos(nanos), latencyRange.jitterPercent());
+        latencyOverrides.put(new ConnectionKey(sender.selfId(), receiver.selfId()), latencyOverride);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setBandwidthForAllConnections(@NonNull final Node node, @NonNull final BandwidthLimit bandwidthLimit) {
+        log.info("Setting bandwidth for all connections from node {} to {}", node.selfId(), bandwidthLimit);
+        for (final Node otherNode : nodes()) {
+            if (!node.equals(otherNode)) {
+                bandwidthOverrides.put(new ConnectionKey(node.selfId(), otherNode.selfId()), bandwidthLimit);
+                bandwidthOverrides.put(new ConnectionKey(otherNode.selfId(), node.selfId()), bandwidthLimit);
+            }
+        }
+        updateConnections();
+    }
+
+    @Override
+    public void restoreBandwidthLimitsForAllConnections(@NonNull final Node node) {
+        log.info("Restoring bandwidth for all connections from node {}", node);
+        for (final Node otherNode : nodes()) {
+            if (!node.equals(otherNode)) {
+                bandwidthOverrides.remove(new ConnectionKey(node.selfId(), otherNode.selfId()));
+                bandwidthOverrides.remove(new ConnectionKey(otherNode.selfId(), node.selfId()));
+            }
+        }
+        updateConnections();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void restoreConnectivity() {
-        partitions.clear();
+        networkPartitions.clear();
+        latencyOverrides.clear();
+        bandwidthOverrides.clear();
         updateConnections();
     }
 
@@ -406,18 +607,13 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private void doFreeze(@NonNull final Duration timeout) {
-        throwIfInState(State.INIT, "Network has not been started yet.");
-        throwIfInState(State.SHUTDOWN, "Network has been shut down.");
+        throwIfInLifecycle(Lifecycle.INIT, "Network has not been started yet.");
+        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has been shut down.");
 
         log.info("Sending freeze transaction...");
-        final byte[] freezeTransaction = TransactionFactory.createFreezeTransaction(
-                        timeManager().now().plus(FREEZE_DELAY))
-                .toByteArray();
-        nodes().stream()
-                .filter(Node::isActive)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
-                .submitTransaction(freezeTransaction);
+        final OtterTransaction freezeTransaction = TransactionFactory.createFreezeTransaction(
+                random.nextLong(), timeManager().now().plus(FREEZE_DELAY));
+        submitTransaction(freezeTransaction);
 
         log.debug("Waiting for nodes to freeze...");
         timeManager()
@@ -427,6 +623,61 @@ public abstract class AbstractNetwork implements Network {
                         "Timeout while waiting for all nodes to freeze.");
 
         transactionGenerator().stop();
+
+        log.info("Network frozen.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void triggerCatastrophicIss() {
+        doTriggerCatastrophicIss(DEFAULT_TIMEOUT);
+    }
+
+    private void doTriggerCatastrophicIss(@NonNull final Duration defaultTimeout) {
+        throwIfNotInLifecycle(Lifecycle.RUNNING, "Network must be running to trigger an ISS.");
+
+        log.info("Sending Catastrophic ISS triggering transaction...");
+        final Instant start = timeManager().now();
+        final OtterTransaction issTransaction = TransactionFactory.createIssTransaction(random.nextLong(), nodes());
+        submitTransaction(issTransaction);
+        final Duration elapsed = Duration.between(start, timeManager().now());
+
+        log.debug("Waiting for Catastrophic ISS to trigger...");
+
+        // Depending on the test configuration, some nodes may enter CHECKING when a catastrophic ISS occurs,
+        // but at least one node should always enter CATASTROPHIC_FAILURE.
+        timeManager()
+                .waitForCondition(
+                        this::allNodesInCheckingOrCatastrophicFailure,
+                        defaultTimeout.minus(elapsed),
+                        "Not all nodes entered CHECKING or CATASTROPHIC_FAILURE before timeout");
+        final long numInCatastrophicFailure = nodes().stream()
+                .filter(node -> node.platformStatus() == CATASTROPHIC_FAILURE)
+                .count();
+        if (numInCatastrophicFailure < 1) {
+            fail("No node entered CATASTROPHIC_FAILURE");
+        }
+    }
+
+    private boolean allNodesInCheckingOrCatastrophicFailure() {
+        return nodes().stream().allMatch(node -> {
+            final PlatformStatus status = node.platformStatus();
+            return status == CATASTROPHIC_FAILURE || status == CHECKING;
+        });
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
+        nodes().stream()
+                .filter(Node::isActive)
+                .findFirst()
+                .map(node -> (AbstractNode) node)
+                .orElseThrow(() -> new AssertionError("No active node found to send transaction to."))
+                .submitTransactions(transactions);
     }
 
     /**
@@ -435,7 +686,20 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
-        nodes().forEach(node -> node.configuration().set(key, value));
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -445,7 +709,9 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final int value) {
-        nodes().forEach(node -> node.configuration().set(key, value));
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -455,7 +721,9 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final long value) {
-        nodes().forEach(node -> node.configuration().set(key, value));
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -465,7 +733,9 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final Path value) {
-        nodes().forEach(node -> node.configuration().set(key, value));
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -475,7 +745,57 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final boolean value) {
-        nodes().forEach(node -> node.configuration().set(key, value));
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network withConfigValue(@NonNull final String key, final double value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network withConfigValue(@NonNull final String key, @NonNull final Enum<?> value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network withConfigValue(@NonNull final String key, @NonNull final List<String> values) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, values);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, values));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network withConfigValue(@NonNull final String key, @NonNull final TaskSchedulerConfiguration value) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
+        networkConfiguration.withConfigValue(key, value);
+        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -488,17 +808,19 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private void doShutdown(@NonNull final Duration timeout) {
-        throwIfInState(State.INIT, "Network has not been started yet.");
-        throwIfInState(State.SHUTDOWN, "Network has already been shut down.");
+        throwIfInLifecycle(Lifecycle.INIT, "Network has not been started yet.");
+        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has already been shut down.");
 
         log.info("Killing nodes immediately...");
         for (final Node node : nodes()) {
             node.killImmediately();
         }
 
-        state = State.SHUTDOWN;
+        lifecycle = Lifecycle.SHUTDOWN;
 
         transactionGenerator().stop();
+
+        log.info("Nodes have been killed.");
     }
 
     /**
@@ -506,6 +828,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void version(@NonNull final SemanticVersion version) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot set version while the network is running");
+        networkConfiguration.version(version);
         nodes().forEach(node -> node.version(version));
     }
 
@@ -578,10 +902,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public MultipleNodeMarkerFileResults newMarkerFileResults() {
-        final List<SingleNodeMarkerFileResult> results =
-                nodes().stream().map(Node::newMarkerFileResult).toList();
-        return new MultipleNodeMarkerFileResultsImpl(results);
+    public MultipleNodeEventStreamResults newEventStreamResults() {
+        return new MultipleNodeEventStreamResultsImpl(nodes());
     }
 
     /**
@@ -602,8 +924,8 @@ public abstract class AbstractNetwork implements Network {
                     maybeAheadNode.newConsensusResult().getLatestEventWindow();
 
             // If any peer in the required list says the "self" node is not behind, the node is not behind.
-            if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
-                    != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+            if (FallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
+                    != FallenBehindStatus.SELF_FALLEN_BEHIND) {
                 weightOfAheadNodes += maybeAheadNode.weight();
             }
         }
@@ -614,26 +936,46 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode, final double fraction) {
-        final Set<Node> otherNodes = nodes().stream()
-                .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
-                .collect(Collectors.toSet());
+    public boolean nodesAreBehindByNodeCount(
+            @NonNull final Node maybeBehindNode, @Nullable final Node... otherMaybeBehindNodes) {
+        final Set<Node> maybeBehindNodes = Utils.collect(maybeBehindNode, otherMaybeBehindNodes);
+        final Set<Node> peerNodes =
+                nodes().stream().filter(n -> !maybeBehindNodes.contains(n)).collect(Collectors.toSet());
 
-        // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
-        final EventWindow selfEventWindow = maybeBehindNode.newConsensusResult().getLatestEventWindow();
+        boolean allNodesAreBehind = true;
+        for (final Node node : maybeBehindNodes) {
+            // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
+            final EventWindow selfEventWindow = node.newConsensusResult().getLatestEventWindow();
 
-        int numNodesAhead = 0;
-        for (final Node maybeAheadNode : otherNodes) {
-            final EventWindow peerEventWindow =
-                    maybeAheadNode.newConsensusResult().getLatestEventWindow();
+            int numNodesAhead = 0;
+            for (final Node maybeAheadNode : peerNodes) {
+                final EventWindow peerEventWindow =
+                        maybeAheadNode.newConsensusResult().getLatestEventWindow();
+                final EventWindow peerEventWindowWithBuffer = new EventWindow(
+                        peerEventWindow.latestConsensusRound(),
+                        peerEventWindow.newEventBirthRound(),
+                        peerEventWindow.ancientThreshold(),
+                        Math.max(
+                                ConsensusConstants.ROUND_FIRST,
+                                peerEventWindow.expiredThreshold()
+                                        - 5)); // add buffer to account for unpropagated event windows
 
-            // If any peer in the required list says the "self" node is behind, it is ahead so add it to the count
-            if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
-                    == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
-                numNodesAhead++;
+                // If any peer in the required list says the "self" node is behind, it is ahead so add it to the count
+                if (FallenBehindStatus.getStatus(selfEventWindow, peerEventWindowWithBuffer)
+                        == FallenBehindStatus.SELF_FALLEN_BEHIND) {
+                    numNodesAhead++;
+                }
             }
+            allNodesAreBehind &= (numNodesAhead / (1.0 * peerNodes.size())) >= BEHIND_FRACTION;
         }
-        return (numNodesAhead / (1.0 * otherNodes.size())) >= fraction;
+        return allNodesAreBehind;
+    }
+
+    @Override
+    public void savedStateDirectory(@NonNull final Path savedStateDirectory) {
+        final Path resolvedPath = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
+        networkConfiguration.savedStateDirectory(resolvedPath);
+        nodes().forEach(node -> node.startFromSavedState(resolvedPath));
     }
 
     /**
@@ -643,26 +985,35 @@ public abstract class AbstractNetwork implements Network {
      * @param message the message to include in the exception
      * @throws IllegalStateException if the network is in the expected state
      */
-    protected void throwIfInState(@NonNull final State expected, @NonNull final String message) {
-        if (state == expected) {
+    protected void throwIfInLifecycle(@NonNull final Lifecycle expected, @NonNull final String message) {
+        if (lifecycle == expected) {
+            throw new IllegalStateException(message);
+        }
+    }
+
+    /**
+     * Throws an {@link IllegalStateException} if the network is not in the given state.
+     *
+     * @param desiredLifecycle the state that will NOT cause the exception to be thrown
+     * @param message the message to include in the exception
+     * @throws IllegalStateException if the network is not in the expected state
+     */
+    protected void throwIfNotInLifecycle(@NonNull final Lifecycle desiredLifecycle, @NonNull final String message) {
+        if (lifecycle != desiredLifecycle) {
             throw new IllegalStateException(message);
         }
     }
 
     private void updateConnections() {
-        final Map<ConnectionKey, ConnectionData> connections = new HashMap<>();
+        final Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
         for (final Node sender : nodes()) {
             for (final Node receiver : nodes()) {
                 if (sender.selfId().equals(receiver.selfId())) {
                     continue; // Skip self-connections
                 }
                 final ConnectionKey key = new ConnectionKey(sender.selfId(), receiver.selfId());
-                ConnectionData connectionData = topology().getConnectionData(sender, receiver);
-                if (getPartitionContaining(sender) != getPartitionContaining(receiver)) {
-                    connectionData = connectionData.withConnected(false);
-                }
-                // add other effects (e.g., clique, latency) on connections here
-                connections.put(key, connectionData);
+                final ConnectionState connectionState = connectionState(sender, receiver);
+                connections.put(key, connectionState);
             }
         }
         onConnectionsChanged(connections);
@@ -676,7 +1027,7 @@ public abstract class AbstractNetwork implements Network {
      *
      * @param connections a map of connections representing the current state of the network
      */
-    protected abstract void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections);
+    protected abstract void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionState> connections);
 
     /**
      * Default implementation of {@link AsyncNetworkActions}
@@ -716,6 +1067,22 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void shutdown() {
             doShutdown(timeout);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void triggerCatastrophicIss() {
+            doTriggerCatastrophicIss(timeout);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
+            doSendQuiescenceCommand(command, timeout);
         }
     }
 
@@ -764,4 +1131,151 @@ public abstract class AbstractNetwork implements Network {
             return nodes.size();
         }
     }
+
+    /**
+     * Implementation of the DirectionalConnection interface.
+     */
+    private class DirectionalConnectionImpl implements DirectionalConnection {
+
+        private final Node sender;
+        private final Node receiver;
+        private final ConnectionKey connectionKey;
+
+        /**
+         * Constructs a DirectionalConnectionImpl with the specified start and end nodes and a supplier for base connection data.
+         *
+         * @param sender         the starting node of the connection
+         * @param receiver           the ending node of the connection
+         * @throws NullPointerException if any of the parameters are null
+         */
+        public DirectionalConnectionImpl(@NonNull final Node sender, @NonNull final Node receiver) {
+            this.sender = requireNonNull(sender);
+            this.receiver = requireNonNull(receiver);
+            this.connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Node sender() {
+            return sender;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Node receiver() {
+            return receiver;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void disconnect() {
+            connected.put(connectionKey, false);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void connect() {
+            connected.put(connectionKey, true);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean isConnected() {
+            return connectionState(sender, receiver).connected();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void restoreConnectivity() {
+            connected.remove(connectionKey);
+            restoreLatency();
+            restoreBandwidthLimit();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Duration latency() {
+            return connectionState(sender, receiver).latency();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void latency(@NonNull final Duration latency) {
+            requireNonNull(latency);
+            latencyOverrides.put(connectionKey, new LatencyOverride(latency, jitter()));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Percentage jitter() {
+            return connectionState(sender, receiver).jitter();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void jitter(@NonNull final Percentage jitter) {
+            requireNonNull(jitter);
+            latencyOverrides.put(connectionKey, new LatencyOverride(latency(), jitter));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void restoreLatency() {
+            latencyOverrides.remove(connectionKey);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public BandwidthLimit bandwidthLimit() {
+            return connectionState(sender, receiver).bandwidthLimit();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void bandwidthLimit(@NonNull final BandwidthLimit bandwidthLimit) {
+            requireNonNull(bandwidthLimit);
+            bandwidthOverrides.put(connectionKey, bandwidthLimit);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void restoreBandwidthLimit() {
+            bandwidthOverrides.remove(connectionKey);
+        }
+    }
+
+    private record LatencyOverride(@NonNull Duration latency, @NonNull Percentage jitter) {}
 }

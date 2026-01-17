@@ -67,7 +67,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -259,9 +259,8 @@ public class ConcurrentIntegrationTests {
         final AtomicReference<ProtoBytes> candidateRosterHash = new AtomicReference<>();
         return hapiTest(
                 // Add a node to the candidate roster
-                nodeCreate("node4")
+                nodeCreate("node4", classicFeeCollectorIdFor(4))
                         .adminKey(DEFAULT_PAYER)
-                        .accountNum(classicFeeCollectorIdFor(4))
                         .description(CLASSIC_NODE_NAMES[4])
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 mutateNode("4", node -> node.weight(123)),

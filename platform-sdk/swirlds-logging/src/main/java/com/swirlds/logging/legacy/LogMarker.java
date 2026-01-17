@@ -161,7 +161,12 @@ public enum LogMarker {
     /**
      * detailed logs related to consensus voting, very verbose, should be used only for debugging
      */
-    CONSENSUS_VOTING(LogMarkerType.INFO);
+    CONSENSUS_VOTING(LogMarkerType.INFO),
+
+    /**
+     * logging related to metric system
+     */
+    METRICS(LogMarkerType.INFO);
 
     private final LogMarkerType type;
     private final Marker marker;

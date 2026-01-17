@@ -8,6 +8,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -19,10 +20,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
@@ -31,7 +33,9 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -43,13 +47,15 @@ public class TipsetEventCreator implements EventCreator {
 
     private final Time time;
     private final SecureRandom random;
-    private final HashSigner signer;
+    private final BytesSigner signer;
     private final NodeId selfId;
     private final TipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
     private final ChildlessEventTracker childlessOtherEventTracker;
     private final EventTransactionSupplier transactionSupplier;
     private EventWindow eventWindow;
+    /** The wall-clock time when the event window was last updated */
+    private Instant lastReceivedEventWindow;
 
     /**
      * The address book for the current network.
@@ -87,6 +93,16 @@ public class TipsetEventCreator implements EventCreator {
     private final PbjStreamHasher eventHasher;
 
     /**
+     * Current QuiescenceCommand of the system
+     */
+    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
+
+    /**
+     * We want to allow creation of only one event to break quiescence until normal events starts flowing through
+     */
+    private boolean breakQuiescenceEventCreated;
+
+    /**
      * Create a new tipset event creator.
      *
      * @param configuration       the configuration for the event creator
@@ -103,7 +119,7 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final SecureRandom random,
-            @NonNull final HashSigner signer,
+            @NonNull final BytesSigner signer,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final EventTransactionSupplier transactionSupplier) {
@@ -129,6 +145,7 @@ public class TipsetEventCreator implements EventCreator {
         noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
         eventWindow = EventWindow.getGenesisEventWindow();
+        lastReceivedEventWindow = time.now();
         eventHasher = new PbjStreamHasher();
     }
 
@@ -174,8 +191,14 @@ public class TipsetEventCreator implements EventCreator {
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
+        this.lastReceivedEventWindow = time.now();
         tipsetTracker.setEventWindow(eventWindow);
         childlessOtherEventTracker.pruneOldEvents(eventWindow);
+    }
+
+    @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
     }
 
     /**
@@ -184,12 +207,34 @@ public class TipsetEventCreator implements EventCreator {
     @Nullable
     @Override
     public PlatformEvent maybeCreateEvent() {
-        final UnsignedEvent event = maybeCreateUnsignedEvent();
+        if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
+            return null;
+        }
+        UnsignedEvent event = maybeCreateUnsignedEvent();
+        if (event != null) {
+            breakQuiescenceEventCreated = false;
+        } else if (quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && !breakQuiescenceEventCreated) {
+            event = createQuiescenceBreakEvent();
+            breakQuiescenceEventCreated = true;
+            logger.info(
+                    LogMarker.STARTUP.getMarker(),
+                    "Created quiescence breaking event ({})",
+                    event.getDescriptor()::shortString);
+        }
         if (event != null) {
             lastSelfEvent = signEvent(event);
             return lastSelfEvent;
         }
         return null;
+    }
+
+    /**
+     * For simplicity, we will always create an event based only on single self parent; this is a special rare case
+     * and it will unblock the network
+     * @return new event based only on self parent
+     */
+    private UnsignedEvent createQuiescenceBreakEvent() {
+        return buildAndProcessEvent(null);
     }
 
     @Nullable
@@ -215,8 +260,7 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
-        final Signature signature = signer.sign(event.getHash());
-        return new PlatformEvent(event, signature.getBytes());
+        return new PlatformEvent(event, signer.sign(event.getHash().getBytes()));
     }
 
     /**
@@ -361,7 +405,7 @@ public class TipsetEventCreator implements EventCreator {
      */
     private UnsignedEvent buildAndProcessEvent(@Nullable final PlatformEvent otherParent) {
         final EventDescriptorWrapper otherParentDescriptor = otherParent == null ? null : otherParent.getDescriptor();
-        final UnsignedEvent event = assembleEventObject(otherParentDescriptor);
+        final UnsignedEvent event = assembleEventObject(otherParent);
 
         tipsetTracker.addSelfEvent(event.getDescriptor(), event.getMetadata().getAllParents());
         final TipsetAdvancementWeight advancementWeight =
@@ -384,23 +428,15 @@ public class TipsetEventCreator implements EventCreator {
      * @return the event
      */
     @NonNull
-    private UnsignedEvent assembleEventObject(@Nullable final EventDescriptorWrapper otherParent) {
-        final Instant now = time.now();
-        final Instant timeCreated;
-        if (lastSelfEvent == null) {
-            timeCreated = now;
-        } else {
-            timeCreated = calculateNewEventCreationTime(
-                    now, lastSelfEvent.getTimeCreated(), lastSelfEvent.getTransactionCount());
-        }
-
+    private UnsignedEvent assembleEventObject(@Nullable final PlatformEvent otherParent) {
+        final List<TimestampedTransaction> transactions = transactionSupplier.getTransactionsForEvent();
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
                 lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
-                otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
+                otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent.getDescriptor()),
                 eventWindow.newEventBirthRound(),
-                timeCreated,
-                transactionSupplier.getTransactionsForEvent(),
+                calculateNewEventCreationTime(lastSelfEvent, otherParent, transactions),
+                transactions.stream().map(TimestampedTransaction::transaction).toList(),
                 random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
 
@@ -442,42 +478,48 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     /**
-     * Calculate the creation time for a new event.
+     * Calculate the creation time for a new event. The creation time should be the wall clock time at which the latest
+     * information affecting this event was received by this node. The information received is:
+     * <ul>
+     *     <li>the parent, if any</li>
+     *     <li>the transactions, if any</li>
+     *     <li>the birth round</li>
+     * </ul>
+     * <p>
+     * If there are no parents or transactions, and the birth round is the first one ever, then the creation time is
+     * simply the current wall clock time.
      * <p>
      * Regardless of whatever the host computer's clock says, the event creation time must always advance from self
-     * parent to child. Further, the time in between the self parent and the child must be large enough so that every
-     * transaction in the parent can be assigned a unique timestamp at nanosecond precision.
+     * parent to child.
      *
-     * @param now                        the current time
-     * @param selfParentCreationTime     the creation time of the self parent
-     * @param selfParentTransactionCount the number of transactions in the self parent
+     * @param selfParent   the self parent
+     * @param otherParent  the other parent
+     * @param transactions the transactions to be included in the new event
      * @return the creation time for the new event
      */
     @NonNull
-    private static Instant calculateNewEventCreationTime(
-            @NonNull final Instant now,
-            @NonNull final Instant selfParentCreationTime,
-            final int selfParentTransactionCount) {
+    private Instant calculateNewEventCreationTime(
+            @Nullable final PlatformEvent selfParent,
+            @Nullable final PlatformEvent otherParent,
+            @NonNull final List<TimestampedTransaction> transactions) {
+        final Instant maxReceivedTime = Stream.of(
+                        Stream.of(selfParent, otherParent)
+                                .filter(Objects::nonNull)
+                                .map(PlatformEvent::getTimeReceived),
+                        transactions.stream().map(TimestampedTransaction::receivedTime),
+                        Stream.of(lastReceivedEventWindow))
+                // flatten the stream of streams
+                .flatMap(Function.identity())
+                .max(Instant::compareTo)
+                // if it's a genesis event, just use the current time
+                .orElse(time.now());
 
-        final int minimumIncrement = Math.max(1, selfParentTransactionCount);
-        final Instant minimumNextEventTime = selfParentCreationTime.plusNanos(minimumIncrement);
-        if (now.isBefore(minimumNextEventTime)) {
-            return minimumNextEventTime;
-        } else {
-            return now;
+        // This is a fallback in case the system clock malfunctions for some reason.
+        // We must ensure the new event is after its self parent, otherwise it will be rejected by the network.
+        if (selfParent != null && !maxReceivedTime.isAfter(selfParent.getTimeCreated())) {
+            return selfParent.getTimeCreated().plus(Duration.ofNanos(1));
         }
-    }
 
-    /**
-     * Capable of signing a {@link Hash}
-     */
-    @FunctionalInterface
-    public interface HashSigner {
-        /**
-         * @param hash
-         * 		the hash to sign
-         * @return the signature for the hash provided
-         */
-        Signature sign(Hash hash);
+        return maxReceivedTime;
     }
 }

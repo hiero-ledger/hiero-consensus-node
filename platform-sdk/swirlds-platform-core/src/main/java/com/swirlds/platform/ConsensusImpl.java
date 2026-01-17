@@ -115,7 +115,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * <p>In normal operation, with everyone online and everyone honest, we might expect that all of the
  * round R witnesses will be known to be famous after the first event of round R+2 is known. But
  * even in the worst case, where some computers are down (even honest ones), and many dishonest
- * members are forking, the theorem still guarantees at least one famous witness is known by R+3.
+ * members are branching, the theorem still guarantees at least one famous witness is known by R+3.
  *
  * <p>It is another theorem that the d12 and d2 algorithm have more than two thirds of the
  * population creating unique famous witnesses (judges) in each round. It is a theorem that d1 does,

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.spi {
+    requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
+    requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.config.api;
@@ -8,6 +10,7 @@ module com.hedera.node.app.spi {
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.apache.logging.log4j;
+    requires org.hiero.base.utility;
     requires static transitive com.github.spotbugs.annotations;
 
     // for test assertions that use reflection
@@ -17,7 +20,6 @@ module com.hedera.node.app.spi {
     exports com.hedera.node.app.spi;
     exports com.hedera.node.app.spi.fees;
     exports com.hedera.node.app.spi.api;
-    exports com.hedera.node.app.spi.ids;
     exports com.hedera.node.app.spi.key;
     exports com.hedera.node.app.spi.workflows;
     exports com.hedera.node.app.spi.records;
@@ -29,4 +31,5 @@ module com.hedera.node.app.spi {
     exports com.hedera.node.app.spi.authorization;
     exports com.hedera.node.app.spi.metrics;
     exports com.hedera.node.app.spi.info;
+    exports com.hedera.node.app.spi.migrate;
 }

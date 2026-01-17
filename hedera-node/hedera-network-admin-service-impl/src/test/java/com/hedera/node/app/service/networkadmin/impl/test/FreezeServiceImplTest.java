@@ -9,14 +9,15 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.fixtures.state.FakeSchemaRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.service.networkadmin.FreezeService;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -53,7 +54,7 @@ class FreezeServiceImplTest {
     @Test
     void registersExpectedSchema() {
         final var subject = new FreezeServiceImpl();
-        ArgumentCaptor<Schema> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
+        ArgumentCaptor<Schema<SemanticVersion>> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
 
         subject.registerSchemas(registry);
         verify(registry).register(schemaCaptor.capture());

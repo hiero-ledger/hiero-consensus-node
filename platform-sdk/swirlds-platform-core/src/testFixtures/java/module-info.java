@@ -8,24 +8,23 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.config.extensions.test.fixtures;
-    requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
-    requires transitive com.swirlds.state.impl.test.fixtures;
-    requires transitive com.swirlds.state.impl;
-    requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model.test.fixtures;
     requires transitive org.hiero.consensus.model;
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
+    requires com.swirlds.base.test.fixtures;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.merkledb;
-    requires com.swirlds.state.api.test.fixtures;
+    requires com.swirlds.metrics.api;
+    requires com.swirlds.state.impl.test.fixtures;
+    requires com.swirlds.state.impl;
+    requires com.swirlds.virtualmap;
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.utility;
@@ -59,5 +58,4 @@ open module com.swirlds.platform.core.test.fixtures {
     exports com.swirlds.platform.test.fixtures.addressbook;
     exports com.swirlds.platform.test.fixtures.crypto;
     exports com.swirlds.platform.test.fixtures.gui;
-    exports com.swirlds.platform.test.fixtures.virtualmap;
 }

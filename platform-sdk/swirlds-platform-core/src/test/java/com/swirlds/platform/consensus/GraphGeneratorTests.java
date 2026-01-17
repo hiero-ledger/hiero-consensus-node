@@ -22,7 +22,7 @@ import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.ForkingEventSource;
+import com.swirlds.platform.test.fixtures.event.source.BranchingEventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -469,8 +469,8 @@ public class GraphGeneratorTests {
     @Test
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
-    @DisplayName("Forking Source Test")
-    public void forkingSourceTest() {
+    @DisplayName("Branching Source Test")
+    public void branchingSourceTest() {
         final int numberOfEvents = 1000;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
@@ -479,7 +479,7 @@ public class GraphGeneratorTests {
                 new StandardEventSource(),
                 new StandardEventSource(),
                 new StandardEventSource(),
-                new ForkingEventSource().setForkProbability(0.1).setMaximumBranchCount(2));
+                new BranchingEventSource().setBranchProbability(0.1).setMaximumBranchCount(2));
 
         final List<EventImpl> events = generator.generateEvents(numberOfEvents);
 

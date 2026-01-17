@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -42,6 +43,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(CRYPTO)
 public class TxnRecordRegression {
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> recordsStillQueryableWithDeletedPayerId() {
         return hapiTest(
                 cryptoCreate("toBeDeletedPayer"),
@@ -114,6 +116,7 @@ public class TxnRecordRegression {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> receiptAvailableWithinCacheTtl() {
         return hapiTest(
                 cryptoCreate("misc").via("success").balance(1_000L),

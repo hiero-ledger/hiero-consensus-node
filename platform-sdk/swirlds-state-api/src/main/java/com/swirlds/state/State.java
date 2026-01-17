@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -13,9 +9,6 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.function.LongSupplier;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
 
@@ -25,21 +18,6 @@ import org.hiero.base.crypto.Hashable;
  * detail, and are happy with just the API provided by this interface.
  */
 public interface State extends FastCopyable, Hashable {
-    /**
-     * Initializes the state with the given parameters.
-     * @param time The time provider.
-     * @param configuration The platform configuration.
-     * @param metrics The metrics provider.
-     * @param merkleCryptography The merkle cryptography provider.
-     * @param roundSupplier The round supplier.
-     */
-    void init(
-            Time time,
-            Configuration configuration,
-            Metrics metrics,
-            MerkleCryptography merkleCryptography,
-            LongSupplier roundSupplier);
-
     /**
      * Returns a {@link ReadableStates} for the given named service. If such a service doesn't
      * exist, an empty {@link ReadableStates} is returned.
@@ -111,22 +89,6 @@ public interface State extends FastCopyable, Hashable {
      * Hashes the state on demand if it is not already hashed. If the state is already hashed, this method is a no-op.
      */
     default void computeHash() {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Creates a snapshot for the state. The state has to be hashed and immutable before calling this method.
-     * @param targetPath The path to save the snapshot.
-     */
-    default void createSnapshot(final @NonNull Path targetPath) {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Loads a snapshot of a state.
-     * @param targetPath The path to load the snapshot from.
-     */
-    default State loadSnapshot(final @NonNull Path targetPath) throws IOException {
         throw new UnsupportedOperationException();
     }
 

@@ -193,7 +193,7 @@ class UsageAccumulatorTest {
     @Test
     void toStringWorks() {
         final var desired = "UsageAccumulator{universalBpt=1, networkVpt=4, networkRbh=1, nodeBpr=2,"
-                + " nodeSbpr=3, nodeVpt=0, serviceSbh=1, serviceRbh=1, gas=5, rbs=6}";
+                + " nodeSbpr=3, nodeVpt=0, serviceSbh=1, serviceRbh=1, gas=5, rbs=6, serviceTv=0}";
 
         // given:
         subject.addBpt(1);

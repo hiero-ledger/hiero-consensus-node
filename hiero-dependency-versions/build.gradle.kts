@@ -1,11 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins {
-    id("org.hiero.gradle.base.lifecycle")
-    id("org.hiero.gradle.base.jpms-modules")
-    id("org.hiero.gradle.check.spotless")
-    id("org.hiero.gradle.check.spotless-kotlin")
-}
-
 dependencies {
     api(platform("io.netty:netty-bom:4.2.4.Final"))
 
@@ -16,20 +9,20 @@ dependencies {
 }
 
 val autoService = "1.1.1"
-val besu = "24.3.3"
+val besu = "25.2.2"
 val bouncycastle = "1.81"
 val dagger = "2.56.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.72.0"
 val hederaCryptography = "2.0.2"
-val helidon = "4.2.3"
+val helidon = "4.2.7"
 val jackson = "2.19.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.25.0"
 val mockito = "5.18.0"
-val pbj = "0.11.15" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
+val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val protobuf = "4.31.1"
-val blockNodeProtobufSources = "0.17.1"
+val blockNodeProtobufSources = "0.21.2"
 val testContainers = "1.21.3"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
@@ -91,9 +84,6 @@ dependencies.constraints {
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
     api("commons-codec:commons-codec:1.18.0") { because("org.apache.commons.codec") }
-    api("org.apache.commons:commons-collections4:4.5.0") {
-        because("org.apache.commons.collections4")
-    }
     api("commons-io:commons-io:2.19.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.18.0") { because("org.apache.commons.lang3") }
     api("org.apache.commons:commons-compress:1.27.1") { because("org.apache.commons.compress") }
@@ -113,21 +103,18 @@ dependencies.constraints {
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
     api("org.hyperledger.besu:evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:secp256k1:0.8.2") {
+    api("org.hyperledger.besu:secp256k1:1.3.0") {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
     api("org.jetbrains:annotations:26.0.2") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
-    api("org.junit-pioneer:junit-pioneer:2.3.0") { because("org.junitpioneer") }
+    api("org.junit:junit-bom:$junit5")
     api("org.mockito:mockito-core:$mockito") { because("org.mockito") }
     api("org.mockito:mockito-junit-jupiter:$mockito") { because("org.mockito.junit.jupiter") }
     api("org.opentest4j:opentest4j:1.3.0") { because("org.opentest4j") }
     api("org.testcontainers:testcontainers:$testContainers") { because("org.testcontainers") }
-    api("org.testcontainers:junit-jupiter:$testContainers") {
-        because("org.testcontainers.junit.jupiter")
-    }
     api("org.yaml:snakeyaml:2.4") { because("org.yaml.snakeyaml") }
     api("io.tmio:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
     api("io.tmio:tuweni-units:$tuweni") { because("tuweni.units") }
@@ -137,31 +124,22 @@ dependencies.constraints {
     api("uk.org.webcompere:system-stubs-jupiter:$webcompare") {
         because("uk.org.webcompere.systemstubs.jupiter")
     }
-    api("com.google.protobuf:protoc:$protobuf")
-    api("io.grpc:protoc-gen-grpc-java:$grpc")
-
-    api("com.hedera.cryptography:hedera-cryptography-blskeygen:$hederaCryptography") {
-        because("com.hedera.cryptography.blskeygen")
-    }
-    api("com.hedera.cryptography:hedera-cryptography-bls:$hederaCryptography") {
-        because("com.hedera.cryptography.bls")
-    }
-    api("com.hedera.cryptography:hedera-cryptography-pairings-api:$hederaCryptography") {
-        because("com.hedera.cryptography.pairings.api")
-    }
-    api("com.hedera.cryptography:hedera-cryptography-tss:$hederaCryptography") {
-        because("com.hedera.cryptography.tss")
-    }
-    api("com.hedera.cryptography:hedera-cryptography-utils:$hederaCryptography") {
-        because("com.hedera.cryptography.utils")
-    }
     api("com.hedera.cryptography:hedera-cryptography-rpm:$hederaCryptography") {
         because("com.hedera.cryptography.rpm")
     }
     api("com.hedera.cryptography:hedera-cryptography-hinTS:$hederaCryptography") {
         because("com.hedera.cryptography.hints")
     }
+
+    // Versions of additional tools that are not part of the product or test module paths
+    api("com.google.protobuf:protoc:${protobuf}")
+    api("io.grpc:protoc-gen-grpc-java:${grpc}")
     api("org.hiero.block:block-node-protobuf-sources:$blockNodeProtobufSources") {
         because("External block node protobuf sources")
+    }
+    tasks.checkVersionConsistency {
+        excludes.add("com.google.protobuf:protoc")
+        excludes.add("io.grpc:protoc-gen-grpc-java")
+        excludes.add("org.hiero.block:block-node-protobuf-sources")
     }
 }

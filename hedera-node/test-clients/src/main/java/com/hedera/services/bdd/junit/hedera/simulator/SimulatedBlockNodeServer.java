@@ -45,7 +45,7 @@ import org.hiero.block.api.PublishStreamResponse.SkipBlock;
  *
  * <p>Key capabilities include:
  * <ul>
- *   <li>Processing block headers and proofs from client streams</li>
+ *   <li>Processing block headers, proofs and end of blocks from client streams</li>
  *   <li>Tracking verified blocks and maintaining last verified block number</li>
  *   <li>Sending various streaming responses (EndOfStream, SkipBlock, ResendBlock, BlockAcknowledgement)</li>
  *   <li>Handling duplicate block headers by sending SkipBlock responses</li>
@@ -72,20 +72,21 @@ public class SimulatedBlockNodeServer {
     private final WebServer webServer;
     private final int port;
     private final MockBlockStreamServiceImpl serviceImpl;
+    private final boolean highLatency;
 
     // Configuration for EndOfStream responses
     private final AtomicReference<EndOfStreamConfig> endOfStreamConfig = new AtomicReference<>();
 
-    // Track the last verified block number (block number for which both header and proof are received)
+    // Track the last verified block number (block number for which both header and end of block are received)
     private final AtomicReference<Long> lastVerifiedBlockNumber = new AtomicReference<>(-1L); // Start at -1
 
-    // Locks for synchronizing access to block tracking data structures
+    // Locks for synchronizing access to block-tracking data structures
     private final ReadWriteLock blockTrackingLock = new ReentrantReadWriteLock();
 
-    // Track all block numbers for which we have received proofs
-    private final Set<Long> blocksWithProofs = ConcurrentHashMap.newKeySet();
+    // Track all block numbers for which we have received end of block
+    private final Set<Long> endedBlocks = ConcurrentHashMap.newKeySet();
 
-    // Track all block numbers for which we have received headers but not yet proofs
+    // Track all block numbers for which we have received headers but not yet end of block
     private final Set<Long> blocksWithHeadersOnly = ConcurrentHashMap.newKeySet();
 
     // Track which pipeline is currently streaming which block (block number -> pipeline)
@@ -105,11 +106,14 @@ public class SimulatedBlockNodeServer {
      * Creates a new simulated block node server on the specified port.
      *
      * @param port the port to listen on
+     * @param highLatency whether to simulate high-latency responses
      * @param lastVerifiedBlockNumberSupplier an optional supplier that provides the last verified block number
      * from an external source, can be null if not needed
      */
-    public SimulatedBlockNodeServer(final int port, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
+    public SimulatedBlockNodeServer(
+            final int port, final boolean highLatency, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
         this.port = port;
+        this.highLatency = highLatency;
         this.serviceImpl = new MockBlockStreamServiceImpl();
         this.externalLastVerifiedBlockNumberSupplier = lastVerifiedBlockNumberSupplier;
 
@@ -237,7 +241,7 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
-     * Checks if a specific block number has been fully received (header and proof) by this server.
+     * Checks if this server has fully received a specific block number (header and end of block).
      * This method is thread-safe and acquires a read lock to check the block status.
      *
      * @param blockNumber the block number to check
@@ -246,15 +250,15 @@ public class SimulatedBlockNodeServer {
     public boolean hasReceivedBlock(final long blockNumber) {
         blockTrackingLock.readLock().lock();
         try {
-            // A block is considered received only if we have its proof
-            return blocksWithProofs.contains(blockNumber);
+            // A block is considered received only if we received an EndOfBlock message
+            return endedBlocks.contains(blockNumber);
         } finally {
             blockTrackingLock.readLock().unlock();
         }
     }
 
     /**
-     * Gets all block numbers that have been fully received (header and proof) by this server.
+     * Gets all block numbers that have been fully received (header and end of block) by this server.
      * This method is thread-safe and acquires a read lock to access the block collection.
      *
      * @return a new immutable set of all received block numbers
@@ -263,8 +267,8 @@ public class SimulatedBlockNodeServer {
     public Set<Long> getReceivedBlockNumbers() {
         blockTrackingLock.readLock().lock();
         try {
-            // Return only blocks for which we have proofs
-            return Set.copyOf(blocksWithProofs);
+            // Return only blocks for which we have received the EndOfBlock message
+            return Set.copyOf(endedBlocks);
         } finally {
             blockTrackingLock.readLock().unlock();
         }
@@ -378,10 +382,11 @@ public class SimulatedBlockNodeServer {
                                             port,
                                             replies.hashCode());
 
-                                    // Requirement 3: Check if block already exists (header AND proof received)
-                                    if (blocksWithProofs.contains(blockNumber)) {
+                                    // Requirement 3: Check if the block already exists (header AND end of block
+                                    // received)
+                                    if (endedBlocks.contains(blockNumber)) {
                                         log.warn(
-                                                "Block {} already fully received (header+proof). Sending BlockAcknowledgement to stream {} on port {}.",
+                                                "Block {} already fully received (Header+EndOfBlock). Sending BlockAcknowledgement to stream {} on port {}.",
                                                 blockNumber,
                                                 replies.hashCode(),
                                                 port);
@@ -454,40 +459,47 @@ public class SimulatedBlockNodeServer {
                                                                 .get(blockNumber)
                                                                 .hashCode()
                                                         : "none");
-                                        // Continue to the next BlockItem in the request
-                                        continue;
                                     }
-
-                                    // Mark block as fully received
-                                    blocksWithHeadersOnly.remove(blockNumber);
-                                    blocksWithProofs.add(blockNumber);
-                                    streamingBlocks.remove(blockNumber); // No longer streaming this specific block
-
-                                    // Update last verified block number atomically
-                                    final long newLastVerified = lastVerifiedBlockNumber.updateAndGet(
-                                            currentMax -> Math.max(currentMax, blockNumber));
-                                    log.info(
-                                            "Block {} fully received (header+proof) on port {} from stream {}. Last verified block updated to: {}",
-                                            blockNumber,
-                                            port,
-                                            replies.hashCode(),
-                                            newLastVerified);
-
-                                    // Requirement 2: Send BlockAcknowledgement to ALL connected pipelines
-                                    log.info(
-                                            "Broadcasting BlockAcknowledgement for block {} to {} active streams on port {}",
-                                            blockNumber,
-                                            activeStreams.size(),
-                                            port);
-                                    for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
-                                        buildAndSendBlockAcknowledgement(blockNumber, pipeline);
-                                    }
-
-                                    // Reset currentBlockNumber for this stream, as it finished sending this block
-                                    currentBlockNumber = null;
                                 }
                             } // End of loop through BlockItems
+                        } else if (request.hasEndOfBlock()) {
+                            final var blockNumber = request.endOfBlockOrThrow().blockNumber();
+
+                            // Mark block as fully received
+                            blocksWithHeadersOnly.remove(blockNumber);
+                            endedBlocks.add(blockNumber);
+                            streamingBlocks.remove(blockNumber); // No longer streaming this specific block
+
+                            // Update the last verified block number atomically
+                            final long newLastVerified = lastVerifiedBlockNumber.updateAndGet(
+                                    currentMax -> Math.max(currentMax, blockNumber));
+                            log.info(
+                                    "Block {} fully received (Header+EndOfBlock) on port {} from stream {}. Last verified block updated to: {}",
+                                    blockNumber,
+                                    port,
+                                    replies.hashCode(),
+                                    newLastVerified);
+
+                            // Requirement 2: Send BlockAcknowledgement to ALL connected pipelines
+                            log.info(
+                                    "Broadcasting BlockAcknowledgement for block {} to {} active streams on port {}",
+                                    blockNumber,
+                                    activeStreams.size(),
+                                    port);
+                            for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
+                                if (highLatency) {
+                                    // If the simulator is set to be with high latency, delay acknowledgements
+                                    // with 1500 ms (assuming CN considers 1000 ms delays as high latency)
+                                    Thread.sleep(1500);
+                                }
+                                buildAndSendBlockAcknowledgement(blockNumber, pipeline);
+                            }
+
+                            // Reset currentBlockNumber for this stream, as it finished sending this block
+                            currentBlockNumber = null;
                         }
+                    } catch (InterruptedException e) {
+                        log.warn("Interrupted while waiting for BlockAcknowledgement", e);
                     } finally {
                         blockTrackingLock.writeLock().unlock();
                     }
@@ -765,7 +777,7 @@ public class SimulatedBlockNodeServer {
                             pipeline.hashCode(),
                             blockNumber,
                             port);
-                    // Also remove from headers-only set, as we won't get a proof now
+                    // Also remove from a headers-only set, as we won't get an end of block now
                     blocksWithHeadersOnly.remove(blockNumber);
                     return true;
                 }

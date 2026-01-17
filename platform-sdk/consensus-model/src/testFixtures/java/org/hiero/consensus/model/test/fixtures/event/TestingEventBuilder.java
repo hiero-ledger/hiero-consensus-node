@@ -492,7 +492,7 @@ public class TestingEventBuilder {
         final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(signature);
 
-        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, signature);
+        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature));
 
         platformEvent.setHash(CryptoRandomUtils.randomHash(random));
 

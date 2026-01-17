@@ -143,12 +143,20 @@ public class CheckingStatusLogic implements PlatformStatusLogic {
     /**
      * {@inheritDoc}
      * <p>
-     * Receiving a {@link TimeElapsedAction} while in {@link PlatformStatus#CHECKING} has no effect on the state
-     * machine.
+     * When a {@link TimeElapsedAction} is received while in {@link PlatformStatus#CHECKING}, this method evaluates
+     * whether to transition based on quiescing state:
+     * <ul>
+     *   <li><b>Quiescing state check:</b> If the platform is currently quiescing (as indicated by, it transitions to
+     *       {@link PlatformStatus#ACTIVE}.</li>
+     *   <li><b>Normal operation:</b> If not quiescing, the status remains {@link PlatformStatus#CHECKING}.</li>
+     * </ul>
      */
     @NonNull
     @Override
     public PlatformStatusLogic processTimeElapsedAction(@NonNull final TimeElapsedAction action) {
+        if (action.quiescingStatus().isQuiescing()) {
+            return new ActiveStatusLogic(action.instant(), config);
+        }
         return this;
     }
 

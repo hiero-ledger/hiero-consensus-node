@@ -1,30 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.hashgraph.internal;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * A {@link HashgraphGuiSource} that retrieves events from a stream of events
  */
 public class StandardGuiSource implements HashgraphGuiSource {
 
-    private final AddressBook addressBook;
+    private final Roster roster;
     private final GuiEventStorage eventStorage;
 
     /**
      * Constructor
      *
+     * @param roster       the current roster
      * @param eventStorage stores information about events
      */
-    public StandardGuiSource(@NonNull final AddressBook addressBook, @NonNull final GuiEventStorage eventStorage) {
-
-        this.addressBook = Objects.requireNonNull(addressBook);
+    public StandardGuiSource(@NonNull final Roster roster, @NonNull final GuiEventStorage eventStorage) {
+        this.roster = Objects.requireNonNull(roster);
         this.eventStorage = Objects.requireNonNull(eventStorage);
     }
 
@@ -52,8 +52,8 @@ public class StandardGuiSource implements HashgraphGuiSource {
      */
     @Override
     @NonNull
-    public AddressBook getAddressBook() {
-        return addressBook;
+    public Roster getRoster() {
+        return roster;
     }
 
     /**

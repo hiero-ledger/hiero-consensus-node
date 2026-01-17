@@ -32,6 +32,7 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,7 +54,7 @@ import org.junit.jupiter.api.Test;
 
 @DisplayName("IssDetector Tests")
 class IssDetectorTests extends PlatformTest {
-    private static final WeightGenerator WEIGHT_GENERATOR = new GaussianWeightGenerator(100, 50);
+    private static final WeightGenerator WEIGHT_GENERATOR = GaussianWeightGenerator.withAverageNodeWeight(100, 50);
     private static final long GENESIS_LAST_FREEZE_ROUND = 0L;
 
     @Test
@@ -61,8 +62,7 @@ class IssDetectorTests extends PlatformTest {
     void stateReservationIsReleased() {
         final Randotron random = Randotron.create();
         final RandomSignedStateGenerator stateGenerator = new RandomSignedStateGenerator(random);
-        final ReservedSignedState stateWrapperForTest =
-                stateGenerator.setCalculateHash(true).build().reserve("Test caller reference");
+        final ReservedSignedState stateWrapperForTest = stateGenerator.build().reserve("Test caller reference");
         final ReservedSignedState stateWrapperForIssDetector =
                 stateWrapperForTest.getAndReserve("ISS Detector caller reference");
         assertEquals(

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
@@ -270,6 +271,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("with multiple NFTs")
+    @Tag(MATS)
     final Stream<DynamicTest> multipleNFTs() {
         final var account = "account";
         final var receiver = "receiver";
@@ -478,6 +480,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("when treasury is changed")
+    @Tag(MATS)
     final Stream<DynamicTest> treasuryIsChanged() {
         final var account = "account";
         final var receiver = "receiver";

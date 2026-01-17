@@ -7,7 +7,6 @@ public class ReconnectFinishPayload extends AbstractLogPayload {
     private long nodeId;
     private long otherNodeId;
     private long round;
-    private boolean success;
 
     public ReconnectFinishPayload() {}
 
@@ -67,13 +66,5 @@ public class ReconnectFinishPayload extends AbstractLogPayload {
 
     public void setRound(long round) {
         this.round = round;
-    }
-
-    public boolean isSuccess() {
-        return success;
-    }
-
-    public void setSuccess(final boolean success) {
-        this.success = success;
     }
 }

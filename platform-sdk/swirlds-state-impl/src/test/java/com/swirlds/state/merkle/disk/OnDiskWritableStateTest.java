@@ -81,8 +81,8 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         }
     }
 
-    private void add(String serviceName, int stateId, ProtoBytes key, ProtoBytes value) {
-        addKvState(fruitVirtualMap, serviceName, stateId, key, value);
+    private void add(int stateId, ProtoBytes key, ProtoBytes value) {
+        addKvState(fruitVirtualMap, stateId, key, value);
     }
 
     @Nested
@@ -96,9 +96,9 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             setupFruitVirtualMap();
             state = new OnDiskWritableKVState<>(
                     FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, fruitVirtualMap);
-            add(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, A_KEY, APPLE);
-            add(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, B_KEY, BANANA);
-            add(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, C_KEY, CHERRY);
+            add(FRUIT_STATE_ID, A_KEY, APPLE);
+            add(FRUIT_STATE_ID, B_KEY, BANANA);
+            add(FRUIT_STATE_ID, C_KEY, CHERRY);
         }
 
         @Test
@@ -116,8 +116,8 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @Test
         @DisplayName("Iteration includes both mutations and committed state")
         void iterateIncludesMutations() {
-            add(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, A_KEY, APPLE);
-            add(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, B_KEY, BANANA);
+            add(FRUIT_STATE_ID, A_KEY, APPLE);
+            add(FRUIT_STATE_ID, B_KEY, BANANA);
             state.put(C_KEY, toProtoBytes("Cherry"));
             final var actual = StreamSupport.stream(Spliterators.spliterator(state.keys(), 3, 0), false)
                     .toList();
@@ -142,8 +142,8 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             setupFruitVirtualMap();
             state = new OnDiskWritableKVState<>(
                     FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, fruitVirtualMap);
-            add(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, A_KEY, APPLE);
-            add(FRUIT_SERVICE_NAME, FRUIT_STATE_ID, B_KEY, BANANA);
+            add(FRUIT_STATE_ID, A_KEY, APPLE);
+            add(FRUIT_STATE_ID, B_KEY, BANANA);
         }
 
         boolean virtualMapContainsKey(ProtoBytes key) {

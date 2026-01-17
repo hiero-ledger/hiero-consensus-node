@@ -1,35 +1,39 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.lifecycle;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * Defines the schema of all states for a specific {@link SemanticVersion} of a specific {@link
+ * Defines the schema of all states for a specific version of a specific {@link
  * Service} instance. It is necessary to create a new {@link Schema}
  * whenever a new {@link ReadableKVState} is to be created, or an existing one removed, or a
  * migration has to happen. If your service makes use of a forwards and backwards compatible
  * serialization system (such as protobuf), then it is not necessary to define a new {@link Schema}
  * for simple compatible changes to serialization.
+ * @param <V> - version type
  */
-public abstract class Schema implements Comparable<Schema> {
+public abstract class Schema<V> implements Comparable<Schema<V>> {
     /** The version of this schema */
-    private final SemanticVersion version;
+    private final V version;
+
+    private final Comparator<V> versionComparator;
 
     /**
      * Create a new instance
      *
      * @param version The version of this schema
      */
-    protected Schema(@NonNull final SemanticVersion version) {
+    protected Schema(@NonNull final V version, @NonNull Comparator<V> versionComparator) {
         this.version = Objects.requireNonNull(version);
+        this.versionComparator = Objects.requireNonNull(versionComparator);
     }
 
     /**
@@ -38,7 +42,7 @@ public abstract class Schema implements Comparable<Schema> {
      * @return The version
      */
     @NonNull
-    public SemanticVersion getVersion() {
+    public V getVersion() {
         return version;
     }
 
@@ -82,7 +86,7 @@ public abstract class Schema implements Comparable<Schema> {
      *
      * @param ctx {@link MigrationContext} for this schema migration
      */
-    public void migrate(@NonNull final MigrationContext ctx) {
+    public void migrate(@NonNull final MigrationContext<V> ctx) {
         Objects.requireNonNull(ctx);
     }
 
@@ -100,19 +104,19 @@ public abstract class Schema implements Comparable<Schema> {
     /**
      * Called on this schema if and only if it is the most recent schema that is not newer
      * than the version of software in use when the node is restarted. A service might override
-     * this if it uses views of state that need to be rebuilt on restart. This is not common,
+     * this if it uses views of a state that need to be rebuilt on restart. This is not common
      * but is provided for completeness.
      *
      * @param ctx {@link MigrationContext} for this schema restart operation
      */
-    public void restart(@NonNull final MigrationContext ctx) {
+    public void restart(@NonNull final MigrationContext<V> ctx) {
         Objects.requireNonNull(ctx);
     }
 
     /** {@inheritDoc} */
     @Override
-    public int compareTo(Schema o) {
-        return HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(this.version, o.version);
+    public int compareTo(Schema<V> o) {
+        return versionComparator.compare(version, o.version);
     }
 
     /** {@inheritDoc} */
@@ -122,7 +126,7 @@ public abstract class Schema implements Comparable<Schema> {
             return true;
         }
 
-        if (!(o instanceof Schema other)) {
+        if (!(o instanceof Schema<?> other)) {
             return false;
         }
 

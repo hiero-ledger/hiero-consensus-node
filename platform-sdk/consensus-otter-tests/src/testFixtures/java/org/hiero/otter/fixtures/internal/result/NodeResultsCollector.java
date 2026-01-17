@@ -17,8 +17,6 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.LogSubscriber;
-import org.hiero.otter.fixtures.result.MarkerFileSubscriber;
-import org.hiero.otter.fixtures.result.MarkerFilesStatus;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -37,11 +35,9 @@ public class NodeResultsCollector {
     private final List<PlatformStatusSubscriber> platformStatusSubscribers = new CopyOnWriteArrayList<>();
     private final List<StructuredLog> logEntries = new ArrayList<>();
     private final List<LogSubscriber> logSubscribers = new CopyOnWriteArrayList<>();
-    private final List<MarkerFileSubscriber> markerFileSubscribers = new CopyOnWriteArrayList<>();
 
     // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile boolean destroyed = false;
-    private volatile MarkerFilesStatus markerFilesStatus = MarkerFilesStatus.INITIAL_STATUS;
 
     /**
      * Creates a new instance of {@link NodeResultsCollector}.
@@ -114,7 +110,8 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns all the consensus rounds created at the moment of invocation, starting with and including the provided index.
+     * Returns all the consensus rounds created at the moment of invocation, starting with and including the provided
+     * index.
      *
      * @param startIndex the index to start from
      * @return the list of consensus rounds
@@ -155,7 +152,8 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns all the platform statuses the node went through until the moment of invocation, starting with and including the provided index.
+     * Returns all the platform statuses the node went through until the moment of invocation, starting with and
+     * including the provided index.
      *
      * @param startIndex the index to start from
      * @return the list of platform statuses
@@ -192,7 +190,7 @@ public class NodeResultsCollector {
      */
     @NonNull
     public SingleNodeLogResult newLogResult() {
-        return new SingleNodeLogResultImpl(this, Set.of());
+        return new SingleNodeLogResultImpl(this, Set.of(), Set.of());
     }
 
     /**
@@ -200,14 +198,18 @@ public class NodeResultsCollector {
      *
      * @param startIndex the index to start from
      * @param suppressedLogMarkers the set of {@link Marker} that should be ignored in the logs
+     * @param suppressedLoggerNames the set of logger names that should be ignored in the logs
      * @return the list of log entries
      */
     @NonNull
     public List<StructuredLog> currentLogEntries(
-            final long startIndex, @NonNull final Set<Marker> suppressedLogMarkers) {
+            final long startIndex,
+            @NonNull final Set<Marker> suppressedLogMarkers,
+            @NonNull final Set<String> suppressedLoggerNames) {
         return logEntries.stream()
                 .skip(startIndex)
                 .filter(logEntry -> logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker()))
+                .filter(logEntry -> !suppressedLoggerNames.contains(logEntry.loggerName()))
                 .toList();
     }
 
@@ -228,39 +230,6 @@ public class NodeResultsCollector {
     public void subscribeLogSubscriber(@NonNull final LogSubscriber subscriber) {
         requireNonNull(subscriber);
         logSubscribers.add(subscriber);
-    }
-
-    /**
-     * Add new marker files to the collector.
-     *
-     * @param markerFileNames the names of the new marker files
-     */
-    public void addMarkerFiles(@NonNull final List<String> markerFileNames) {
-        requireNonNull(markerFilesStatus);
-        if (!destroyed && !markerFileNames.isEmpty()) {
-            this.markerFilesStatus = markerFilesStatus.withMarkerFiles(markerFileNames);
-            markerFileSubscribers.removeIf(subscriber ->
-                    subscriber.onNewMarkerFile(nodeId, markerFilesStatus) == SubscriberAction.UNSUBSCRIBE);
-        }
-    }
-
-    /**
-     * Returns the current status of marker files for the node.
-     *
-     * @return the current status of marker files
-     */
-    public MarkerFilesStatus markerFilesStatus() {
-        return markerFilesStatus;
-    }
-
-    /**
-     * Subscribes to marker file updates for the node.
-     *
-     * @param subscriber the subscriber that will receive updates about marker files
-     */
-    public void subscribeMarkerFileSubscriber(@NonNull final MarkerFileSubscriber subscriber) {
-        requireNonNull(subscriber);
-        markerFileSubscribers.add(subscriber);
     }
 
     /**

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler.getHookInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
@@ -12,6 +14,7 @@ import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.crypto.CryptoTransferMeta;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
+import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
@@ -210,11 +213,25 @@ public abstract class HapiBaseTransfer<T extends HapiTxnOp<T>> extends HapiTxnOp
             numTokenTransfers += tokenTransfers.getTransfersCount();
             numNftOwnershipChanges += tokenTransfers.getNftTransfersCount();
         }
-        final var xferUsageMeta =
-                new CryptoTransferMeta(multiplier, numTokensInvolved, numTokenTransfers, numNftOwnershipChanges);
+
+        final CryptoTransferHandler.HookInfo hookInfo;
+        if (txn.hasCryptoTransfer()) {
+            hookInfo = getHookInfo(toPbj(txn).cryptoTransferOrThrow());
+        } else {
+            hookInfo = CryptoTransferHandler.HookInfo.NO_HOOKS;
+        }
+
+        final var xferUsageMeta = new CryptoTransferMeta(
+                multiplier, numTokensInvolved, numTokenTransfers, numNftOwnershipChanges, hookInfo.usesHooks());
 
         final var accumulator = new UsageAccumulator();
-        cryptoOpsUsage.cryptoTransferUsage(suFrom(svo), xferUsageMeta, baseMeta, accumulator);
+        cryptoOpsUsage.cryptoTransferUsage(
+                suFrom(svo),
+                xferUsageMeta,
+                baseMeta,
+                accumulator,
+                hookInfo.totalGasLimitOfHooks(),
+                hookInfo.usesHooks());
 
         final var feeData = AdapterUtils.feeDataFrom(accumulator);
         return feeData.toBuilder().setSubType(xferUsageMeta.getSubType()).build();

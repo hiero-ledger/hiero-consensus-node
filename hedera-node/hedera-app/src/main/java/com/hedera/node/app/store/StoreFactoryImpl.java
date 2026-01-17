@@ -3,7 +3,7 @@ package com.hedera.node.app.store;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.swirlds.config.api.Configuration;
@@ -26,7 +26,7 @@ public class StoreFactoryImpl implements StoreFactory {
      * @param state the state to create stores from
      * @param serviceName the name of the service to scope the stores to
      * @param configuration the configuration for the service
-     * @param writableEntityIdStore the writable entity id store
+     * @param writableEntityIdStoreImpl the writable entity id store
      * @param apiProviders a map of service API providers, keyed by the API interface class
      * @return a new {@link StoreFactory} instance
      */
@@ -34,13 +34,13 @@ public class StoreFactoryImpl implements StoreFactory {
             @NonNull final State state,
             @NonNull final String serviceName,
             @NonNull final Configuration configuration,
-            @NonNull final WritableEntityIdStore writableEntityIdStore,
+            @NonNull final WritableEntityIdStore writableEntityIdStoreImpl,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders) {
         requireNonNull(state);
         requireNonNull(serviceName);
         return new StoreFactoryImpl(
                 new ReadableStoreFactory(state),
-                new WritableStoreFactory(state, serviceName, writableEntityIdStore),
+                new WritableStoreFactory(state, serviceName, writableEntityIdStoreImpl),
                 new ServiceApiFactory(state, configuration, apiProviders));
     }
 

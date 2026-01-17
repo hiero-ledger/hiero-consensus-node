@@ -74,14 +74,14 @@ public class ScheduleCallTranslatorTest extends CallAttemptTestBase {
     private static List<TestSelector> scheduleCallSelectors() {
         return List.of(
                 new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULE_CALL.selector()), true, true),
-                new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER.selector()), true, true),
+                new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULE_CALL_WITH_PAYER.selector()), true, true),
                 new TestSelector(
-                        Bytes.wrap(ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.selector()), true, true),
+                        Bytes.wrap(ScheduleCallTranslator.EXECUTE_CALL_ON_PAYER_SIGNATURE.selector()), true, true),
                 new TestSelector(Bytes.wrap("wrongSelector".getBytes()), true, false),
                 new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULE_CALL.selector()), false, false),
-                new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER.selector()), false, false),
+                new TestSelector(Bytes.wrap(ScheduleCallTranslator.SCHEDULE_CALL_WITH_PAYER.selector()), false, false),
                 new TestSelector(
-                        Bytes.wrap(ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.selector()), false, false));
+                        Bytes.wrap(ScheduleCallTranslator.EXECUTE_CALL_ON_PAYER_SIGNATURE.selector()), false, false));
     }
 
     @ParameterizedTest
@@ -115,7 +115,7 @@ public class ScheduleCallTranslatorTest extends CallAttemptTestBase {
                                 OWNER_BESU_ADDRESS),
                         new TestFunction(
                                 Bytes.wrapByteBuffer(
-                                        ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER.encodeCall(Tuple.of(
+                                        ScheduleCallTranslator.SCHEDULE_CALL_WITH_PAYER.encodeCall(Tuple.of(
                                                 e,
                                                 APPROVED_HEADLONG_ADDRESS,
                                                 BigInteger.valueOf(1000),
@@ -126,7 +126,7 @@ public class ScheduleCallTranslatorTest extends CallAttemptTestBase {
                                 APPROVED_BESU_ADDRESS),
                         new TestFunction(
                                 Bytes.wrapByteBuffer(
-                                        ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.encodeCall(Tuple.of(
+                                        ScheduleCallTranslator.EXECUTE_CALL_ON_PAYER_SIGNATURE.encodeCall(Tuple.of(
                                                 e,
                                                 APPROVED_HEADLONG_ADDRESS,
                                                 BigInteger.valueOf(1000),

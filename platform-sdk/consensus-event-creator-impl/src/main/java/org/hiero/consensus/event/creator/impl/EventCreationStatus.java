@@ -29,6 +29,10 @@ public enum EventCreationStatus {
      */
     PLATFORM_STATUS,
     /**
+     * Event creation is paused due to network being quiet
+     */
+    QUIESCENCE,
+    /**
      * Event creation is not permitted because this node is currently overloaded and is not keeping up with the required
      * work load.
      */

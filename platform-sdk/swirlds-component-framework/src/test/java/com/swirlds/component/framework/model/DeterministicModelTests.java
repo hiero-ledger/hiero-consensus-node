@@ -335,10 +335,10 @@ class DeterministicModelTests implements SequentialTaskSchedulerAliveThreadClean
 
         final FakeTime time = new FakeTime(randomInstant(random), Duration.ZERO);
         final DeterministicWiringModel deterministicWiringModel1 = WiringModelBuilder.create(new NoOpMetrics(), time)
-                .withDeterministicModeEnabled(true)
+                .deterministic()
                 .build();
         final DeterministicWiringModel deterministicWiringModel2 = WiringModelBuilder.create(new NoOpMetrics(), time)
-                .withDeterministicModeEnabled(true)
+                .deterministic()
                 .build();
         try {
             final long value1 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, deterministicWiringModel1), () -> {
@@ -376,7 +376,7 @@ class DeterministicModelTests implements SequentialTaskSchedulerAliveThreadClean
     @Test
     void circularDataFlowTest() {
         final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
-                .withDeterministicModeEnabled(true)
+                .deterministic()
                 .build();
 
         final AtomicInteger countA = new AtomicInteger();

@@ -2,15 +2,12 @@
 package com.swirlds.platform.wiring;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.NO_OP_CONFIGURATION;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
@@ -30,7 +27,6 @@ import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -43,7 +39,7 @@ import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.status.StatusStateMachine;
+import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.wiring.components.ConsensusWiring;
 import com.swirlds.platform.wiring.components.GossipWiring;
 import com.swirlds.platform.wiring.components.PcesReplayerWiring;
@@ -99,8 +95,7 @@ public record PlatformComponents(
         ComponentWiring<HashLogger, Void> hashLoggerWiring,
         ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
         ComponentWiring<AppNotifier, Void> notifierWiring,
-        ComponentWiring<PlatformPublisher, Void> platformPublisherWiring,
-        ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring,
+        ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring,
         ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
         ComponentWiring<BranchReporter, Void> branchReporterWiring) {
 
@@ -115,7 +110,6 @@ public record PlatformComponents(
      * @param latestCompleteStateNexus  the latest complete state nexus to bind
      * @param savedStateController      the saved state controller to bind
      * @param notifier                  the notifier to bind
-     * @param platformPublisher         the platform publisher to bind
      */
     public void bind(
             @NonNull final PlatformComponentBuilder builder,
@@ -126,8 +120,7 @@ public record PlatformComponents(
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final SavedStateController savedStateController,
-            @NonNull final AppNotifier notifier,
-            @NonNull final PlatformPublisher platformPublisher) {
+            @NonNull final AppNotifier notifier) {
 
         eventHasherWiring.bind(builder::buildEventHasher);
         internalEventValidatorWiring.bind(builder::buildInternalEventValidator);
@@ -158,9 +151,8 @@ public record PlatformComponents(
         savedStateControllerWiring.bind(savedStateController);
         stateHasherWiring.bind(builder::buildStateHasher);
         notifierWiring.bind(notifier);
-        platformPublisherWiring.bind(platformPublisher);
         stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
-        statusStateMachineWiring.bind(builder::buildStatusStateMachine);
+        platformMonitorWiring.bind(builder::buildPlatformMonitor);
         signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
         gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
@@ -172,17 +164,12 @@ public record PlatformComponents(
      *
      * @param platformContext      the platform context
      * @param model                the wiring model
-     * @param applicationCallbacks the application callbacks (some wires are only created if the application wants a
-     *                             callback for something)
      */
     public static PlatformComponents create(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final WiringModel model,
-            @NonNull final ApplicationCallbacks applicationCallbacks) {
+            @NonNull final PlatformContext platformContext, @NonNull final WiringModel model) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
-        Objects.requireNonNull(applicationCallbacks);
 
         final PlatformSchedulersConfig config =
                 platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
@@ -262,23 +249,12 @@ public record PlatformComponents(
         final ComponentWiring<AppNotifier, Void> notifierWiring =
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
 
-        final boolean publishPreconsensusEvents = applicationCallbacks.preconsensusEventConsumer() != null;
-        final boolean publishSnapshotOverrides = applicationCallbacks.snapshotOverrideConsumer() != null;
-        final boolean publishStaleEvents = applicationCallbacks.staleEventConsumer() != null;
-
-        final TaskSchedulerConfiguration publisherConfiguration =
-                (publishPreconsensusEvents || publishSnapshotOverrides || publishStaleEvents)
-                        ? config.platformPublisher()
-                        : NO_OP_CONFIGURATION;
-        final ComponentWiring<PlatformPublisher, Void> platformPublisherWiring =
-                new ComponentWiring<>(model, PlatformPublisher.class, publisherConfiguration);
-
         final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring =
                 new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector());
         final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring =
                 new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel());
-        final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring =
-                new ComponentWiring<>(model, StatusStateMachine.class, config.statusStateMachine());
+        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
+                new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor());
 
         final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring =
                 new ComponentWiring<>(model, BranchDetector.class, config.branchDetector());
@@ -316,8 +292,7 @@ public record PlatformComponents(
                 hashLoggerWiring,
                 stateHasherWiring,
                 notifierWiring,
-                platformPublisherWiring,
-                statusStateMachineWiring,
+                platformMonitorWiring,
                 branchDetectorWiring,
                 branchReporterWiring);
     }

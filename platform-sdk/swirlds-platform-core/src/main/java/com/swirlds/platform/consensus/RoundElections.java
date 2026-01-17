@@ -33,7 +33,7 @@ public class RoundElections {
     /** number of known witnesses in this round with unknown fame */
     private final IntReference numUnknownFame = new IntReference(0);
     /**
-     * these witnesses are the first event in this round by each member (if a member forks, it could have multiple
+     * these witnesses are the first event in this round by each member (if a member branches, it could have multiple
      * witnesses in a single round)
      */
     private final List<CandidateWitness> elections = new ArrayList<>();

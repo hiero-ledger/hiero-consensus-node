@@ -8,6 +8,7 @@ import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncGuard;
@@ -15,6 +16,8 @@ import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
 import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -88,6 +91,11 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     private final RpcPeerState state = new RpcPeerState();
 
     /**
+     * Limiter to not spam with logs about falling behind compared to other nodes
+     */
+    private final RateLimiter fallBehindRateLimiter;
+
+    /**
      * How many events were sent out to peer node during latest sync
      */
     private int outgoingEventsCounter = 0;
@@ -98,6 +106,11 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     private int incomingEventsCounter = 0;
 
     private final SyncGuard syncGuard;
+
+    /**
+     * Keeps track of the FallenBehind status of the local node
+     */
+    private final FallenBehindMonitor fallenBehindMonitor;
 
     /**
      * Create new state class for an RPC peer
@@ -112,6 +125,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      * @param time                          platform time
      * @param intakeEventCounter            used for tracking events in the intake pipeline per peer
      * @param eventHandler                  events that are received are passed here
+     * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      */
     public RpcPeerHandler(
             @NonNull final RpcShadowgraphSynchronizer sharedShadowgraphSynchronizer,
@@ -123,7 +137,8 @@ public class RpcPeerHandler implements GossipRpcReceiver {
             @NonNull final Time time,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final Consumer<PlatformEvent> eventHandler,
-            @NonNull final SyncGuard syncGuard) {
+            @NonNull final SyncGuard syncGuard,
+            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
         this.sharedShadowgraphSynchronizer = Objects.requireNonNull(sharedShadowgraphSynchronizer);
         this.sender = Objects.requireNonNull(sender);
         this.selfId = Objects.requireNonNull(selfId);
@@ -134,6 +149,8 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         this.eventHandler = Objects.requireNonNull(eventHandler);
         this.syncGuard = syncGuard;
+        this.fallenBehindMonitor = fallenBehindMonitor;
+        this.fallBehindRateLimiter = new RateLimiter(time, Duration.ofMinutes(1));
     }
 
     /**
@@ -196,7 +213,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     // protocol thread (which is equivalent to read-thread)
     public void cleanup() {
         clearInternalState();
-        sharedShadowgraphSynchronizer.deregisterPeerHandler(this);
+        state.peerStillSendingEvents = false;
     }
 
     // HANDLE INCOMING MESSAGES - all done on dispatch thread
@@ -220,6 +237,20 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     @Override
     public void receiveTips(@NonNull final List<Boolean> remoteTipKnowledge) {
+
+        if (state.mySyncData == null) {
+            throw new IllegalStateException("Received tips confirmation before sending sync data from " + peerId);
+        }
+
+        if (state.myTips == null) {
+            throw new IllegalStateException(
+                    "Internal inconsistency - sent sync data but no info about my tips, when receiving tips from "
+                            + peerId);
+        }
+
+        if (state.remoteSyncData == null) {
+            throw new IllegalStateException("Need sync data before receiving tips from " + peerId);
+        }
 
         // Add each tip they know to the known set
         final List<ShadowEvent> knownTips = getMyTipsTheyKnow(peerId, state.myTips, remoteTipKnowledge);
@@ -283,21 +314,21 @@ public class RpcPeerHandler implements GossipRpcReceiver {
 
         this.syncMetrics.eventWindow(state.mySyncData.eventWindow(), remoteEventWindow);
 
-        this.sharedShadowgraphSynchronizer.reportRoundDifference(
-                state.mySyncData.eventWindow(), remoteEventWindow, peerId);
+        this.sharedShadowgraphSynchronizer.reportSyncStatus(state.mySyncData.eventWindow(), remoteEventWindow, peerId);
 
-        final SyncFallenBehindStatus behindStatus = sharedShadowgraphSynchronizer.hasFallenBehind(
-                state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow(), peerId);
-        if (behindStatus != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
-            logger.info(
-                    LogMarker.RECONNECT.getMarker(),
-                    "{} local ev={} remote ev={}",
-                    behindStatus,
-                    state.mySyncData.eventWindow(),
-                    state.remoteSyncData.eventWindow());
-
+        final FallenBehindStatus behindStatus =
+                fallenBehindMonitor.check(state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow(), peerId);
+        if (behindStatus != FallenBehindStatus.NONE_FALLEN_BEHIND) {
+            if (fallBehindRateLimiter.requestAndTrigger()) {
+                logger.info(
+                        LogMarker.RECONNECT.getMarker(),
+                        "{} local ev={} remote ev={}",
+                        behindStatus,
+                        state.mySyncData.eventWindow(),
+                        state.remoteSyncData.eventWindow());
+            }
             clearInternalState();
-            if (behindStatus == SyncFallenBehindStatus.OTHER_FALLEN_BEHIND) {
+            if (behindStatus == FallenBehindStatus.OTHER_FALLEN_BEHIND) {
                 this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OTHER_FALLEN_BEHIND);
                 state.peerIsBehind = true;
             } else {
@@ -319,15 +350,10 @@ public class RpcPeerHandler implements GossipRpcReceiver {
 
     private boolean tryFixSelfFallBehind(final EventWindow remoteEventWindow) {
         try (final ReservedEventWindow latestShadowWindow = sharedShadowgraphSynchronizer.reserveEventWindow()) {
-            final SyncFallenBehindStatus behindStatus = sharedShadowgraphSynchronizer.hasFallenBehind(
-                    latestShadowWindow.getEventWindow(), remoteEventWindow, peerId);
-            if (behindStatus != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+            final FallenBehindStatus behindStatus =
+                    fallenBehindMonitor.check(latestShadowWindow.getEventWindow(), remoteEventWindow, peerId);
+            if (behindStatus != FallenBehindStatus.SELF_FALLEN_BEHIND) {
                 // we seem to be ok after all, let's wait for another sync to happen
-                logger.info(
-                        LogMarker.RECONNECT.getMarker(),
-                        "Latest event window is not really falling behind, will retry sync local ev={} remote ev={}",
-                        latestShadowWindow.getEventWindow(),
-                        remoteEventWindow);
                 return true;
             }
 
@@ -384,6 +410,10 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         syncMetrics.syncFinished();
     }
 
+    /**
+     * Marks state as finished for our side of the synchronization. It does NOT clear peerStillSendingEvents, this needs
+     * to be cleared explicitly either on disconnect or when remote side tells us to
+     */
     private void clearInternalState() {
         if (state.mySyncData != null) {
             syncGuard.onSyncCompleted(peerId);

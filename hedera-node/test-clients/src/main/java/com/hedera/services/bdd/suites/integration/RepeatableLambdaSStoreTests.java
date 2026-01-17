@@ -162,8 +162,7 @@ public class RepeatableLambdaSStoreTests {
                         .putMappingEntryWithKey(leftPad32(Bytes.EMPTY), Bytes.EMPTY, Bytes.EMPTY)
                         .hasPrecheck(LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION),
                 accountLambdaSStore(HOOK_OWNER.name(), LAMBDA_HOOK_ID)
-                        .putMappingEntryWithKey(Bytes.EMPTY, leftPad32(Bytes.EMPTY), Bytes.EMPTY)
-                        .hasPrecheck(LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION),
+                        .putMappingEntryWithKey(Bytes.EMPTY, leftPad32(Bytes.EMPTY), Bytes.EMPTY),
                 accountLambdaSStore(HOOK_OWNER.name(), LAMBDA_HOOK_ID)
                         .putMappingEntryWithKey(Bytes.EMPTY, Bytes.EMPTY, leftPad32(Bytes.EMPTY))
                         .hasPrecheck(LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION),
@@ -367,8 +366,7 @@ public class RepeatableLambdaSStoreTests {
             final var store = new WritableEvmHookStore(states, counters);
             store.createEvmHook(creation);
             if (deleteAfterwards) {
-                store.removeOrMarkDeleted(
-                        new HookId(hookEntityId, creation.detailsOrThrow().hookId()));
+                store.remove(new HookId(hookEntityId, creation.detailsOrThrow().hookId()));
             }
         });
     }

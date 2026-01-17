@@ -5,10 +5,10 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.DEFAULT_PATTERN;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.combineFilters;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.configureHashStreamFilter;
-import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.creatIgnoreMarkerFilters;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createAllowedMarkerFilters;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createExcludeNodeFilter;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createFileAppender;
+import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createIgnoreMarkerFilters;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createThresholdFilter;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -143,7 +143,7 @@ public final class TurtleLogConfigBuilder {
                 combineFilters(builder, excludeNodeFilters.toArray(new FilterComponentBuilder[0]));
 
         final ComponentBuilder<?> consoleFilters = combineFilters(
-                builder, createThresholdFilter(builder), excludeNodeFilter, creatIgnoreMarkerFilters(builder));
+                builder, createThresholdFilter(builder), excludeNodeFilter, createIgnoreMarkerFilters(builder));
 
         final AppenderComponentBuilder consoleAppender = builder.newAppender("Console", "Console")
                 .addAttribute("target", Target.SYSTEM_OUT)

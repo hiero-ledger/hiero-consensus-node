@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.records;
 
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 
 /**
  * A {@link StreamBuilder} that can record the next hook ID to be used in the stream.
@@ -13,12 +14,32 @@ public interface HookDispatchStreamBuilder extends StreamBuilder {
     /**
      * Returns the  first hook id after this dispatch
      */
-    void nextHookId(long nextHookId);
+    void nextHookId(Long nextHookId);
 
     /**
      * Returns the next hook id to be used
      *
      * @return the next hook id
      */
-    long getNextHookId();
+    Long getNextHookId();
+
+    /**
+     * Returns the EVM transaction call result to be recorded in the record stream
+     *
+     * @return the EVM transaction call result
+     */
+    Bytes getEvmCallResult();
+
+    /**
+     * Returns the number of storage slots updated during hook creation, update or execution
+     * @return   the number of storage slots updated
+     */
+    int getDeltaStorageSlotsUpdated();
+
+    /**
+     * Sets the number of storage slots updated during hook creation, update or execution
+     *
+     * @param deltaStorageSlotsUpdated the number of storage slots updated
+     */
+    void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated);
 }

@@ -5,6 +5,7 @@ import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
 /**
@@ -22,6 +23,10 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "512") @NetworkProperty short initialCrsParties,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hintsEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled,
+        // Whether to use recursive chain-of-trust proofs
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean wrapsEnabled,
         // Must be true if enabling TSS while also using an override network,
         // to give express consent for breaking the address book chain of trust
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean forceHandoffs) {}
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean forceHandoffs,
+        // Denominator used to compute signing threshold: totalWeight / signingThresholdDivisor
+        @ConfigProperty(defaultValue = "2") @Min(1) @NetworkProperty int signingThresholdDivisor) {}

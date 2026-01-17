@@ -34,30 +34,20 @@ import org.apache.logging.log4j.Logger;
  *         <li>To sign, initiates async aggregation of partial hinTS signatures from the active construction.</li>
  *     </ul>
  *     </li>
- *     <li><b>If only history proofs are enabled:</b>
- *     <ul>
- *         <li>Is not ready to sign during bootstrap phase until the history service has collated as many
- *         Schnorr keys as it reasonably can for the genesis TSS address book; and accumulated signatures
- *         from a strong minority of those keys on the genesis TSS address book hash with empty metadata to
- *         derive a consensus genesis proof.</li>
- *         <li>To sign, schedules async delivery of the SHA-384 hash of the block hash as its "signature"
- *         but assembles a full TSS signature with proof of empty metadata in the TSS address book whose
- *         roster would have performed the hinTS signing.</li>
- *     </ul>
- *     </li>
  *     <li><b>If both hinTS and history proofs are enabled:</b>
  *     <ul>
  *         <li>Is not ready to sign during bootstrap phase until the genesis hinTS construction has completed
- *         preprocessing and reached a consensus verification key; and until the history service has collated
- *         as many Schnorr keys as it reasonably can for the genesis TSS address book; and accumulated signatures
- *         from a strong minority of those keys on the genesis TSS address book hash with the hinTS verification
- *         key as its metadata to derive a consensus genesis proof.</li>
+ *         preprocessing and reached a consensus verification key; and until the history service has collected
+ *         a sufficient set of Schnorr signatures on the genesis TSS address book hash concatenated with the
+ *         genesis hinTS verification key to serve as witnesses for the genesis SNARK.</li>
  *         <li>To sign, initiates async aggregation of partial hinTS signatures from the active construction,
- *         packaging this async delivery into a full TSS signature with proof of the hinTS verification key as
- *         the metadata of the active TSS address book.</li>
+ *         packaging this async delivery into a full TSS signature with chain-of-trust proof of the hinTS
+ *         verification key used for signing.</li>
  *     </ul>
  *     </li>
  * </ol>
+ * Note that it doesn't make sense to enable history proofs without hinTS, because there are no verification keys
+ * to prove chain of trust over.
  */
 public class TssBlockHashSigner implements BlockHashSigner {
     private static final Logger log = LogManager.getLogger(TssBlockHashSigner.class);
@@ -97,36 +87,21 @@ public class TssBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
-    public CompletableFuture<Bytes> signFuture(@NonNull final Bytes blockHash) {
+    public Attempt sign(@NonNull final Bytes blockHash) {
         requireNonNull(blockHash);
         if (!isReady()) {
             throw new IllegalStateException("TSS protocol not ready to sign block hash " + blockHash);
         }
-        final CompletableFuture<Bytes> result;
-
-        if (historyService == null) {
-            if (hintsService == null) {
-                result = CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash));
-            } else {
-                result = hintsService.signFuture(blockHash);
-            }
+        if (hintsService == null) {
+            return new Attempt(null, null, CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash)));
         } else {
-            if (hintsService == null) {
-                result = CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash));
+            final var signing = hintsService.sign(blockHash);
+            if (historyService == null) {
+                return new Attempt(signing.verificationKey(), null, signing.future());
             } else {
-                result = hintsService.signFuture(blockHash);
+                final var chainOfTrustProof = historyService.getCurrentChainOfTrustProof(signing.verificationKey());
+                return new Attempt(signing.verificationKey(), chainOfTrustProof, signing.future());
             }
         }
-        return result;
-    }
-
-    @Override
-    public long schemeId() {
-        return (hintsService == null) ? 1 : hintsService.schemeId();
-    }
-
-    @Override
-    public Bytes verificationKey() {
-        return (hintsService == null) ? Bytes.EMPTY : hintsService.activeVerificationKeyOrThrow();
     }
 }

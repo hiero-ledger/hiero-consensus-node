@@ -42,16 +42,11 @@ import static java.lang.String.valueOf;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -66,18 +61,12 @@ import org.junit.jupiter.api.Tag;
  * effects using trace data, allowing accurate record generation even when
  * state is overwritten within the same batch.
  */
-@HapiTestLifecycle
 @Tag(TOKEN)
 @Tag(MATS)
-public class AtomicBatchOverwriteSameStateKeyTest {
+class AtomicBatchOverwriteSameStateKeyTest {
 
     private static final String OPERATOR = "operator";
     private static final String ADMIN_KEY = "adminKey";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
 
     /**
      * Mint, Burn and Delete NFT token
@@ -85,7 +74,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      */
     @HapiTest
     @DisplayName("Mint, Burn and Delete NFT token")
-    public Stream<DynamicTest> mintBurnAndDeleteNftWithoutCustomFeesSuccessInBatch() {
+    Stream<DynamicTest> mintBurnAndDeleteNftWithoutCustomFeesSuccessInBatch() {
         final String nft = "nft";
         final String adminKey = ADMIN_KEY;
         final String nftSupplyKey = "nftSupplyKey";
@@ -135,7 +124,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      */
     @HapiTest
     @DisplayName("Multiple crypto updates on same state key")
-    public Stream<DynamicTest> multipleCryptoUpdatesOnSameStateInBatch() {
+    Stream<DynamicTest> multipleCryptoUpdatesOnSameStateInBatch() {
         final var key = "key";
         final var newKey = "newKey1";
         final var newKey2 = "newKey2";
@@ -180,7 +169,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      */
     @HapiTest
     @DisplayName("Multiple token updates on same state key in batch")
-    public Stream<DynamicTest> multipleTokenUpdatesOnSameStateInBatch() {
+    Stream<DynamicTest> multipleTokenUpdatesOnSameStateInBatch() {
         final var token = "test";
         final var treasury = "treasury";
         final var treasury1 = "treasury1";
@@ -224,7 +213,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
 
     @HapiTest
     @DisplayName("Update Token Admin Key And Update Treasury Account Success in Atomic Batch")
-    public Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSuccessInAtomicBatch() {
+    Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSuccessInAtomicBatch() {
         final var token = "test";
         final var adminKey = "adminKey";
         final var newAdminKey = "newAdminKey";
@@ -277,7 +266,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      */
     @HapiTest
     @DisplayName("Submit to topic twice in batch")
-    public Stream<DynamicTest> submitToTopicTwiceInBatch() {
+    Stream<DynamicTest> submitToTopicTwiceInBatch() {
         final var topic = "topic";
         final var submitKey = "submitKey";
         final var batchOperator = "batchOperator";
@@ -307,7 +296,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      */
     @HapiTest
     @DisplayName("Multiple mint precompile calls")
-    public Stream<DynamicTest> multipleMintPrecompileCalls() {
+    Stream<DynamicTest> multipleMintPrecompileCalls() {
         final var nft = "nft";
         final var gasToOffer = 2_000_000L;
         final var mintContract = "MintContract";
@@ -361,7 +350,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      */
     @HapiTest
     @DisplayName("Multiple wipe token")
-    public Stream<DynamicTest> multipleWipeToken() {
+    Stream<DynamicTest> multipleWipeToken() {
         final String nft = "nft";
         final String adminKey = ADMIN_KEY;
         final String treasury = "treasury";

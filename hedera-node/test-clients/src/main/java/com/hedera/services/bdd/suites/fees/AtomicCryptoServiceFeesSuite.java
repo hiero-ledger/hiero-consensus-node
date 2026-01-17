@@ -56,7 +56,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of CryptoServiceFeesSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
 @HapiTestLifecycle
-public class AtomicCryptoServiceFeesSuite {
+class AtomicCryptoServiceFeesSuite {
 
     private static final double BASE_FEE_CRYPTO_CREATE = 0.05;
     private static final double BASE_FEE_CRYPTO_DELETE = 0.005;
@@ -82,8 +82,6 @@ public class AtomicCryptoServiceFeesSuite {
         testLifecycle.doAdhoc(
                 cryptoCreate(FEES_ACCOUNT).balance(5 * ONE_HUNDRED_HBARS),
                 cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS).key(FEES_ACCOUNT));
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
     }
 
     @HapiTest

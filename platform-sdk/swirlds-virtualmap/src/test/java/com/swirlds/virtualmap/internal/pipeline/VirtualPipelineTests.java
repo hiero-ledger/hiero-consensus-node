@@ -124,7 +124,7 @@ class VirtualPipelineTests {
 
             if (copy.isMerged()) {
                 assertTrue(
-                        copy.isDestroyed() || copy.isDetached(),
+                        copy.isDestroyed(),
                         "only destroyed or detached copies should be merged. Copy #" + copy.getCopyIndex());
                 assertTrue(copy.isImmutable(), "mutable copy should not be merged. Copy #" + copy.getCopyIndex());
             }
@@ -134,7 +134,7 @@ class VirtualPipelineTests {
                 if (copy.shouldBeFlushed()) {
                     assertFalse(copy.isFlushed(), "only the oldest copy can be flushed. Copy #" + copy.getCopyIndex());
                 } else {
-                    if ((copy.isDestroyed() || copy.isDetached()) && copy.isImmutable()) {
+                    if (copy.isDestroyed() && copy.isImmutable()) {
                         final DummyVirtualRoot next = index + 1 < copies.size() ? copies.get(index + 1) : null;
                         if (next != null && next.isImmutable()) {
                             interruptOnTimeout(
@@ -146,7 +146,7 @@ class VirtualPipelineTests {
                 }
             } else {
                 // The oldest undestroyed copy has not yet been encountered
-                if (copy.isDestroyed() || copy.isDetached()) {
+                if (copy.isDestroyed()) {
                     if (copy.isImmutable()) {
                         if (copy.shouldBeFlushed()) {
                             interruptOnTimeout(
@@ -722,38 +722,6 @@ class VirtualPipelineTests {
 
     @Test
     @Tag(TestComponentTags.VMAP)
-    @DisplayName("Undestroyed Detached Copy Does Not Block")
-    void undestroyedDetachedCopyDoesNotBlock() throws IOException, InterruptedException {
-        final int copyCount = 10;
-
-        // Copies 5 needs to be flushed
-        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> i == 5);
-
-        final DummyVirtualRoot copy0 = copies.get(0);
-        copy0.getPipeline().pausePipelineAndRun("copy", copy0::detach);
-
-        // Once detached, copy 0 should be merge eligible
-        copy0.waitUntilMerged();
-
-        assertTrue(copy0.isMerged(), "copy should be merged");
-
-        // release copies 1 through 5
-        for (int i = 1; i < 6; i++) {
-            copies.get(i).release();
-        }
-
-        copies.get(5).waitUntilFlushed();
-        assertTrue(copies.get(5).isFlushed(), "copy should be flushed by now");
-
-        // release remaining copies
-        for (int i = 6; i < copyCount; i++) {
-            copies.get(i).release();
-        }
-        copies.get(0).release();
-    }
-
-    @Test
-    @Tag(TestComponentTags.VMAP)
     @DisplayName("Merge Release Race")
     void mergeReleaseRace() throws InterruptedException {
         final int copyCount = 10;
@@ -775,7 +743,7 @@ class VirtualPipelineTests {
         // The next time isMerged() is called on copy 4, it will release itself.
         // Simulates a race condition that is possible in the real world.
         // This could cause a copy to be flushed before an older copy was merged.
-        copies.get(4).setReleaseInIsDetached(true);
+        copies.get(4).setReleaseInIsDestroyed(true);
 
         // force the pipeline to iterate through the list
         copies.get(5).release();

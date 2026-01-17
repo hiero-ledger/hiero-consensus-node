@@ -104,6 +104,7 @@ public class SidecarWatcher {
         for (final var iter = actualSidecars.iterator(); iter.hasNext(); ) {
             final var actualSidecar = iter.next();
             iter.remove();
+            System.out.println("Observed sidecar: " + actualSidecar);
             final boolean matchesConsensusTimestamp = Optional.ofNullable(expectedSidecars.peek())
                     .map(ExpectedSidecar::expectedSidecarRecord)
                     .map(expected -> expected.matchesConsensusTimestampOf(actualSidecar))

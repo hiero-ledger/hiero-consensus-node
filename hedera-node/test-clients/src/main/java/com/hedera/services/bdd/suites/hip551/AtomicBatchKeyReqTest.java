@@ -24,29 +24,17 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
-public class AtomicBatchKeyReqTest {
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
+class AtomicBatchKeyReqTest {
 
     @HapiTest
     @DisplayName("Account update requires account key signature")
-    public Stream<DynamicTest> accountUpdateRequiresKeySig() {
+    Stream<DynamicTest> accountUpdateRequiresKeySig() {
         return hapiTest(
                 newKeyNamed("accountKey"),
                 cryptoCreate("batchOperator"),
@@ -75,7 +63,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Token update requires admin key")
-        public Stream<DynamicTest> tokenUpdateReqAdminKey() {
+        Stream<DynamicTest> tokenUpdateReqAdminKey() {
             return hapiTest(
                     newKeyNamed("adminKey"),
                     cryptoCreate("batchOperator"),
@@ -100,7 +88,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Custom fee update requires fee schedule key")
-        public Stream<DynamicTest> customFeeUpdateReqFeeScheduleKey() {
+        Stream<DynamicTest> customFeeUpdateReqFeeScheduleKey() {
             return hapiTest(
                     newKeyNamed("feeScheduleKey"),
                     cryptoCreate("collector"),
@@ -126,7 +114,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Metadata update requires metadata key")
-        public Stream<DynamicTest> metadataUpdateRequiresKeySig() {
+        Stream<DynamicTest> metadataUpdateRequiresKeySig() {
             return hapiTest(
                     newKeyNamed("metadataKey"),
                     cryptoCreate("batchOperator"),
@@ -151,7 +139,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Freeze requires freeze key")
-        public Stream<DynamicTest> freezeRequiresFreezeKey() {
+        Stream<DynamicTest> freezeRequiresFreezeKey() {
             return hapiTest(
                     newKeyNamed("freezeKey"),
                     cryptoCreate("toBeFrozen"),
@@ -176,7 +164,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Token pause requires pause key")
-        public Stream<DynamicTest> pauseRequiresPauseKey() {
+        Stream<DynamicTest> pauseRequiresPauseKey() {
             return hapiTest(
                     newKeyNamed("pauseKey"),
                     cryptoCreate("batchOperator"),
@@ -200,7 +188,7 @@ public class AtomicBatchKeyReqTest {
         @HapiTest
         @DisplayName("Token wipe requires wipe key")
         @Tag(MATS)
-        public Stream<DynamicTest> wipeRequiresWipeKey() {
+        Stream<DynamicTest> wipeRequiresWipeKey() {
             return hapiTest(
                     newKeyNamed("wipeKey"),
                     cryptoCreate("batchOperator"),
@@ -226,7 +214,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("KYC requires kyc key")
-        public Stream<DynamicTest> kycRequiresKycKey() {
+        Stream<DynamicTest> kycRequiresKycKey() {
             return hapiTest(
                     newKeyNamed("kycKey"),
                     cryptoCreate("batchOperator"),
@@ -251,7 +239,7 @@ public class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Token mint requires supply key")
-        public Stream<DynamicTest> mintRequiresSupplyKey() {
+        Stream<DynamicTest> mintRequiresSupplyKey() {
             return hapiTest(
                     newKeyNamed("supplyKey"),
                     cryptoCreate("batchOperator"),

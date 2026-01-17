@@ -12,9 +12,9 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -66,6 +66,17 @@ public class PlatformStateFacade {
      */
     public boolean isGenesisStateOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getRound() == GENESIS_ROUND;
+    }
+
+    /**
+     * Determines if a {@code timestamp} is in a freeze period according to the provided timestamps.
+     *
+     * @param consensusTime  the consensus time to check
+     * @param state     the state object to extract the data from
+     * @return true is the {@code timestamp} is in a freeze period
+     */
+    public boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final MerkleNodeState state) {
+        return PlatformStateFacade.isInFreezePeriod(consensusTime, freezeTimeOf(state), lastFrozenTimeOf(state));
     }
 
     /**

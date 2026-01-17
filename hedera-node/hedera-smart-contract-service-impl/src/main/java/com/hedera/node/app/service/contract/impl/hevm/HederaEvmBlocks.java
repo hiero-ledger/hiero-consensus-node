@@ -5,6 +5,7 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.frame.BlockValues;
+import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
  * Provides block information as context for a {@link TransactionProcessor}.
@@ -19,7 +20,7 @@ public interface HederaEvmBlocks {
      * @param blockNo the block number of interest
      * @return its hash, if available
      */
-    Hash blockHashOf(long blockNo);
+    Hash blockHashOf(MessageFrame frame, long blockNo);
 
     /**
      * Returns the in-scope block values, given an effective gas limit.

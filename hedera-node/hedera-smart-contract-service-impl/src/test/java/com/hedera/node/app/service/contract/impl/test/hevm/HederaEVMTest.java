@@ -20,7 +20,6 @@ import org.bouncycastle.util.encoders.Hex;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.EvmSpecVersion;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
@@ -80,7 +79,7 @@ class HederaEVMTest {
                 .jump(33) // Loop
                 .toString();
 
-        final var code = CodeFactory.createCode(Bytes.fromHexString(byteCodeBuilder), 0, false);
+        final var code = TestHelpers.CODE_FACTORY.createCode(Bytes.fromHexString(byteCodeBuilder), false);
 
         final var frame = MessageFrame.builder()
                 .type(MessageFrame.Type.MESSAGE_CALL)
@@ -100,7 +99,7 @@ class HederaEVMTest {
                 .isStatic(false)
                 .maxStackSize(100)
                 .completer(unused -> {})
-                .blockHashLookup(unused -> {
+                .blockHashLookup((unusedFrame, unused) -> {
                     throw new IllegalStateException();
                 })
                 .contextVariables(Map.of(OPS_DURATION_COUNTER, opsDurationCounter))

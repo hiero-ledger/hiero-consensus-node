@@ -73,6 +73,7 @@ public interface MultipleNodeLogResults extends OtterResult {
     default MultipleNodeLogResults suppressingNodes(@NonNull final Node... nodes) {
         return suppressingNodes(Arrays.asList(nodes));
     }
+
     /**
      * Excludes the log results associated with the specified log marker from the current results.
      *
@@ -81,4 +82,22 @@ public interface MultipleNodeLogResults extends OtterResult {
      */
     @NonNull
     MultipleNodeLogResults suppressingLogMarker(@NonNull LogMarker marker);
+
+    /**
+     * Excludes the log results from the specified logger class from the current results.
+     *
+     * @param clazz the class whose log results are to be excluded
+     * @return a new {@code MultipleNodeLogResults} instance with the specified log marker's results removed
+     */
+    @NonNull
+    MultipleNodeLogResults suppressingLoggerName(@NonNull final Class<?> clazz);
+
+    /**
+     * Excludes the log results from the specified logger name from the current results.
+     *
+     * @param loggerName - the name of the logger to suppress
+     * @return a new {@code MultipleNodeLogResults} instance with the specified logger name's results removed
+     */
+    @NonNull
+    MultipleNodeLogResults suppressingLoggerName(@NonNull final String loggerName);
 }

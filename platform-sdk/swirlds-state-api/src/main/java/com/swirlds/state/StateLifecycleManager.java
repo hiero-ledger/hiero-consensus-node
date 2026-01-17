@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.swirlds.state;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
+
+/**
+ * Implementations of this interface are responsible for managing the state lifecycle:
+ * <ul>
+ * <li>Maintaining references to a mutable state and the latest immutable state.</li>
+ * <li>Creating snapshots of the state.</li>
+ * <li>Loading snapshots of the state.</li>
+ * <li>Creating a mutable copy of the state, while making the current mutable state immutable.</li>
+ * </ul>
+ *
+ */
+public interface StateLifecycleManager {
+
+    /**
+     * Set the initial State. This method should only be on a startup or after a reconnect.
+     *
+     * @param state the initial state
+     */
+    void initState(@NonNull final MerkleNodeState state, boolean onStartup);
+
+    /**
+     * Get the mutable state. Consecutive calls to this method may return different instances,
+     * if this method is not called on the one and the only thread that is calling {@link #copyMutableState}.
+     * If a parallel thread calls {@link #copyMutableState}, the returned object will become immutable and
+     * on the subsequent call of {@link #copyMutableState} it will be destroyed (unless it was explicitly reserved outside of this class)
+     * and, therefore, not usable in some contexts.
+     *
+     * @return the mutable state.
+     */
+    MerkleNodeState getMutableState();
+
+    /**
+     * Get the latest immutable state. Consecutive calls to this method may return different instances
+     * if this method is not called on the one and only thread that is calling {@link #copyMutableState}.
+     * If a parallel thread calls {@link #copyMutableState}, the returned object will become destroyed (unless it was explicitly reserved outside of this class)
+     * and, therefore, not usable in some contexts.
+     * <br>
+     * If a durable long-term reference to the immutable state returned by this method is required, it is the
+     * responsibility of the caller to ensure a reference is maintained to prevent its garbage collection. Also,
+     * it is the responsibility of the caller to ensure that the object is not used in contexts in which it may become unusable
+     * (e.g., hashing of the destroyed state is not possible).
+     *
+     * @return the latest immutable state.
+     */
+    MerkleNodeState getLatestImmutableState();
+
+    /**
+     * Creates a snapshot for the state provided as a parameter. The state has to be hashed before calling this method.
+     *
+     * @param merkleNodeState The state to save.
+     * @param targetPath The path to save the snapshot.
+     */
+    void createSnapshot(@NonNull MerkleNodeState merkleNodeState, @NonNull Path targetPath);
+
+    /**
+     * Loads a snapshot of a state.
+     *
+     * @param targetPath The path to load the snapshot from.
+     * @return mutable copy of the loaded state
+     */
+    MerkleNodeState loadSnapshot(@NonNull Path targetPath);
+
+    /**
+     * Creates a mutable copy of the mutable state. The previous mutable state becomes immutable,
+     * replacing the latest immutable state.
+     *
+     * @return a mutable copy of the previous mutable state
+     */
+    MerkleNodeState copyMutableState();
+}

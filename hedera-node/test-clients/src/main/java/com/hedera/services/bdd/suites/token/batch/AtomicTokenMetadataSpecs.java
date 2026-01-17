@@ -28,7 +28,6 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -46,7 +45,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @Tag(TOKEN)
 @Tag(MATS)
-public class AtomicTokenMetadataSpecs {
+class AtomicTokenMetadataSpecs {
 
     private static final String PRIMARY = "primary";
     private static final String ADMIN_KEY = "adminKey";
@@ -58,8 +57,6 @@ public class AtomicTokenMetadataSpecs {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

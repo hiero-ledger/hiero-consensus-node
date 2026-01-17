@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -19,8 +19,8 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.history.impl.ProofControllerImpl;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -31,6 +31,8 @@ import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValid
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
+import com.hedera.services.bdd.junit.support.validators.block.EventHashBlockStreamValidator;
+import com.hedera.services.bdd.junit.support.validators.block.RedactingEventHashBlockStreamValidator;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordParityValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -71,7 +73,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             TransactionRecordParityValidator.FACTORY,
             StateChangesValidator.FACTORY,
             BlockContentsValidator.FACTORY,
-            BlockNumberSequenceValidator.FACTORY);
+            BlockNumberSequenceValidator.FACTORY,
+            EventHashBlockStreamValidator.FACTORY,
+            RedactingEventHashBlockStreamValidator.FACTORY);
 
     private final int historyProofsToWaitFor;
 

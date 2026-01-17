@@ -5,6 +5,7 @@ import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemp
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static java.nio.file.Files.exists;
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -15,11 +16,13 @@ import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -95,6 +98,23 @@ public final class FileUtils {
      */
     public static @NonNull Path getAbsolutePath(@NonNull final Path path) {
         return getAbsolutePath(path.toString());
+    }
+
+    /**
+     * Deletes a file or directory at the specified path.
+     * If the path points to a directory, recursively deletes the directory and all its contents.
+     * If the path points to a regular file, deletes the file.
+     * If the path does not exist, no action is taken.
+     *
+     * @param pathToDelete the path to the file or directory to be deleted
+     * @throws IOException if an I/O error occurs during deletion
+     */
+    public static void delete(@NonNull final Path pathToDelete) throws IOException {
+        if (Files.isDirectory(pathToDelete)) {
+            deleteDirectory(pathToDelete);
+        } else {
+            Files.deleteIfExists(pathToDelete);
+        }
     }
 
     /**
@@ -243,7 +263,7 @@ public final class FileUtils {
 
             // Move needs to be atomic to guarantee that the folder only exists when its contents are complete.
             // Otherwise, it's possible another thread will see a half-completed directory.
-            Files.move(tmpDirectory, directory, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(tmpDirectory, directory, ATOMIC_MOVE);
         } catch (final Throwable ex) {
             logger.info(STATE_TO_DISK.getMarker(), "deleting temporary file due to exception");
             throw ex;
@@ -376,5 +396,107 @@ public final class FileUtils {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    /**
+     * copies a source directory, along with its contents, to a target location.
+     * If the target directory does not exist, it will be created.
+     * The method preserves the directory structure during the copy operation.
+     * <br>
+     * <strong>Note:</strong> if a file already exists at the target with the same relative path, it will be overwritten.
+     *
+     * @param source the path of the directory to be moved, must not be null
+     * @param target the path where the directory should be moved, must not be null
+     * @throws IOException if the source does not exist or an I/O error occurs during the operation
+     */
+    public static void copyDirectory(@NonNull final Path source, @NonNull final Path target) throws IOException {
+        Objects.requireNonNull(source, "Source path cannot be null");
+        Objects.requireNonNull(target, "Target path cannot be null");
+
+        if (!Files.exists(source)) {
+            throw new IOException(source + " does not exist");
+        }
+        if (!Files.exists(target)) {
+            Files.createDirectories(target);
+        }
+
+        Files.walkFileTree(source, new SimpleFileVisitor<>() {
+            @NonNull
+            @Override
+            public FileVisitResult preVisitDirectory(@NonNull final Path dir, @NonNull final BasicFileAttributes attrs)
+                    throws IOException {
+                final Path relative = source.relativize(dir);
+                final Path targetDir = target.resolve(relative);
+                Files.createDirectories(targetDir);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @NonNull
+            @Override
+            public FileVisitResult visitFile(@NonNull final Path file, @NonNull final BasicFileAttributes attrs)
+                    throws IOException {
+                final Path relative = source.relativize(file);
+                final Path targetFile = target.resolve(relative);
+                Files.copy(file, targetFile, StandardCopyOption.REPLACE_EXISTING);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    /**
+     * Renames a source file represented by source
+     *
+     * @param source the path of the file to be renamed, must not be null
+     * @param newName the new name to give the file, must not be null
+     * @throws IOException if the source does not exist or an I/O error occurs during the operation
+     */
+    public static void rename(@NonNull final Path source, @NonNull final String newName) throws IOException {
+        final Path target = requireNonNull(source).resolveSibling(requireNonNull(newName));
+
+        if (Files.exists(target)) {
+            throw new FileAlreadyExistsException(target.toString());
+        }
+
+        try {
+            Files.move(source, target, ATOMIC_MOVE);
+        } catch (final AtomicMoveNotSupportedException e) {
+            Files.move(source, target);
+        }
+    }
+
+    /**
+     * Searches for a file starting from the current working directory,
+     * moving up parent directories up to maxTries times.
+     *
+     * @param filename the name of the file to search for
+     * @param maxTries maximum number of directories to check (including current)
+     * @return Path object of the found file
+     * @throws RuntimeException if file is not found within maxTries
+     */
+    public static Path searchFileUpwards(@NonNull final String filename, final int maxTries) {
+        if (maxTries < 1) {
+            throw new IllegalArgumentException("maxTries must be at least 1");
+        }
+
+        Path currentDir = Paths.get("").toAbsolutePath();
+
+        for (int i = 0; i < maxTries; i++) {
+            final Path filePath = currentDir.resolve(filename);
+
+            if (Files.exists(filePath)) {
+                return filePath;
+            }
+
+            // Move to parent directory
+            final Path parent = currentDir.getParent();
+            if (parent == null) {
+                // Reached root directory, can't go further up
+                break;
+            }
+            currentDir = parent;
+        }
+
+        throw new RuntimeException("File '" + filename + "' not found after searching " + maxTries + " director"
+                + (maxTries == 1 ? "y" : "ies") + " upwards from current working directory");
     }
 }

@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.platform;
 
+import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
+import static com.swirlds.logging.legacy.LogMarker.ERROR;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
@@ -20,16 +23,19 @@ import java.util.concurrent.ThreadFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.otter.docker.app.EventMessageFactory;
 import org.hiero.consensus.otter.docker.app.OutboundDispatcher;
-import org.hiero.otter.fixtures.KeysAndCertsConverter;
-import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
-import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc;
+import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase;
+import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
+import org.hiero.otter.fixtures.internal.KeysAndCertsConverter;
+import org.hiero.otter.fixtures.internal.ProtobufConverter;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 
@@ -37,7 +43,7 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
  * Responsible for all gRPC communication between the test framework and the consensus node. This class acts as an
  * intermediary between the test framework and the consensus node.
  */
-public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase {
+public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
 
     /** Default thread name for the consensus node manager gRCP service */
     private static final String NODE_COMMUNICATION_THREAD_NAME = "grpc-outbound-dispatcher";
@@ -103,15 +109,22 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     @Override
     public synchronized void start(
             @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
-        log.info("Received start request: {}", request);
+        log.info(STARTUP.getMarker(), "Received start request: {}", request);
 
         if (isInvalidRequest(request, responseObserver)) {
             return;
         }
 
+        dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
+
+        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
+            return dispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+        });
+
         if (consensusNodeManager != null) {
             responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
-            log.info("Invalid request, platform already started: {}", request);
+            log.info(ERROR.getMarker(), "Invalid request, platform already started: {}", request);
             return;
         }
 
@@ -123,35 +136,20 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
         consensusNodeManager = new ConsensusNodeManager(
                 selfId, platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
 
-        setupStreamingEventDispatcher(responseObserver);
+        setupStreamingEventDispatcher();
 
         consensusNodeManager.start();
     }
 
     /**
      * Sets up all the streaming event dispatchers for the platform.
-     *
-     * @param responseObserver the observer to register for streaming events
      */
-    private void setupStreamingEventDispatcher(@NonNull final StreamObserver<EventMessage> responseObserver) {
-        dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
-
-        // Capture the dispatcher in a final variable so the lambda remains valid
-        final OutboundDispatcher currentDispatcher = dispatcher;
-
+    private void setupStreamingEventDispatcher() {
         consensusNodeManager.registerPlatformStatusChangeListener(
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
 
         consensusNodeManager.registerConsensusRoundListener(
                 rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
-
-        consensusNodeManager.registerMarkerFileListener(
-                markerFiles -> dispatcher.enqueue(EventMessageFactory.fromMarkerFiles(markerFiles)));
-
-        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
-            return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
-        });
     }
 
     /**
@@ -167,14 +165,14 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     private static boolean isInvalidRequest(
             final StartRequest request, final StreamObserver<EventMessage> responseObserver) {
         if (!request.hasVersion()) {
-            log.info("Invalid request - version must be specified: {}", request);
+            log.info(ERROR.getMarker(), "Invalid request - version must be specified: {}", request);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("version has to be specified")
                     .asRuntimeException());
             return true;
         }
         if (!request.hasRoster()) {
-            log.info("Invalid request - roster must be specified: {}", request);
+            log.info(ERROR.getMarker(), "Invalid request - roster must be specified: {}", request);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("roster has to be specified")
                     .asRuntimeException());
@@ -196,21 +194,24 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     public synchronized void submitTransaction(
             @NonNull final TransactionRequest request,
             @NonNull final StreamObserver<TransactionRequestAnswer> responseObserver) {
-        log.debug("Received submit transaction request: {}", request);
+        log.debug(DEMO_INFO.getMarker(), "Received submit transaction request: {}", request);
         if (consensusNodeManager == null) {
             setPlatformNotStartedResponse(responseObserver);
             return;
         }
 
-        try {
-            final boolean result =
-                    consensusNodeManager.submitTransaction(request.getPayload().toByteArray());
-            responseObserver.onNext(
-                    TransactionRequestAnswer.newBuilder().setResult(result).build());
+        wrapWithErrorHandling(responseObserver, () -> {
+            int numFailed = 0;
+            for (final ByteString payload : request.getPayloadList()) {
+                if (!consensusNodeManager.submitTransaction(payload.toByteArray())) {
+                    numFailed++;
+                }
+            }
+            responseObserver.onNext(TransactionRequestAnswer.newBuilder()
+                    .setNumFailed(numFailed)
+                    .build());
             responseObserver.onCompleted();
-        } catch (final Exception e) {
-            responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
-        }
+        });
     }
 
     /**
@@ -224,19 +225,60 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     @Override
     public synchronized void syntheticBottleneckUpdate(
             @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        log.info("Received synthetic bottleneck request: {}", request);
+        log.info(
+                DEMO_INFO.getMarker(),
+                "Received synthetic bottleneck request: {} ms",
+                request.getSleepMillisPerRound());
         if (consensusNodeManager == null) {
             setPlatformNotStartedResponse(responseObserver);
             return;
         }
-        consensusNodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
-        responseObserver.onNext(Empty.getDefaultInstance());
-        responseObserver.onCompleted();
+        wrapWithErrorHandling(responseObserver, () -> {
+            consensusNodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+        });
+    }
+
+    @Override
+    public void quiescenceCommandUpdate(
+            @NonNull final QuiescenceRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+        log.info(DEMO_INFO.getMarker(), "Received quiescence request: {}", request.getCommand());
+        if (consensusNodeManager == null) {
+            setPlatformNotStartedResponse(responseObserver);
+            return;
+        }
+
+        wrapWithErrorHandling(responseObserver, () -> {
+            final QuiescenceCommand command =
+                    switch (request.getCommand()) {
+                        case QUIESCE -> QuiescenceCommand.QUIESCE;
+                        case BREAK_QUIESCENCE -> QuiescenceCommand.BREAK_QUIESCENCE;
+                        default -> QuiescenceCommand.DONT_QUIESCE;
+                    };
+
+            consensusNodeManager.sendQuiescenceCommand(command);
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+        });
     }
 
     private void setPlatformNotStartedResponse(@NonNull final StreamObserver<?> responseObserver) {
         responseObserver.onError(Status.FAILED_PRECONDITION
                 .withDescription("Platform not started yet")
                 .asRuntimeException());
+    }
+
+    private static void wrapWithErrorHandling(
+            @NonNull final StreamObserver<?> responseObserver, @NonNull final Runnable action) {
+        try {
+            action.run();
+        } catch (final IllegalArgumentException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT.withCause(e).asRuntimeException());
+        } catch (final UnsupportedOperationException e) {
+            responseObserver.onError(Status.UNIMPLEMENTED.withCause(e).asRuntimeException());
+        } catch (final Exception e) {
+            responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
+        }
     }
 }

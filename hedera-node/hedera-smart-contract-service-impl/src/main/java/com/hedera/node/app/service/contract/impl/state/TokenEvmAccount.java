@@ -42,8 +42,8 @@ public class TokenEvmAccount extends AbstractEvmEntityAccount {
     }
 
     @Override
-    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector) {
-        return CodeFactory.createCode(getCode(), 0, false);
+    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull final CodeFactory codeFactory) {
+        return codeFactory.createCode(getCode(), false);
     }
 
     @Override

@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
-import static com.swirlds.platform.util.BootstrapUtils.loadAppMain;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
@@ -14,15 +13,14 @@ import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVi
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.ApplicationDefinition;
 import com.swirlds.platform.ApplicationDefinitionLoader;
 import com.swirlds.platform.ParameterProvider;
+import com.swirlds.platform.cli.utils.HederaUtils;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
@@ -38,7 +36,6 @@ import com.swirlds.platform.recovery.internal.RecoveredState;
 import com.swirlds.platform.recovery.internal.RecoveryPlatform;
 import com.swirlds.platform.recovery.internal.StreamedRound;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -49,13 +46,13 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -63,6 +60,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
@@ -91,7 +89,7 @@ public final class EventRecoveryWorkflow {
      * disk.
      *
      * @param platformContext         the platform context
-     * @param signedStateFile         the bootstrap signed state file
+     * @param signedStateDir         the bootstrap signed state file
      * @param configurationFiles      files containing configuration
      * @param eventStreamDirectory    a directory containing the event stream
      * @param mainClassName           the fully qualified class name of the {@link SwirldMain} for the app
@@ -106,7 +104,7 @@ public final class EventRecoveryWorkflow {
      */
     public static void recoverState(
             @NonNull final PlatformContext platformContext,
-            @NonNull final Path signedStateFile,
+            @NonNull final Path signedStateDir,
             @NonNull final List<Path> configurationFiles,
             @NonNull final Path eventStreamDirectory,
             @NonNull final String mainClassName,
@@ -118,7 +116,7 @@ public final class EventRecoveryWorkflow {
             @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
         Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(signedStateFile, "signedStateFile must not be null");
+        Objects.requireNonNull(signedStateDir, "signedStateDir must not be null");
         Objects.requireNonNull(configurationFiles, "configurationFiles must not be null");
         Objects.requireNonNull(eventStreamDirectory, "eventStreamDirectory must not be null");
         Objects.requireNonNull(mainClassName, "mainClassName must not be null");
@@ -145,23 +143,27 @@ public final class EventRecoveryWorkflow {
                 ApplicationDefinitionLoader.loadDefault(defaultPathsConfig, getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
         ParameterProvider.getInstance().setParameters(appDefinition.getAppParameters());
 
-        final SwirldMain appMain = loadAppMain(mainClassName);
-
         if (!Files.exists(resultingStateDirectory)) {
             Files.createDirectories(resultingStateDirectory);
         }
 
-        logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
+        logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateDir);
+        // FUTURE-WORK: Follow Browser approach
+        final SwirldMain<? extends MerkleNodeState> hederaApp =
+                HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
 
-        final SwirldMain<?> hederaApp = createHederaApp(platformContext, platformStateFacade, appMain);
-
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
-                signedStateFile,
-                EventRecoveryWorkflow::createrNewMerkleNodeState,
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
+                signedStateDir,
+                v -> hederaApp
+                        .stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime())
+                        .apply(v),
                 platformStateFacade,
                 platformContext);
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(), platformContext.getTime(), (Function<VirtualMap, MerkleNodeState>)
+                        hederaApp.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime()));
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
-            updateStateHash(hederaApp, deserializedSignedState);
+            HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
 
             logger.info(
                     STARTUP.getMarker(),
@@ -201,7 +203,8 @@ public final class EventRecoveryWorkflow {
                     selfId,
                     resultingStateDirectory,
                     recoveredState.state().get(),
-                    platformStateFacade);
+                    platformStateFacade,
+                    stateLifecycleManager);
             final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
             updateEmergencyRecoveryFile(
                     stateConfig, resultingStateDirectory, initialState.get().getConsensusTimestamp());
@@ -227,44 +230,6 @@ public final class EventRecoveryWorkflow {
             mutableStateCopy.release();
 
             logger.info(STARTUP.getMarker(), "Recovery process completed");
-        }
-    }
-
-    private static void updateStateHash(SwirldMain<?> hederaApp, DeserializedSignedState deserializedSignedState) {
-        try {
-            Method setInitialStateHash = hederaApp.getClass().getDeclaredMethod("setInitialStateHash", Hash.class);
-            setInitialStateHash.invoke(hederaApp, deserializedSignedState.originalHash());
-        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static SwirldMain<?> createHederaApp(
-            PlatformContext platformContext, PlatformStateFacade platformStateFacade, SwirldMain<?> appMain) {
-        final SwirldMain<?> hederaApp;
-        Method newHederaMethod;
-        try {
-            newHederaMethod = appMain.getClass()
-                    .getDeclaredMethod("newHedera", Metrics.class, PlatformStateFacade.class, Configuration.class);
-            hederaApp = (SwirldMain<?>) newHederaMethod.invoke(
-                    null, new NoOpMetrics(), platformStateFacade, platformContext.getConfiguration());
-        } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-        return hederaApp;
-    }
-
-    private static MerkleNodeState createrNewMerkleNodeState(VirtualMap virtualMap) {
-        try {
-            Class<?> stateClass = Class.forName("com.hedera.node.app.HederaVirtualMapState");
-            Constructor<?> constructor = stateClass.getConstructor(VirtualMap.class);
-            return (MerkleNodeState) constructor.newInstance(virtualMap);
-        } catch (ClassNotFoundException
-                | NoSuchMethodException
-                | InvocationTargetException
-                | InstantiationException
-                | IllegalAccessException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -360,7 +325,6 @@ public final class EventRecoveryWorkflow {
 
         ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
         SemanticVersion softwareVersion = platformStateFacade.creationSoftwareVersionOf(initialState);
-        initialSignedState.get().init(platformContext);
         final var notificationEngine = platform.getNotificationEngine();
         notificationEngine.register(
                 NewRecoveredStateListener.class,
@@ -462,7 +426,6 @@ public final class EventRecoveryWorkflow {
                 false,
                 false,
                 platformStateFacade);
-        signedState.init(platformContext);
         final ReservedSignedState reservedSignedState = signedState.reserve("recovery");
         previousSignedState.close();
 

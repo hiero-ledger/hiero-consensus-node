@@ -42,9 +42,9 @@ import java.time.Duration;
  *                                      The number of rounds to keep states after they have been signed and after a
  *                                      newer state has become fully signed. If set to 0 then each state becomes garbage
  *                                      collection eligible as soon as it is not the most recently signed state.
- * @param suspiciousSignedStateAge      The age of a signed state which is considered to be suspicious. Suspicious
- *                                      states cause a large amount of data to be logged that helps to debug the
- *                                      potential state leak.
+ * @param suspiciousSignedStateAgeGap   The age gap between the newest and oldest signed state which is considered to be
+ *                                      suspicious. Suspicious states cause a large amount of data to be logged that
+ *                                      helps to debug the potential state leak.
  * @param signedStateAgeNotifyRateLimit The minimum period between notifications of suspiciously old signed states.
  * @param stateHistoryEnabled           If true, then a history of operations that modify the signed state reference
  *                                      count are kept for debugging purposes.
@@ -77,7 +77,7 @@ public record StateConfig(
         @ConfigProperty(defaultValue = "1000") int maxAgeOfFutureStateSignatures,
         @ConfigProperty(defaultValue = "26") int roundsToKeepForSigning,
         @ConfigProperty(defaultValue = "0") int roundsToKeepAfterSigning,
-        @ConfigProperty(defaultValue = "5m") Duration suspiciousSignedStateAge,
+        @ConfigProperty(defaultValue = "5m") Duration suspiciousSignedStateAgeGap,
         @ConfigProperty(defaultValue = "10m") Duration signedStateAgeNotifyRateLimit,
         @ConfigProperty(defaultValue = "false") boolean stateHistoryEnabled,
         @ConfigProperty(defaultValue = "false") boolean debugStackTracesEnabled,

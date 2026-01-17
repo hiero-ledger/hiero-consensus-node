@@ -5,7 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static java.util.Objects.requireNonNull;
 
@@ -16,6 +16,8 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
+import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -24,7 +26,6 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -102,6 +103,14 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     /**
      * {@inheritDoc}
      */
+    @NonNull
+    public WritableEvmHookStore writableEvmHookStore() {
+        return context.storeFactory().writableStore(WritableEvmHookStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void setNonce(final long contractNumber, final long nonce) {
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
@@ -128,7 +137,10 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
 
         try {
             return context.dispatch(setupDispatch(
-                            context.payer(), synthTxn, CryptoCreateStreamBuilder.class, NOOP_FEE_CHARGING))
+                            context.payer(),
+                            synthTxn,
+                            CryptoCreateStreamBuilder.class,
+                            DISPATCH_ONLY_NOOP_FEE_CHARGING))
                     .status();
         } catch (HandleException e) {
             // It is critically important we don't let HandleExceptions propagate to the workflow because

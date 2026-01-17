@@ -31,12 +31,12 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
     public static final SystemContractMethod SCHEDULE_CALL = SystemContractMethod.declare(
                     "scheduleCall(address,uint256,uint256,uint64,bytes)", ReturnTypes.RESPONSE_CODE_ADDRESS)
             .withCategories(Category.SCHEDULE);
-    public static final SystemContractMethod SCHEDULE_CALL_WITH_SENDER = SystemContractMethod.declare(
-                    "scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)",
+    public static final SystemContractMethod SCHEDULE_CALL_WITH_PAYER = SystemContractMethod.declare(
+                    "scheduleCallWithPayer(address,address,uint256,uint256,uint64,bytes)",
                     ReturnTypes.RESPONSE_CODE_ADDRESS)
             .withCategories(Category.SCHEDULE);
-    public static final SystemContractMethod EXECUTE_CALL_ON_SENDER_SIGNATURE = SystemContractMethod.declare(
-                    "executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)",
+    public static final SystemContractMethod EXECUTE_CALL_ON_PAYER_SIGNATURE = SystemContractMethod.declare(
+                    "executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes)",
                     ReturnTypes.RESPONSE_CODE_ADDRESS)
             .withCategories(Category.SCHEDULE);
 
@@ -49,14 +49,14 @@ public class ScheduleCallTranslator extends AbstractCallTranslator<HssCallAttemp
             @NonNull final ContractMetrics contractMetrics) {
         super(SystemContractMethod.SystemContract.HSS, systemContractMethodRegistry, contractMetrics);
         this.decoder = decoder;
-        registerMethods(SCHEDULE_CALL, SCHEDULE_CALL_WITH_SENDER, EXECUTE_CALL_ON_SENDER_SIGNATURE);
+        registerMethods(SCHEDULE_CALL, SCHEDULE_CALL_WITH_PAYER, EXECUTE_CALL_ON_PAYER_SIGNATURE);
     }
 
     @Override
     @NonNull
     public Optional<SystemContractMethod> identifyMethod(@NonNull final HssCallAttempt attempt) {
         if (attempt.configuration().getConfigData(ContractsConfig.class).systemContractScheduleCallEnabled()) {
-            return attempt.isMethod(SCHEDULE_CALL, SCHEDULE_CALL_WITH_SENDER, EXECUTE_CALL_ON_SENDER_SIGNATURE);
+            return attempt.isMethod(SCHEDULE_CALL, SCHEDULE_CALL_WITH_PAYER, EXECUTE_CALL_ON_PAYER_SIGNATURE);
         } else {
             return Optional.empty();
         }

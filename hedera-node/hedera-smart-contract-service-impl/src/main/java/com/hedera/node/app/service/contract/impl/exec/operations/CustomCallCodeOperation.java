@@ -4,10 +4,12 @@ package com.hedera.node.app.service.contract.impl.exec.operations;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
+import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.operation.CallCodeOperation;
@@ -58,6 +60,10 @@ public class CustomCallCodeOperation extends CallCodeOperation implements BasicC
 
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
+        // Call code operations originating from a hook execution are not allowed
+        if (FrameUtils.isHookExecution(frame)) {
+            return new OperationResult(0, ExceptionalHaltReason.INVALID_OPERATION);
+        }
         return BasicCustomCallOperation.super.executeChecked(frame, evm);
     }
 }

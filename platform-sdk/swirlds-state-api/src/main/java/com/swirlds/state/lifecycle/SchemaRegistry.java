@@ -7,15 +7,16 @@ import java.util.Collection;
 /**
  * Provided by the application to the {@link Service}, the {@link SchemaRegistry} is used by the
  * {@link Service} to register all of its {@link Schema}s.
+ * @param <V> - version type
  */
-public interface SchemaRegistry {
+public interface SchemaRegistry<V> {
     /**
      * Register the given array of {@link Schema}s.
      *
      * @param schemas The schemas to register. Cannot contain nulls or be null.
      * @return a reference to this registry instance
      */
-    default SchemaRegistry registerAll(@NonNull Schema... schemas) {
+    default SchemaRegistry<V> registerAll(@NonNull Schema<V>... schemas) {
         for (final var s : schemas) {
             register(s);
         }
@@ -29,7 +30,7 @@ public interface SchemaRegistry {
      * @param schema The {@link Schema} to register.
      * @return a reference to this registry instance
      */
-    SchemaRegistry register(@NonNull Schema schema);
+    SchemaRegistry<V> register(@NonNull Schema<V> schema);
 
     /**
      * Register the given array of {@link Schema}s.
@@ -37,7 +38,7 @@ public interface SchemaRegistry {
      * @param schemas The schemas to register. Cannot contain nulls or be null.
      * @return a reference to this registry instance
      */
-    default SchemaRegistry registerAll(@NonNull Collection<Schema> schemas) {
+    default SchemaRegistry<V> registerAll(@NonNull Collection<Schema<V>> schemas) {
         for (final var s : schemas) {
             register(s);
         }

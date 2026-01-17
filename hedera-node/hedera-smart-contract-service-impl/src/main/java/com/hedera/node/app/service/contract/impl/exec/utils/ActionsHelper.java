@@ -16,6 +16,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -30,13 +31,14 @@ public class ActionsHelper {
      * @param frame the frame to represent
      * @return the {@link ContractAction} representing the frame as a call to a missing address
      */
-    public ContractAction createSynthActionForMissingAddressIn(@NonNull final MessageFrame frame) {
+    public ContractAction createSynthActionForMissingAddressIn(
+            @NonNull final MessageFrame frame, @NonNull final Address targetAddress) {
         return ContractAction.newBuilder()
                 .callType(ContractActionType.CALL)
                 .gas(frame.getRemainingGas())
                 .callDepth(frame.getDepth() + 1)
                 .callingContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)))
-                .targetedAddress(tuweniToPbjBytes(frame.getStackItem(1)))
+                .targetedAddress(tuweniToPbjBytes(targetAddress))
                 .error(MISSING_ADDRESS_ERROR)
                 .callOperationType(
                         asCallOperationType(frame.getCurrentOperation().getOpcode()))

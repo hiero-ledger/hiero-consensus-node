@@ -76,7 +76,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -90,7 +89,7 @@ import org.junit.jupiter.api.Tag;
  * and dissociating tokens using contract and delegate keys.
  */
 @HapiTestLifecycle
-public class AtomicBatchContractKeysHtsTest {
+class AtomicBatchContractKeysHtsTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
     private static final long GAS_TO_OFFER = 1_500_000L;
 
@@ -143,8 +142,6 @@ public class AtomicBatchContractKeysHtsTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(
                 cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 uploadInitCode(
@@ -164,7 +161,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> burnWithKeyAsPartOf1OfXThreshold() {
+    final Stream<DynamicTest> burnWithKeyAsPartOf1OfXThreshold() {
         final var delegateContractKeyShape = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
         final var contractKeyShape = KeyShape.threshOf(1, SIMPLE, KeyShape.CONTRACT);
         final var tokenAddress = new AtomicReference<Address>();
@@ -217,7 +214,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForBurnWithContractKey() {
+    final Stream<DynamicTest> delegateCallForBurnWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -259,7 +256,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForMintWithContractKey() {
+    final Stream<DynamicTest> delegateCallForMintWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -299,7 +296,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForDissociatePrecompileFails() {
+    final Stream<DynamicTest> staticCallForDissociatePrecompileFails() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -325,7 +322,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForTransferWithContractKey() {
+    final Stream<DynamicTest> staticCallForTransferWithContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         final AtomicReference<Address> receiverAddress = new AtomicReference<>();
@@ -365,7 +362,7 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     @Tag(MATS)
-    public final Stream<DynamicTest> staticCallForBurnWithContractKey() {
+    final Stream<DynamicTest> staticCallForBurnWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -398,7 +395,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForMintWithContractKey() {
+    final Stream<DynamicTest> staticCallForMintWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -428,7 +425,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForTransferWithDelegateContractKey() {
+    final Stream<DynamicTest> staticCallForTransferWithDelegateContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         final AtomicReference<Address> receiverAddress = new AtomicReference<>();
@@ -467,7 +464,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForBurnWithDelegateContractKey() {
+    final Stream<DynamicTest> staticCallForBurnWithDelegateContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -500,7 +497,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForMintWithDelegateContractKey() {
+    final Stream<DynamicTest> staticCallForMintWithDelegateContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(VANILLA_TOKEN)
@@ -530,7 +527,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> staticCallForAssociatePrecompileFails() {
+    final Stream<DynamicTest> staticCallForAssociatePrecompileFails() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -556,7 +553,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForMintWithContractKey() {
+    final Stream<DynamicTest> callForMintWithContractKey() {
         final var firstMintTxn = "firstMintTxn";
         final var amount = 10L;
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
@@ -599,7 +596,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForMintWithDelegateContractKey() {
+    final Stream<DynamicTest> callForMintWithDelegateContractKey() {
         final var firstMintTxn = "firstMintTxn";
         final var amount = 10L;
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
@@ -643,7 +640,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForTransferWithContractKey() {
+    final Stream<DynamicTest> callForTransferWithContractKey() {
         final AtomicReference<Address> nftAddress = new AtomicReference<>();
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> receiverAddress = new AtomicReference<>();
@@ -693,7 +690,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForTransferWithDelegateContractKey() {
+    final Stream<DynamicTest> callForTransferWithDelegateContractKey() {
         final AtomicReference<Address> nftAddress = new AtomicReference<>();
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> receiverAddress = new AtomicReference<>();
@@ -746,7 +743,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForAssociateWithDelegateContractKey() {
+    final Stream<DynamicTest> callForAssociateWithDelegateContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -779,7 +776,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForAssociateWithContractKey() {
+    final Stream<DynamicTest> callForAssociateWithContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -811,7 +808,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForDissociateWithDelegateContractKey() {
+    final Stream<DynamicTest> callForDissociateWithDelegateContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         final var totalSupply = 1_000;
@@ -869,7 +866,7 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     @Tag(MATS)
-    public final Stream<DynamicTest> callForDissociateWithContractKey() {
+    final Stream<DynamicTest> callForDissociateWithContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         final var totalSupply = 1_000;
@@ -926,7 +923,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForBurnWithDelegateContractKey() {
+    final Stream<DynamicTest> callForBurnWithDelegateContractKey() {
         final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(TOKEN_USAGE)
@@ -959,7 +956,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithDelegateContractKeyWorks() {
+    final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithDelegateContractKeyWorks() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -994,7 +991,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithDelegateContractKeyWorks() {
+    final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithDelegateContractKeyWorks() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
 
@@ -1031,7 +1028,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
 
@@ -1103,7 +1100,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleVanilla() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleVanilla() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> treasuryAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
@@ -1196,7 +1193,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleFrozen() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleFrozen() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
 
@@ -1252,7 +1249,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
 
@@ -1306,7 +1303,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> treasuryAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
@@ -1401,7 +1398,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1458,7 +1455,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1513,7 +1510,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1585,7 +1582,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1655,7 +1652,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1724,7 +1721,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleFrozen() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleFrozen() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1795,7 +1792,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleVanilla() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleVanilla() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1863,7 +1860,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithContractKeyFails() {
+    final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithContractKeyFails() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1898,7 +1895,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithContractKeyFails() {
+    final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithContractKeyFails() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1934,7 +1931,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> callForBurnWithContractKey() {
+    final Stream<DynamicTest> callForBurnWithContractKey() {
         final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         return hapiTest(
                 tokenCreate(TOKEN_USAGE)

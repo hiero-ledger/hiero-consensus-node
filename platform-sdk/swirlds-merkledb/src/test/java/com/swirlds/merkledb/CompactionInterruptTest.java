@@ -35,7 +35,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class CompactionInterruptTest {
 
     /** This needs to be big enough so that the snapshot is slow enough that we can do a merge at the same time */
-    private static final int COUNT = 1_000_000;
+    private static final int COUNT = 10_000_000;
 
     /**
      * Temporary directory provided by JUnit
@@ -152,36 +152,42 @@ class CompactionInterruptTest {
         long initCount = compactingExecutor.getCompletedTaskCount();
 
         // getting access to the guts of the compactor to check the state of the futures
-        final DataFileCompactor hashStoreDiskFuture;
-        final DataFileCompactor pathToKeyValueFuture;
-        final DataFileCompactor objectKeyToPathFuture;
+        final DataFileCompactor hashStoreCompactor;
+        final DataFileCompactor pathToKeyValueCompactor;
+        final DataFileCompactor objectKeyToPathCompactor;
         synchronized (compactor) {
-            hashStoreDiskFuture = compactor.compactorsByName.get("hashStoreDisk");
-            pathToKeyValueFuture = compactor.compactorsByName.get("pathToKeyValue");
-            objectKeyToPathFuture = compactor.compactorsByName.get("keyToPath");
+            hashStoreCompactor = compactor.compactorsByName.get("hashStoreDisk");
+            pathToKeyValueCompactor = compactor.compactorsByName.get("pathToKeyValue");
+            objectKeyToPathCompactor = compactor.compactorsByName.get("keyToPath");
         }
 
         assertEventuallyTrue(
-                hashStoreDiskFuture::isCompactionRunning,
+                () -> hashStoreCompactor.isCompactionRunning() || hashStoreCompactor.isCompactionComplete(),
                 Duration.ofMillis(10),
-                "hashStoreDiskFuture should be running");
+                "hashStoreCompactor should be complete or running");
         assertEventuallyTrue(
-                pathToKeyValueFuture::isCompactionRunning,
+                () -> pathToKeyValueCompactor.isCompactionRunning() || pathToKeyValueCompactor.isCompactionComplete(),
                 Duration.ofMillis(10),
-                "pathToKeyValueFuture should be running");
+                "pathToKeyValueCompactor should be complete or running");
         assertEventuallyTrue(
-                objectKeyToPathFuture::isCompactionRunning,
+                () -> objectKeyToPathCompactor.isCompactionRunning() || objectKeyToPathCompactor.isCompactionComplete(),
                 Duration.ofMillis(10),
-                "objectKeyToPathFuture should be running");
+                "objectKeyToPathCompactor should be complete or running");
 
         // stopping the compaction
         compactor.stopAndDisableBackgroundCompaction();
 
         assertFalse(compactor.isCompactionEnabled(), "compactionEnabled should be false");
 
-        assertFalse(hashStoreDiskFuture.notInterrupted(), "hashStoreDiskFuture should be interrupted");
-        assertFalse(pathToKeyValueFuture.notInterrupted(), "pathToKeyValueFuture should be interrupted");
-        assertFalse(objectKeyToPathFuture.notInterrupted(), "objectKeyToPathFuture should be interrupted");
+        assertTrue(
+                hashStoreCompactor.isCompactionComplete() || !hashStoreCompactor.notInterrupted(),
+                "hashStoreCompactor should be complete or interrupted");
+        assertTrue(
+                pathToKeyValueCompactor.isCompactionComplete() || !pathToKeyValueCompactor.notInterrupted(),
+                "pathToKeyValueCompactor should be complete or interrupted");
+        assertTrue(
+                objectKeyToPathCompactor.isCompactionComplete() || !objectKeyToPathCompactor.notInterrupted(),
+                "objectKeyToPathCompactor should be interrupted");
         synchronized (compactor) {
             assertTrue(compactor.compactorsByName.isEmpty(), "compactorsByName should be empty");
         }
@@ -212,7 +218,8 @@ class CompactionInterruptTest {
                     IntStream.range(start, end).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(COUNT + start, COUNT + end)
                             .mapToObj(i -> TestType.variable_variable.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
         }
     }
 }

@@ -10,7 +10,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -36,7 +36,7 @@ public class SchemaApplications {
     public Set<SchemaApplicationType> computeApplications(
             @Nullable final SemanticVersion deserializedVersion,
             @NonNull final SemanticVersion latestVersion,
-            @NonNull final Schema schema,
+            @NonNull final Schema<SemanticVersion> schema,
             @NonNull final Configuration config) {
         requireNonNull(schema);
         requireNonNull(config);

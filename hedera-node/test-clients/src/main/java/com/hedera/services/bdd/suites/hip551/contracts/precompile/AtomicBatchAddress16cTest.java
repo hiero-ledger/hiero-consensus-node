@@ -32,7 +32,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-public class AtomicBatchAddress16cTest {
+class AtomicBatchAddress16cTest {
 
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
@@ -40,8 +40,6 @@ public class AtomicBatchAddress16cTest {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         // enable atomic batch
         testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
                 "contracts.throttle.throttleByGas", "false",
                 "contracts.systemContract.hts.addresses", "359,364"));
         // create default batch operator
@@ -53,7 +51,7 @@ public class AtomicBatchAddress16cTest {
      */
     @HapiTest
     @DisplayName("when using atomic getTokenKey should return metadata key")
-    public Stream<DynamicTest> atomicSucceedToGetTokenKey(
+    Stream<DynamicTest> atomicSucceedToGetTokenKey(
             @Contract(contract = "NumericContract16c", creationGas = 1_000_000L, variant = VARIANT_16C)
                     final SpecContract numericContract,
             @NonFungibleToken(
@@ -72,7 +70,7 @@ public class AtomicBatchAddress16cTest {
      */
     @HapiTest
     @Tag(MATS)
-    public Stream<DynamicTest> atomicTestUpdateMetadata(
+    Stream<DynamicTest> atomicTestUpdateMetadata(
             @Contract(contract = "CreateTokenVersioned", creationGas = 5_000_000L, variant = VARIANT_16C)
                     final SpecContract contractTarget,
             @FungibleToken(name = "fungibleToken", initialSupply = 1_000L, maxSupply = 1_200L)

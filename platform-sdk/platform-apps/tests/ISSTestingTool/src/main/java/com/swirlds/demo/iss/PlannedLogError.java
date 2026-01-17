@@ -1,23 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Describes an error which will be logged at a predetermined consensus time after genesis
  */
-public class PlannedLogError implements SelfSerializable, PlannedIncident {
-    private static final long CLASS_ID = 0xf0c6ba6c5da86ed4L;
+public class PlannedLogError implements PlannedIncident {
 
     /**
      * The amount of time after genesis that the error will be written to the log at
@@ -44,42 +41,33 @@ public class PlannedLogError implements SelfSerializable, PlannedIncident {
         this.nodeIds = Objects.requireNonNull(nodeIds);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(@NonNull final SerializableDataOutputStream out) throws IOException {
-        out.writeLong(timeAfterGenesis.toNanos());
-        out.writeSerializableList(nodeIds, false, true);
+    public PlannedLogError(@NonNull final ReadableSequentialData in) {
+        this.timeAfterGenesis = Duration.ofNanos(in.readLong());
+
+        final int nodeCount = in.readInt();
+        this.nodeIds = new ArrayList<>(nodeCount);
+        for (int i = 0; i < nodeCount; i++) {
+            this.nodeIds.add(NodeId.of(in.readLong()));
+        }
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(@NonNull final SerializableDataInputStream in, final int version) throws IOException {
-        timeAfterGenesis = Duration.ofNanos(in.readLong());
-        nodeIds = in.readSerializableList(1024, false, NodeId::new);
+    public void writeTo(@NonNull final WritableSequentialData output) {
+        output.writeLong(timeAfterGenesis.toNanos());
+        output.writeInt(nodeIds.size());
+        for (NodeId nodeId : nodeIds) {
+            output.writeLong(nodeId.id());
+        }
     }
 
-    private static final class ClassVersion {
-        public static final int ORIGINAL = 1;
-    }
+    public int getSizeInBytes() {
+        int sizeInBytes = 0;
+        sizeInBytes += Long.BYTES; // timeAfterGenesis
+        sizeInBytes += Integer.BYTES; // nodeIds.size()
+        for (NodeId ignored : nodeIds) {
+            sizeInBytes += Long.BYTES;
+        }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.ORIGINAL;
+        return sizeInBytes;
     }
 
     /**

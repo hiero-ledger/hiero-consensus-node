@@ -1,30 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static org.hiero.otter.fixtures.app.state.OtterStateInitializer.initOtterAppState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import org.hiero.consensus.roster.RosterUtils;
 
 public class OtterAppState extends VirtualMapState<OtterAppState> implements MerkleNodeState {
 
     long state;
 
-    public OtterAppState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+    public OtterAppState(
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
         super(configuration, metrics);
     }
 
-    public OtterAppState(@NonNull final VirtualMap virtualMap) {
-        super(virtualMap);
+    public OtterAppState(
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(virtualMap, metrics);
     }
 
     /**
@@ -38,25 +41,29 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
     }
 
     /**
-     * Creates an initialized {@code TurtleAppState}.
+     * Creates an initialized {@code OtterAppState}.
      *
-     * @param configuration the configuration used during initialization
-     * @param roster        the initial roster stored in the state
-     * @param metrics       the metrics to be registered with virtual map
-     * @param version       the software version to set in the state
+     * @param configuration   the platform configuration instance to use when creating the new instance of state
+     * @param metrics         the platform metric instance to use when creating the new instance of state
+     * @param time            the time instance to use when creating the new instance of state
+     * @param roster          the initial roster stored in the state
+     * @param version         the software version to set in the state
      * @return state root
      */
     @NonNull
     public static OtterAppState createGenesisState(
             @NonNull final Configuration configuration,
-            @NonNull final Roster roster,
             @NonNull final Metrics metrics,
-            @NonNull final SemanticVersion version) {
-        final TestingAppStateInitializer initializer = new TestingAppStateInitializer(configuration);
-        final OtterAppState state = new OtterAppState(CONFIGURATION, metrics);
-        initializer.initStates(state);
+            @NonNull final Time time,
+            @NonNull final Roster roster,
+            @NonNull final SemanticVersion version,
+            @NonNull final List<OtterService> services) {
+
+        final OtterAppState state = new OtterAppState(configuration, metrics, time);
+
+        initOtterAppState(state, version, services);
         RosterUtils.setActiveRoster(state, roster, 0L);
-        DEFAULT_PLATFORM_STATE_FACADE.setCreationSoftwareVersionTo(state, version);
+
         return state;
     }
 
@@ -74,8 +81,13 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
         return new OtterAppState(this);
     }
 
-    @Override
-    protected OtterAppState newInstance(@NonNull VirtualMap virtualMap) {
-        return new OtterAppState(virtualMap);
+    /**
+     * Commit the state of all services.
+     */
+    public void commitState() {
+        this.getServices().keySet().stream()
+                .map(this::getWritableStates)
+                .map(writableStates -> (CommittableWritableStates) writableStates)
+                .forEach(CommittableWritableStates::commit);
     }
 }

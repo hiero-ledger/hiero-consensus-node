@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi;
 
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -18,4 +19,13 @@ public interface RpcService extends Service {
      */
     @NonNull
     Set<RpcServiceDefinition> rpcDefinitions();
+
+    /**
+     * Returns all the handlers fee calculators for this service.
+     *
+     * @return The set of fee calculators.
+     */
+    default Set<ServiceFeeCalculator> serviceFeeCalculators() {
+        return Set.of();
+    }
 }

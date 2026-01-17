@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.internal.network;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -13,7 +14,6 @@ import java.util.function.Supplier;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.MeshTopology;
 
 /**
@@ -22,8 +22,8 @@ import org.hiero.otter.fixtures.network.MeshTopology;
 public class MeshTopologyImpl implements MeshTopology {
 
     private static final Duration AVERAGE_NETWORK_DELAY = Duration.ofMillis(200);
-    private static final ConnectionData DEFAULT =
-            new ConnectionData(true, AVERAGE_NETWORK_DELAY, Percentage.withPercentage(5), BandwidthLimit.UNLIMITED);
+    private static final ConnectionState DEFAULT =
+            new ConnectionState(true, AVERAGE_NETWORK_DELAY, Percentage.withPercentage(5), UNLIMITED_BANDWIDTH);
 
     private final Function<Integer, List<? extends Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;
@@ -79,7 +79,7 @@ public class MeshTopologyImpl implements MeshTopology {
      */
     @Override
     @NonNull
-    public ConnectionData getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
+    public ConnectionState getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
         return DEFAULT;
     }
 }

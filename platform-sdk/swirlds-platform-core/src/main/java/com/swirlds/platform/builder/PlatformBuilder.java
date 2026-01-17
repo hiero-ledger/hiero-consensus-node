@@ -30,17 +30,19 @@ import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -91,14 +93,13 @@ public final class PlatformBuilder {
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
 
     /**
-     * A RosterHistory that allows one to lookup a roster for a given round,
-     * or get the active/previous roster.
+     * A RosterHistory that allows one to lookup a roster for a given round, or get the active/previous roster.
      */
     private RosterHistory rosterHistory;
 
     /**
-     * A consensusEventStreamName for DefaultConsensusEventStream.
-     * See javadoc and comments in AddressBookUtils.formatConsensusEventStreamName() for more details.
+     * A consensusEventStreamName for DefaultConsensusEventStream. See javadoc and comments in
+     * AddressBookUtils.formatConsensusEventStreamName() for more details.
      */
     private final String consensusEventStreamName;
 
@@ -143,17 +144,16 @@ public final class PlatformBuilder {
      * the app will pass the loaded state via the initialState argument to this method. If the snapshot doesn't exist,
      * then the app will create a new genesis state and pass it via the same initialState argument.
      *
-     * @param appName                  the name of the application, currently used for deciding where to store states on
-     *                                 disk
-     * @param swirldName               the name of the swirld, currently used for deciding where to store states on disk
-     * @param softwareVersion          the software version of the application
-     * @param initialState             the initial state supplied by the application
-     * @param consensusStateEventHandler          the state lifecycle events handler
-     * @param selfId                   the ID of this node
+     * @param appName the name of the application, currently used for deciding where to store states on disk
+     * @param swirldName the name of the swirld, currently used for deciding where to store states on disk
+     * @param softwareVersion the software version of the application
+     * @param initialState the initial state supplied by the application
+     * @param consensusStateEventHandler the state lifecycle events handler
+     * @param selfId the ID of this node
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
-     * @param rosterHistory            the roster history provided by the application to use at startup
-     * @param platformStateFacade      the facade to access the platform state
-     * @param createStateFromVirtualMap        a function to instantiate the state object from a Virtual Map
+     * @param rosterHistory the roster history provided by the application to use at startup
+     * @param platformStateFacade the facade to access the platform state
+     * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      */
     @NonNull
     public static PlatformBuilder create(
@@ -183,17 +183,16 @@ public final class PlatformBuilder {
     /**
      * Constructor.
      *
-     * @param appName                  the name of the application, currently used for deciding where to store states on
-     *                                 disk
-     * @param swirldName               the name of the swirld, currently used for deciding where to store states on disk
-     * @param softwareVersion          the software version of the application
-     * @param initialState             the genesis state supplied by application
-     * @param consensusStateEventHandler          the state lifecycle events handler
-     * @param selfId                   the ID of this node
+     * @param appName the name of the application, currently used for deciding where to store states on disk
+     * @param swirldName the name of the swirld, currently used for deciding where to store states on disk
+     * @param softwareVersion the software version of the application
+     * @param initialState the genesis state supplied by application
+     * @param consensusStateEventHandler the state lifecycle events handler
+     * @param selfId the ID of this node
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
-     * @param rosterHistory            the roster history provided by the application to use at startup
-     * @param platformStateFacade      the facade to access the platform state
-     * @param createStateFromVirtualMap        a function to instantiate the state object from a Virtual Map
+     * @param rosterHistory the roster history provided by the application to use at startup
+     * @param platformStateFacade the facade to access the platform state
+     * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      */
     private PlatformBuilder(
             @NonNull final String appName,
@@ -429,21 +428,15 @@ public final class PlatformBuilder {
         }
 
         final Scratchpad<IssScratchpad> issScratchpad =
-                Scratchpad.create(platformContext, selfId, IssScratchpad.class, "platform.iss");
+                Scratchpad.create(platformContext.getConfiguration(), selfId, IssScratchpad.class, "platform.iss");
         issScratchpad.logContents();
 
         final ApplicationCallbacks callbacks =
                 new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
-        final AtomicReference<StatusActionSubmitter> statusActionSubmitterAtomicReference = new AtomicReference<>();
-        final SwirldStateManager swirldStateManager = new SwirldStateManager(
-                platformContext,
-                currentRoster,
-                selfId,
-                x -> statusActionSubmitterAtomicReference.get().submitStatusAction(x),
-                softwareVersion,
-                consensusStateEventHandler,
-                platformStateFacade);
+        @SuppressWarnings("unchecked")
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(), platformContext.getTime(), createStateFromVirtualMap);
 
         if (model == null) {
             final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
@@ -456,15 +449,9 @@ public final class PlatformBuilder {
             logger.info(STARTUP.getMarker(), "Default platform pool parallelism: {}", parallelism);
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
-                    .withJvmAnchorEnabled(true)
+                    .enableJvmAnchor()
                     .withDefaultPool(defaultPool)
-                    .withHealthMonitorEnabled(wiringConfig.healthMonitorEnabled())
-                    .withHardBackpressureEnabled(wiringConfig.hardBackpressureEnabled())
-                    .withHealthMonitorCapacity(wiringConfig.healthMonitorSchedulerCapacity())
-                    .withHealthMonitorPeriod(wiringConfig.healthMonitorHeartbeatPeriod())
-                    .withHealthLogThreshold(wiringConfig.healthLogThreshold())
-                    .withHealthLogPeriod(wiringConfig.healthLogPeriod())
-                    .withHealthyReportThreshold(wiringConfig.healthyReportThreshold())
+                    .withWiringConfig(wiringConfig)
                     .build();
         }
 
@@ -478,9 +465,9 @@ public final class PlatformBuilder {
             };
         }
 
-        var platformComponentWiring = PlatformComponents.create(platformContext, model, callbacks);
+        var platformComponentWiring = PlatformComponents.create(platformContext, model);
 
-        PlatformWiring.wire(platformContext, execution, platformComponentWiring);
+        PlatformWiring.wire(platformContext, execution, platformComponentWiring, callbacks);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformComponentWiring,
@@ -504,16 +491,16 @@ public final class PlatformBuilder {
                 consensusEventStreamName,
                 issScratchpad,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
-                statusActionSubmitterAtomicReference,
-                swirldStateManager,
                 new AtomicReference<>(),
-                new AtomicReference<>(),
+                stateLifecycleManager,
                 new AtomicReference<>(),
                 firstPlatform,
                 consensusStateEventHandler,
                 platformStateFacade,
                 execution,
-                createStateFromVirtualMap);
+                createStateFromVirtualMap,
+                new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()),
+                new ReservedSignedStateResultPromise());
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

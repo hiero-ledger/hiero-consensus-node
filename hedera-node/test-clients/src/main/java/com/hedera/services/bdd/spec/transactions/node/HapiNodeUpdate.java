@@ -183,7 +183,7 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
                             newAccountAlias.ifPresent(builder::setAccountId);
                             newDescription.ifPresent(s -> builder.setDescription(StringValue.of(s)));
                             newAdminKey.ifPresent(builder::setAdminKey);
-                            builder.setDeclineReward(BoolValue.of(declineReward.orElse(false)));
+                            declineReward.ifPresent(dr -> builder.setDeclineReward(BoolValue.of(dr)));
                             builder.addAllGossipEndpoint(newGossipEndpoints.stream()
                                     .map(CommonPbjConverters::fromPbj)
                                     .toList());

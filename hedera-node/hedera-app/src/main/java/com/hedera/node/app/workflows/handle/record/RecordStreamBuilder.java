@@ -211,6 +211,11 @@ public class RecordStreamBuilder
     private HederaFunctionality function;
 
     private boolean isContractCreate;
+    /**
+     * The number of storage slots updated during hook creation or update. Slots updated during hook execution are
+     * tracked and updated through RootProxyWorldUpdater.
+     */
+    private int deltaStorageSlotsUpdated;
 
     /**
      * ops duration used by the contract transaction
@@ -220,7 +225,7 @@ public class RecordStreamBuilder
      * The next hook ID after the hook dispatch.
      * This is useful to set the first hookId on the account if the head is deleted
      */
-    private long nextHookId;
+    private Long nextHookId;
 
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
@@ -389,8 +394,15 @@ public class RecordStreamBuilder
     // ------------------------------------------------------------------------------------------------------------------------
     // base transaction data
 
+    @Override
     public RecordStreamBuilder parentConsensus(@NonNull final Instant parentConsensus) {
         this.parentConsensus = requireNonNull(parentConsensus, "parentConsensus must not be null");
+        return this;
+    }
+
+    @Override
+    public StreamBuilder triggeringParentConsensus(@NonNull final Instant parentConsensus) {
+        // No-op for backward compatibility with V6 record stream
         return this;
     }
 
@@ -1123,6 +1135,21 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @Override
+    public Bytes getEvmCallResult() {
+        return requireNonNull(contractFunctionResult).contractCallResult();
+    }
+
+    @Override
+    public int getDeltaStorageSlotsUpdated() {
+        return deltaStorageSlotsUpdated;
+    }
+
+    @Override
+    public void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated) {
+        this.deltaStorageSlotsUpdated = deltaStorageSlotsUpdated;
+    }
+
     /**
      * Sets the contractStateChanges which are part of sidecar records.
      *
@@ -1315,12 +1342,12 @@ public class RecordStreamBuilder
     }
 
     @Override
-    public void nextHookId(final long nextHookId) {
+    public void nextHookId(final Long nextHookId) {
         this.nextHookId = nextHookId;
     }
 
     @Override
-    public long getNextHookId() {
+    public Long getNextHookId() {
         return nextHookId;
     }
 }

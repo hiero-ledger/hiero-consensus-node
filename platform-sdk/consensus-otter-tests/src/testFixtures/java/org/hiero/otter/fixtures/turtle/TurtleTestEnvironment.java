@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
+import static java.util.Collections.unmodifiableSet;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.FileUtils;
@@ -12,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
@@ -23,6 +26,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.chaosbot.ChaosBot;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogClock;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
@@ -43,6 +47,9 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
     private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
 
+    /** Capabilities supported by the Turtle test environment */
+    private static final Set<Capability> CAPABILITIES = unmodifiableSet(EnumSet.of(Capability.DETERMINISTIC_EXECUTION));
+
     static final Duration GRANULARITY = Duration.ofMillis(10);
 
     private final TurtleNetwork network;
@@ -50,11 +57,19 @@ public class TurtleTestEnvironment implements TestEnvironment {
     private final TurtleTimeManager timeManager;
 
     /**
+     * Constructor with default values for using a random seed and random node-ids
+     */
+    public TurtleTestEnvironment() {
+        this(0L, true);
+    }
+
+    /**
      * Constructor for the {@link TurtleTestEnvironment} class.
      *
      * @param randomSeed the seed for the PRNG; if {@code 0}, a random seed will be generated
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
-    public TurtleTestEnvironment(final long randomSeed) {
+    public TurtleTestEnvironment(final long randomSeed, final boolean useRandomNodeIds) {
         final Path rootOutputDirectory = Path.of("build", "turtle");
         try {
             if (Files.exists(rootOutputDirectory)) {
@@ -81,7 +96,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
             final ConstructableRegistry registry = ConstructableRegistry.getInstance();
             registry.reset();
             registry.registerConstructables("");
-            registerMerkleStateRootClassIds();
+            registerConstructablesForStorage(CONFIGURATION);
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
@@ -89,7 +104,8 @@ public class TurtleTestEnvironment implements TestEnvironment {
         timeManager = new TurtleTimeManager(time, GRANULARITY);
 
         transactionGenerator = new TurtleTransactionGenerator(randotron);
-        network = new TurtleNetwork(randotron, timeManager, logging, rootOutputDirectory, transactionGenerator);
+        network = new TurtleNetwork(
+                randotron, timeManager, logging, rootOutputDirectory, transactionGenerator, useRandomNodeIds);
 
         timeManager.addTimeTickReceiver(network);
     }
@@ -101,7 +117,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
      * @return {@code true} if the Turtle test environment supports the required capabilities, {@code false} otherwise
      */
     public static boolean supports(@NonNull final List<Capability> requiredCapabilities) {
-        return requiredCapabilities.isEmpty();
+        return CAPABILITIES.containsAll(requiredCapabilities);
     }
 
     /**
@@ -110,7 +126,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
     @Override
     @NonNull
     public Set<Capability> capabilities() {
-        return Set.of();
+        return CAPABILITIES;
     }
 
     /**
@@ -138,6 +154,24 @@ public class TurtleTestEnvironment implements TestEnvironment {
     @NonNull
     public TransactionGenerator transactionGenerator() {
         return transactionGenerator;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ChaosBot createChaosBot() {
+        throw new UnsupportedOperationException("ChaosBot is not supported in TurtleTestEnvironment");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ChaosBot createChaosBot(final long seed) {
+        throw new UnsupportedOperationException("ChaosBot is not supported in TurtleTestEnvironment");
     }
 
     /**

@@ -2,9 +2,6 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
-import static com.swirlds.state.merkle.logging.StateLogger.logMapGet;
-import static com.swirlds.state.merkle.logging.StateLogger.logMapGetSize;
-import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -63,18 +60,13 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     protected V readFromDataSource(@NonNull K key) {
         final Bytes stateKey = getStateKeyForKv(stateId, key, keyCodec);
         final StateValue<V> stateValue = virtualMap.get(stateKey, stateValueCodec);
-        final V value = stateValue != null ? stateValue.value() : null;
-        // Log to transaction state log, what was read
-        logMapGet(label, key, value);
-        return value;
+        return stateValue != null ? stateValue.value() : null;
     }
 
     /** {@inheritDoc} */
     @NonNull
     @Override
     protected Iterator<K> iterateFromDataSource() {
-        // Log to transaction state log, what was iterated
-        logMapIterate(label, virtualMap, keyCodec);
         return new OnDiskIterator<>(virtualMap, keyCodec, stateId);
     }
 
@@ -84,10 +76,7 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     @Override
     @Deprecated
     public long size() {
-        final var size = virtualMap.size();
-        // Log to transaction state log, size of map
-        logMapGetSize(label, size);
-        return size;
+        return virtualMap.size();
     }
 
     @Override

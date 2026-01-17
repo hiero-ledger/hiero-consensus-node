@@ -10,7 +10,6 @@ import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -19,9 +18,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -42,20 +41,19 @@ import org.apache.logging.log4j.Logger;
  * <ul>
  *     <li>Maintaining the block states in a buffer</li>
  *     <li>Handling backpressure when the buffer is saturated</li>
- *     <li>Pruning the buffer based on TTL and saturation</li>
+ *     <li>Pruning the buffer based on max buffer size and saturation</li>
  * </ul>
  */
 @Singleton
 public class BlockBufferService {
     private static final Logger logger = LogManager.getLogger(BlockBufferService.class);
-    private static final int DEFAULT_BUFFER_SIZE = 150;
-
     private static final Duration DEFAULT_WORKER_INTERVAL = Duration.ofSeconds(1);
+    private static final int DEFAULT_BUFFER_SIZE = 150;
 
     /**
      * Buffer that stores recent blocks. This buffer is unbounded, however it is technically capped because back
      * pressure will prevent blocks from being created. Generally speaking, the buffer should contain only blocks that
-     * are recent (that is within the configured {@link BlockBufferConfig#blockTtl() TTL}) and have yet to be
+     * are recent (that are within the configured {@link BlockBufferConfig#maxBlocks() number}) and have yet to be
      * acknowledged. There may be cases where older blocks still exist in the buffer if they are unacknowledged, but
      * once they are acknowledged they will be pruned the next time {@link #openBlock(long)} is invoked.
      */
@@ -76,7 +74,7 @@ public class BlockBufferService {
     /**
      * Executor that is used to schedule buffer pruning and triggering backpressure if needed.
      */
-    private final ScheduledExecutorService execSvc = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledExecutorService execSvc;
     /**
      * Global CompletableFuture reference that is used to apply backpressure via {@link #ensureNewBlocksPermitted()}. If
      * the completed future has a value of {@code true}, then it means that the buffer is no longer saturated and no
@@ -102,9 +100,6 @@ public class BlockBufferService {
      * Metrics API for block stream-specific metrics.
      */
     private final BlockStreamMetrics blockStreamMetrics;
-
-    private final boolean grpcStreamingEnabled;
-    private final boolean backpressureEnabled;
 
     /**
      * The timestamp of the most recent attempt at proactive buffer recovery.
@@ -139,12 +134,23 @@ public class BlockBufferService {
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
-        this.bufferIO = new BlockBufferIO(bufferDirectory());
+        this.bufferIO = new BlockBufferIO(bufferDirectory(), maxReadDepth());
+    }
 
-        final BlockStreamConfig blockStreamConfig =
-                configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
-        this.grpcStreamingEnabled = blockStreamConfig.writerMode() != BlockStreamWriterMode.FILE;
-        this.backpressureEnabled = (blockStreamConfig.streamMode() == StreamMode.BLOCKS && grpcStreamingEnabled);
+    private boolean isGrpcStreamingEnabled() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamToBlockNodes();
+    }
+
+    private boolean isBackpressureEnabled() {
+        return (configProvider
+                                .getConfiguration()
+                                .getConfigData(BlockStreamConfig.class)
+                                .streamMode()
+                        == StreamMode.BLOCKS
+                && isGrpcStreamingEnabled());
     }
 
     /**
@@ -152,20 +158,40 @@ public class BlockBufferService {
      * background worker thread. Calling this method multiple times on the same instance will do nothing.
      */
     public void start() {
-        // Initialize buffer and start worker thread if streaming is enabled
-        if (grpcStreamingEnabled && isStarted.compareAndSet(false, true)) {
-            loadBufferFromDisk();
-            scheduleNextWorkerTask();
+        if (!isGrpcStreamingEnabled() || !isStarted.compareAndSet(false, true)) {
+            return;
         }
+
+        // Initialize buffer and start worker thread if streaming is enabled
+        loadBufferFromDisk();
+
+        execSvc = Executors.newSingleThreadScheduledExecutor();
+        scheduleNextWorkerTask();
     }
 
     /**
      * Shuts down the block buffer service and its associated resources.
-     * This terminates the executor service and shuts down the block node connection manager.
+     * This terminates the executor service.
      */
     public void shutdown() {
+        if (!isStarted.compareAndSet(true, false)) {
+            // buffer already shutdown
+            return;
+        }
+
+        // stop the background task from running
         execSvc.shutdownNow();
-        blockNodeConnectionManager.shutdown();
+        // since the pruning task is no longer running, free up the buffer
+        blockBuffer.clear();
+        // if back pressure was enabled, disable it during shutdown
+        disableBackPressure();
+        // clear metadata
+        highestAckedBlockNumber.set(Long.MIN_VALUE);
+        lastProducedBlockNumber.set(-1);
+        earliestBlockNumber.set(Long.MIN_VALUE);
+        lastPruningResult = PruneResult.NIL;
+        lastRecoveryActionTimestamp = Instant.MIN;
+        awaitingRecovery = false;
     }
 
     /**
@@ -184,23 +210,14 @@ public class BlockBufferService {
     }
 
     /**
-     * @return the current TTL for items in the block buffer
+     * @return the configured maximum number of buffered blocks
      */
-    private Duration blockBufferTtl() {
-        return configProvider
+    private int maxBufferedBlocks() {
+        final int maxBufferedBlocks = configProvider
                 .getConfiguration()
                 .getConfigData(BlockBufferConfig.class)
-                .blockTtl();
-    }
-
-    /**
-     * @return the block period duration (i.e. the amount of time a single block represents)
-     */
-    private Duration blockPeriod() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .blockPeriod();
+                .maxBlocks();
+        return maxBufferedBlocks <= 0 ? DEFAULT_BUFFER_SIZE : maxBufferedBlocks;
     }
 
     /**
@@ -260,13 +277,13 @@ public class BlockBufferService {
     }
 
     /**
-     * @return the batch size for a request to send to the block node
+     * @return the max allowed depth of nested protobuf messages
      */
-    private int blockItemBatchSize() {
+    private int maxReadDepth() {
         return configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .blockItemBatchSize();
+                .maxReadDepth();
     }
 
     /**
@@ -287,30 +304,30 @@ public class BlockBufferService {
      * @throws IllegalArgumentException if the block number is negative
      */
     public void openBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
+        logger.debug("Opening block {}.", blockNumber);
 
         if (blockNumber < 0) {
             throw new IllegalArgumentException("Block number must be non-negative");
         }
 
         final BlockState existingBlock = blockBuffer.get(blockNumber);
-        if (existingBlock != null && existingBlock.isBlockProofSent()) {
-            logger.error("Attempted to open block {}, but this block already has the block proof sent", blockNumber);
-            throw new IllegalStateException("Attempted to open block " + blockNumber + ", but this block already has "
-                    + "the block proof sent");
+        if (existingBlock != null && existingBlock.isClosed()) {
+            logger.debug("Block {} is already open and its closed; ignoring open request", blockNumber);
+            return;
         }
 
         // Create a new block state
         final BlockState blockState = new BlockState(blockNumber);
         blockBuffer.put(blockNumber, blockState);
-        // update the earliest block number if this is first block or lower than current earliest
+        // update the earliest block number if this is the first block or lower than current earliest
         earliestBlockNumber.updateAndGet(
                 current -> current == Long.MIN_VALUE ? blockNumber : Math.min(current, blockNumber));
         lastProducedBlockNumber.updateAndGet(old -> Math.max(old, blockNumber));
-        blockStreamMetrics.setProducingBlockNumber(blockNumber);
-        blockNodeConnectionManager.openBlock(blockNumber);
+        blockStreamMetrics.recordLatestBlockOpened(blockNumber);
+        blockStreamMetrics.recordBlockOpened();
     }
 
     /**
@@ -321,13 +338,13 @@ public class BlockBufferService {
      * @throws IllegalStateException if no block is currently open
      */
     public void addItem(final long blockNumber, @NonNull final BlockItem blockItem) {
-        if (!grpcStreamingEnabled) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
         requireNonNull(blockItem, "blockItem must not be null");
         final BlockState blockState = getBlockState(blockNumber);
-        if (blockState == null) {
-            throw new IllegalStateException("Block state not found for block " + blockNumber);
+        if (blockState == null || blockState.isClosed()) {
+            return;
         }
         blockState.addItem(blockItem);
     }
@@ -338,15 +355,15 @@ public class BlockBufferService {
      * @throws IllegalStateException if no block is currently open
      */
     public void closeBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
 
         final BlockState blockState = getBlockState(blockNumber);
-        if (blockState == null) {
-            throw new IllegalStateException("Block state not found for block " + blockNumber);
+        if (blockState == null || blockState.isClosed()) {
+            return;
         }
-
+        blockStreamMetrics.recordBlockClosed();
         blockState.closeBlock();
     }
 
@@ -357,7 +374,13 @@ public class BlockBufferService {
      * @return the block state, or null if no block state exists for the given block number
      */
     public @Nullable BlockState getBlockState(final long blockNumber) {
-        return blockBuffer.get(blockNumber);
+        final BlockState block = blockBuffer.get(blockNumber);
+
+        if (block == null && blockNumber <= lastProducedBlockNumber.get()) {
+            blockStreamMetrics.recordBlockMissing();
+        }
+
+        return block;
     }
 
     /**
@@ -377,12 +400,12 @@ public class BlockBufferService {
      * @param blockNumber the block number to mark acknowledged up to and including
      */
     public void setLatestAcknowledgedBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
 
         final long highestBlock = highestAckedBlockNumber.updateAndGet(current -> Math.max(current, blockNumber));
-        blockStreamMetrics.setLatestAcknowledgedBlockNumber(highestBlock);
+        blockStreamMetrics.recordLatestBlockAcked(highestBlock);
     }
 
     /**
@@ -392,15 +415,6 @@ public class BlockBufferService {
      */
     public long getLastBlockNumberProduced() {
         return lastProducedBlockNumber.get();
-    }
-
-    /**
-     * Retrieves the lowest unacked block number in the buffer.
-     * This is the lowest block number that has not been acknowledged.
-     * @return the lowest unacked block number or -1 if the buffer is empty
-     */
-    public long getLowestUnackedBlockNumber() {
-        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? -1 : highestAckedBlockNumber.get() + 1;
     }
 
     /**
@@ -426,7 +440,7 @@ public class BlockBufferService {
      * enough capacity - i.e. the buffer is saturated - then this method will block until there is enough capacity.
      */
     public void ensureNewBlocksPermitted() {
-        if (!grpcStreamingEnabled) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
 
@@ -472,24 +486,16 @@ public class BlockBufferService {
             return;
         }
 
-        final int batchSize = blockItemBatchSize();
-
         logger.info("Block buffer is being restored from disk (blocksRead: {})", blocks.size());
 
         for (final BufferedBlock bufferedBlock : blocks) {
             final BlockState block = new BlockState(bufferedBlock.blockNumber());
             bufferedBlock.block().items().forEach(block::addItem);
-            // create the requests
-            block.processPendingItems(batchSize);
-            if (bufferedBlock.isProofSent()) {
-                // the proof is sent and since it is the last thing in a block, mark all the requests as sent
-                for (int i = 0; i < block.numRequestsCreated(); ++i) {
-                    block.markRequestSent(i);
-                }
-            }
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
+            logger.debug(
+                    "Reconstructed block {} from disk and closed at {}", bufferedBlock.blockNumber(), closedInstant);
             block.closeBlock(closedInstant);
 
             if (bufferedBlock.isAcknowledged()) {
@@ -511,17 +517,15 @@ public class BlockBufferService {
      * @see BlockBufferIO
      */
     public void persistBuffer() {
-        if (!grpcStreamingEnabled || !isBufferPersistenceEnabled()) {
+        if (!isBackpressureEnabled() || !isStarted.get() || !isBufferPersistenceEnabled()) {
             return;
         }
 
-        // collect all closed blocks
-        final List<BlockState> blocksToPersist =
-                blockBuffer.values().stream().filter(BlockState::isClosed).toList();
-
-        // ensure all closed blocks have their items packed in requests before writing them out
-        final int batchSize = blockItemBatchSize();
-        blocksToPersist.forEach(block -> block.processPendingItems(batchSize));
+        // collect all closed blocks which are not acked yet
+        final List<BlockState> blocksToPersist = blockBuffer.values().stream()
+                .filter(BlockState::isClosed)
+                .filter(blockState -> blockState.blockNumber() > highestAckedBlockNumber.get())
+                .toList();
 
         try {
             bufferIO.write(blocksToPersist, highestAckedBlockNumber.get());
@@ -532,87 +536,66 @@ public class BlockBufferService {
     }
 
     /**
-     * Prunes the block buffer by removing blocks that have been acknowledged and exceeded the configured TTL. By doing
-     * this, we also inadvertently can know if buffer is "saturated" due to blocks not being acknowledged in a timely
-     * manner.
+     * Prunes the block buffer deterministically by always removing the oldest acknowledged blocks first
+     * until the buffer size is within the configured limit. Also computes saturation based on the number of
+     * unacknowledged blocks.
      */
     private @NonNull PruneResult pruneBuffer() {
-        final Duration ttl = blockBufferTtl();
-        final Instant cutoffInstant = Instant.now().minus(ttl);
-        final Iterator<Map.Entry<Long, BlockState>> it = blockBuffer.entrySet().iterator();
         final long highestBlockAcked = highestAckedBlockNumber.get();
-        /*
-        Calculate the ideal max buffer size. This is calculated as the block buffer TTL (e.g. 5 minutes) divided by the
-        block period (e.g. 2 seconds). This gives us an ideal number of blocks in the buffer.
-         */
-        final Duration blockPeriod = blockPeriod();
-        final long idealMaxBufferSize =
-                blockPeriod.isZero() || blockPeriod.isNegative() ? DEFAULT_BUFFER_SIZE : ttl.dividedBy(blockPeriod);
+        final int maxBufferSize = maxBufferedBlocks();
         int numPruned = 0;
         int numChecked = 0;
         int numPendingAck = 0;
-        final AtomicReference<Instant> oldestUnackedTimestamp = new AtomicReference<>(Instant.MAX);
         long newEarliestBlock = Long.MAX_VALUE;
         long newLatestBlock = Long.MIN_VALUE;
 
-        while (it.hasNext()) {
-            final Map.Entry<Long, BlockState> blockEntry = it.next();
-            final BlockState block = blockEntry.getValue();
-            final long blockNum = blockEntry.getKey();
+        // Create a sorted snapshot of keys so the pruning order is oldest-first
+        final List<Long> orderedBuffer = new ArrayList<>(blockBuffer.keySet());
+        Collections.sort(orderedBuffer); // ascending (oldest first)
+
+        int size = blockBuffer.size();
+        for (final long blockNumber : orderedBuffer) {
+            final BlockState block = blockBuffer.get(blockNumber);
             ++numChecked;
 
-            final Instant closedTimestamp = block.closedTimestamp();
-            if (closedTimestamp == null) {
-                // the block is not finished yet, so skip checking it
-                continue;
+            if (block.closedTimestamp() == null) {
+                continue; // the block is not finished yet, so skip checking it
             }
 
-            if (!backpressureEnabled) {
-                // If backpressure is disabled, remove blocks based solely on TTL
-                if (closedTimestamp.isBefore(cutoffInstant)) {
-                    it.remove();
-                    ++numPruned;
-                } else {
-                    // Track unacknowledged blocks
-                    if (block.blockNumber() > highestBlockAcked) {
-                        ++numPendingAck;
-                        oldestUnackedTimestamp.updateAndGet(
-                                current -> current.compareTo(closedTimestamp) < 0 ? current : closedTimestamp);
-                    }
-                    // Keep track of earliest remaining block
-                    newEarliestBlock = Math.min(newEarliestBlock, blockNum);
-                    newLatestBlock = Math.max(newLatestBlock, blockNum);
-                }
-            } else if (block.blockNumber() <= highestBlockAcked) {
-                // this block is eligible for pruning if it is old enough
-                if (closedTimestamp.isBefore(cutoffInstant)) {
-                    it.remove();
-                    ++numPruned;
-                } else {
-                    // keep track of earliest remaining block
-                    newEarliestBlock = Math.min(newEarliestBlock, blockNum);
-                    newLatestBlock = Math.max(newLatestBlock, blockNum);
-                }
+            final boolean shouldPrune;
+            if (!isBackpressureEnabled()) {
+                // If backpressure is disabled, remove blocks based solely on the maximum buffer size
+                shouldPrune = (size > maxBufferSize);
             } else {
-                ++numPendingAck;
-                // keep track of earliest remaining block
-                newEarliestBlock = Math.min(newEarliestBlock, blockNum);
-                newLatestBlock = Math.max(newLatestBlock, blockNum);
-                oldestUnackedTimestamp.updateAndGet(
-                        current -> current.compareTo(closedTimestamp) < 0 ? current : closedTimestamp);
+                // If backpressure is enabled, only prune acknowledged blocks when over capacity
+                shouldPrune = (size > maxBufferSize && blockNumber <= highestBlockAcked);
+            }
+
+            if (shouldPrune) {
+                blockBuffer.remove(blockNumber);
+                ++numPruned;
+                --size;
+            } else {
+                // Track all unacknowledged blocks
+                if (blockNumber > highestBlockAcked) {
+                    ++numPendingAck;
+                }
+                // Keep track of the earliest and the latest remaining blocks
+                newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
+                newLatestBlock = Math.max(newLatestBlock, blockNumber);
             }
         }
 
         // update the earliest block number after pruning
-        earliestBlockNumber.set(newEarliestBlock == Long.MAX_VALUE ? -1 : newEarliestBlock);
+        newEarliestBlock = newEarliestBlock == Long.MAX_VALUE ? Long.MIN_VALUE : newEarliestBlock;
+        newLatestBlock = newLatestBlock == Long.MIN_VALUE ? -1 : newLatestBlock;
+        earliestBlockNumber.set(newEarliestBlock);
 
-        final long oldestUnackedMillis = Instant.MAX.equals(oldestUnackedTimestamp.get())
-                ? -1 // sentinel value indicating no blocks are unacked
-                : oldestUnackedTimestamp.get().toEpochMilli();
-        blockStreamMetrics.setOldestUnacknowledgedBlockTime(oldestUnackedMillis);
+        blockStreamMetrics.recordNumberOfBlocksPruned(numPruned);
+        blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock == Long.MIN_VALUE ? -1 : newEarliestBlock);
+        blockStreamMetrics.recordBufferNewestBlock(newLatestBlock);
 
-        return new PruneResult(
-                idealMaxBufferSize, numChecked, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
+        return new PruneResult(maxBufferSize, numChecked, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
     }
 
     /**
@@ -656,6 +639,17 @@ public class BlockBufferService {
                         .doubleValue();
             }
         }
+
+        @Override
+        public String toString() {
+            return "PruneResult{" + "idealMaxBufferSize="
+                    + idealMaxBufferSize + ", numBlocksChecked="
+                    + numBlocksChecked + ", numBlocksPendingAck="
+                    + numBlocksPendingAck + ", numBlocksPruned="
+                    + numBlocksPruned + ", saturationPercent="
+                    + saturationPercent + ", isSaturated="
+                    + isSaturated + '}';
+        }
     }
 
     /**
@@ -665,7 +659,7 @@ public class BlockBufferService {
      * continues to be saturated.
      */
     private void checkBuffer() {
-        if (!grpcStreamingEnabled) {
+        if (!isGrpcStreamingEnabled()) {
             return;
         }
 
@@ -673,17 +667,19 @@ public class BlockBufferService {
         final PruneResult previousPruneResult = lastPruningResult;
         lastPruningResult = pruningResult;
 
-        logger.debug(
-                "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, blockRange=[{}, {}], saturation={}%",
-                pruningResult.idealMaxBufferSize,
-                pruningResult.numBlocksChecked,
-                pruningResult.numBlocksPruned,
-                pruningResult.numBlocksPendingAck,
-                pruningResult.oldestBlockNumber == Long.MAX_VALUE ? "-" : pruningResult.oldestBlockNumber,
-                pruningResult.newestBlockNumber == Long.MIN_VALUE ? "-" : pruningResult.newestBlockNumber,
-                pruningResult.saturationPercent);
+        // create a list of ranges of contiguous blocks in the buffer
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                    "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, blockRange={}, saturation={}%",
+                    pruningResult.idealMaxBufferSize,
+                    pruningResult.numBlocksChecked,
+                    pruningResult.numBlocksPruned,
+                    pruningResult.numBlocksPendingAck,
+                    getContiguousRangesAsString(new ArrayList<>(blockBuffer.keySet())),
+                    pruningResult.saturationPercent);
+        }
 
-        blockStreamMetrics.updateBlockBufferSaturation(pruningResult.saturationPercent);
+        blockStreamMetrics.recordBufferSaturation(pruningResult.saturationPercent);
 
         final double actionStageThreshold = actionStageThreshold();
 
@@ -697,13 +693,13 @@ public class BlockBufferService {
                 enableBackPressure(pruningResult);
                 switchBlockNodeIfPermitted(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
-
                 /*
                 Zero -> Action Stage
                 The buffer has transitioned from zero/low saturation levels to exceeding the action stage threshold. We
                 don't need to engage back pressure, but we should take proactive measures and swap to a different
                 Block Node.
                  */
+                blockStreamMetrics.recordBackPressureActionStage();
                 switchBlockNodeIfPermitted(pruningResult);
             } else {
                 /*
@@ -711,6 +707,7 @@ public class BlockBufferService {
                 Before and after the pruning, the buffer saturation remained lower than the action stage threshold so
                 there is no action we need to take.
                  */
+                blockStreamMetrics.recordBackPressureDisabled();
             }
         } else if (!previousPruneResult.isSaturated && previousPruneResult.saturationPercent >= actionStageThreshold) {
             if (pruningResult.isSaturated) {
@@ -728,6 +725,7 @@ public class BlockBufferService {
                 does not need to be enabled yet (though may eventually if recovery is slow/blocked) but we should maybe
                 swap Block Node connections.
                  */
+                blockStreamMetrics.recordBackPressureActionStage();
                 switchBlockNodeIfPermitted(pruningResult);
             } else {
                 /*
@@ -735,6 +733,7 @@ public class BlockBufferService {
                 The buffer has transitioned from an action stage to having a saturation that is below the action stage
                 threshold. There is no further action to take since recovery has been achieved.
                  */
+                blockStreamMetrics.recordBackPressureDisabled();
             }
         } else if (previousPruneResult.isSaturated) {
             if (pruningResult.isSaturated) {
@@ -743,8 +742,8 @@ public class BlockBufferService {
                 Before and after pruning, the buffer remained fully saturated. Back pressure should be enabled - if not
                 already - and we should maybe swap to a different Block Node.
                  */
-                enableBackPressure(pruningResult);
                 switchBlockNodeIfPermitted(pruningResult);
+                enableBackPressure(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
                 /*
                 Full -> Action Stage
@@ -754,6 +753,11 @@ public class BlockBufferService {
                 connect to a different Block Node.
                  */
                 disableBackPressureIfRecovered(pruningResult);
+                if (awaitingRecovery) {
+                    blockStreamMetrics.recordBackPressureRecovering();
+                } else {
+                    blockStreamMetrics.recordBackPressureActionStage();
+                }
             } else {
                 /*
                 Full -> Zero
@@ -762,6 +766,11 @@ public class BlockBufferService {
                 since the buffer fully recovered we should avoid trying to connect to a different Block Node.
                  */
                 disableBackPressureIfRecovered(pruningResult);
+                if (awaitingRecovery) {
+                    blockStreamMetrics.recordBackPressureRecovering();
+                } else {
+                    blockStreamMetrics.recordBackPressureDisabled();
+                }
             }
         }
 
@@ -786,7 +795,7 @@ public class BlockBufferService {
             return;
         }
 
-        logger.info(
+        logger.debug(
                 "Attempting to forcefully switch block node connections due to increasing block buffer saturation (saturation={}%)",
                 pruneResult.saturationPercent);
         lastRecoveryActionTimestamp = now;
@@ -801,7 +810,7 @@ public class BlockBufferService {
      * @param latestPruneResult the latest pruning result
      */
     private void disableBackPressureIfRecovered(final PruneResult latestPruneResult) {
-        if (!backpressureEnabled) {
+        if (!isBackpressureEnabled()) {
             // back pressure is not enabled, so nothing to do
             return;
         }
@@ -821,6 +830,13 @@ public class BlockBufferService {
                 "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled. (saturation={}%, recoveryThreshold={}%)",
                 latestPruneResult.saturationPercent, recoveryThreshold);
 
+        disableBackPressure();
+    }
+
+    /**
+     * Disables back pressure.
+     */
+    private void disableBackPressure() {
         final CompletableFuture<Boolean> cf = backpressureCompletableFutureRef.get();
         if (cf != null && !cf.isDone()) {
             // the future isn't completed, so complete it to disable the blocking back pressure
@@ -835,7 +851,7 @@ public class BlockBufferService {
      * @param latestPruneResult the latest pruning result
      */
     private void enableBackPressure(final PruneResult latestPruneResult) {
-        if (!backpressureEnabled) {
+        if (!isBackpressureEnabled()) {
             return;
         }
 
@@ -848,6 +864,8 @@ public class BlockBufferService {
             if (oldCf == null || oldCf.isDone()) {
                 // If the existing future is null or is completed, we need to create a new one
                 newCf = new CompletableFuture<>();
+                blockStreamMetrics.recordBackPressureActive();
+
                 logger.warn(
                         "Block buffer is saturated; backpressure is being enabled "
                                 + "(idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, saturation={}%)",
@@ -869,7 +887,7 @@ public class BlockBufferService {
      * check if the configuration has changed.
      */
     private void scheduleNextWorkerTask() {
-        if (!grpcStreamingEnabled) {
+        if (!isGrpcStreamingEnabled()) {
             return;
         }
 
@@ -884,6 +902,11 @@ public class BlockBufferService {
 
         @Override
         public void run() {
+            if (!isStarted.get()) {
+                logger.debug("Buffer service shutdown; aborting worker task");
+                return;
+            }
+
             try {
                 checkBuffer();
             } catch (final RuntimeException e) {
@@ -892,5 +915,53 @@ public class BlockBufferService {
                 scheduleNextWorkerTask();
             }
         }
+    }
+
+    /**
+     * Format the specified block numbers into a string that shows the range of discrete contiguous ranges. For example,
+     * block numbers 3, 4, 5, 6 will be formatted as string "[(3-6)]". If the block numbers were 1, 2, 3, 10, 11, 12
+     * then the formatted string will be "[(1-3),(10-12)]". If no block numbers are specified, then "[]" is returned.
+     * If only one unique block number is specified, then it will be formatted as "[(N)]" where N is the unique number.
+     *
+     * @param blockNumbers the block numbers to format
+     * @return a String representing the contiguous ranges of block numbers specified
+     */
+    private static String getContiguousRangesAsString(final List<Long> blockNumbers) {
+        // Sort the block numbers
+        Collections.sort(blockNumbers);
+
+        if (blockNumbers.isEmpty()) {
+            return "[]";
+        }
+
+        final List<String> ranges = new ArrayList<>();
+        long start = blockNumbers.getFirst();
+        long prev = start;
+
+        for (int i = 1; i < blockNumbers.size(); i++) {
+            final long current = blockNumbers.get(i);
+            if (current != prev + 1) {
+                // Close previous range
+                ranges.add(formatRange(start, prev));
+                start = current;
+            }
+            prev = current;
+        }
+        // Add last range
+        ranges.add(formatRange(start, prev));
+
+        return "[" + String.join(",", ranges) + "]";
+    }
+
+    /**
+     * Format the specified range into a string. If the start and end are the same number N, the output will be "(N)".
+     * If the start (S) and end (E) are different, then the output will be formatted as "(S-E)".
+     *
+     * @param start the start of the range
+     * @param end the end of the range
+     * @return a String representing the specified range
+     */
+    private static String formatRange(final long start, final long end) {
+        return start == end ? "(" + start + ")" : "(" + start + "-" + end + ")";
     }
 }
