@@ -357,12 +357,16 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         int numHooks = 0;
         if (hasPreTxHook) {
             gas = clampedAdd(
-                    gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrElse(EvmHookCall.DEFAULT).gasLimit());
+                    gas,
+                    aa.preTxAllowanceHookOrThrow()
+                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                            .gasLimit());
             numHooks++;
         }
         if (hasPrePostTxHook) {
-            final long gasPerCall =
-                    aa.prePostTxAllowanceHookOrThrow().evmHookCallOrElse(EvmHookCall.DEFAULT).gasLimit();
+            final long gasPerCall = aa.prePostTxAllowanceHookOrThrow()
+                    .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                    .gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
             numHooks += 2;
         }
@@ -385,7 +389,9 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         if (hasSenderPre) {
             gas = clampedAdd(
                     gas,
-                    nft.preTxSenderAllowanceHookOrThrow().evmHookCallOrElse(EvmHookCall.DEFAULT).gasLimit());
+                    nft.preTxSenderAllowanceHookOrThrow()
+                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                            .gasLimit());
             numHooks++;
         }
         if (hasSenderPrePost) {
@@ -398,7 +404,9 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         if (hasReceiverPre) {
             gas = clampedAdd(
                     gas,
-                    nft.preTxReceiverAllowanceHookOrThrow().evmHookCallOrElse(EvmHookCall.DEFAULT).gasLimit());
+                    nft.preTxReceiverAllowanceHookOrThrow()
+                            .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                            .gasLimit());
             numHooks++;
         }
         if (hasReceiverPrePost) {
