@@ -29,6 +29,7 @@ import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -89,6 +90,7 @@ import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -100,7 +102,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
@@ -167,6 +171,17 @@ public class HandleWorkflow {
     private final NodeFeeManager nodeFeeManager;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
+
+    private record LedgerIdContext(
+            @NonNull Bytes ledgerId,
+            @NonNull List<ProofKey> proofKeys,
+            @NonNull SortedMap<Long, Long> targetNodeWeights) {
+        private LedgerIdContext {
+            requireNonNull(ledgerId);
+            requireNonNull(proofKeys);
+            requireNonNull(targetNodeWeights);
+        }
+    }
 
     @Inject
     public HandleWorkflow(
@@ -244,7 +259,7 @@ public class HandleWorkflow {
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     public void handleRound(
-            @NonNull final State state,
+            @NonNull final MerkleNodeState state,
             @NonNull final Round round,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         logStartRound(round);
@@ -295,10 +310,11 @@ public class HandleWorkflow {
             }
         }
 
+        final var setLedgerIdContext = new AtomicReference<LedgerIdContext>(null);
         // If only producing a record stream, no reason to do any TSS work (since it is
         // output exclusively in a block stream)
         if (streamMode != RECORDS) {
-            configureTssCallbacks(state);
+            configureTssCallbacks(state, setLedgerIdContext);
             try {
                 reconcileTssState(state, round.getConsensusTimestamp());
             } catch (Exception e) {
@@ -329,6 +345,24 @@ public class HandleWorkflow {
                     .getConfigData(BlockStreamConfig.class)
                     .receiptEntriesBatchSize();
             transactionsDispatched |= handleEvents(state, round, receiptEntriesBatchSize, stateSignatureTxnCallback);
+            if (setLedgerIdContext.get() != null) {
+                try {
+                    final var ctx = setLedgerIdContext.get();
+                    logger.info("Externalizing ledger id {}", ctx.ledgerId().toHex());
+                    // Since we must have handled a TSS tx to trigger setting the ledger id, we
+                    // know the last-used consensus time has advanced since the last system tx
+                    systemTransactions.externalizeLedgerId(
+                            state,
+                            lastUsedConsTime.plusNanos(2),
+                            ctx.ledgerId(),
+                            ctx.proofKeys(),
+                            ctx.targetNodeWeights(),
+                            historyService.historyProofVerificationKey());
+                    transactionsDispatched = true;
+                } catch (Exception e) {
+                    logger.error("{} Failed to externalize ledger id", ALERT_MESSAGE, e);
+                }
+            }
 
             // Inform the BlockRecordManager that the round is complete, so it can update running hashes in state
             // from results computed in background threads. The running hash has to be included in state, but we want
@@ -916,8 +950,10 @@ public class HandleWorkflow {
      * Configure the TSS callbacks for the given state.
      *
      * @param state the latest state
+     * @param setLedgerIdContext the flag to set the ledger id
      */
-    private void configureTssCallbacks(@NonNull final State state) {
+    private void configureTssCallbacks(
+            @NonNull final State state, @NonNull final AtomicReference<LedgerIdContext> setLedgerIdContext) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
             hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
@@ -938,7 +974,7 @@ public class HandleWorkflow {
                 }
             });
             if (tssConfig.historyEnabled()) {
-                historyService.onFinishedConstruction((historyStore, construction) -> {
+                historyService.onFinishedConstruction((historyStore, construction, targetNodeWeights) -> {
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
                     final var activeConstruction = historyStore.getActiveConstruction();
                     if (activeConstruction.constructionId() == construction.constructionId()) {
@@ -949,6 +985,9 @@ public class HandleWorkflow {
                         final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
                         historyStore.setLedgerId(ledgerId);
                         logger.info("Set ledger id to '{}'", ledgerId);
+                        // Record its context for later externalization
+                        setLedgerIdContext.set(
+                                new LedgerIdContext(ledgerId, proof.targetProofKeys(), targetNodeWeights));
                         return;
                     }
                     // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time
