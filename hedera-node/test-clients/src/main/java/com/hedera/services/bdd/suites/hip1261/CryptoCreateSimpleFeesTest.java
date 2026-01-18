@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -63,6 +64,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
@@ -956,6 +958,7 @@ public class CryptoCreateSimpleFeesTest {
                 final AtomicLong afterBalance = new AtomicLong();
                 final AtomicLong initialNodeBalance = new AtomicLong();
                 final AtomicLong afterNodeBalance = new AtomicLong();
+                final AtomicInteger txnSize = new AtomicInteger();
 
                 final String INNER_ID = "crypto-create-txn-inner-id";
 
@@ -991,18 +994,21 @@ public class CryptoCreateSimpleFeesTest {
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
+                            final var txnBytes = spec.registry().getBytes(INNER_ID);
+                            txnSize.set(txnBytes.length);
+
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
                             log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(1));
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        sourcing(() -> validateChargedFeeToUsd(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedCryptoCreateNetworkFeeOnlyUsd(1L),
-                                0.01));
+                                expectedCryptoCreateNetworkFeeOnlyUsd(1L, txnSize.get()),
+                                0.01)));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)

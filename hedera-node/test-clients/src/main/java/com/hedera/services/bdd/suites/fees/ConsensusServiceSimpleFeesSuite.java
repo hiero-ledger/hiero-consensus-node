@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class ConsensusServiceSimpleFeesSuite {
     private static final double EXPECTED_CRYPTO_TRANSFER_FEE = 0.0001;
+
     @Nested
     class TopicFeesComparison {
         private static final String PAYER = "payer";

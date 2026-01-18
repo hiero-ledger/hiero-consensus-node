@@ -39,7 +39,7 @@ public class FileServiceSimpleFeesTest {
     private static final double BASE_FEE_FILE_UPDATE = 0.05;
     private static final double BASE_FEE_FILE_DELETE = 0.007;
     private static final double BASE_FEE_FILE_APPEND = 0.05;
-    private static final double SINGLE_BYTE_FEE = 0.000011;
+    public static final double SINGLE_BYTE_FEE = 0.000011;
     private static final double SINGLE_KEY_FEE = 0.01;
     private static final double SINGLE_SIGNATURE_COST = 0.0001;
     private static final double BASE_FEE_FILE_GET_CONTENT = 0.0001;
