@@ -274,11 +274,15 @@ public final class Hedera
 
     private final ConsensusServiceImpl consensusServiceImpl;
 
+    private final NetworkServiceImpl networkServiceImpl;
+
     /**
      * The file service singleton, kept as a field here to avoid constructing twice
      * (once in constructor to register schemas, again inside Dagger component).
      */
     private final FileServiceImpl fileServiceImpl;
+
+    private final AddressBookServiceImpl addressBookServiceImpl;
 
     /**
      * The block stream service singleton, kept as a field here to reuse information learned
@@ -363,7 +367,7 @@ public final class Hedera
     /**
      * The action to take, if any, when a consensus round is sealed.
      */
-    private final BiPredicate<Round, State> onSealConsensusRound;
+    private final BiPredicate<Round, MerkleNodeState> onSealConsensusRound;
 
     private final boolean quiescenceEnabled;
 
@@ -466,16 +470,14 @@ public final class Hedera
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
         this.blockHashSignerFactory = requireNonNull(blockHashSignerFactory);
         this.storeMetricsService = new StoreMetricsServiceImpl(metrics);
-        logger.info(
-                """
+        logger.info("""
 
                         {}
 
                         Welcome to Hedera! Developed with ❤\uFE0F by the Open Source Community.
                         https://github.com/hashgraph/hedera-services
 
-                        """,
-                HEDERA);
+                        """, HEDERA);
         bootstrapConfigProvider = new BootstrapConfigProviderImpl();
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
         hapiVersion = bootstrapConfig.getConfigData(VersionConfig.class).hapiVersion();
@@ -494,6 +496,7 @@ public final class Hedera
                 () -> HapiUtils.toString(version),
                 () -> HapiUtils.toString(hapiVersion));
         fileServiceImpl = new FileServiceImpl();
+        addressBookServiceImpl = new AddressBookServiceImpl();
 
         final Supplier<Configuration> configSupplier = () -> configProvider().getConfiguration();
         this.appContext = new AppContextImpl(
@@ -522,6 +525,7 @@ public final class Hedera
                 .txBody());
         tokenServiceImpl = new TokenServiceImpl(appContext);
         consensusServiceImpl = new ConsensusServiceImpl();
+        networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         blockStreamService = new BlockStreamService();
@@ -552,8 +556,8 @@ public final class Hedera
                         blockStreamService,
                         new FeeService(),
                         new CongestionThrottleService(),
-                        new NetworkServiceImpl(),
-                        new AddressBookServiceImpl(),
+                        networkServiceImpl,
+                        addressBookServiceImpl,
                         new RosterServiceImpl(
                                 this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState)),
                         PLATFORM_STATE_SERVICE)
@@ -1269,9 +1273,11 @@ public final class Hedera
                 .fileServiceImpl(fileServiceImpl)
                 .contractServiceImpl(contractServiceImpl)
                 .utilServiceImpl(utilServiceImpl)
+                .networkServiceImpl(networkServiceImpl)
                 .tokenServiceImpl(tokenServiceImpl)
                 .consensusServiceImpl(consensusServiceImpl)
                 .scheduleService(scheduleServiceImpl)
+                .addressBookService(addressBookServiceImpl)
                 .initTrigger(trigger)
                 .softwareVersion(version)
                 .self(networkInfo.selfNodeInfo())
@@ -1365,7 +1371,7 @@ public final class Hedera
         return root;
     }
 
-    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
+    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
         daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
         return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
     }

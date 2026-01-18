@@ -1853,6 +1853,11 @@ enum HederaFunctionality {
      * Update one or more storage slots in an EVM hook.
      */
     HookStore = 111;
+
+    /**
+     * (Internal-only) Publish a new ledger id and chain-of-trust key.
+     */
+    LedgerIdPublication = 112;
 }
 
 /**

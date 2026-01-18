@@ -20,7 +20,6 @@ module com.hedera.node.app.spi.test.fixtures {
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
     requires com.hedera.node.app.service.token.impl;
-    requires com.swirlds.platform.core;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.model;
     requires com.google.common;
