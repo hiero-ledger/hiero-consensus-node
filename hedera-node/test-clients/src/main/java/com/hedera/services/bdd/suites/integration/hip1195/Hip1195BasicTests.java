@@ -1039,6 +1039,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
+                        .signedBy(OWNER)
                         .via("feeTxn"),
                 sourcingContextual(spec -> {
                     final long tinybarGasCost =
@@ -1050,6 +1051,7 @@ public class Hip1195BasicTests {
                         .withPreHookFor(OWNER, 123L, HOOK_GAS_LIMIT, "")
                         .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
+                        .signedBy(OWNER)
                         .via("feeTxn2"),
                 sourcingContextual(spec -> {
                     // Pre-post hook is called twice, so gas usage is double the given limit
@@ -1079,6 +1081,7 @@ public class Hip1195BasicTests {
                         .withPrePostHookFor(OWNER, 123L, HOOK_GAS_LIMIT, "")
                         .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
+                        .signedBy(OWNER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("feeTxn"),
                 sourcingContextual(spec -> {
