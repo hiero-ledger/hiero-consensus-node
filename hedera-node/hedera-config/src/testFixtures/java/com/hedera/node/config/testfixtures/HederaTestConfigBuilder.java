@@ -76,7 +76,6 @@ import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.StateConfig;
@@ -128,7 +127,6 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(PrometheusConfig.class)
                 .withConfigDataType(PlatformStatusConfig.class)
                 .withConfigDataType(MerkleDbConfig.class)
-                .withConfigDataType(AddressBookConfig.class)
                 .withConfigDataType(OpsDurationConfig.class)
                 .withConfigDataType(QuiescenceConfig.class)
                 /*
