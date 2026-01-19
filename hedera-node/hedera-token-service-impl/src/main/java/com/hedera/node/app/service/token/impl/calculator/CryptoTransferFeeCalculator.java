@@ -80,7 +80,6 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         }
         if (hookInfo.numHookInvocations() > 0) {
             final var config = feeContext.configuration();
-            final var hooksConfig = config.getConfigData(HooksConfig.class);
             // Avoid overflow in by clamping effective limit. Since we validate each hook dispatch can't
             // exceed maxGasPerSec downstream, we need to allow to charge upto maxGasPerSec * numHookInvocations
             final long effectiveGasLimit = Math.max(

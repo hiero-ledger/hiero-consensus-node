@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.NftTransfer;
@@ -25,6 +26,10 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
+
+import com.hedera.node.config.data.ContractsConfig;
+import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.Configuration;
 import org.hiero.hapi.support.fees.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -46,8 +51,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 class CryptoTransferFeeCalculatorTest {
-
-    private static final long BASE_FEE = 1_000_000L;
     private static final long TOKEN_TRANSFER_FEE = 9_000_000L;
     private static final long TOKEN_TRANSFER_CUSTOM_FEE = 19_000_000L;
     private static final long FUNGIBLE_TOKEN_EXTRA_FEE = 1_000_000L;
@@ -236,6 +239,7 @@ class CryptoTransferFeeCalculatorTest {
         void hookExecutionChargesExtra() {
             setupMocksWithTokenStore();
             mockFungibleToken(2001L, false);
+            mockConfiguration();
 
             final var tokenTransfers = TokenTransferList.newBuilder()
                     .token(TokenID.newBuilder().tokenNum(2001L).build())
@@ -245,7 +249,9 @@ class CryptoTransferFeeCalculatorTest {
                                             .accountNum(1001L)
                                             .build())
                                     .amount(-50L)
-                                    .preTxAllowanceHook(HookCall.DEFAULT)
+                                    .preTxAllowanceHook(HookCall.newBuilder().evmHookCall(
+                                            EvmHookCall.newBuilder().gasLimit(821).build()
+                                    ).build())
                                     .build(),
                             AccountAmount.newBuilder()
                                     .accountID(AccountID.newBuilder()
@@ -287,6 +293,13 @@ class CryptoTransferFeeCalculatorTest {
                 .customFees(hasCustomFees ? List.of(mock(CustomFee.class)) : List.of())
                 .build();
         when(tokenStore.get(tokenId)).thenReturn(token);
+    }
+
+    private void mockConfiguration(){
+        final var config = mock(Configuration.class);
+        final var contractConfig = mock(ContractsConfig.class);
+        when(config.getConfigData(ContractsConfig.class)).thenReturn(contractConfig);
+        when(feeContext.configuration()).thenReturn(config);
     }
 
     private void mockNftToken(long tokenNum, boolean hasCustomFees) {
