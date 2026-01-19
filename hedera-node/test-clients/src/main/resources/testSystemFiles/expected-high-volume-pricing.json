@@ -1,21 +1,21 @@
 {
   "description": "Expected high-volume pricing curves from HIP-1313 specification",
   "baseCurve": {
-    "description": "Base curve applied to all transaction types - maps rate multiplier to price multiplier",
+    "description": "Base curve applied to all transaction types. rateMultiplierTenths uses fixed-point representation to avoid floating-point precision issues (e.g., 15 = 1.5x multiplier). basePriceMills is price in thousandths of a dollar.",
     "points": [
-      { "rateMultiplier": 1.0, "priceMultiplier": 4 },
-      { "rateMultiplier": 1.5, "priceMultiplier": 8 },
-      { "rateMultiplier": 2.5, "priceMultiplier": 10 },
-      { "rateMultiplier": 3.5, "priceMultiplier": 15 },
-      { "rateMultiplier": 5.0, "priceMultiplier": 20 },
-      { "rateMultiplier": 7.5, "priceMultiplier": 30 },
-      { "rateMultiplier": 10.0, "priceMultiplier": 40 },
-      { "rateMultiplier": 25.0, "priceMultiplier": 60 },
-      { "rateMultiplier": 50.0, "priceMultiplier": 80 },
-      { "rateMultiplier": 100.0, "priceMultiplier": 100 },
-      { "rateMultiplier": 250.0, "priceMultiplier": 150 },
-      { "rateMultiplier": 500.0, "priceMultiplier": 200 },
-      { "rateMultiplier": 5000.0, "priceMultiplier": 200 }
+      { "rateMultiplierTenths": 10, "priceMultiplier": 4 },
+      { "rateMultiplierTenths": 15, "priceMultiplier": 8 },
+      { "rateMultiplierTenths": 25, "priceMultiplier": 10 },
+      { "rateMultiplierTenths": 35, "priceMultiplier": 15 },
+      { "rateMultiplierTenths": 50, "priceMultiplier": 20 },
+      { "rateMultiplierTenths": 75, "priceMultiplier": 30 },
+      { "rateMultiplierTenths": 100, "priceMultiplier": 40 },
+      { "rateMultiplierTenths": 250, "priceMultiplier": 60 },
+      { "rateMultiplierTenths": 500, "priceMultiplier": 80 },
+      { "rateMultiplierTenths": 1000, "priceMultiplier": 100 },
+      { "rateMultiplierTenths": 2500, "priceMultiplier": 150 },
+      { "rateMultiplierTenths": 5000, "priceMultiplier": 200 },
+      { "rateMultiplierTenths": 50000, "priceMultiplier": 200 }
     ]
   },
   "transactionTypes": [
@@ -23,79 +23,79 @@
       "name": "CryptoCreate",
       "baseRate": 2,
       "maxTps": 10000,
-      "basePrice": 0.05
+      "basePriceMills": 50
     },
     {
       "name": "ConsensusCreateTopic",
       "baseRate": 5,
       "maxTps": 25000,
-      "basePrice": 0.01
+      "basePriceMills": 10
     },
     {
       "name": "ScheduleCreate",
       "baseRate": 100,
       "maxTps": 10000,
-      "basePrice": 0.02
+      "basePriceMills": 20
     },
     {
       "name": "CryptoApproveAllowance",
       "baseRate": 10000,
       "maxTps": 10000,
-      "basePrice": 0.03
+      "basePriceMills": 30
     },
     {
       "name": "FileCreate",
       "baseRate": 2,
       "maxTps": 10000,
-      "basePrice": 0.05
+      "basePriceMills": 50
     },
     {
       "name": "FileAppend",
       "baseRate": 10,
       "maxTps": 50000,
-      "basePrice": 0.05
+      "basePriceMills": 50
     },
     {
       "name": "ContractCreate",
       "baseRate": 350,
       "maxTps": 17500,
-      "basePrice": 1.00
+      "basePriceMills": 1000
     },
     {
       "name": "LambdaSStore",
       "baseRate": 10,
       "maxTps": 50000,
-      "basePrice": 0.005
+      "basePriceMills": 5
     },
     {
       "name": "TokenAssociateToAccount",
       "baseRate": 100,
       "maxTps": 10000,
-      "basePrice": 0.05
+      "basePriceMills": 50
     },
     {
       "name": "TokenAirdrop",
       "baseRate": 100,
       "maxTps": 10000,
-      "basePrice": 0.10
+      "basePriceMills": 100
     },
     {
       "name": "TokenClaimAirdrop",
       "baseRate": 3000,
       "maxTps": 10500,
-      "basePrice": 0.001
+      "basePriceMills": 1
     },
     {
       "name": "TokenMint",
       "baseRate": 50,
       "maxTps": 12500,
-      "basePrice": 0.02
+      "basePriceMills": 20
     },
     {
       "name": "TokenCreate",
       "baseRate": 100,
       "maxTps": 10000,
-      "basePrice": 0.10
+      "basePriceMills": 100
     }
   ]
 }

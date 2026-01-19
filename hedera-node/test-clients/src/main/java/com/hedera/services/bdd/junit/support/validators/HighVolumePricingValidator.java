@@ -83,18 +83,20 @@ public class HighVolumePricingValidator {
         final var baseCurve = new ArrayList<BaseCurvePoint>();
         final var baseCurveNode = root.get("baseCurve").get("points");
         for (JsonNode point : baseCurveNode) {
+            // rateMultiplierTenths is a fixed-point integer (e.g., 15 = 1.5x) to avoid floating-point precision issues
             baseCurve.add(new BaseCurvePoint(
-                    point.get("rateMultiplier").asDouble(),
+                    point.get("rateMultiplierTenths").asInt(),
                     point.get("priceMultiplier").asInt()));
         }
 
         final var transactionTypes = new ArrayList<TransactionTypeSpec>();
         for (JsonNode txType : root.get("transactionTypes")) {
+            // basePriceMills is price in thousandths of a dollar (e.g., 50 = $0.05) to avoid floating-point precision issues
             transactionTypes.add(new TransactionTypeSpec(
                     txType.get("name").asText(),
                     txType.get("baseRate").asInt(),
                     txType.get("maxTps").asInt(),
-                    txType.get("basePrice").asDouble()));
+                    txType.get("basePriceMills").asInt()));
         }
 
         return new ExpectedPricing(baseCurve, transactionTypes);
@@ -177,15 +179,20 @@ public class HighVolumePricingValidator {
 
         for (BaseCurvePoint curvePoint : baseCurve) {
             // Calculate the effective TPS at this point on the curve
-            final var effectiveTps = curvePoint.rateMultiplier() * baseRate;
+            // rateMultiplierTenths is in tenths (e.g., 15 = 1.5x), so we multiply by baseRate and divide by 10
+            // Use long arithmetic to avoid overflow (e.g., 50000 * 5 * 10000 would overflow int)
+            final long effectiveTpsTenths = (long) curvePoint.rateMultiplierTenths() * baseRate;
+            final long maxTpsTenths = (long) maxTps * 10;
 
             // Skip points that exceed max TPS
-            if (effectiveTps > maxTps) {
+            if (effectiveTpsTenths > maxTpsTenths) {
                 continue;
             }
 
             // Calculate utilization in basis points (hundredths of percent)
-            final var utilizationBasisPoints = (int) Math.round((effectiveTps / maxTps) * UTILIZATION_SCALE);
+            // Using long arithmetic with rounding: (effectiveTpsTenths * UTILIZATION_SCALE + maxTpsTenths/2) / maxTpsTenths
+            final int utilizationBasisPoints =
+                    (int) ((effectiveTpsTenths * UTILIZATION_SCALE + maxTpsTenths / 2) / maxTpsTenths);
 
             // Calculate multiplier value (price * 1000)
             final var multiplier = calculateExpectedMultiplier(curvePoint.priceMultiplier());
@@ -205,9 +212,10 @@ public class HighVolumePricingValidator {
 
     private int getMaxPriceMultiplierAtUtilization(List<BaseCurvePoint> baseCurve, int baseRate, int maxTps) {
         int maxPriceMultiplier = 4; // Default starting multiplier
+        final long maxTpsTenths = (long) maxTps * 10;
         for (BaseCurvePoint point : baseCurve) {
-            final var effectiveTps = point.rateMultiplier() * baseRate;
-            if (effectiveTps <= maxTps) {
+            final long effectiveTpsTenths = (long) point.rateMultiplierTenths() * baseRate;
+            if (effectiveTpsTenths <= maxTpsTenths) {
                 maxPriceMultiplier = point.priceMultiplier();
             }
         }
@@ -220,9 +228,11 @@ public class HighVolumePricingValidator {
     }
 
     // Record classes for data structures
-    record BaseCurvePoint(double rateMultiplier, int priceMultiplier) {}
+    // rateMultiplierTenths is in tenths (e.g., 15 = 1.5x) to avoid floating-point precision issues
+    record BaseCurvePoint(int rateMultiplierTenths, int priceMultiplier) {}
 
-    record TransactionTypeSpec(String name, int baseRate, int maxTps, double basePrice) {}
+    // basePriceMills is price in thousandths of a dollar (e.g., 50 = $0.05) to avoid floating-point precision issues
+    record TransactionTypeSpec(String name, int baseRate, int maxTps, int basePriceMills) {}
 
     record ExpectedPricing(List<BaseCurvePoint> baseCurve, List<TransactionTypeSpec> transactionTypes) {}
 
@@ -231,15 +241,30 @@ public class HighVolumePricingValidator {
     record ActualPricingCurve(int maxMultiplier, List<ActualPoint> points) {}
 
     /**
+     * Validates the genesis simpleFeesSchedules.json file against expected HIP-1313 pricing curves.
+     * This method is designed to be called at test startup to ensure the fee schedule is correct.
+     *
+     * @throws AssertionError if validation fails
+     */
+    public static void validateGenesisFeeSchedule() {
+        final Path genesisFeesPath =
+                Path.of("hedera-node/hedera-file-service-impl/src/main/resources/genesis/simpleFeesSchedules.json");
+        if (!Files.exists(genesisFeesPath)) {
+            logger.warn(
+                    "Genesis simpleFeesSchedules.json not found at {}, skipping high-volume pricing validation",
+                    genesisFeesPath);
+            return;
+        }
+        logger.info("Validating high-volume pricing curves in genesis fee schedule");
+        new HighVolumePricingValidator(genesisFeesPath).validate();
+    }
+
+    /**
      * Main method for standalone validation.
      *
      * @param args command line arguments - first argument should be path to simpleFeesSchedules.json
      */
     public static void main(String[] args) {
-        if (args.length < 1) {
-            System.err.println("Usage: HighVolumePricingValidator <path-to-simpleFeesSchedules.json>");
-            System.exit(1);
-        }
-        new HighVolumePricingValidator(Path.of(args[0])).validate();
+        validateGenesisFeeSchedule();
     }
 }
