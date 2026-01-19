@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.bonneville;
 
-import com.goterl.lazysodium.interfaces.Hash;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.SidecarType;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
@@ -18,6 +17,7 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import com.swirlds.config.api.Configuration;
+
 
 import com.google.common.collect.ImmutableList;
 import com.hedera.node.config.data.ContractsConfig;
@@ -39,7 +39,9 @@ import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
+import org.hyperledger.besu.evm.blockhash.BlockHashLookup;
 import org.hyperledger.besu.evm.code.CodeV0;
+import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -52,8 +54,6 @@ import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.operation.OperationRegistry;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
-import org.hyperledger.besu.evm.frame.BlockValues;
-import org.hyperledger.besu.evm.blockhash.BlockHashLookup;
 
 public class BonnevilleEVM extends HEVM {
     @NonNull final FeatureFlags _flags;
@@ -98,6 +98,7 @@ public class BonnevilleEVM extends HEVM {
         if( op == 0xA4 ) return "log4";
         if( op == 0xF0 ) return "Crat";
         if( op == 0xF1 ) return "Call";
+        if( op == 0xF2 ) return "CallCode";
         if( op == 0xF3 ) return "ret ";
         if( op == 0xF4 ) return "dCal";
         if( op == 0xF5 ) return "Crt2";
@@ -112,9 +113,12 @@ public class BonnevilleEVM extends HEVM {
         /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "xor ", "not ", "byte", "shl ", "shr ", "sar ", "1E  ", "1F  ",
         /* 20 */ "kecc", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
         /* 30 */ "addr", "bala", "orig", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "gasP", "xSiz", "xCop", "retZ", "retC", "hash",
-        /* 40 */ "blkH", "Coin", "time", "numb", "seed", "limi", "chid", "sbal", "fee ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
+        /* 40 */ "blkH", "Coin", "time", "numb", "seed", "limi", "chid", "sbal", "fee ", "msiz", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
         /* 50 */ "pop ", "mld ", "mst ", "mst8", "Csld", "Csst", "jmp ", "jmpi", "pc  ", "59  ", "gas ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
         };
+
+    static final Bytes CREATE2_PREFIX = Bytes.fromHexString("0xFF");
+
 }
 
 /**
@@ -534,7 +538,7 @@ class BEVM {
             null;               // No error, pc set correctly
 
             case 0x58 -> pc(pc-1);
-            case 0x59 -> ExceptionalHaltReason.INVALID_OPERATION;
+            case 0x59 -> msize();
             case 0x5A -> gas();
             case 0x5B -> noop();// Jump Destination, a no-op
             case 0x5C, 0x5D, 0x5E -> ExceptionalHaltReason.INVALID_OPERATION;
@@ -557,11 +561,12 @@ class BEVM {
 
             case 0xA0, 0xA1, 0xA2, 0xA3, 0xA4 -> customLog(op-0xA0);
 
-            case 0xF0 -> customCreate      (trace,"CREATE"  );
-            case 0xF1 -> customCall        (trace,"CALL"    );
+            case 0xF0 -> create            (trace,"CREATE"  , false);
+            case 0xF1 -> customCall        (trace,"CUSTCALL");
+            case 0xF2 -> callCode          (trace,"CALL"    );
             case 0xF3 -> ret();
             case 0xF4 -> customDelegateCall(trace,"DELEGATE");
-            case 0xF5 -> customCreate2     (trace,"CREATE2" );
+            case 0xF5 -> create            (trace,"CREATE2" , true );
             case 0xFA -> customStaticCall  (trace,"STATIC"  );
             case 0xFD -> revert();
             case 0xFF -> customSelfDestruct();
@@ -1528,6 +1533,12 @@ class BEVM {
         return push(pc);
     }
 
+    private ExceptionalHaltReason msize() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        return push(_mem._len);
+    }
+
     private ExceptionalHaltReason gas() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
@@ -1878,12 +1889,12 @@ class BEVM {
         return null;
     }
 
-    private ExceptionalHaltReason customCreate(SB trace, String str) {
+    private ExceptionalHaltReason create( SB trace, String str, boolean hasSalt ) {
         // Nested create contract call; so print the post-trace before the
         // nested call, and reload the pre-trace state after call.
         if( trace != null )
             System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
-        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        if( _sp < (hasSalt ? 4 : 3) ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
         Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
@@ -1892,27 +1903,32 @@ class BEVM {
         int len = popInt();
         int dstOff = 0;
         int dstLen = 0;
+        Bytes salt = hasSalt ? popBytes() : null;
 
-        var sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
+        // Custom-only hook
+        Address sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
             ? FrameUtils.hookOwnerAddress(_frame)
             : _frame.getRecipientAddress();
-        var senderAccount = _frame.getWorldUpdater().getAccount(sender);
 
         _frame.clearReturnData();
 
+        var senderAccount = _frame.getWorldUpdater().getAccount(sender);
         if( value.compareTo(senderAccount.getBalance()) > 0 || _frame.getDepth() >= 1024/*AbstractCustomCreateOperation.MAX_STACK_DEPTH*/)
             return push0();
+        long senderNonce = senderAccount.getNonce();
+        senderAccount.incrementNonce(); // Post increment
 
-        // since the sender address should be the hook owner for HTS hook executions,
-        // we need to explicitly pass in the sender and not use sender.getAddress()
-        senderAccount.incrementNonce();
         Code code = _bevm.getCodeUncached(_mem.asBytes(off,len));
 
-        Bytes src = Bytes.EMPTY;
+        Address contract;
+        if( hasSalt ) {
+            Bytes bytes = Bytes.concatenate(new Bytes[]{BonnevilleEVM.CREATE2_PREFIX, sender, salt, code.getCodeHash()});
+            Bytes32 hash = org.hyperledger.besu.crypto.Hash.keccak256(bytes);
+            contract = Address.extract(hash);
 
-        long senderNonce = senderAccount.getNonce();
-        // Decrement nonce by 1 to normalize the effect of transaction execution
-        Address contract = Address.contractAddress(sender, senderNonce - 1);
+        } else {
+            contract = Address.contractAddress(sender, senderNonce);
+        }
         assert contract != null;
 
         if( _frame.getWorldUpdater() instanceof ProxyWorldUpdater proxyUpdater )
@@ -1923,12 +1939,16 @@ class BEVM {
         long gas = _gasCalc.txCreateCost() + // 32000
             _gasCalc.initcodeCost(len) + // Shanghai: words(544)*2 == 16 words *2 = 32
             memoryExpansionGasCost(off,len); // 63-63==0
+        if( hasSalt ) gas += _gasCalc.createKeccakCost(len);
         var halt = useGas(gas);
         if( halt != null ) return null;
         // Gas for child
         long childGasStipend = _gasCalc.gasAvailableForChildCreate(_gas);
         _gas -= childGasStipend;
         _frame.setGasRemaining(_gas);
+
+        Bytes src = Bytes.EMPTY;
+
 
         // ----------------------------
         // child frame is added to frame stack via build method
@@ -1994,6 +2014,26 @@ class BEVM {
         if( !(_frame.getWorldUpdater() instanceof ProxyWorldUpdater)  || !_flags.isCreate2Enabled(_frame) )
             return ExceptionalHaltReason.INVALID_OPERATION;
         throw new TODO();
+    }
+
+    // Call Code - same as customCall except skips the custom mustBePresent check
+    private ExceptionalHaltReason callCode(SB trace, String str) {
+        // Nested create contract call; so print the post-trace before the
+        // nested call, and reload the pre-trace state after call.
+        if( trace != null )
+            System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
+        if( _sp < 7 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long stipend = popLong();
+        Address to = popAddress();
+        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
+        Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
+        boolean hasValue = (val0 | val1 | val2 | val3) != 0;
+        int srcOff = popInt();
+        int srcLen = popInt();
+        int dstOff = popInt();
+        int dstLen = popInt();
+        return _abstractCall(trace,str, stipend,to,value,hasValue,srcOff,srcLen,dstOff,dstLen);
+
     }
 
     // CustomCallOperation
