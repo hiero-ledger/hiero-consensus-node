@@ -125,7 +125,8 @@ public class TopicUpdateSimpleFeesTest {
                             .via("topicUpdateTxn"),
                     validateChargedUsdWithin(
                             "topicUpdateTxn",
-                            expectedTopicUpdateFullFeeUsd(3L, 1L), // 3 sigs (payer + old admin + new admin), 1 extra key
+                            expectedTopicUpdateFullFeeUsd(
+                                    3L, 1L), // 3 sigs (payer + old admin + new admin), 1 extra key
                             1.0));
         }
 
@@ -424,7 +425,6 @@ public class TopicUpdateSimpleFeesTest {
                                 .via("topicUpdateTxn")
                                 .hasKnownStatus(INVALID_TOPIC_ID));
             }
-
 
             @HapiTest
             @DisplayName("TopicUpdate - immutable topic (no admin key) submit key update fails - fee charged")

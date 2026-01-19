@@ -251,7 +251,8 @@ public class TopicCreateCustomFeeSimpleFeesTest {
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                     createTopic(TOPIC)
-                            .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, "0.0.99999999")) // Invalid collector
+                            .withConsensusCustomFee(
+                                    fixedConsensusHbarFee(ONE_HBAR, "0.0.99999999")) // Invalid collector
                             .payingWith(PAYER)
                             .signedBy(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
@@ -298,6 +299,5 @@ public class TopicCreateCustomFeeSimpleFeesTest {
                             expectedTopicCreateWithCustomFeeFullFeeUsd(1L, 0L),
                             1.0));
         }
-
     }
 }

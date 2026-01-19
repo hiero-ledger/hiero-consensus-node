@@ -283,7 +283,6 @@ public class TopicDeleteSimpleFeesTest {
                                 .hasKnownStatus(INVALID_TOPIC_ID));
             }
 
-
             @HapiTest
             @DisplayName("TopicDelete - missing admin key signature fails at handle - fee charged")
             final Stream<DynamicTest> topicDeleteMissingAdminKeySignatureFailsAtHandle() {
