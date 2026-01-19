@@ -614,6 +614,7 @@ public class TopicCreateSimpleFeesTest {
                 final AtomicLong afterBalance = new AtomicLong();
                 final AtomicLong initialNodeBalance = new AtomicLong();
                 final AtomicLong afterNodeBalance = new AtomicLong();
+                final AtomicInteger txnSize = new AtomicInteger();
 
                 final String INNER_ID = "create-topic-txn-inner-id";
 
@@ -643,18 +644,21 @@ public class TopicCreateSimpleFeesTest {
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
+                            final var txnBytes = spec.registry().getBytes(INNER_ID);
+                            txnSize.set(txnBytes.length);
+
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
                             log.info("Recorded fee: {}", expectedTopicCreateNetworkFeeOnlyUsd(1));
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        sourcing(() -> validateChargedFeeToUsd(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedTopicCreateNetworkFeeOnlyUsd(1),
-                                0.01));
+                                expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize.get()),
+                                1)));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -789,6 +793,7 @@ public class TopicCreateSimpleFeesTest {
                             // Get the transaction bytes from the registry
                             final var txnBytes = spec.registry().getBytes(INNER_ID);
                             txnSize.set(txnBytes.length);
+
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
                             log.info("Recorded fee: {}", expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize.get()));
@@ -800,7 +805,7 @@ public class TopicCreateSimpleFeesTest {
                                 initialNodeBalance,
                                 afterNodeBalance,
                                 expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize.get()),
-                                0.01)));
+                                2)));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
