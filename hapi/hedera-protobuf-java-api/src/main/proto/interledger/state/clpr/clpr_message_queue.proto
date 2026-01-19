@@ -123,17 +123,7 @@ message ClprMessageValue {
    *
    * Exactly one of the following payload variants MUST be set.
    */
-  oneof payload {
-    /**
-     * An initiating message.
-     */
-    ClprMessage message = 1;
-
-    /**
-     * A reply to a previously received message.
-     */
-    ClprMessageReply message_reply = 2;
-  }
+  ClprMessagePayload payload = 1;
 
   /**
    * Running hash after the message payload has been processed.
@@ -178,6 +168,28 @@ message ClprMessageReply {
   bytes message_reply_data = 1;
 }
 
+/**
+ * Single message payload.
+ */
+message ClprMessagePayload {
+    /**
+     * The message payload stored in the queue.
+     *
+     * Exactly one of the following payload variants MUST be set.
+     */
+    oneof payload {
+        /**
+         * An initiating message.
+         */
+        ClprMessage message = 1;
+
+        /**
+         * A reply to a previously received message.
+         */
+        ClprMessageReply message_reply = 2;
+    }
+}
+
 
 /**
  * Bundle of messages.
@@ -186,7 +198,7 @@ message ClprMessageBundle {
   /**
    * Messages
    */
-  repeated ClprMessage messages = 3;
+  repeated ClprMessagePayload messages = 3;
 
   /**
    * State Proof
