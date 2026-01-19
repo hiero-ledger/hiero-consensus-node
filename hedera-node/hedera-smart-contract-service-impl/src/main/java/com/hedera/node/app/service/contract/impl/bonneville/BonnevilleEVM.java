@@ -111,8 +111,8 @@ public class BonnevilleEVM extends HEVM {
         /* 00 */ "stop", "add ", "mul ", "sub ", "div ", "sdiv", "mod ", "smod", "amod", "mmod", "exp ", "sign", "0C  ", "0D  ", "0E  ", "0F  ",
         /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "xor ", "not ", "byte", "shl ", "shr ", "sar ", "1E  ", "1F  ",
         /* 20 */ "kecc", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
-        /* 30 */ "addr", "bala", "orig", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "gasP", "3C  ", "retZ", "retC", "hash",
-        /* 40 */ "blkH", "Coin", "time", "43  ", "seed", "limi", "chid", "47  ", "fee ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
+        /* 30 */ "addr", "bala", "orig", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "gasP", "xSiz", "xCop", "retZ", "retC", "hash",
+        /* 40 */ "blkH", "Coin", "time", "numb", "seed", "limi", "chid", "sbal", "fee ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
         /* 50 */ "pop ", "mld ", "mst ", "53  ", "Csld", "Csst", "jmp ", "jmpi", "58  ", "59  ", "gas ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
         };
 }
@@ -184,6 +184,9 @@ class BEVM {
     //
     ContractID _contractId;
 
+    // Contract originator?
+    Address _originator;
+
 
     BEVM( BonnevilleEVM bevm, @NotNull Operation[] operations ) {
         _bevm = bevm;
@@ -245,6 +248,8 @@ class BEVM {
         _callData = _frame.getInputData().toArrayUnsafe();
 
         _contractId = updater instanceof ProxyWorldUpdater proxy ? proxy.getHederaContractId(_frame.getRecipientAddress()) : null;
+
+        _originator = frame.getOriginatorAddress();
 
         assert _lastSKey==null && _lastSVal == null;
 
@@ -322,7 +327,17 @@ class BEVM {
     private ExceptionalHaltReason push( Address adr ) {
         if( adr == null ) return push0();
         byte[] bs = adr.toArrayUnsafe();
-        return push(bs,0,20);
+        assert bs.length==20;
+        long val0 = 0;
+        for( int i=0; i<8; i++ )
+            val0 = (val0 << 8) | (bs[12+i]&0xFF);
+        long val1 = 0;
+        for( int i=0; i<8; i++ )
+            val1 = (val1 << 8) | (bs[ 4+i]&0xFF);
+        long val2 = 0;
+        for( int i=0; i<4; i++ )
+            val1 = (val1 << 8) | (bs[   i]&0xFF);
+        return push(val0,val1,val2,0);
     }
 
     // Push a byte array little-endian; short arrays are zero-filled high.
@@ -341,6 +356,8 @@ class BEVM {
     //        adr = (adr << 8) | (src[off+i]&0xFF);
     //    return adr;
     //}
+
+
 
     // TODO, common case, optimize
     private ExceptionalHaltReason push32( byte[] src ) {
@@ -444,6 +461,7 @@ class BEVM {
             case 0x09 -> mulmod();
             case 0x0A -> exp();
             case 0x0B -> sign();
+            case 0x0C, 0x0D, 0x0E, 0x0F -> ExceptionalHaltReason.INVALID_OPERATION;
             case 0x10 -> ult();
             case 0x11 -> ugt();
             case 0x12 -> slt();
@@ -458,8 +476,11 @@ class BEVM {
             case 0x1B -> shl();
             case 0x1C -> shr();
             case 0x1D -> sar();
+            case 0x1E, 0x1F -> ExceptionalHaltReason.INVALID_OPERATION;
 
             case 0x20 -> keccak256();
+            case       0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27 -> ExceptionalHaltReason.INVALID_OPERATION;
+            case 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F -> ExceptionalHaltReason.INVALID_OPERATION;
 
             // call/input/output arguments
             case 0x30 -> address();
@@ -482,16 +503,20 @@ class BEVM {
             case 0x40 -> blockHash();
             case 0x41 -> coinBase();
             case 0x42 -> timeStamp();
+            case 0x43 -> number();
             case 0x44 -> PRNGSeed();
             case 0x45 -> gasLimit();
             case 0x46 -> customChainId();
+            case 0x47 -> selfBalance();
             case 0x48 -> baseFee();
+            case      0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F -> ExceptionalHaltReason.INVALID_OPERATION;
 
             case 0x50 -> pop();
 
             // Memory, Storage
             case 0x51 -> mload();
             case 0x52 -> mstore();
+            case 0x53 -> ExceptionalHaltReason.INVALID_OPERATION;
             case 0x54 -> customSLoad (); // Hedera custom SLOAD
             case 0x55 -> customSStore(); // Hedera custom STORE
 
@@ -508,8 +533,10 @@ class BEVM {
             ( pc            == -3) ? ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS :
             null;               // No error, pc set correctly
 
+            case 0x58, 0x59 -> ExceptionalHaltReason.INVALID_OPERATION;
             case 0x5A -> gas();
             case 0x5B -> noop();// Jump Destination, a no-op
+            case 0x5C, 0x5D, 0x5E -> ExceptionalHaltReason.INVALID_OPERATION;
 
             // Stack manipulation
             case 0x5F -> push0Op();
@@ -879,13 +906,26 @@ class BEVM {
 
     // Pop 2 words and Unsigned compare them.  Caller safety checked.
     private int uCompareTo() {
-        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
-        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-        int          rez = Long.compareUnsigned(lhs3,rhs3);
-        if( rez==0 ) rez = Long.compareUnsigned(lhs2,rhs2);
-        if( rez==0 ) rez = Long.compareUnsigned(lhs1,rhs1);
-        if( rez==0 ) rez = Long.compareUnsigned(lhs0,rhs0);
-        return rez;
+        // CNC - Somehow this version is slower, "as if" Long.compareUnsigned did not inline
+        //long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        //long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        //int          rez = Long.compareUnsigned(lhs3,rhs3);
+        //if( rez==0 ) rez = Long.compareUnsigned(lhs2,rhs2);
+        //if( rez==0 ) rez = Long.compareUnsigned(lhs1,rhs1);
+        //if( rez==0 ) rez = Long.compareUnsigned(lhs0,rhs0);
+        //return rez;
+        // Slightly faster... and inlines better.
+        _sp -= 2;
+        if( STK3[_sp+1] == STK3[_sp] ) {
+            if( STK2[_sp+1] == STK2[_sp] ) {
+                if( STK1[_sp+1] == STK1[_sp] ) {
+                    if( STK0[_sp+1] == STK0[_sp] )
+                        return 0;
+                    return STK0[_sp+1]+Long.MIN_VALUE < STK0[_sp]+Long.MIN_VALUE ? -1 : 1;
+
+                } else throw new TODO();
+            } else throw new TODO();
+        } else throw new TODO();
     }
 
     // Unsigned Less Than
@@ -1133,7 +1173,7 @@ class BEVM {
     private ExceptionalHaltReason origin() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
-        return push(_frame.getOriginatorAddress());
+        return push(_originator);
     }
 
     // Push passed ETH value
@@ -1523,6 +1563,12 @@ class BEVM {
         return push(_frame.getBlockValues().getTimestamp());
     }
 
+    private ExceptionalHaltReason number() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        return push(_frame.getBlockValues().getNumber());
+    }
+
     private ExceptionalHaltReason PRNGSeed() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
@@ -1546,6 +1592,12 @@ class BEVM {
             ? _chainID
             : FrameUtils.configOf(_frame).getConfigData( ContractsConfig.class).chainId();
         return push(chainIdAsInt);
+    }
+
+    private ExceptionalHaltReason selfBalance() {
+        var halt = useGas(_gasCalc.getLowTierGasCost());
+        if( halt!=null ) return halt;
+        return push((UInt256)_recv.getBalance().toBytes());
     }
 
     private ExceptionalHaltReason baseFee() {
