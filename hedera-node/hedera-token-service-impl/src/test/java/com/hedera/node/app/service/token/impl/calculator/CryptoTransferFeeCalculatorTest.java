@@ -26,6 +26,7 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.*;
@@ -283,6 +284,7 @@ class CryptoTransferFeeCalculatorTest {
     private void setupMocksWithTokenStore() {
         setupMocks();
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+        lenient().when(feeContext.configuration()).thenReturn(HederaTestConfigBuilder.createConfig());
     }
 
     private void mockFungibleToken(long tokenNum, boolean hasCustomFees) {
