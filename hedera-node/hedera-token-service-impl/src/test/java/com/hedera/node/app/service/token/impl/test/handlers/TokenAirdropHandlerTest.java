@@ -31,11 +31,11 @@ import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.PendingAirdropValue;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -51,6 +51,7 @@ import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
@@ -380,9 +381,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         var sigVerificationMock = mock(SignatureVerification.class);
         given(keyVerifier.verificationFor(any())).willReturn(sigVerificationMock);
         given(handleContext.keyVerifier()).willReturn(keyVerifier);
+        mockSimpleFeeCalculator();
         given(handleContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).willReturn(feeCalculator);
-        given(feeCalculator.calculate()).willReturn(new Fees(10, 10, 10));
         given(handleContext.tryToChargePayer(anyLong())).willReturn(true);
 
         tokenAirdropHandler.handle(handleContext);
@@ -461,9 +461,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         givenAirdropTxn(true, ownerId, TOKEN_AND_NFT_AIRDROP);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+        mockSimpleFeeCalculator();
         given(handleContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).willReturn(feeCalculator);
-        given(feeCalculator.calculate()).willReturn(new Fees(10, 10, 10));
         given(handleContext.tryToChargePayer(anyLong())).willReturn(true);
         tokenAirdropHandler.handle(handleContext);
 
@@ -521,9 +520,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(keyVerifier.verificationFor(any())).willReturn(sigVerificationMock);
         given(handleContext.keyVerifier()).willReturn(keyVerifier);
 
+        mockSimpleFeeCalculator();
         given(handleContext.feeCalculatorFactory()).willReturn(feeCalculatorFactory);
-        given(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).willReturn(feeCalculator);
-        given(feeCalculator.calculate()).willReturn(new Fees(10, 10, 10));
         given(handleContext.tryToChargePayer(anyLong())).willReturn(true);
 
         tokenAirdropHandler.handle(handleContext);
@@ -722,5 +720,13 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         return AccountPendingAirdrop.newBuilder()
                 .pendingAirdropValue(pendingAirdropValue)
                 .build();
+    }
+
+    private void mockSimpleFeeCalculator() {
+        final var exchangeRate =
+                ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(12).build();
+        final var simpleFeeCalculatorMock = mock(SimpleFeeCalculator.class);
+        given(handleContext.getSimpleFeeCalculator()).willReturn(simpleFeeCalculatorMock);
+        given(handleContext.activeRate()).willReturn(exchangeRate);
     }
 }

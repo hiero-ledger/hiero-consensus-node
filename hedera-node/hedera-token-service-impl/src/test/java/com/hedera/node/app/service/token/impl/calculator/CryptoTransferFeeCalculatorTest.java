@@ -24,12 +24,10 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.config.data.ContractsConfig;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.Set;
-
-import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.config.api.ConfigData;
-import com.swirlds.config.api.Configuration;
 import org.hiero.hapi.support.fees.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -249,9 +247,11 @@ class CryptoTransferFeeCalculatorTest {
                                             .accountNum(1001L)
                                             .build())
                                     .amount(-50L)
-                                    .preTxAllowanceHook(HookCall.newBuilder().evmHookCall(
-                                            EvmHookCall.newBuilder().gasLimit(821).build()
-                                    ).build())
+                                    .preTxAllowanceHook(HookCall.newBuilder()
+                                            .evmHookCall(EvmHookCall.newBuilder()
+                                                    .gasLimit(821)
+                                                    .build())
+                                            .build())
                                     .build(),
                             AccountAmount.newBuilder()
                                     .accountID(AccountID.newBuilder()
@@ -295,7 +295,7 @@ class CryptoTransferFeeCalculatorTest {
         when(tokenStore.get(tokenId)).thenReturn(token);
     }
 
-    private void mockConfiguration(){
+    private void mockConfiguration() {
         final var config = mock(Configuration.class);
         final var contractConfig = mock(ContractsConfig.class);
         when(config.getConfigData(ContractsConfig.class)).thenReturn(contractConfig);
