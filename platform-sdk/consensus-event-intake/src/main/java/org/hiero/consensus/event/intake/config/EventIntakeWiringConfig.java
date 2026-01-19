@@ -26,6 +26,7 @@ public record EventIntakeWiringConfig(
         TaskSchedulerConfiguration eventDeduplicator,
 
         @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration eventSignatureValidator,
+        TaskSchedulerConfiguration eventSignatureValidator,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration orphanBuffer) {}
+        TaskSchedulerConfiguration orphanBuffer) {}

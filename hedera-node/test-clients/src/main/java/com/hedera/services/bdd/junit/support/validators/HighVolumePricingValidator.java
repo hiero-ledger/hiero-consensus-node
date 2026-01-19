@@ -91,7 +91,8 @@ public class HighVolumePricingValidator {
 
         final var transactionTypes = new ArrayList<TransactionTypeSpec>();
         for (JsonNode txType : root.get("transactionTypes")) {
-            // basePriceMills is price in thousandths of a dollar (e.g., 50 = $0.05) to avoid floating-point precision issues
+            // basePriceMills is price in thousandths of a dollar (e.g., 50 = $0.05) to avoid floating-point precision
+            // issues
             transactionTypes.add(new TransactionTypeSpec(
                     txType.get("name").asText(),
                     txType.get("baseRate").asInt(),
@@ -190,7 +191,8 @@ public class HighVolumePricingValidator {
             }
 
             // Calculate utilization in basis points (hundredths of percent)
-            // Using long arithmetic with rounding: (effectiveTpsTenths * UTILIZATION_SCALE + maxTpsTenths/2) / maxTpsTenths
+            // Using long arithmetic with rounding: (effectiveTpsTenths * UTILIZATION_SCALE + maxTpsTenths/2) /
+            // maxTpsTenths
             final int utilizationBasisPoints =
                     (int) ((effectiveTpsTenths * UTILIZATION_SCALE + maxTpsTenths / 2) / maxTpsTenths);
 
