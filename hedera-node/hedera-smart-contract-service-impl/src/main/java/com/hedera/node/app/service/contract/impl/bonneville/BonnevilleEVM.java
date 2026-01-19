@@ -113,7 +113,7 @@ public class BonnevilleEVM extends HEVM {
         /* 20 */ "kecc", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
         /* 30 */ "addr", "bala", "orig", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "gasP", "xSiz", "xCop", "retZ", "retC", "hash",
         /* 40 */ "blkH", "Coin", "time", "numb", "seed", "limi", "chid", "sbal", "fee ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
-        /* 50 */ "pop ", "mld ", "mst ", "53  ", "Csld", "Csst", "jmp ", "jmpi", "58  ", "59  ", "gas ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
+        /* 50 */ "pop ", "mld ", "mst ", "mst8", "Csld", "Csst", "jmp ", "jmpi", "pc  ", "59  ", "gas ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
         };
 }
 
@@ -516,7 +516,7 @@ class BEVM {
             // Memory, Storage
             case 0x51 -> mload();
             case 0x52 -> mstore();
-            case 0x53 -> ExceptionalHaltReason.INVALID_OPERATION;
+            case 0x53 -> mstore8();
             case 0x54 -> customSLoad (); // Hedera custom SLOAD
             case 0x55 -> customSStore(); // Hedera custom STORE
 
@@ -533,7 +533,8 @@ class BEVM {
             ( pc            == -3) ? ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS :
             null;               // No error, pc set correctly
 
-            case 0x58, 0x59 -> ExceptionalHaltReason.INVALID_OPERATION;
+            case 0x58 -> pc(pc-1);
+            case 0x59 -> ExceptionalHaltReason.INVALID_OPERATION;
             case 0x5A -> gas();
             case 0x5B -> noop();// Jump Destination, a no-op
             case 0x5C, 0x5D, 0x5E -> ExceptionalHaltReason.INVALID_OPERATION;
@@ -1521,6 +1522,12 @@ class BEVM {
         return useGas(_gasCalc.getJumpDestOperationGasCost());
     }
 
+    private ExceptionalHaltReason pc(int pc) {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        return push(pc);
+    }
+
     private ExceptionalHaltReason gas() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
@@ -1638,6 +1645,19 @@ class BEVM {
         if( halt!=null ) return halt;
 
         _mem.write(adr, STK0[--_sp], STK1[_sp], STK2[_sp], STK3[_sp]);
+        return null;
+    }
+
+    // Memory Store8 - store a *byte*
+    private ExceptionalHaltReason mstore8() {
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        int adr = popInt();
+        if( adr == Integer.MAX_VALUE ) return useGas(adr); // Fail, out of gas
+        long gas = 3 + memoryExpansionGasCost(adr,1);
+        var halt = useGas(gas);
+        if( halt!=null ) return halt;
+
+        _mem.write1(adr, STK0[--_sp]);
         return null;
     }
 

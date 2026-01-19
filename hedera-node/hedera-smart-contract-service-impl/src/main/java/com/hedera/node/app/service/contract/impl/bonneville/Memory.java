@@ -75,6 +75,11 @@ public class Memory {
         write8(_mem, adr+24, x0);
     }
 
+    void write1( int adr, long b ) {
+        growMem( adr+1 );
+        _mem[adr] = (byte)b;
+    }
+
     // Array write.  Caller checks args are positive.
     // `soff+len` is allowed to be larger than `src.length`;
     // in which case the extra is zero-filled.
