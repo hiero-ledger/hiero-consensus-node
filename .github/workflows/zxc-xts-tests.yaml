@@ -184,6 +184,7 @@ jobs:
       enable-hapi-tests-token: "true"
       enable-hapi-tests-smart-contract: "true"
       enable-hapi-tests-bn-communication: "true"
+      enable-hapi-tests-atomic-batch: "true"
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
