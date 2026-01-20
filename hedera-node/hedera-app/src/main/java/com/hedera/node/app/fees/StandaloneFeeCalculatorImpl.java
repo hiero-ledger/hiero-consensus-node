@@ -10,13 +10,13 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeContext.EstimationMode;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.state.State;
+import org.hiero.base.exceptions.NotImplementedException;
 import org.hiero.hapi.fees.FeeResult;
 
 public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
@@ -41,9 +41,8 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
     }
 
     @Override
-    public FeeResult calculate(Transaction transaction, EstimationMode mode) throws ParseException {
+    public FeeResult calculateIntrinsic(Transaction transaction) throws ParseException {
         StandaloneFeeContextImpl context = new StandaloneFeeContextImpl();
-        context.setMode(mode);
         final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(
                 BufferedData.wrap(transaction.signedTransactionBytes().toByteArray()));
         if (signedTransaction.hasSigMap()) {
@@ -61,10 +60,14 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
         }
     }
 
+    @Override
+    public FeeResult calculateStateful(Transaction transaction) throws ParseException {
+        throw new NotImplementedException();
+    }
+
     private class StandaloneFeeContextImpl implements SimpleFeeContext {
 
         private int _numTxnSignatures;
-        private EstimationMode mode;
 
         public StandaloneFeeContextImpl() {
             this._numTxnSignatures = 0;
@@ -90,17 +93,10 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
             return null;
         }
 
-        @Override
-        public EstimationMode estimationMode() {
-            return mode;
-        }
 
         public void setNumTxnSignatures(int sigcount) {
             this._numTxnSignatures = sigcount;
         }
 
-        public void setMode(EstimationMode mode) {
-            this.mode = mode;
-        }
     }
 }

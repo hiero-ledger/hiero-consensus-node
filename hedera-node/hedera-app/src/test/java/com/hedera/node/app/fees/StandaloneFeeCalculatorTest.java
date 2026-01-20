@@ -2,7 +2,6 @@
 package com.hedera.node.app.fees;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.spi.fees.SimpleFeeContext.EstimationMode.INTRINSIC;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -60,7 +59,7 @@ public class StandaloneFeeCalculatorTest {
                 .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
                 .build();
 
-        final FeeResult result = calc.calculate(txn, INTRINSIC);
+        final FeeResult result = calc.calculateIntrinsic(txn);
         assertThat(result.serviceTotalTC()).isEqualTo(9999000000L);
         //        System.out.println("JSON is \n" + feeResultToJson(result));
     }
@@ -226,7 +225,7 @@ public class StandaloneFeeCalculatorTest {
                 .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
                 .build();
 
-        final FeeResult result = calc.calculate(txn, INTRINSIC);
+        final FeeResult result = calc.calculateIntrinsic(txn);
         assertThat(result.serviceTotalTC()).isEqualTo(0L);
         System.out.println("JSON is \n" + feeResultToJson(result));
     }
@@ -241,7 +240,7 @@ public class StandaloneFeeCalculatorTest {
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
         // 0.01000
-        final FeeResult result = calc.calculate(txn, INTRINSIC);
+        final FeeResult result = calc.calculateIntrinsic(txn);
         final var TINY_CENTS = 100_000_000L;
         assertThat(result.totalTC()).isEqualTo(1 * TINY_CENTS); // 0.01 USD
         System.out.println("JSON is \n" + feeResultToJson(result));
@@ -263,7 +262,7 @@ public class StandaloneFeeCalculatorTest {
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
         // 0.01000
-        final FeeResult result = calc.calculate(txn, INTRINSIC);
+        final FeeResult result = calc.calculateIntrinsic(txn);
         final var TINY_CENTS = 100_000_000L;
         assertThat(result.totalTC()).isEqualTo(200 * TINY_CENTS); // 2.00 USD
         System.out.println("JSON is \n" + feeResultToJson(result));
@@ -282,7 +281,7 @@ public class StandaloneFeeCalculatorTest {
                         .build())
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
-        final FeeResult result = calc.calculate(txn, INTRINSIC);
+        final FeeResult result = calc.calculateIntrinsic(txn);
         assertThat(result.serviceTotalTC()).isEqualTo(0L);
         assertThat(result.totalTC()).isEqualTo(1_000_000L); // add in the node + network fee
     }
@@ -315,7 +314,7 @@ public class StandaloneFeeCalculatorTest {
                 .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
                 .build();
 
-        final FeeResult result = calc.calculate(txn, INTRINSIC);
+        final FeeResult result = calc.calculateIntrinsic(txn);
         assertThat(result.serviceTotalTC()).isEqualTo(0L);
         //        System.out.println("JSON is \n" + feeResultToJson(result));
     }

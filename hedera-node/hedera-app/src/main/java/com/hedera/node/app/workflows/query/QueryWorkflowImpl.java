@@ -433,10 +433,5 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         public QueryContext queryContext() {
             return this.queryContext;
         }
-
-        @Override
-        public EstimationMode estimationMode() {
-            return SimpleFeeContext.EstimationMode.STATEFUL;
-        }
     }
 }

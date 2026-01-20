@@ -332,10 +332,5 @@ public class TransactionDispatcher {
         public QueryContext queryContext() {
             return null;
         }
-
-        @Override
-        public EstimationMode estimationMode() {
-            return SimpleFeeContext.EstimationMode.STATEFUL;
-        }
     }
 }

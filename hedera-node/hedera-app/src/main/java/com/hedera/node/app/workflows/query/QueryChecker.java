@@ -244,11 +244,6 @@ public class QueryChecker {
                 public QueryContext queryContext() {
                     return null;
                 }
-
-                @Override
-                public EstimationMode estimationMode() {
-                    return null;
-                }
             };
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                     .calculateTxFee(transactionInfo.txBody(), simpleFeeContext);

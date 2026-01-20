@@ -152,7 +152,7 @@ public class SimpleFeesRecordStreamTest {
         final var body = TransactionBody.PROTOBUF.parse(
                 Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
         final Transaction txn = Transaction.newBuilder().body(body).build();
-        final var result = calc.calculate(txn, SimpleFeeContext.EstimationMode.INTRINSIC);
+        final var result = calc.calculateIntrinsic(txn);
         final var record = item.getRecord();
         final var txnFee = record.getTransactionFee();
         final var rate = record.getReceipt().getExchangeRate();

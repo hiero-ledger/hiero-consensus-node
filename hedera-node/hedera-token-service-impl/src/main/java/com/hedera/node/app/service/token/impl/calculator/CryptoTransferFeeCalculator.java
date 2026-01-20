@@ -61,7 +61,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
         feeResult.addServiceBaseTC(serviceDef.baseFee());
-        if (context.estimationMode() == SimpleFeeContext.EstimationMode.STATEFUL) {
+        if (context.feeContext() != null) {
 
             final ReadableTokenStore tokenStore = context.feeContext().readableStore(ReadableTokenStore.class);
             final var op = txnBody.cryptoTransferOrThrow();

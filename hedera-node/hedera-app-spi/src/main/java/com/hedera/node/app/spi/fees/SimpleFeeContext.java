@@ -2,20 +2,15 @@
 package com.hedera.node.app.spi.fees;
 
 import com.hedera.node.app.spi.workflows.QueryContext;
+import org.jspecify.annotations.Nullable;
 
 public interface SimpleFeeContext {
     int numTxnSignatures(); // number of signatures in the transaction
 
     int numTxnBytes(); // added in a different PR so we can have BYTE extras in the node fees
 
-    FeeContext feeContext(); // may be null
+    @Nullable FeeContext feeContext(); // may be null
 
-    QueryContext queryContext(); // may be null
+    @Nullable QueryContext queryContext(); // may be null
 
-    EstimationMode estimationMode(); // Intrinsic or Stateful
-
-    enum EstimationMode {
-        STATEFUL,
-        INTRINSIC
-    }
 }

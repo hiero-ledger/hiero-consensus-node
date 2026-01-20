@@ -30,8 +30,4 @@ public class ServiceSimpleFeeContextImpl implements SimpleFeeContext {
         return null;
     }
 
-    @Override
-    public EstimationMode estimationMode() {
-        return EstimationMode.STATEFUL;
-    }
 }

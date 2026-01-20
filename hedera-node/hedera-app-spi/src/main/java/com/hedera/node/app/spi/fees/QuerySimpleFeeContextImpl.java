@@ -30,8 +30,4 @@ public class QuerySimpleFeeContextImpl implements SimpleFeeContext {
         return this.queryContext;
     }
 
-    @Override
-    public EstimationMode estimationMode() {
-        return SimpleFeeContext.EstimationMode.STATEFUL;
-    }
 }

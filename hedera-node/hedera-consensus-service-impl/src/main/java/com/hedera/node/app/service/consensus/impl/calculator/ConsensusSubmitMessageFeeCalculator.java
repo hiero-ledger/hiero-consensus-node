@@ -28,7 +28,7 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
         final var op = txnBody.consensusSubmitMessageOrThrow();
         final var msgSize = op.message().length();
         addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, msgSize);
-        if (context.estimationMode() == SimpleFeeContext.EstimationMode.STATEFUL) {
+        if (context.feeContext() != null) {
             final var topic =
                     context.feeContext().readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrThrow());
             final var hasCustomFees = (topic != null && !topic.customFees().isEmpty());
