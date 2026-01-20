@@ -223,7 +223,7 @@ jobs:
 
   mats-snyk-scan:
     name: Snyk Scan
-    if: ${{ github.event.repository.private == false && inputs.enable-snyk-scan == 'true' && !github.event.workflow_call.repository.fork }}
+    if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - build
     uses: ./.github/workflows/zxc-snyk-scan.yaml
