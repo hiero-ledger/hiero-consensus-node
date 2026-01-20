@@ -35,7 +35,6 @@ with "conn" for identification.
 | `blockStream_conn_onError`                         | Counter         | Number of onError handler invocations on block node connections                                        |
 | `blockStream_conn_opened`                          | Counter         | Number of block node connections opened                                                                |
 | `blockStream_conn_closed`                          | Counter         | Number of block node connections closed                                                                |
-| `blockStream_conn_noActive`                        | Counter         | Number of times streaming a block was attempted but there was no active connection                     |
 | `blockStream_conn_createFailure`                   | Counter         | Number of times establishing a block node connection failed                                            |
 | `blockStream_conn_activeConnIp`                    | Gauge (long)    | The IP address of the active block node connection (Note: The IP address is converted to an integer)   |
 | `blockStream_conn_endOfStreamLimitExceeded`        | Counter         | Number of times an active connection has exceeded the allowed number of EndOfStream responses          |
@@ -111,12 +110,12 @@ Utilizing Low (L), Medium (M) and High (H) severity levels, some recommended ale
 
 | Severity |                   Metric                    |                          Alert Condition                           |
 |----------|---------------------------------------------|--------------------------------------------------------------------|
-| M        | `blockStream_conn_noActive`                 | If value increases (non-zero delta)                                |
 | M        | `blockStream_conn_createFailure`            | If value exceeds 3 in the last 60s, otherwise, configure as needed |
 | L        | `blockStream_conn_onError`                  | If value increases (non-zero delta)                                |
 | M        | `blockStream_conn_onError`                  | If value exceeds 3 in the last 60s, otherwise, configure as needed |
 | L        | `blockStream_conn_endOfStreamLimitExceeded` | If value increases (non-zero delta)                                |
 | L        | `blockStream_conn_highLatencyEvents`        | If value increases (non-zero delta)                                |
+| L        | `blockStream_conn_activeConnIp`             | If value is 0 (or missing) for 60s, otherwise, configure as needed |
 
 **Connection Send**: Alerts related to requests sent to block nodes
 
@@ -131,20 +130,20 @@ Utilizing Low (L), Medium (M) and High (H) severity levels, some recommended ale
 
 **Messaging**: Alerts related to EndStream response failures (increased counts)
 
-| Severity |                    Metric Name                     |           Alert Condition           |
-|----------|----------------------------------------------------|-------------------------------------|
-| L        | `blockStream_connRecv_endStream_timeout`           | If value increases (non-zero delta) |
-| L        | `blockStream_connRecv_endStream_badBlockProof`     | If value increases (non-zero delta) |
-| L        | `blockStream_connRecv_endStream_persistenceFailed` | If value increases (non-zero delta) |
-| L        | `blockStream_connRecv_endStream_error`             | If value increases (non-zero delta) |
+| Severity |                    Metric Name                     |                          Alert Condition                           |
+|----------|----------------------------------------------------|--------------------------------------------------------------------|
+| L        | `blockStream_connRecv_endStream_timeout`           | If value increases (non-zero delta)                                |
+| L        | `blockStream_connRecv_endStream_badBlockProof`     | If value increases (non-zero delta)                                |
+| H        | `blockStream_connRecv_endStream_badBlockProof`     | If value exceeds 3 in the last 60s, otherwise, configure as needed |
+| L        | `blockStream_connRecv_endStream_persistenceFailed` | If value increases (non-zero delta)                                |
+| H        | `blockStream_connRecv_endStream_persistenceFailed` | If value exceeds 3 in the last 60s, otherwise, configure as needed |
+| L        | `blockStream_connRecv_endStream_error`             | If value increases (non-zero delta)                                |
+| H        | `blockStream_connRecv_endStream_error`             | If value exceeds 3 in the last 60s, otherwise, configure as needed |
 
 **Latency**: Alerts related to streaming latency (a block should generally be streamed and acknowledged within ~2.5s)
 
 | Severity |                Metric Name                 |     Alert Condition     |
 |----------|--------------------------------------------|-------------------------|
-| L        | `blockStream_conn_headerSentToAckLatency`  | If value exceeds 1500ms |
-| M        | `blockStream_conn_headerSentToAckLatency`  | If value exceeds 2500ms |
-| L        | `blockStream_conn_blockClosedToAckLatency` | If value exceeds 1500ms |
-| M        | `blockStream_conn_blockClosedToAckLatency` | If value exceeds 2500ms |
-| L        | `blockStream_connSend_requestSendLatency`  | If value exceeds 500ms  |
-| M        | `blockStream_connSend_requestSendLatency`  | If value exceeds 1000ms |
+| L        | `blockStream_conn_headerSentToAckLatency`  | If value exceeds 2200ms |
+| L        | `blockStream_conn_blockClosedToAckLatency` | If value exceeds 500ms  |
+| L        | `blockStream_connSend_requestSendLatency`  | If value exceeds 100ms  |
