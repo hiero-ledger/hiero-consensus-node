@@ -42,7 +42,7 @@
       "schedule": [
         {
           "name": "HookStore",
-          "baseFee": 0,
+          "baseFee": 49000000,
           "extras": [
             {
               "name": "HOOK_SLOT_UPDATE",
