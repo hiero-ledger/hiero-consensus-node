@@ -46,7 +46,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
     }
 
     private void setAllFrom(@NonNull final PlatformStateValueAccumulator accumulator) {
-        this.update(toPbjPlatformState(stateOrThrow(), accumulator));
+        this.update(toPbjPlatformState(getOrCreateState(), accumulator));
     }
 
     /**
@@ -55,7 +55,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
     @Override
     public void setCreationSoftwareVersion(@NonNull final SemanticVersion creationVersion) {
         requireNonNull(creationVersion);
-        final var previousState = stateOrThrow();
+        final var previousState = getOrCreateState();
         update(previousState.copyBuilder().creationSoftwareVersion(creationVersion));
     }
 
@@ -64,7 +64,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      */
     @Override
     public void setRound(final long round) {
-        final var previousState = stateOrThrow();
+        final var previousState = getOrCreateState();
         update(previousState
                 .copyBuilder()
                 .consensusSnapshot(previousState
@@ -78,7 +78,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      */
     @Override
     public void setLegacyRunningEventHash(@Nullable final Hash legacyRunningEventHash) {
-        final var previousState = stateOrThrow();
+        final var previousState = getOrCreateState();
         update(previousState
                 .copyBuilder()
                 .legacyRunningEventHash(
@@ -91,7 +91,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
     @Override
     public void setConsensusTimestamp(@NonNull final Instant consensusTimestamp) {
         requireNonNull(consensusTimestamp);
-        final var previousState = stateOrThrow();
+        final var previousState = getOrCreateState();
         update(previousState
                 .copyBuilder()
                 .consensusSnapshot(previousState
@@ -105,7 +105,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      */
     @Override
     public void setRoundsNonAncient(final int roundsNonAncient) {
-        final var previousState = stateOrThrow();
+        final var previousState = getOrCreateState();
         update(previousState.copyBuilder().roundsNonAncient(roundsNonAncient));
     }
 
@@ -115,7 +115,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
     @Override
     public void setSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         requireNonNull(snapshot);
-        final var previousState = stateOrThrow();
+        final var previousState = getOrCreateState();
         update(previousState.copyBuilder().consensusSnapshot(snapshot));
     }
 
@@ -124,7 +124,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      */
     @Override
     public void setFreezeTime(@Nullable final Instant freezeTime) {
-        final var previousState = stateOrThrow();
+        final var previousState = getOrCreateState();
         update(previousState.copyBuilder().freezeTime(toPbjTimestamp(freezeTime)));
     }
 
@@ -133,13 +133,13 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      */
     @Override
     public void setLastFrozenTime(@Nullable final Instant lastFrozenTime) {
-        final var previousState = stateOrThrow();
+        final var previousState = getOrCreateState();
         update(previousState.copyBuilder().lastFrozenTime(toPbjTimestamp(lastFrozenTime)));
     }
 
     @Override
     public void setLatestFreezeRound(final long latestFreezeRound) {
-        final var previousState = stateOrThrow();
+        final var previousState = getOrCreateState();
         update(previousState.copyBuilder().latestFreezeRound(latestFreezeRound));
     }
 
@@ -153,8 +153,14 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
         setAllFrom(accumulator);
     }
 
-    private @NonNull PlatformState stateOrThrow() {
-        return requireNonNull(state.get());
+    private @NonNull PlatformState getOrCreateState() {
+        final PlatformState s = state.get();
+        if (s == null) {
+            state.put(PlatformState.DEFAULT);
+            return PlatformState.DEFAULT;
+        } else {
+            return s;
+        }
     }
 
     private void update(@NonNull final PlatformState.Builder stateBuilder) {

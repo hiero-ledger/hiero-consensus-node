@@ -218,7 +218,10 @@ public class SwirldsPlatform implements Platform {
         final StateLifecycleManager stateLifecycleManager = blocks.stateLifecycleManager();
         final MerkleNodeState state = initialState.getState();
         stateLifecycleManager.initState(state);
-        setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
+        // Genesis state must stay empty until changes can be externalized in the block stream
+        if (!initialState.isGenesisState()) {
+            setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
+        }
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 

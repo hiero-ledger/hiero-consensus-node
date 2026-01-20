@@ -76,6 +76,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
 
 /**
@@ -239,7 +240,9 @@ public class ServicesMain {
         hedera.setInitialStateHash(reservedState.hash());
 
         // --- Create the platform context and initialize the cryptography ---
-        final var rosterHistory = RosterStateUtils.createRosterHistory(state);
+        final var rosterHistory = genesisNetwork.get()
+                ? RosterHistory.fromGenesis(hedera.genesisRosterOrThrow())
+                : RosterStateUtils.createRosterHistory(state);
 
         final var keysAndCerts = initNodeSecurity(platformConfig, selfId);
 

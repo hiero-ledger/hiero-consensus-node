@@ -81,7 +81,7 @@ class V0540RosterSchemaTest {
 
     @BeforeEach
     void setUp() {
-        subject = new V0540RosterSchema(onAdopt, canAdopt, rosterStoreFactory, this::getState);
+        subject = new V0540RosterSchema(onAdopt, canAdopt, rosterStoreFactory);
     }
 
     @Test

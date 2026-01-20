@@ -57,7 +57,6 @@ import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -138,7 +137,9 @@ public final class StateUtils {
                     virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
                     platformContext.getConfiguration());
 
-            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState));
+            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
+                throw new UnsupportedOperationException("No startup networks available");
+            }));
 
             deserializedSignedState =
                     readState(Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(), platformContext, stateLifecycleManager);
@@ -226,7 +227,9 @@ public final class StateUtils {
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
                                         .blockPeriod()),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState),
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
+                            throw new UnsupportedOperationException("No startup networks available");
+                        }),
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
 
@@ -247,9 +250,6 @@ public final class StateUtils {
         final Configuration configuration = platformContext.getConfiguration();
         final ServiceMigrator serviceMigrator = new OrderedServiceMigrator();
         final SemanticVersion version = creationSoftwareVersionOf(state);
-
-        PlatformStateService.PLATFORM_STATE_SERVICE.setAppVersionFn(v -> version);
-
         // previousVersion and currentVersion are the same!
         serviceMigrator.doMigrations(
                 (MerkleNodeState) state,

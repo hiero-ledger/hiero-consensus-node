@@ -92,7 +92,9 @@ public final class TestingAppStateInitializer {
         final var mockMigrationContext = mock(MigrationContext.class);
         final var writableStates = state.getWritableStates(PlatformStateService.NAME);
         schema.migrate(mockMigrationContext);
-        writableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID).put(V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE);
+        writableStates
+                .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
+                .put(V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE);
         ((CommittableWritableStates) writableStates).commit();
         return Collections.emptyList();
     }

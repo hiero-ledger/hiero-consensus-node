@@ -2,9 +2,11 @@
 package com.hedera.node.app.service.entityid.impl;
 
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
@@ -34,11 +36,12 @@ public class EntityIdServiceImpl extends EntityIdService {
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
-        final var entityIdState = writableStates.getSingleton(ENTITY_ID_STATE_ID);
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final long entityNum = hederaConfig.firstUserEntity() - 1;
         log.info("Setting initial entity id to {}", entityNum);
-        entityIdState.put(new EntityNumber(entityNum));
+        writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_ID).put(new EntityNumber(entityNum));
+        // And initialize entity counts to zeros
+        writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID).put(EntityCounts.DEFAULT);
         return true;
     }
 }

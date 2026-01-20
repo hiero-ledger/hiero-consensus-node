@@ -238,12 +238,10 @@ class DiskStartupNetworksTest {
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         SemanticVersion currentVersion =
                 bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion();
-        PLATFORM_STATE_SERVICE.setAppVersionFn(
-                config -> config.getConfigData(VersionConfig.class).servicesVersion());
         Set.of(
                         PLATFORM_STATE_SERVICE,
                         new EntityIdServiceImpl(),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state),
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state, () -> startupNetworks),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();

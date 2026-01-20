@@ -284,6 +284,24 @@ public class HandleWorkflow {
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
 
+        final boolean isGenesis =
+                switch (streamMode) {
+                    case RECORDS ->
+                        blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
+                    case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
+                };
+        if (isGenesis) {
+            final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
+            logger.info("Doing genesis setup before {}", genesisEventTime);
+            systemTransactions.doGenesisSetup(genesisEventTime, state);
+            transactionsDispatched = true;
+            if (streamMode != RECORDS) {
+                blockStreamManager.confirmPendingWorkFinished();
+            }
+            logger.info(SYSTEM_ENTITIES_CREATED_MSG);
+            requireNonNull(systemEntitiesCreatedFlag).set(true);
+        }
+
         // Dispatch transplant updates for the nodes in override network (non-prod environments);
         // ensure we don't do this in the same round as externalizing migration state changes to
         // avoid complicated edge cases in setting consensus times for block items
@@ -311,8 +329,7 @@ public class HandleWorkflow {
         }
 
         final var setLedgerIdContext = new AtomicReference<LedgerIdContext>(null);
-        // If only producing a record stream, no reason to do any TSS work (since it is
-        // output exclusively in a block stream)
+        // If only producing a record stream, no reason to do any TSS work
         if (streamMode != RECORDS) {
             configureTssCallbacks(state, setLedgerIdContext);
             try {
@@ -455,23 +472,6 @@ public class HandleWorkflow {
             if (streamMode == RECORDS) {
                 ((BlockRecordManagerImpl) blockRecordManager).maybeQuiesce(state);
             }
-        }
-        final boolean isGenesis =
-                switch (streamMode) {
-                    case RECORDS ->
-                        blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
-                    case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
-                };
-        if (isGenesis) {
-            final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
-            logger.info("Doing genesis setup before {}", genesisEventTime);
-            systemTransactions.doGenesisSetup(genesisEventTime, state);
-            transactionsDispatched = true;
-            if (streamMode != RECORDS) {
-                blockStreamManager.confirmPendingWorkFinished();
-            }
-            logger.info(SYSTEM_ENTITIES_CREATED_MSG);
-            requireNonNull(systemEntitiesCreatedFlag).set(true);
         }
         // Update all throttle metrics once per round
         throttleServiceManager.updateAllMetrics();

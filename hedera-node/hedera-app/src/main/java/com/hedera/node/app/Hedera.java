@@ -26,6 +26,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
+import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Duration;
@@ -283,6 +284,8 @@ public final class Hedera
 
     private final AddressBookServiceImpl addressBookServiceImpl;
 
+    private final RosterServiceImpl rosterServiceImpl;
+
     /**
      * The block stream service singleton, kept as a field here to reuse information learned
      * during the state migration phase in the later initialization phase.
@@ -527,6 +530,8 @@ public final class Hedera
         networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
+        rosterServiceImpl = new RosterServiceImpl(
+                this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState), this::startupNetworks);
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
                 bootstrapConfig.getConfigData(HederaConfig.class).nodeTransactionMaxBytes(),
@@ -556,8 +561,7 @@ public final class Hedera
                         new CongestionThrottleService(),
                         networkServiceImpl,
                         addressBookServiceImpl,
-                        new RosterServiceImpl(
-                                this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState)),
+                        rosterServiceImpl,
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
         final var blockStreamsEnabled = isBlockStreamEnabled();
@@ -816,8 +820,6 @@ public final class Hedera
                 () -> trigger);
         blockStreamService.resetMigratedLastBlockHash();
         startupNetworks = startupNetworksFactory.apply(configProvider);
-        PLATFORM_STATE_SERVICE.setAppVersionFn(
-                config -> platformConfig.getConfigData(VersionConfig.class).servicesVersion());
         this.initState = state;
         final var migrationChanges = serviceMigrator.doMigrations(
                 state,
@@ -1099,6 +1101,13 @@ public final class Hedera
         return requireNonNull(startupNetworks);
     }
 
+    /**
+     * Returns the genesis roster, or throws if none is available.
+     */
+    public @NonNull Roster genesisRosterOrThrow() {
+        return rosterFrom(startupNetworks().genesisNetworkOrThrow(configProvider.getConfiguration()));
+    }
+
     /*==================================================================================================================
     *
     * Exposed for use by embedded Hedera
@@ -1261,11 +1270,15 @@ public final class Hedera
         final var initialStateHash = new InitialStateHash(initialStateHashFuture, roundNum);
 
         final var rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
-        final var currentRoster = requireNonNull(rosterStore.getActiveRoster());
+        final var currentRoster = trigger == GENESIS
+                ? rosterFrom(startupNetworks().genesisNetworkOrThrow(configProvider.getConfiguration()))
+                : requireNonNull(rosterStore.getActiveRoster());
         final var networkInfo = new StateNetworkInfo(
-                platform.getSelfId().id(), state, currentRoster, configProvider, () -> requireNonNull(
-                                genesisNetworkSupplier)
-                        .get());
+                platform.getSelfId().id(),
+                trigger == GENESIS ? null : state,
+                currentRoster,
+                configProvider,
+                () -> requireNonNull(genesisNetworkSupplier).get());
         final var selfNodeAccountIdManager = new SelfNodeAccountIdManagerImpl(configProvider, networkInfo, state);
         hintsService.initCurrentRoster(currentRoster);
         final var blockHashSigner = blockHashSignerFactory.apply(hintsService, historyService, configProvider);

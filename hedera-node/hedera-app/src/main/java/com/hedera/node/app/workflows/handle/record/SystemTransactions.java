@@ -223,7 +223,7 @@ public class SystemTransactions {
     public void doGenesisSetup(@NonNull final Instant now, @NonNull final State state) {
         requireNonNull(now);
         requireNonNull(state);
-        // Ensure all singletons exist (will be externalized in state changes at end of genesis block)
+        // Ensure all singletons exist (will be externalized in state changes at end of genesis block if appropriate)
         final var config = configProvider.getConfiguration();
         for (final var r : servicesRegistry.registrations()) {
             final var service = r.service();
