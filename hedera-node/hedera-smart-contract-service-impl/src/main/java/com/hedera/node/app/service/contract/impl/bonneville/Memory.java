@@ -18,6 +18,12 @@ public class Memory {
     int _len = 0;               // Active, or in-use bytes.  Rounded to 32bytes
     byte[] _mem=new byte[32];   // Raw bytes
 
+    public void reset() {
+        _len = 0;
+        Arrays.fill(_mem,(byte)0);
+    }
+
+
     long read( int adr ) {
         return adr >= _mem.length ? 0 : read8(_mem,adr);
     }

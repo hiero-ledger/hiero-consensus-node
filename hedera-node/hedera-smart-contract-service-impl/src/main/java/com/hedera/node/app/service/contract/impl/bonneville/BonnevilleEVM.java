@@ -264,8 +264,8 @@ class BEVM {
         return this;
     }
 
-    BEVM reset() {
-        _mem._len = 0;
+    void reset() {
+        _mem.reset();
         _frame = null;
         _codes = null;
         _sp = 0;
@@ -275,9 +275,7 @@ class BEVM {
         _recvMutable = null;
         _isSidecarEnabled = false;
         _lastSKey = _lastSVal = null;
-        _callData = null;
         _jmpDest = null;
-        return this;
     }
 
     private ExceptionalHaltReason useGas( long used ) {
@@ -438,7 +436,7 @@ class BEVM {
     // -----------------------------------------------------------
     // Execute bytecodes until done
     BEVM run() {
-        SB trace = null; // new SB();
+        SB trace = new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null )
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
@@ -1429,7 +1427,7 @@ class BEVM {
         if( (off | len) < 0 || off == Integer.MAX_VALUE || len == Integer.MAX_VALUE )
             return ExceptionalHaltReason.INVALID_OPERATION;
 
-        _frame.setOutputData(_mem.asBytes(off, len)); // Thin wrapper over the underlying byte[], no copy
+        _frame.setOutputData(_mem.copyBytes(off, len));
         _frame.setState(MessageFrame.State.CODE_SUCCESS);
         // Halt interpreter with no error
         return ExceptionalHaltReason.NONE;
@@ -1449,9 +1447,10 @@ class BEVM {
         int dstOff = popInt();
         int dstLen = popInt();
 
-        var sender = _frame.getSenderAddress();
+        var recipient = _frame.getRecipientAddress();
+        var sender    = _frame.getSenderAddress();
 
-        return _abstractCall(trace,str, stipend,to,sender,Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen);
+        return _abstractCall(trace,str, stipend, recipient, to, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen);
     }
     private boolean isRedirectFromNativeEntity() {
         final var updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
@@ -1484,7 +1483,7 @@ class BEVM {
         var halt = useGas(memoryExpansionGasCost(off, len));
         if( halt!=null ) return halt;
 
-        Bytes reason = _mem.asBytes(off, len); // Thin wrapper over the underlying byte[], no copy
+        Bytes reason = _mem.copyBytes(off, len);
         _frame.setOutputData(reason);
         _frame.setRevertReason(reason);
         _frame.setState(MessageFrame.State.REVERT);
@@ -2076,18 +2075,18 @@ class BEVM {
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-        return _abstractCall(trace,str, stipend,to,value,hasValue,srcOff,srcLen,dstOff,dstLen);
+        return _abstractCall(trace,str, stipend, to,value,hasValue,srcOff,srcLen,dstOff,dstLen);
     }
 
 
-    private ExceptionalHaltReason _abstractCall(SB trace, String str,long stipend, Address contract, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
-        var sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
+    private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address contract, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
+        var recipient_sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
             ? FrameUtils.hookOwnerAddress(_frame)
             : _frame.getRecipientAddress();
-        return _abstractCall(trace, str, stipend, contract, sender, value, hasValue, srcOff, srcLen, dstOff, dstLen );
+        return _abstractCall(trace, str, stipend, recipient_sender, contract, recipient_sender, value, hasValue, srcOff, srcLen, dstOff, dstLen );
     }
 
-    private ExceptionalHaltReason _abstractCall(SB trace, String str,long stipend, Address contract, Address sender, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
+    private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address recipient, Address contract, Address sender, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
         Account contractAccount = _frame.getWorldUpdater().get(contract);
 
         // gas cost check.  As usual, the input values are capped at
@@ -2160,6 +2159,7 @@ class BEVM {
         // gasAvailableForChildCall; this is the "all but 1/64th" computation
         long childGasStipend =  Math.min(_gas - (_gas>>6),stipend);
         _gas -= childGasStipend;
+        _gas += gas;            // Do not charge yet
         _frame.setGasRemaining(_gas);
 
         // ----------------------------
@@ -2168,7 +2168,7 @@ class BEVM {
             .parentMessageFrame(_frame)
             .type(MessageFrame.Type.MESSAGE_CALL)
             .initialGas(childGasStipend)
-            .address(contract)
+            .address(recipient)
             .contract(contract)
             .inputData(src)
             .sender(sender)
@@ -2180,7 +2180,7 @@ class BEVM {
             .build();
         _frame.setState(MessageFrame.State.CODE_SUSPENDED);
 
-        // Frame lifetime managementQ
+        // Frame lifetime management
         assert child.getState() == MessageFrame.State.NOT_STARTED;
         _tracing.traceContextEnter(child);
         PublicMessageCallProcessor msg = _bevm._call;
@@ -2218,6 +2218,8 @@ class BEVM {
         _frame.incrementGasRefund(child.getGasRefund());
 
         _gas += child.getRemainingGas();
+
+        _gas -= gas;            // Charge for the attempt
 
         if( trace != null )
             System.out.println(trace.clear().p("RETURN ").p(str).nl());
