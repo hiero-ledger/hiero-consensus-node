@@ -28,8 +28,8 @@ public class Utilities {
      * 		our ID
      * @return a list of PeerInfo
      */
-    public static @NonNull List<PeerInfo> createPeerInfoList(
-            @NonNull final Roster roster, @NonNull final NodeId selfId) {
+    @NonNull
+    public static List<PeerInfo> createPeerInfoList(@NonNull final Roster roster, @NonNull final NodeId selfId) {
         Objects.requireNonNull(roster);
         Objects.requireNonNull(selfId);
         return roster.rosterEntries().stream()
@@ -46,7 +46,8 @@ public class Utilities {
      * @param entry data to convert
      * @return PeerInfo with extracted hostname, port and certificate for remote host
      */
-    public static @NonNull PeerInfo toPeerInfo(@NonNull RosterEntry entry) {
+    @NonNull
+    public static PeerInfo toPeerInfo(@NonNull final RosterEntry entry) {
         Objects.requireNonNull(entry);
         return new PeerInfo(
                 NodeId.of(entry.nodeId()),
