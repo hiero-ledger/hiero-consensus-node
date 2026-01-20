@@ -15,8 +15,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
@@ -95,10 +93,6 @@ public class ConsensusNodeManager {
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
 
-        // Immediately initialize the cryptography and merkle cryptography factories
-        // to avoid using default behavior instead of that defined in platformConfig
-        final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
-
         setupGlobalMetrics(platformConfig);
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
 
@@ -109,8 +103,8 @@ public class ConsensusNodeManager {
         final RecycleBin recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
 
-        final PlatformContext platformContext = PlatformContext.create(
-                platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
+        final PlatformContext platformContext =
+                PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), platformConfig);
 

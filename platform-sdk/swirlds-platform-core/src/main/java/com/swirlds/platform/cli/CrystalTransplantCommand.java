@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
-import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.platform.cli.utils.HederaUtils.SWIRLD_NAME;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestState;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
@@ -19,7 +18,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
@@ -177,8 +175,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 Time.getCurrent(),
                 new NoOpMetrics(),
                 FileSystemManager.create(configuration),
-                new SimpleRecycleBin(),
-                MerkleCryptographyFactory.create(configuration));
+                new SimpleRecycleBin());
 
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
 
@@ -233,9 +230,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 savedStateFiles,
                 platformContext,
                 appMain.getStateLifecycleManager())) {
-            final Hash newHash = rehashTree(
-                    platformContext.getMerkleCryptography(),
-                    state.get().getState().getRoot());
+            final Hash newHash = state.get().getState().getHash();
 
             final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
             this.targetStateDir = new SignedStateFilePath(
