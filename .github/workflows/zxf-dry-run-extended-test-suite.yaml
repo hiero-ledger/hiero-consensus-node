@@ -97,7 +97,7 @@ jobs:
     if: ${{ inputs.execute-state-validator-build == true }}
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
-      ref: ${{ inputs.commit_sha }}
+      ref: ${{ inputs.ref }}
       dry-run-enabled: "true"
 
   xts-execution:
@@ -105,7 +105,7 @@ jobs:
     needs: parameters
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      commit_sha: ${{ inputs.commit_sha }}
+      ref: ${{ inputs.ref }}
       branch_name: ${{ inputs.branch_name }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
