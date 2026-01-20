@@ -2,12 +2,10 @@
 package com.swirlds.virtualmap;
 
 import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
-import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
-import static com.swirlds.virtualmap.VirtualMap.CLASS_ID;
 import static com.swirlds.virtualmap.internal.Path.FIRST_LEFT_PATH;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
@@ -23,8 +21,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.ExternalSelfSerializable;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
@@ -42,7 +38,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
-import com.swirlds.virtualmap.constructable.constructors.VirtualMapConstructor;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
@@ -69,12 +64,9 @@ import com.swirlds.virtualmap.internal.reconnect.TopToBottomTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.TwoPhasePessimisticTraversalOrder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -87,11 +79,9 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
-import org.hiero.base.constructable.ConstructableClass;
+import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
@@ -157,9 +147,8 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * through the map-like methods.
  */
 @DebugIterationEndpoint
-@ConstructableClass(value = CLASS_ID, constructorType = VirtualMapConstructor.class)
-public final class VirtualMap extends PartialBinaryMerkleInternal
-        implements ExternalSelfSerializable, Labeled, MerkleInternal, VirtualRoot {
+@ConstructableIgnored
+public final class VirtualMap extends PartialBinaryMerkleInternal implements Labeled, MerkleInternal, VirtualRoot {
 
     private static final int MAX_PBJ_RECORD_SIZE = 33554432;
 
@@ -186,8 +175,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * of leaves vs. the speed of hashing.
      */
     private static final int MAX_RECONNECT_HASHING_BUFFER_SIZE = 10_000_000;
-
-    public static final String OLD_METADATA_FILENAME = "state.vmap";
 
     /** Virtual Map platform configuration */
     @NonNull
@@ -1014,9 +1001,13 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
 
     /**
      * {@inheritDoc}
+     * @deprecated this method can be safely removed once we switch to pull-based reconnect,
+     * see <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/12648">issue #12648</a>
      */
+    @Deprecated(forRemoval = true)
     @Override
     public long getClassId() {
+        // This class id is still required for the reconnect code
         return CLASS_ID;
     }
 
@@ -1564,80 +1555,17 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     /**
-     * {@inheritDoc}
-     * @deprecated use {@link #createSnapshot(Path)} instead
+     * Creates a new virtual map from a snapshot
+     * @param snapshotPath path to the snapshot directory
+     * @param configuration virtual map configuration
+     * @param dataSourceBuilderSupplier data source builder supplier
+     * @return new virtual map instance
      */
-    @Deprecated(forRemoval = true)
-    @Override
-    public void serialize(@NonNull final SerializableDataOutputStream out, @NonNull final Path outputDirectory)
-            throws IOException {
-        throw new UnsupportedOperationException("Use createSnapshot instead");
-    }
-
-    /**
-     * {@inheritDoc}
-     * @deprecated use {@link #loadFromDirectory(Path, Configuration, Supplier)} instead
-     */
-    @Deprecated(forRemoval = true)
-    @Override
-    public void deserialize(
-            @NonNull final SerializableDataInputStream in, @NonNull final Path inputDirectory, final int version)
-            throws IOException {
-
-        if (version < ClassVersion.NO_VIRTUAL_ROOT_NODE) {
-            throw new UnsupportedOperationException("Version must be at least ClassVersion.NO_VIRTUAL_ROOT_NODE");
-        }
-
-        final int fileNameLengthInBytes = in.readInt();
-        final String inputFileName = in.readNormalisedString(fileNameLengthInBytes);
-        final Path inputFile = inputDirectory.resolve(inputFileName);
-        loadFromFile(inputFile);
-    }
-
-    /**
-     * @param snapshotDirectory directory of the snapshot
-     * @return true if the snapshot format is pre-0.70 version
-     */
-    public static boolean isOldFormat(@NonNull final Path snapshotDirectory) {
-        return Files.exists(snapshotDirectory.resolve(OLD_METADATA_FILENAME));
-    }
-
     public static VirtualMap loadFromDirectory(
             @NonNull final Path snapshotPath,
             @NonNull final Configuration configuration,
             @NonNull Supplier<VirtualDataSourceBuilder> dataSourceBuilderSupplier) {
         return new VirtualMap(dataSourceBuilderSupplier.get(), configuration, snapshotPath);
-    }
-
-    /**
-     * Deserializes the given serialized VirtualMap file into this map instance. This is not intended for
-     * public use, it is for testing and tools only.
-     *
-     * @param inputFile              The input .vmap file. Cannot be null.
-     * @throws IOException For problems.
-     * @deprecated use {@link #loadFromDirectory} instead
-     */
-    @Deprecated(forRemoval = true)
-    public void loadFromFile(@NonNull final Path inputFile) throws IOException {
-        deserializeAndDebugOnFailure(
-                () -> new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
-                (final MerkleDataInputStream stream) -> {
-                    // skipping label as it's hardcoded
-                    stream.readNormalisedString(MAX_LABEL_CHARS);
-                    final long stateSize = stream.readLong();
-                    loadFromFileV4(inputFile, stream, new VirtualMapMetadata(stateSize));
-                    return null;
-                });
-
-        postInit();
-    }
-
-    private void loadFromFileV4(Path inputFile, MerkleDataInputStream stream, VirtualMapMetadata virtualMapMetadata)
-            throws IOException {
-        dataSourceBuilder = stream.readSerializable();
-        dataSource = dataSourceBuilder.build(LABEL, inputFile.getParent(), true, false);
-        cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
-        metadata = virtualMapMetadata;
     }
 
     /*

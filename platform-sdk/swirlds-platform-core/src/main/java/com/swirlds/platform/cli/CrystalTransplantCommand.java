@@ -5,8 +5,6 @@ import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.platform.cli.utils.HederaUtils.SWIRLD_NAME;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestState;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
-import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
-import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -44,7 +42,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Scanner;
 import java.util.stream.Collectors;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
@@ -221,12 +218,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
 
     private StateInformation loadSourceState(final Configuration configuration) {
         setupConstructableRegistry();
-        try {
-            setupConstructableRegistryWithConfiguration(platformContext.getConfiguration());
-            registerVirtualMapConstructables(platformContext.getConfiguration());
-        } catch (final ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
 
         final SwirldMain<? extends MerkleNodeState> appMain = HederaUtils.createHederaAppMain(platformContext);
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
