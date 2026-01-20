@@ -42,7 +42,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -511,9 +510,7 @@ public class ConsensusImpl implements Consensus {
      * @param event the event to calculate metadata for
      */
     private void calculateMetadata(@NonNull final EventImpl event) {
-        event.setRosterIndex(
-                rosterIndicesMap.getOrDefault(event.getCreatorId().id(), -1)
-        );
+        event.setRosterIndex(rosterIndicesMap.getOrDefault(event.getCreatorId().id(), -1));
 
         if (notRelevantForConsensus(event) || rounds.isLastDecidedJudge(event)) {
             return;
@@ -1014,7 +1011,7 @@ public class ConsensusImpl implements Consensus {
             }
             EventImpl latestEventSeen = null;
             for (final EventImpl parent : x.getAllParents()) {
-                if(ancient(parent)){
+                if (ancient(parent)) {
                     // we can ignore ancient parents
                     continue;
                 }
@@ -1092,7 +1089,7 @@ public class ConsensusImpl implements Consensus {
         perMemberLoop:
         for (int mm = 0; mm < numMembers; mm++) {
             for (final EventImpl parent : x.getAllParents()) {
-                if(ancient(parent)) {
+                if (ancient(parent)) {
                     continue;
                 }
                 if (stronglySeeP(parent, mm) != null && parentRound(parent) == prx) {
@@ -1178,7 +1175,7 @@ public class ConsensusImpl implements Consensus {
         long previousParentRound = Long.MIN_VALUE;
         boolean allParentsHaveTheSameRound = true;
         for (final EventImpl parent : x.getAllParents()) {
-            if(ancient(parent)) {
+            if (ancient(parent)) {
                 continue;
             }
             final long parentRound = round(parent);
