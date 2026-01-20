@@ -11,8 +11,6 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -67,15 +65,12 @@ class RpcShadowgraphSynchronizerTest {
         final Configuration configuration = configurationBuilder.build();
 
         final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
-        final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
-
         this.platformContext = PlatformContext.create(
                 configuration,
                 new FakeTime(Instant.now(), Duration.ofMillis(1)),
                 new NoOpMetrics(),
                 fileSystemManager,
-                new NoOpRecycleBin(),
-                merkleCryptography);
+                new NoOpRecycleBin());
 
         this.syncMetrics = mock(SyncMetrics.class);
         this.selfId = NodeId.of(1);
