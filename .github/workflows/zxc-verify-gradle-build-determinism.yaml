@@ -173,7 +173,7 @@ jobs:
           echo "os-matrix=$MATRIX" >> $GITHUB_OUTPUT
 
   verify-artifacts:
-    name: "Gradle: Verify Artifacts"
+    name: "Gradle: Verify Artifacts (${{ join(matrix.os, ', ') }})"
     runs-on: ${{ matrix.os }}
     needs:
       - generate-baseline
