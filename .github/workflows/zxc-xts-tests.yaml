@@ -128,7 +128,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
           checkout: "true"
-          checkout-ref: "${{ needs.commit-info.outputs.sha }}"
+          checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
           checkout-token: "${{ secrets.access-token }}"
       - name: Get Commit Info
