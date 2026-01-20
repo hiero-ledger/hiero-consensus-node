@@ -18,6 +18,7 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -178,7 +179,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
-                    trigger);
+                    InitTrigger.RESTART);
             virtualMap.release();
         }
     }
@@ -221,7 +222,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
-                            trigger))
+                            InitTrigger.RESTART))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -238,7 +239,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
-                            trigger))
+                            InitTrigger.RESTART))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -255,7 +256,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
-                            trigger))
+                            InitTrigger.GENESIS))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -272,7 +273,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
-                            trigger))
+                            InitTrigger.RESTART))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -289,7 +290,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
-                            trigger))
+                            InitTrigger.RESTART))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
@@ -310,7 +311,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
-                    trigger);
+                    InitTrigger.RESTART);
 
             // Then nothing happens
             Mockito.verify(schema, Mockito.times(0)).migrate(Mockito.any());
@@ -333,7 +334,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
-                    trigger);
+                    InitTrigger.RESTART);
 
             // Then migration doesn't happen but restart is called
             Mockito.verify(schema, Mockito.times(0)).migrate(Mockito.any());
@@ -357,7 +358,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
-                    trigger);
+                    InitTrigger.GENESIS);
 
             // Then migration doesn't happen but restart is called
             Mockito.verify(schema, Mockito.times(1)).migrate(Mockito.any());
@@ -389,7 +390,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
-                    trigger);
+                    InitTrigger.GENESIS);
 
             // Then each of v1, v4, and v6 are called
             assertThat(called).hasSize(3);
@@ -557,7 +558,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
-                        trigger);
+                        InitTrigger.RESTART);
 
                 // Then we see that the values for A, B, and C are available
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
@@ -585,7 +586,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
-                        trigger);
+                        InitTrigger.RESTART);
 
                 // We should see the v2 state (the delta from v2 after applied atop v1)
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
@@ -624,7 +625,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
-                        trigger);
+                        InitTrigger.RESTART);
 
                 // We should see the v3 state (the delta from v3 after applied atop v2 and v1)
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
@@ -668,7 +669,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                                 new HashMap<>(),
                                 migrationStateChanges,
                                 startupNetworks,
-                                trigger))
+                                InitTrigger.RESTART))
                         .isInstanceOf(RuntimeException.class)
                         .hasMessage("Bad");
 

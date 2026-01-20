@@ -166,7 +166,8 @@ public class TransactionDispatcher {
                     SCHEDULE_CREATE,
                     SCHEDULE_SIGN,
                     SCHEDULE_DELETE -> true;
-            case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE -> true;
+            case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE, SYSTEM_DELETE, SYSTEM_UNDELETE -> true;
+            case UTIL_PRNG, ATOMIC_BATCH -> true;
             case TOKEN_CREATION,
                     TOKEN_MINT,
                     TOKEN_BURN,
@@ -187,6 +188,7 @@ public class TransactionDispatcher {
                     TOKEN_UPDATE,
                     TOKEN_UPDATE_NFTS,
                     TOKEN_WIPE -> true;
+            case NODE_CREATE, NODE_UPDATE, NODE_DELETE -> true;
             default -> false;
         };
     }

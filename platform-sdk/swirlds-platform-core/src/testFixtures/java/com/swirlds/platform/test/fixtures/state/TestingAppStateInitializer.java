@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.output.StateChanges.Builder;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -89,8 +91,8 @@ public final class TestingAppStateInitializer {
                 });
         final var mockMigrationContext = mock(MigrationContext.class);
         final var writableStates = state.getWritableStates(PlatformStateService.NAME);
-        given(mockMigrationContext.newStates()).willReturn(writableStates);
         schema.migrate(mockMigrationContext);
+        writableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID).put(V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE);
         ((CommittableWritableStates) writableStates).commit();
         return Collections.emptyList();
     }
