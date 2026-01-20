@@ -140,7 +140,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 filename:,.*,
                                 Counter:,Counter,
                                 DoubleGauge:,DoubleGauge,
@@ -194,7 +196,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 (.*\\n){5}.*
                                 ,,0,0.0,
                                 ,,0,0.0,
@@ -220,7 +224,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 filename:,.*,
                                 Counter:,Counter,
                                 DoubleGauge:,DoubleGauge,
@@ -240,7 +246,9 @@ class LegacyCsvWriterTest {
                 .getOrCreateConfig();
         final LegacyCsvWriter writer = new LegacyCsvWriter(NODE_ID, tempDir, configuration);
         final Path csvFilePath = writer.getCsvFilePath();
-        Files.writeString(csvFilePath, """
+        Files.writeString(
+                csvFilePath,
+                """
                         filename:,/tmp/tempfile.tmp,
                         Counter:,Counter,
                         DoubleGauge:,DoubleGauge,
@@ -262,7 +270,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 filename:,.*,
                                 Counter:,Counter,
                                 DoubleGauge:,DoubleGauge,
@@ -299,7 +309,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 filename:,.*,
                                 Counter:,Counter,
                                 DoubleGauge:,DoubleGauge,
@@ -341,7 +353,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 filename:,.*,
                                 Public Counter:,Public Counter,
                                 Public DoubleGauge:,Public DoubleGauge,
@@ -387,7 +401,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 filename:,.*,
                                 Internal Counter:,Internal Counter,
                                 Public Counter:,Public Counter,
@@ -432,7 +448,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 filename:,.*,
                                 RunningAverageMetric:,RunningAverageMetric,
                                 SpeedometerMetric:,SpeedometerMetric,
@@ -480,7 +498,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 filename:,.*,
                                 RunningAverageMetric:,RunningAverageMetric,
                                 SpeedometerMetric:,SpeedometerMetric,
@@ -547,7 +567,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 filename:,.*,
                                 Counter 1:,Counter 1,
                                 Counter 2:,Counter 2,
@@ -593,7 +615,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 filename:,.*,
                                 RunningAverageMetric 1:,RunningAverageMetric 1,
                                 RunningAverageMetric 2:,RunningAverageMetric 2,
@@ -642,7 +666,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                                 filename:,.*,
                                 RunningAverageMetric 1:,RunningAverageMetric 1,
                                 RunningAverageMetric 2:,RunningAverageMetric 2,
@@ -677,7 +703,9 @@ class LegacyCsvWriterTest {
 
         // then
         final String content = Files.readString(csvFilePath);
-        assertThat(content).matches("""
+        assertThat(content)
+                .matches(
+                        """
                         filename:,.*,
                         Counter 1:,Counter 1,
                         Counter 2:,Counter 2,

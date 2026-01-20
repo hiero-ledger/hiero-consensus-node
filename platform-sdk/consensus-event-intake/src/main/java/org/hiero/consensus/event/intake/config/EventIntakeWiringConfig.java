@@ -17,16 +17,12 @@ import com.swirlds.config.api.ConfigProperty;
 @ConfigData("event.intake.wiring")
 public record EventIntakeWiringConfig(
         @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration eventHasher,
-
+                TaskSchedulerConfiguration eventHasher,
         @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration internalEventValidator,
-
+                TaskSchedulerConfiguration internalEventValidator,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5000) FLUSHABLE UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration eventDeduplicator,
-
+                TaskSchedulerConfiguration eventDeduplicator,
         @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration eventSignatureValidator,
-
+                TaskSchedulerConfiguration eventSignatureValidator,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration orphanBuffer) {}
+                TaskSchedulerConfiguration orphanBuffer) {}
