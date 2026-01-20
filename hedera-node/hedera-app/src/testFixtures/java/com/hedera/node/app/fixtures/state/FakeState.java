@@ -7,11 +7,10 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.MerkleProof;
+import com.swirlds.state.QueueState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -33,16 +32,15 @@ import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Path;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongSupplier;
 import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.crypto.Hash;
 
@@ -72,7 +70,7 @@ public class FakeState implements MerkleNodeState {
 
     @Override
     public MerkleNode getRoot() {
-        return new TestVirtualMapState().getRoot();
+        return VirtualMapStateTestUtils.createTestState().getRoot();
     }
 
     /**
@@ -263,15 +261,6 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public void init(
-            final @NonNull Time time,
-            final @NonNull Metrics metrics,
-            final @NonNull MerkleCryptography merkleCryptography,
-            final LongSupplier roundSupplier) {
-        // no-op
-    }
-
-    @Override
     public void setHash(Hash hash) {
         // no-op
     }
@@ -282,17 +271,12 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public void unregisterService(@NonNull final String serviceName) {
+    public long getKvPath(final int stateId, @NonNull final Bytes key) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public long kvPath(final int stateId, @NonNull final Bytes key) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public long singletonPath(final int stateId) {
+    public long getSingletonPath(final int stateId) {
         throw new UnsupportedOperationException();
     }
 
@@ -302,17 +286,93 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
+    public MerkleProof getMerkleProof(long path) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void initializeState(@NonNull final StateMetadata<?, ?> md) {
+    public long getQueueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public @Nullable Bytes getKv(int stateId, @NonNull Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public @Nullable Bytes getSingleton(int singletonId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public QueueState getQueueState(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes peekQueueHead(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes peekQueueTail(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes peekQueue(int stateId, int index) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<Bytes> getQueueAsList(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void commitSingletons() {
         // do nothing
     }
 
     @Override
-    public MerkleNodeState loadSnapshot(@NonNull final Path targetPath) {
+    public void initializeState(@NonNull final StateMetadata<?, ?> md) {
+        throw new UnsupportedOperationException();
+    }
+
+    // --- New MerkleNodeState mutation APIs (no-op implementations for test fixture) ---
+    @Override
+    public void updateSingleton(int stateId, @NonNull Bytes value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void updateKv(int stateId, @NonNull Bytes key, @Nullable Bytes value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void removeKv(int stateId, @NonNull Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void pushQueue(int stateId, @NonNull Bytes value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes popQueue(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void removeSingleton(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void removeQueue(int stateId) {
         throw new UnsupportedOperationException();
     }
 }

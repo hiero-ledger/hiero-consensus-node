@@ -29,7 +29,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.removeIfAnyLeading0x;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthEthTxCreation;
 import static com.hedera.node.app.service.contract.impl.utils.ValidationUtils.getMaxGasLimit;
-import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_ID;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -187,7 +187,7 @@ public class HevmTransactionFactory {
         return new HederaEvmTransaction(
                 payer,
                 null,
-                HTS_HOOKS_CONTRACT_ID,
+                entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM),
                 NOT_APPLICABLE,
                 body.executionOrThrow().callOrThrow().evmHookCallOrThrow().data(),
                 null,
@@ -315,7 +315,7 @@ public class HevmTransactionFactory {
                 NOT_APPLICABLE,
                 null,
                 exception,
-                null);
+                body.hookDispatch());
     }
 
     private @NonNull EthTxData assertValidEthTx(@NonNull final EthereumTransactionBody body) {
@@ -356,7 +356,7 @@ public class HevmTransactionFactory {
 
         final var gasLimit = execution.callOrThrow().evmHookCallOrThrow().gasLimit();
         validateTrue(gasLimit > 0, INSUFFICIENT_GAS);
-        validateTrue(gasLimit >= hooksConfig.lambdaIntrinsicGasCost(), INSUFFICIENT_GAS);
+        validateTrue(gasLimit >= hooksConfig.evmHookIntrinsicGasCost(), INSUFFICIENT_GAS);
         validateTrue(gasLimit <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
 
         final var entityId = execution.hookEntityIdOrThrow();

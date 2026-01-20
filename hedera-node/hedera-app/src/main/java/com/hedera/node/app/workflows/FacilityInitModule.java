@@ -22,18 +22,27 @@ import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
+import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
+import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.token.impl.TokenServiceImpl;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
@@ -42,10 +51,12 @@ import com.swirlds.state.State;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
+import dagger.multibindings.ElementsIntoSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -70,6 +81,83 @@ public interface FacilityInitModule {
     static Supplier<FeeCharging> provideBaseFeeCharging(@NonNull final AppContext appContext) {
         requireNonNull(appContext);
         return appContext.feeChargingSupplier();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideTokenServiceFeeCalculators(TokenServiceImpl tokenService) {
+        return tokenService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideConsensusServiceFeeCalculators(ConsensusServiceImpl consensusService) {
+        return consensusService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideConsensusQueryFeeCalculators(ConsensusServiceImpl consensusService) {
+        return consensusService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideTokenQueryFeeCalculators(TokenServiceImpl tokenService) {
+        return tokenService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideScheduleServiceFeeCalculators(ScheduleServiceImpl scheduleService) {
+        return scheduleService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideScheduleQueryFeeCalculators(ScheduleServiceImpl scheduleService) {
+        return scheduleService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideFileServiceFeeCalculators(FileServiceImpl fileService) {
+        return fileService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideFileQueryFeeCalculators(FileServiceImpl fileService) {
+        return fileService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideUtilServiceFeeCalculators(UtilServiceImpl utilService) {
+        return utilService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideNetworkQueryFeeCalculators(NetworkServiceImpl networkService) {
+        return networkService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideAddressBookFeeCalculators(AddressBookServiceImpl addressBookService) {
+        return addressBookService.serviceFeeCalculators();
     }
 
     @Provides
@@ -123,6 +211,9 @@ public interface FacilityInitModule {
                 final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
                 exchangeRateManager.init(state, schema.genesisExchangeRates(bootstrapConfig));
                 feeManager.update(schema.genesisFeeSchedules(bootstrapConfig));
+                if (bootstrapConfig.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+                    feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
+                }
                 throttleServiceManager.init(state, schema.genesisThrottleDefinitions(bootstrapConfig));
             }
             workingStateAccessor.setState(state);
@@ -157,6 +248,26 @@ public interface FacilityInitModule {
             // is possible with the current design for state to include a partial fee schedules file,
             // so we cannot fail hard here
             log.error("State file 0.0.{} did not contain parseable fee schedules ({})", fileNum, status);
+        }
+
+        {
+            final var feesConfig = configProvider.getConfiguration().getConfigData(FeesConfig.class);
+            if (feesConfig.simpleFeesEnabled()) {
+                final var simpleFileNum = filesConfig.simpleFeesSchedules();
+                final var simpleFile = requireNonNull(
+                        getFileFromStorage(state, configProvider, simpleFileNum),
+                        "The initialized state had no fee schedule file 0.0." + simpleFileNum);
+                final var simpleStatus = feeManager.updateSimpleFees(simpleFile.contents());
+                if (simpleStatus != SUCCESS) {
+                    // (FUTURE) Ideally this would be a fatal error, but unlike the exchange rates file, it
+                    // is possible with the current design for state to include a partial fee schedules file,
+                    // so we cannot fail hard here
+                    log.error(
+                            "State file 0.0.{} did not contain parseable fee schedules ({})",
+                            simpleFileNum,
+                            simpleStatus);
+                }
+            }
         }
     }
 

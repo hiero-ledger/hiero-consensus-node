@@ -8,12 +8,13 @@ module org.hiero.base.utility {
     exports org.hiero.base.io.streams;
     exports org.hiero.base.iterator;
     exports org.hiero.base.utility;
+    exports org.hiero.base.structures;
 
-    requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.logging;
     requires io.github.classgraph;
     requires jdk.unsupported;
+    requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 }

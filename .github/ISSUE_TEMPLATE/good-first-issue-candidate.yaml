@@ -1,13 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
 name: Good First Issue Candidate
 description: Suggest an idea for this project
-labels: [ "Good First Issue Candidate" ]
+labels: ["Good First Issue Candidate"]
 type: Feature
 body:
   - type: markdown
     attributes:
       value: |
         ## Thanks for submitting a Good First Issue!
-        
+
         This issue targets first time contributors to [Hiero](https://hiero.org).
         We know that creating a pull request (PR) is a major barrier for new contributors.
         The goal of this issue (and all other issues labeled with) [**'Good First Issue'**](https://github.com/issues?q=is%3Aopen+is%3Aissue+org%3Ahiero-ledger+archived%3Afalse+label%3A%22good+first+issue%22+) is to help you make your first contribution to Hiero.
@@ -53,13 +54,13 @@ body:
     attributes:
       value: |
         ------
-        
+
         ## Making Contributions
-        
+
         If you have never contributed to an open source project at GitHub, the following step-by-step guide will introduce you to the workflow.
         More information and concrete samples for shell commands for each step can be found in our [CONTRIBUTING.md](https://github.com/hiero-ledger/.github/blob/main/CONTRIBUTING.md) file.
         A more detailed general documentation of the GitHub PR workflow can be found [here](https://github.com/firstcontributions/first-contributions/blob/master/README.md).
-        
+
         - [ ] **Claim this issue:** Comment below that you are interested in working on the issue
         - [ ] **Wait for assignment:** A community member with the given rights will add you as an assignee of the issue
         - [ ] **Work on the issue:** Follow the detailed description in our [CONTRIBUTING.md](https://github.com/hiero-ledger/.github/blob/main/CONTRIBUTING.md) file.
@@ -70,17 +71,17 @@ body:
     attributes:
       value: |
         ## :jack_o_lantern: Hacktoberfest :jack_o_lantern:
-        
+
         At the time of the [Hacktoberfest](https://hacktoberfest.digitalocean.com) event we try to mark all PRs that solve any good first issue with the `hacktoberfest-accepted` label.
         If you want to resolve this issue as part of Hacktoberfest and we missed adding the label, simply add a comment to the issue or PR, and we will add it.
-        
+
         ------
   - type: markdown
     attributes:
       value: |
         ## Additional Questions
-        
+
         If you have any questions about the topic of this issue, please ask us directly by adding a comment below.
         Additionally, we invite you to join our community on our [Discord](https://discord.gg/kEnnmB9A) server or attend our [public community calls](https://zoom-lfx.platform.linuxfoundation.org/meetings/hiero?view=week).
-        
+
         A general manual about open-source contributions can be found [here](https://github.com/firstcontributions/first-contributions/blob/master/README.md).

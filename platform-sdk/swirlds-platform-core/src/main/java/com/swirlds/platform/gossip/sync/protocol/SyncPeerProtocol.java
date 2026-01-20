@@ -4,9 +4,7 @@ package com.swirlds.platform.gossip.sync.protocol;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
@@ -22,7 +20,8 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
-import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -43,11 +42,6 @@ public class SyncPeerProtocol implements PeerProtocol {
      * The shadow graph synchronizer, responsible for actually doing the sync
      */
     private final ShadowgraphSynchronizer synchronizer;
-
-    /**
-     * Manager to determine whether this node has fallen behind
-     */
-    private final FallenBehindManager fallenBehindManager;
 
     /**
      * Metrics tracking syncing
@@ -96,7 +90,6 @@ public class SyncPeerProtocol implements PeerProtocol {
      * @param platformContext        the platform context
      * @param peerId                 the id of the peer being synced with in this protocol
      * @param synchronizer           the shadow graph synchronizer, responsible for actually doing the sync
-     * @param fallenBehindManager    manager to determine whether this node has fallen behind
      * @param permitProvider         provides permits to sync
      * @param intakeEventCounter     keeps track of how many events have been received from each peer, but haven't yet
      *                               made it through the intake pipeline
@@ -109,7 +102,6 @@ public class SyncPeerProtocol implements PeerProtocol {
             @NonNull final PlatformContext platformContext,
             @NonNull final NodeId peerId,
             @NonNull final ShadowgraphSynchronizer synchronizer,
-            @NonNull final FallenBehindManager fallenBehindManager,
             @NonNull final SyncPermitProvider permitProvider,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final BooleanSupplier gossipHalted,
@@ -120,7 +112,6 @@ public class SyncPeerProtocol implements PeerProtocol {
         this.platformContext = Objects.requireNonNull(platformContext);
         this.peerId = Objects.requireNonNull(peerId);
         this.synchronizer = Objects.requireNonNull(synchronizer);
-        this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
         this.permitProvider = Objects.requireNonNull(permitProvider);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         this.gossipHalted = Objects.requireNonNull(gossipHalted);
@@ -151,6 +142,9 @@ public class SyncPeerProtocol implements PeerProtocol {
     private boolean shouldSync() {
         if (!SyncStatusChecker.doesStatusPermitSync(platformStatusSupplier.get())) {
             syncMetrics.doNotSyncPlatformStatus();
+            if (platformStatusSupplier.get() == PlatformStatus.BEHIND) {
+                syncMetrics.doNotSyncFallenBehind();
+            }
             return false;
         }
 
@@ -161,11 +155,6 @@ public class SyncPeerProtocol implements PeerProtocol {
 
         if (gossipHalted.getAsBoolean()) {
             syncMetrics.doNotSyncHalted();
-            return false;
-        }
-
-        if (fallenBehindManager.hasFallenBehind()) {
-            syncMetrics.doNotSyncFallenBehind();
             return false;
         }
 

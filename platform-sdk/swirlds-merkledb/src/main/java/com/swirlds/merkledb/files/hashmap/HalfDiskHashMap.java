@@ -29,7 +29,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.LongSummaryStatistics;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -106,7 +108,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     /** Bucket pool used by this HDHM */
     private final ReusableBucketPool bucketPool;
     /** Store for session data during a writing transaction */
-    private IntObjectHashMap<BucketMutation> oneTransactionsData = null;
+    private IntObjectHashMap<List<BucketMutation>> oneTransactionsData = null;
 
     // Fields related to flushes
 
@@ -477,8 +479,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         writingThread = Thread.currentThread();
     }
 
-    private BucketMutation findBucketForUpdate(
-            final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
+    private List<BucketMutation> findBucketForUpdate(final Bytes keyBytes, final int keyHashCode) {
         if (keyBytes == null) {
             throw new IllegalArgumentException("Can not write a null key");
         }
@@ -491,17 +492,17 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         }
         // store key and value in transaction cache
         final int bucketIndex = computeBucketIndex(keyHashCode);
-        return oneTransactionsData.getIfAbsentPut(
-                bucketIndex, () -> new BucketMutation(keyBytes, keyHashCode, oldValue, value));
+        // For most buckets, there will be just one key/path mapping update. Sometimes, two.
+        // A short array list of 2 elements should work fine here. In the worst case, when
+        // there are many updates to a single bucket, the list will be resized
+        return oneTransactionsData.getIfAbsentPut(bucketIndex, () -> new ArrayList<>(2));
     }
 
     /**
      * Put a key/value during the current writing session. The value will not be retrievable until
      * it is committed in the {@link #endWriting()} call.
      *
-     * <p>This method may be called multiple times for the same key in a single writing
-     * session. The value from the last call will be stored in this map after the session is
-     * ended.
+     * <p>For any given key, this method may be called only once in a single writing session.
      *
      * @param keyBytes the key to store the value for
      * @param value the value to store for given key
@@ -511,44 +512,19 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     }
 
     void put(final Bytes keyBytes, final int keyHashCode, final long value) {
-        final BucketMutation bucketMap = findBucketForUpdate(keyBytes, keyHashCode, INVALID_VALUE, value);
-        bucketMap.put(keyBytes, keyHashCode, value);
-    }
-
-    /**
-     * Put a key/value during the current writing session. This method is similar to {@link
-     * #put(Bytes, long)}, but the new value is set only if the current value is equal to
-     * the given {@code oldValue}.
-     *
-     * <p>This method may be called multiple times for the same key in a single writing
-     * session. If the new value from the first call is equal to the old value in the second
-     * call, the new value from the second call will be stored in this map after the session
-     * is ended, otherwise the value from the second call will be ignored.
-     *
-     * <p>If the value for {@code oldValue} is {@link #INVALID_VALUE}, it's ignored, and this
-     * method is identical to {@link #put(Bytes, long)}.
-     *
-     * @param keyBytes the key to store the value for
-     * @param oldValue the value to check the current value against, or {@link #INVALID_VALUE}
-     *                 if no current value check is needed
-     * @param value the value to store for the given key
-     */
-    public void putIfEqual(final Bytes keyBytes, final long oldValue, final long value) {
-        putIfEqual(keyBytes, keyBytes.hashCode(), oldValue, value);
-    }
-
-    void putIfEqual(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
-        final BucketMutation bucketMap = findBucketForUpdate(keyBytes, keyHashCode, oldValue, value);
-        bucketMap.putIfEqual(keyBytes, keyHashCode, oldValue, value);
+        final List<BucketMutation> bucketMutations = findBucketForUpdate(keyBytes, keyHashCode);
+        bucketMutations.add(new BucketMutation(keyBytes, keyHashCode, value));
     }
 
     /**
      * Delete a key entry from the map.
      *
+     * <p>For any given key, this method may be called only once in a single writing session.
+     *
      * @param keyBytes The key to delete entry for
      */
     public void delete(final Bytes keyBytes) {
-        put(keyBytes, INVALID_VALUE);
+        put(keyBytes, keyBytes.hashCode(), INVALID_VALUE);
     }
 
     /**
@@ -556,12 +532,16 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * If {@code oldValue} is {@link #INVALID_VALUE}, no current value check is performed, and this
      * method is identical to {@link #delete(Bytes)}.
      *
+     * <p>For any given key, this method may be called only once in a single writing session.
+     *
      * @param keyBytes the key to delete the entry for
      * @param oldValue the value to check the current value against, or {@link #INVALID_VALUE}
      *                 if no current value check is needed
      */
     public void deleteIfEqual(final Bytes keyBytes, final long oldValue) {
-        putIfEqual(keyBytes, oldValue, INVALID_VALUE);
+        final int keyHashCode = keyBytes.hashCode();
+        final List<BucketMutation> bucketMutations = findBucketForUpdate(keyBytes, keyHashCode);
+        bucketMutations.add(new BucketMutation(keyBytes, keyHashCode, oldValue, INVALID_VALUE));
     }
 
     /**
@@ -588,16 +568,18 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             throw new IllegalStateException("Tried calling endWriting with different thread to startWriting()");
         }
         final int size = oneTransactionsData.size();
-        logger.info(
-                MERKLE_DB.getMarker(),
-                "Finishing writing to {}, num of changed bins = {}, num of changed keys = {}",
-                storeName,
-                size,
-                oneTransactionsData.stream().mapToLong(BucketMutation::size).sum());
+        if (logger.isDebugEnabled(MERKLE_DB.getMarker())) {
+            logger.debug(
+                    MERKLE_DB.getMarker(),
+                    "Finishing writing to {}, num of changed bins = {}, num of changed keys = {}",
+                    storeName,
+                    size,
+                    oneTransactionsData.stream().mapToLong(List::size).sum());
+        }
         final DataFileReader dataFileReader;
         try {
             if (size > 0) {
-                final Iterator<IntObjectPair<BucketMutation>> it =
+                final Iterator<IntObjectPair<List<BucketMutation>>> it =
                         oneTransactionsData.keyValuesView().iterator();
                 fileCollection.startWriting();
                 final ForkJoinPool pool = getFlushingPool(config);
@@ -646,9 +628,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     private class SubmitTask extends AbstractTask {
 
-        private final Iterator<IntObjectPair<BucketMutation>> it;
+        private final Iterator<IntObjectPair<List<BucketMutation>>> it;
 
-        SubmitTask(final ForkJoinPool pool, final Iterator<IntObjectPair<BucketMutation>> it, final int depCount) {
+        SubmitTask(
+                final ForkJoinPool pool, final Iterator<IntObjectPair<List<BucketMutation>>> it, final int depCount) {
             super(pool, depCount);
             this.it = it;
         }
@@ -670,11 +653,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             int maxToSubmit = bucketPermits.getAndSet(0);
             assert maxToSubmit > 0;
             while (it.hasNext() && (maxToSubmit-- > 0)) {
-                final IntObjectPair<BucketMutation> keyValue = it.next();
+                final IntObjectPair<List<BucketMutation>> keyValue = it.next();
                 final int bucketIndex = keyValue.getOne();
-                final BucketMutation bucketMap = keyValue.getTwo();
+                final List<BucketMutation> bucketMutations = keyValue.getTwo();
                 // Create a "read bucket" task
-                final ReadUpdateBucketTask readBucketTask = new ReadUpdateBucketTask(getPool(), bucketIndex, bucketMap);
+                final ReadUpdateBucketTask readBucketTask =
+                        new ReadUpdateBucketTask(getPool(), bucketIndex, bucketMutations);
                 // Execute it right away
                 readBucketTask.send();
             }
@@ -684,6 +668,20 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 nextSubmitTask.send();
             }
             return true;
+        }
+    }
+
+    // This is a helper method used in ReadUpdateBucketTask and StoreBucketTask, when a bucket
+    // is processed (either no updates to the bucket, or it has been written to disk).
+    private void bucketProcessed() {
+        // Let the current submit task know that a bucket is fully processed, and
+        // the task can be run
+        if (bucketPermits.getAndIncrement() == 0) {
+            // If a submit task is currently running in parallel, it must have already created
+            // a new "current" submit task and permits have been set to 0, otherwise the
+            // getAndIncrement() above couldn't return 0. It means, notifyBucketProcessed()
+            // will be called on a different submit task than the one currently running
+            currentSubmitTask.get().notifyBucketProcessed();
         }
     }
 
@@ -698,33 +696,44 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         private final int bucketIndex;
 
         // List of updates to apply to the bucket
-        private final BucketMutation keyUpdates;
+        private final List<BucketMutation> keyUpdates;
 
-        ReadUpdateBucketTask(final ForkJoinPool pool, final int bucketIndex, final BucketMutation keyUpdates) {
+        ReadUpdateBucketTask(final ForkJoinPool pool, final int bucketIndex, final List<BucketMutation> keyUpdates) {
             super(pool, 0);
             this.bucketIndex = bucketIndex;
             this.keyUpdates = keyUpdates;
         }
 
-        private void createAndScheduleStoreTask(final Bucket bucket) {
-            // Create a subsequent "store bucket" task for the bucket
-            final StoreBucketTask storeTask = new StoreBucketTask(getPool(), bucket);
-            // The last created "store bucket" task. storeTask above will be set as an
-            // output dependency for that task to make sure tasks are running only one at
-            // a time. See StoreBucketTask for details
-            final StoreBucketTask prevTask = lastStoreTask.getAndSet(storeTask);
-            if (prevTask != null) {
-                // This will trigger prevTask execution as soon as its prev task is complete
-                prevTask.setNext(storeTask);
+        private void createAndScheduleStoreTask(final Bucket bucket, final boolean bucketChanged) throws IOException {
+            if (bucketChanged) {
+                // Create a subsequent "store bucket" task for the bucket
+                final StoreBucketTask storeTask = new StoreBucketTask(getPool(), bucket);
+                // The last created "store bucket" task. storeTask above will be set as an
+                // output dependency for that task to make sure tasks are running only one at
+                // a time. See StoreBucketTask for details
+                final StoreBucketTask prevTask = lastStoreTask.getAndSet(storeTask);
+                if (prevTask != null) {
+                    // This will trigger prevTask execution as soon as its prev task is complete
+                    prevTask.setNext(storeTask);
+                } else {
+                    // The first task: no dependency on the prev task, can be executed rightaway
+                    storeTask.send();
+                }
             } else {
-                // The first task: no dependency on the prev task, can be executed rightaway
-                storeTask.send();
+                // Just close the bucket and mark it as processed
+                bucket.close();
+                bucketProcessed();
             }
             if (storeBucketTasksCreated.incrementAndGet() == updatedBucketsCount.get()) {
                 // The last task: no dependency on the next task, can be executed as soon as
                 // its prev task is complete, no need to wait until the next task dependency
                 // is set
-                lastStoreTask.get().setNext(notifyTaskRef.get());
+                final StoreBucketTask lastTask = lastStoreTask.get();
+                if (lastTask != null) {
+                    lastTask.setNext(notifyTaskRef.get());
+                } else {
+                    notifyTaskRef.get().send();
+                }
             }
         }
 
@@ -733,9 +742,20 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             BufferedData bucketData = fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketIndex);
             // The bucket will be closed by StoreBucketTask
             final Bucket bucket = bucketPool.getBucket();
+            boolean bucketChanged = false;
             if (bucketData == null) {
                 // An empty bucket
                 bucket.setBucketIndex(bucketIndex);
+                // Add all entries
+                assert keyUpdates != null;
+                for (int i = 0; i < keyUpdates.size(); i++) {
+                    final BucketMutation m = keyUpdates.get(i);
+                    assert m.oldValue() == INVALID_VALUE;
+                    if (m.value() != INVALID_VALUE) {
+                        bucket.addValue(m.keyBytes(), m.keyHashCode(), m.value());
+                    }
+                }
+                bucketChanged = true;
             } else {
                 // Read from bytes
                 bucket.readFrom(bucketData);
@@ -744,7 +764,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                             MERKLE_DB.getMarker(),
                             "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
                     /*
-                       This is a workaround for the issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
+                       This is a workaround for issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
                        which caused possible corruption in snapshots.
                        If the snapshot is corrupted, the code may read a bucket from the file, and the bucket index
                        may be different from the expected one. In this case, we clear the bucket (as it contains garbage
@@ -752,13 +772,21 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     */
                     bucket.clear();
                 }
-                // Clear old bucket entries with wrong hash codes
-                bucket.sanitize(bucketIndex, bucketMaskBits.get());
+                // Apply all updates
+                for (int i = 0; i < keyUpdates.size(); i++) {
+                    final BucketMutation m = keyUpdates.get(i);
+                    if (bucket.putValue(m.keyBytes(), m.keyHashCode(), m.oldValue(), m.value())) {
+                        bucketChanged = true;
+                    }
+                }
+                // Sanitize the bucket only if there have been any updates to it
+                if (bucketChanged) {
+                    // Clear old bucket entries with wrong hash codes
+                    bucket.sanitize(bucketIndex, bucketMaskBits.get());
+                }
             }
-            // Apply all updates
-            keyUpdates.forEachKeyValue(bucket::putValue);
             // Schedule a "store bucket" task for this bucket
-            createAndScheduleStoreTask(bucket);
+            createAndScheduleStoreTask(bucket, bucketChanged);
             return true;
         }
 
@@ -817,15 +845,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 }
                 return true;
             } finally {
-                // Let the current submit task know that a bucket is fully processed, and
-                // the task can be run
-                if (bucketPermits.getAndIncrement() == 0) {
-                    // If a submit task is currently running in parallel, it must have already created
-                    // a new "current" submit task and permits have been set to 0, otherwise the
-                    // getAndIncrement() above couldn't return 0. It means, notifyBucketProcessed()
-                    // will be called on a different submit task than the one currently running
-                    currentSubmitTask.get().notifyBucketProcessed();
-                }
+                bucketProcessed();
                 next.send();
             }
         }

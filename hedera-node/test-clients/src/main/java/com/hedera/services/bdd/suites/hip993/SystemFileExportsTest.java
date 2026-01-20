@@ -88,9 +88,10 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.ServicesConfigurationList;
 import com.hederahashgraph.api.proto.java.ThrottleDefinitions;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.text.Normalizer;
@@ -98,15 +99,12 @@ import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
-import java.util.Spliterators;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import org.hiero.base.utility.CommonUtils;
-import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -415,7 +413,7 @@ public class SystemFileExportsTest {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
                 eventuallyAssertingExplicitPassWithReplay(
-                        selectedItems(validatorFor(preGenesisContents), 17, (ignore, item) -> item.getRecord()
+                        selectedItems(validatorFor(preGenesisContents), 18, (ignore, item) -> item.getRecord()
                                 .getReceipt()
                                 .hasFileID()),
                         Duration.ofSeconds(10)),
@@ -689,14 +687,16 @@ public class SystemFileExportsTest {
     }
 
     private static Map<Long, X509Certificate> generateCertificates(final int n) {
-        final var randomAddressBook = RandomAddressBookBuilder.create(new Random())
-                .withSize(n)
-                .withRealKeysEnabled(true)
-                .build();
-        final var nextNodeId = new AtomicLong();
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(randomAddressBook.iterator(), 0), false)
-                .map(Address::getSigCert)
-                .collect(Collectors.toMap(cert -> nextNodeId.getAndIncrement(), cert -> cert));
+        final var nodeIds = IntStream.range(0, n).mapToObj(NodeId::of).toList();
+
+        try {
+            final var keysAndCerts = CryptoStatic.generateKeysAndCerts(nodeIds);
+            return nodeIds.stream()
+                    .collect(
+                            toMap(NodeId::id, nodeId -> keysAndCerts.get(nodeId).sigCert()));
+        } catch (ExecutionException | InterruptedException | KeyStoreException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static byte[] derEncoded(final X509Certificate cert) {

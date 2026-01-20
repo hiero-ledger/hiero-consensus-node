@@ -46,7 +46,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
-import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableQueueState;
@@ -73,6 +72,7 @@ class OnDiskTest extends MerkleTestBase {
     private Schema schema;
     private StateDefinition<AccountID, Account> def;
     private VirtualMap virtualMap;
+    private MerkleDbDataSourceBuilder builder;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -89,9 +89,8 @@ class OnDiskTest extends MerkleTestBase {
             }
         };
 
-        final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
-        virtualMap =
-                new VirtualMap(StateMetadata.computeLabel(TokenService.NAME, ACCOUNTS_KEY), builder, CONFIGURATION);
+        builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
+        virtualMap = new VirtualMap(builder, CONFIGURATION);
 
         Configuration config = mock(Configuration.class);
         final var hederaConfig = mock(HederaConfig.class);
@@ -145,7 +144,7 @@ class OnDiskTest extends MerkleTestBase {
         virtualMap.getHash();
 
         final var snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
-        final byte[] serializedBytes = writeTree(virtualMap, snapshotDir);
+        virtualMap.createSnapshot(snapshotDir);
 
         // Before we can read the data back, we need to register the data types
         // I plan to deserialize.
@@ -155,8 +154,8 @@ class OnDiskTest extends MerkleTestBase {
         virtualMap.release();
 
         // read it back now as our map and validate the data come back fine
-        virtualMap = parseTree(serializedBytes, snapshotDir);
-        final var rs = new OnDiskReadableKVState<AccountID, Account>(
+        virtualMap = VirtualMap.loadFromDirectory(snapshotDir, CONFIGURATION, () -> builder);
+        final var rs = new OnDiskReadableKVState<>(
                 ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 0; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
@@ -388,7 +387,7 @@ class OnDiskTest extends MerkleTestBase {
                 .numberPendingAirdrops(55)
                 .numberHooksInUse(56)
                 .firstHookId(57)
-                .numberLambdaStorageSlots(59)
+                .numberEvmHookStorageSlots(59)
                 .build();
         kvWs.put(kvOriginalKey, kvOriginalValue);
         kvWs.commit();

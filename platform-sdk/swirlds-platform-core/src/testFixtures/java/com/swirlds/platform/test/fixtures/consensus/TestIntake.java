@@ -5,11 +5,10 @@ import static com.swirlds.component.framework.wires.SolderType.INJECT;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.base.time.Time;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
@@ -19,26 +18,31 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
-import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
-import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
-import com.swirlds.platform.freeze.FreezeCheckHolder;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * Event intake with consensus and shadowgraph, used for testing
@@ -50,13 +54,14 @@ public class TestIntake {
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
     private final Queue<Throwable> componentExceptions = new LinkedList<>();
-    private final WiringModel model;
+    private final DeterministicWiringModel model;
     private final int roundsNonAncient;
-    private final FreezeCheckHolder freezeCheckHolder;
+    private final AtomicReference<FreezePeriodChecker> freezeCheckHolder = new AtomicReference<>(i -> false);
+    private final FakeTime time = new FakeTime(Duration.of(1, ChronoUnit.SECONDS));
 
     /**
      * @param platformContext the platform context used to configure this intake.
-     * @param roster     the roster used by this intake
+     * @param roster the roster used by this intake
      */
     public TestIntake(@NonNull final PlatformContext platformContext, @NonNull final Roster roster) {
         final NodeId selfId = NodeId.of(0);
@@ -67,9 +72,11 @@ public class TestIntake {
 
         output = new ConsensusOutput();
 
-        model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+        model = WiringModelBuilder.create(new NoOpMetrics(), time)
+                .deterministic()
+                .build();
 
-        hasherWiring = new ComponentWiring<>(model, EventHasher.class, directScheduler("eventHasher"));
+        hasherWiring = new ComponentWiring<>(model, EventHasher.class, scheduler("eventHasher"));
         final EventHasher eventHasher = new DefaultEventHasher();
         hasherWiring.bind(eventHasher);
 
@@ -77,21 +84,30 @@ public class TestIntake {
                 new PassThroughWiring(model, "PlatformEvent", "postHashCollector", TaskSchedulerType.DIRECT);
 
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
-        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
-                platformContext.getConfiguration(), platformContext.getMetrics(), intakeEventCounter);
-        orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, directScheduler("orphanBuffer"));
+        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), intakeEventCounter);
+        orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, scheduler("orphanBuffer"));
         orphanBufferWiring.bind(orphanBuffer);
 
-        freezeCheckHolder = new FreezeCheckHolder();
-        freezeCheckHolder.setFreezeCheckRef(i -> false);
-        final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(platformContext, roster, selfId, freezeCheckHolder);
+        final var localFreezeCheck = new FreezePeriodChecker() {
+            @Override
+            public boolean isInFreezePeriod(@NonNull final Instant timestamp) {
+                return freezeCheckHolder.get().isInFreezePeriod(timestamp);
+            }
+        };
 
-        consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, directScheduler("consensusEngine"));
+        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                roster,
+                selfId,
+                localFreezeCheck);
+
+        consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
 
         final ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring =
-                new ComponentWiring<>(model, EventWindowManager.class, directScheduler("eventWindowManager"));
+                new ComponentWiring<>(model, EventWindowManager.class, scheduler("eventWindowManager"));
         eventWindowManagerWiring.bind(new DefaultEventWindowManager());
 
         hasherWiring.getOutputWire().solderTo(postHashCollectorWiring.getInputWire());
@@ -130,6 +146,7 @@ public class TestIntake {
     public void addEvent(@NonNull final PlatformEvent event) {
         hasherWiring.getInputWire(EventHasher::hashEvent).put(event);
         output.eventAdded(event);
+        model.doAllWork();
         throwComponentExceptionsIfAny();
     }
 
@@ -154,14 +171,12 @@ public class TestIntake {
         return output;
     }
 
-    /**
-     * @return the freeze check holder
-     */
-    public @NonNull FreezeCheckHolder getFreezeCheckHolder() {
-        return freezeCheckHolder;
+    public void setFreezeCheck(@NonNull final FreezePeriodChecker freezeChecker) {
+        this.freezeCheckHolder.set(freezeChecker);
     }
 
     public void reset() {
+        time.reset();
         loadSnapshot(SyntheticSnapshot.getGenesisSnapshot());
         output.clear();
     }
@@ -172,9 +187,9 @@ public class TestIntake {
         });
     }
 
-    public <X> TaskScheduler<X> directScheduler(final String name) {
+    public <X> TaskScheduler<X> scheduler(final String name) {
         return model.<X>schedulerBuilder(name)
-                .withType(TaskSchedulerType.DIRECT)
+                .withType(TaskSchedulerType.SEQUENTIAL)
                 // This is needed because of the catch in StandardOutputWire.forward()
                 // if we throw the exception, it will be caught by it and will not fail the test
                 .withUncaughtExceptionHandler((t, e) -> componentExceptions.add(e))

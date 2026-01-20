@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
+
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningEventHashOverride;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.deduplication.EventDeduplicator;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
-import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
-import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
+import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
@@ -27,26 +28,33 @@ import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * Responsible for coordinating activities through the component's wire for the platform.
  *
  * @param components
  */
-public record PlatformCoordinator(@NonNull PlatformComponents components) implements StatusActionSubmitter {
+public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
+        implements StatusActionSubmitter {
 
     /**
      * Constructor
      */
     public PlatformCoordinator {
         Objects.requireNonNull(components);
+        Objects.requireNonNull(callbacks);
     }
 
     /**
@@ -60,16 +68,12 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         // lines without understanding the implications of doing so. Consult the wiring diagram when deciding
         // whether to change the order of these lines.
 
-        components.eventHasherWiring().flush();
-        components.internalEventValidatorWiring().flush();
-        components.eventDeduplicatorWiring().flush();
-        components.eventSignatureValidatorWiring().flush();
-        components.orphanBufferWiring().flush();
+        components.eventIntakeModule().flush();
         components.pcesInlineWriterWiring().flush();
         components.gossipWiring().flush();
         components.consensusEngineWiring().flush();
         components.applicationTransactionPrehandlerWiring().flush();
-        components.eventCreationManagerWiring().flush();
+        components.eventCreatorModule().flush();
         components.branchDetectorWiring().flush();
     }
 
@@ -92,8 +96,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         // squelch is activated.
         components.consensusEngineWiring().startSquelching();
         components.consensusEngineWiring().flush();
-        components.eventCreationManagerWiring().startSquelching();
-        components.eventCreationManagerWiring().flush();
+        components.eventCreatorModule().startSquelching();
+        components.eventCreatorModule().flush();
 
         // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
         // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
@@ -113,25 +117,18 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
         components.consensusEngineWiring().stopSquelching();
-        components.eventCreationManagerWiring().stopSquelching();
+        components.eventCreatorModule().stopSquelching();
         components.transactionHandlerWiring().stopSquelching();
 
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
-        components
-                .eventDeduplicatorWiring()
-                .getInputWire(EventDeduplicator::clear)
-                .inject(NoInput.getInstance());
-        components.orphanBufferWiring().getInputWire(OrphanBuffer::clear).inject(NoInput.getInstance());
+        components.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
         components.gossipWiring().getClearInput().inject(NoInput.getInstance());
         components
                 .stateSignatureCollectorWiring()
                 .getInputWire(StateSignatureCollector::clear)
                 .inject(NoInput.getInstance());
-        components
-                .eventCreationManagerWiring()
-                .getInputWire(EventCreatorModule::clear)
-                .inject(NoInput.getInstance());
+        components.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
         components.branchDetectorWiring().getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
         components.branchReporterWiring().getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
     }
@@ -141,6 +138,20 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      */
     public void startGossip() {
         components.gossipWiring().getStartInput().inject(NoInput.getInstance());
+    }
+
+    /**
+     * Resume gossiping.
+     */
+    public void resumeGossip() {
+        components.gossipWiring().resumeInput().inject(NoInput.getInstance());
+    }
+
+    /**
+     * Pause gossiping.
+     */
+    public void pauseGossip() {
+        components.gossipWiring().pauseInput().inject(NoInput.getInstance());
     }
 
     /**
@@ -221,12 +232,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
                 .consensusEngineWiring()
                 .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)
                 .inject(consensusSnapshot);
-
-        if (components.platformPublisherWiring().getSchedulerType() != TaskSchedulerType.NO_OP) {
-            components
-                    .platformPublisherWiring()
-                    .getInputWire(PlatformPublisher::publishSnapshotOverride)
-                    .inject(consensusSnapshot);
+        if (callbacks.snapshotOverrideConsumer() != null) {
+            callbacks.snapshotOverrideConsumer().accept(consensusSnapshot);
         }
     }
 
@@ -279,13 +286,10 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
-     * @see EventSignatureValidator#updateRosterHistory
+     * @see EventIntakeModule#rosterHistoryInputWire()
      */
     public void injectRosterHistory(@NonNull final RosterHistory rosterHistory) {
-        components
-                .eventSignatureValidatorWiring()
-                .getInputWire(EventSignatureValidator::updateRosterHistory)
-                .inject(rosterHistory);
+        components.eventIntakeModule().rosterHistoryInputWire().inject(rosterHistory);
     }
 
     /**
@@ -347,16 +351,47 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
-     * @see EventCreatorModule#quiescenceCommand(QuiescenceCommand)
+     * @see EventCreatorModule#quiescenceCommandInputWire()
      */
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         components
                 .platformMonitorWiring()
                 .getInputWire(PlatformMonitor::quiescenceCommand)
                 .inject(quiescenceCommand);
+        components.eventCreatorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
+    }
+
+    /**
+     * Load the received signed state into the platform (inline former ReconnectStateLoader#loadReconnectState).
+     */
+    public void loadReconnectState(@NonNull final Configuration configuration, @NonNull final SignedState signedState) {
+        this.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
+
         components
-                .eventCreationManagerWiring()
-                .getInputWire(EventCreatorModule::quiescenceCommand)
-                .inject(quiescenceCommand);
+                .latestImmutableStateNexusWiring()
+                .getInputWire(SignedStateNexus::setState)
+                .put(signedState.reserve("set latest immutable to reconnect state"));
+        this.sendStateToHashLogger(signedState);
+        // this will send the state to the signature collector which will send it to be written to disk.
+        // in the future, we might not send it to the collector because it already has all the signatures
+        // if this is the case, we must make sure to send it to the writer directly
+        this.putSignatureCollectorState(signedState.reserve("loading reconnect state into sig collector"));
+
+        final MerkleNodeState state = signedState.getState();
+
+        final ConsensusSnapshot consensusSnapshot = Objects.requireNonNull(consensusSnapshotOf(state));
+        this.consensusSnapshotOverride(consensusSnapshot);
+
+        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
+        this.injectRosterHistory(rosterHistory);
+
+        final int roundsNonAncient =
+                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+        this.updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
+
+        final RunningEventHashOverride runningEventHashOverride =
+                new RunningEventHashOverride(legacyRunningEventHashOf(state), true);
+        this.updateRunningHash(runningEventHashOverride);
+        this.registerPcesDiscontinuity(signedState.getRound());
     }
 }

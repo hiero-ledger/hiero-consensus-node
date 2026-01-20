@@ -2,7 +2,6 @@
 package com.swirlds.platform.cli;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 
 import com.swirlds.cli.commands.StateCommand;
 import com.swirlds.cli.utility.AbstractCommand;
@@ -16,6 +15,9 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedStateComparison;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -74,17 +76,17 @@ public final class CompareStatesCommand extends AbstractCommand {
     }
 
     /**
-     * Set the path to state A.
+     * Set the path to state dir A.
      */
-    @CommandLine.Parameters(description = "the path to the first SignedState.swh that is being compared")
+    @CommandLine.Parameters(description = "the path to the first state dir that is being compared")
     private void setStateAPath(final Path stateAPath) {
         this.stateAPath = pathMustExist(stateAPath.toAbsolutePath());
     }
 
     /**
-     * Set the path to state B.
+     * Set the path to state dir B.
      */
-    @CommandLine.Parameters(description = "the path to the second SignedState.swh that is being compared")
+    @CommandLine.Parameters(description = "the path to the second state dir that is being compared")
     private void setStateBPath(final Path stateBPath) {
         this.stateBPath = pathMustExist(stateBPath.toAbsolutePath());
     }
@@ -110,24 +112,24 @@ public final class CompareStatesCommand extends AbstractCommand {
     /**
      * Load a state from disk and hash it.
      *
-     * @param statePath the location of the state to load
+     * @param stateDirPath the location of the state to load
      * @return the loaded state
      */
     private static ReservedSignedState loadAndHashState(
-            @NonNull final PlatformContext platformContext, @NonNull final Path statePath) throws IOException {
+            @NonNull final PlatformContext platformContext, @NonNull final Path stateDirPath) throws IOException {
         Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(statePath);
+        Objects.requireNonNull(stateDirPath);
 
-        logger.info(LogMarker.CLI.getMarker(), "Loading state from {}", statePath);
+        logger.info(LogMarker.CLI.getMarker(), "Loading state from {}", stateDirPath);
 
-        final ReservedSignedState signedState = SignedStateFileReader.readStateFile(
-                        statePath,
-                        (virtualMap) -> {
-                            // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
-                            throw new UnsupportedOperationException();
-                        },
-                        DEFAULT_PLATFORM_STATE_FACADE,
-                        platformContext)
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                platformContext.getConfiguration());
+
+        final ReservedSignedState signedState = SignedStateFileReader.readState(
+                        stateDirPath, platformContext, stateLifecycleManager)
                 .reservedSignedState();
         logger.info(LogMarker.CLI.getMarker(), "Hashing state");
         try {
@@ -152,7 +154,7 @@ public final class CompareStatesCommand extends AbstractCommand {
         BootstrapUtils.setupConstructableRegistry();
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
-                ConfigurationBuilder.create(), getAbsolutePath("settings.txt"), configurationPaths);
+                ConfigurationBuilder.create(), getAbsolutePath("settings.txt"));
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         try (final ReservedSignedState stateA = loadAndHashState(platformContext, stateAPath)) {

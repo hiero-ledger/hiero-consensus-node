@@ -18,6 +18,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.google.common.jimfs.Configuration;
@@ -28,6 +29,8 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.NodeInfoImpl;
+import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
@@ -36,16 +39,18 @@ import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
 import com.hedera.node.app.records.impl.producers.StreamFileProducerConcurrent;
 import com.hedera.node.app.records.impl.producers.StreamFileProducerSingleThreaded;
 import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFactoryImpl;
+import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
+import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
@@ -58,12 +63,14 @@ import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -90,6 +97,18 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     private BlockRecordFormat blockRecordFormat;
     private BlockRecordWriterFactory blockRecordWriterFactory;
+
+    @Mock
+    private QuiescenceController quiescenceController;
+
+    @Mock
+    private QuiescedHeartbeat quiescedHeartbeat;
+
+    @Mock
+    private Platform platform;
+
+    @Mock
+    private SelfNodeAccountIdManagerImpl selfNodeAccountIdManager;
 
     @BeforeEach
     void setUpEach() throws Exception {
@@ -124,8 +143,8 @@ final class BlockRecordManagerTest extends AppTestBase {
         app.stateMutator(PlatformStateService.NAME)
                 .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, UNINITIALIZED_PLATFORM_STATE)
                 .commit();
-
-        blockRecordWriterFactory = new BlockRecordWriterFactoryImpl(app.configProvider(), NODE_INFO, SIGNER, fs);
+        blockRecordWriterFactory =
+                new BlockRecordWriterFactoryImpl(app.configProvider(), SIGNER, fs, selfNodeAccountIdManager);
     }
 
     @AfterEach
@@ -140,6 +159,7 @@ final class BlockRecordManagerTest extends AppTestBase {
     @ParameterizedTest
     @CsvSource({"GENESIS, false", "NON_GENESIS, false", "GENESIS, true", "NON_GENESIS, true"})
     void testRecordStreamProduction(final String startMode, final boolean concurrent) throws Exception {
+        given(selfNodeAccountIdManager.getSelfNodeAccountId()).willReturn(NODE_INFO.accountId());
         // setup initial block info
         final long STARTING_BLOCK;
         if (startMode.equals("GENESIS")) {
@@ -177,7 +197,12 @@ final class BlockRecordManagerTest extends AppTestBase {
                 : new StreamFileProducerSingleThreaded(blockRecordFormat, blockRecordWriterFactory, app.hapiVersion());
         Bytes finalRunningHash;
         try (final var blockRecordManager = new BlockRecordManagerImpl(
-                app.configProvider(), app.workingStateAccessor().getState(), producer)) {
+                app.configProvider(),
+                app.workingStateAccessor().getState(),
+                producer,
+                quiescenceController,
+                quiescedHeartbeat,
+                platform)) {
             if (!startMode.equals("GENESIS")) {
                 blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             }
@@ -236,6 +261,7 @@ final class BlockRecordManagerTest extends AppTestBase {
     @Test
     void testBlockInfoMethods() throws Exception {
         // setup initial block info, pretend that previous block was 2 seconds before first test transaction
+        given(selfNodeAccountIdManager.getSelfNodeAccountId()).willReturn(NODE_INFO.accountId());
         app.stateMutator(NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,
@@ -264,7 +290,12 @@ final class BlockRecordManagerTest extends AppTestBase {
                 new StreamFileProducerSingleThreaded(blockRecordFormat, blockRecordWriterFactory, app.hapiVersion());
         Bytes finalRunningHash;
         try (final var blockRecordManager = new BlockRecordManagerImpl(
-                app.configProvider(), app.workingStateAccessor().getState(), producer)) {
+                app.configProvider(),
+                app.workingStateAccessor().getState(),
+                producer,
+                quiescenceController,
+                quiescedHeartbeat,
+                platform)) {
             blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
             int transactionCount = 0;
@@ -411,8 +442,13 @@ final class BlockRecordManagerTest extends AppTestBase {
     void consTimeOfLastHandledTxnIsSet() {
         final var blockInfo = new BlockInfo(0, EPOCH, Bytes.EMPTY, CONSENSUS_TIME, false, EPOCH, EPOCH, EPOCH);
         final var state = simpleBlockInfoState(blockInfo);
-        final var subject =
-                new BlockRecordManagerImpl(app.configProvider(), state, mock(BlockRecordStreamProducer.class));
+        final var subject = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                mock(BlockRecordStreamProducer.class),
+                quiescenceController,
+                quiescedHeartbeat,
+                platform);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(CONSENSUS_TIME));
@@ -423,8 +459,13 @@ final class BlockRecordManagerTest extends AppTestBase {
     void consTimeOfLastHandledTxnIsNotSet() {
         final var blockInfo = new BlockInfo(0, EPOCH, Bytes.EMPTY, null, false, EPOCH, EPOCH, EPOCH);
         final var state = simpleBlockInfoState(blockInfo);
-        final var subject =
-                new BlockRecordManagerImpl(app.configProvider(), state, mock(BlockRecordStreamProducer.class));
+        final var subject = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                mock(BlockRecordStreamProducer.class),
+                quiescenceController,
+                quiescedHeartbeat,
+                platform);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(EPOCH));
@@ -432,10 +473,8 @@ final class BlockRecordManagerTest extends AppTestBase {
     }
 
     private static State simpleBlockInfoState(final BlockInfo blockInfo) {
-        final var virtualMapLabel =
-                "vm-" + BlockRecordManagerTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
-        return new TestVirtualMapState(virtualMap) {
+        final var virtualMap = VirtualMapUtils.createVirtualMap();
+        return new VirtualMapState(virtualMap, new NoOpMetrics()) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull final String serviceName) {

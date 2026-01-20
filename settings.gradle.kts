@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.build") version "0.5.1" }
+plugins {
+    id("org.hiero.gradle.build") version "0.6.4"
+    id("com.hedera.pbj.pbj-compiler") version "0.12.10" apply false
+}
 
 javaModules {
     // This "intermediate parent project" should be removed
@@ -50,11 +53,11 @@ javaModules {
     // Platform-base demo applications
     directory("example-apps") { group = "com.hedera.hashgraph" }
 
+    directory("hiero-observability") {
+        group = "org.hiero.observability"
+
+        module("hiero-metrics") { artifact = "hiero-metrics" }
+    }
+
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
-
-    // Platform demo applications
-    directory("platform-sdk/platform-apps/demos") { group = "com.hedera.hashgraph" }
-
-    // Platform test applications
-    directory("platform-sdk/platform-apps/tests") { group = "com.hedera.hashgraph" }
 }

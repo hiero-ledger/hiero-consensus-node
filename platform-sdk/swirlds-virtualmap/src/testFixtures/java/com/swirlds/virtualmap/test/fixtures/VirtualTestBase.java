@@ -3,7 +3,7 @@ package com.swirlds.virtualmap.test.fixtures;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
@@ -282,12 +282,11 @@ public class VirtualTestBase {
     }
 
     protected static Hash hash(VirtualLeafBytes<TestValue> rec) {
-        final byte[] arr = new byte[rec.getSizeInBytesForHashing()];
-        rec.writeToForHashing(BufferedData.wrap(arr));
         try {
             final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
-            md.update(arr);
-            return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+            final WritableMessageDigest wmd = new WritableMessageDigest(md);
+            rec.writeToForHashing(wmd);
+            return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
         } catch (final NoSuchAlgorithmException e) {
             throw new CryptographyException(e);
         }

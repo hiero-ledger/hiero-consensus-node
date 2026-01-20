@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -19,8 +19,8 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.history.impl.ProofControllerImpl;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -71,7 +71,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             TransactionRecordParityValidator.FACTORY,
             StateChangesValidator.FACTORY,
             BlockContentsValidator.FACTORY,
-            BlockNumberSequenceValidator.FACTORY);
+            BlockNumberSequenceValidator.FACTORY
+            // (FUTURE) Disabled until PCES events are integrated as the source of truth. See GH issue #22769.
+            //            EventHashBlockStreamValidator.FACTORY,
+            //            RedactingEventHashBlockStreamValidator.FACTORY
+            );
 
     private final int historyProofsToWaitFor;
 
@@ -96,7 +100,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         allRunFor(
                 spec,
                 // Ensure only top-level txs could change balances before validations
-                overriding("nodes.nodeRewardsEnabled", "false"),
+                overridingTwo("nodes.nodeRewardsEnabled", "false", "nodes.feeCollectionAccountEnabled", "false"),
                 // Ensure the CryptoTransfer below will be in a new block period
                 sleepFor(MAX_BLOCK_TIME_MS + BUFFER_MS),
                 cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),

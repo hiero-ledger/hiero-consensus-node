@@ -15,8 +15,6 @@ import static org.mockito.Mockito.mock;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
@@ -24,10 +22,12 @@ import com.swirlds.platform.gossip.sync.protocol.SyncPeerProtocol;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
-import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +41,7 @@ import org.mockito.Mockito;
 class SyncPeerProtocolFactoryTests {
     private NodeId peerId;
     private ShadowgraphSynchronizer shadowGraphSynchronizer;
-    private FallenBehindManager fallenBehindManager;
+    private FallenBehindMonitor fallenBehindManager;
     private Duration sleepAfterSync;
     private SyncMetrics syncMetrics;
     private FakeTime time;
@@ -69,7 +69,7 @@ class SyncPeerProtocolFactoryTests {
     void setup() {
         peerId = NodeId.of(1);
         shadowGraphSynchronizer = mock(ShadowgraphSynchronizer.class);
-        fallenBehindManager = mock(FallenBehindManager.class);
+        fallenBehindManager = mock(FallenBehindMonitor.class);
 
         time = new FakeTime();
         platformContext = TestPlatformContextBuilder.create().withTime(time).build();
@@ -217,7 +217,7 @@ class SyncPeerProtocolFactoryTests {
                 sleepAfterSync,
                 syncMetrics,
                 ROSTER_SIZE);
-        syncProtocol.updatePlatformStatus(ACTIVE);
+        syncProtocol.updatePlatformStatus(BEHIND);
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
@@ -414,6 +414,7 @@ class SyncPeerProtocolFactoryTests {
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
+        syncProtocol.updatePlatformStatus(BEHIND);
         assertFalse(peerProtocol.shouldAccept());
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
     }

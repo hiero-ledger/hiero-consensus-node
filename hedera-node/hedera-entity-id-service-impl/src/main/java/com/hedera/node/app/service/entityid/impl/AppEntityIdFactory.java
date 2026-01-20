@@ -74,7 +74,7 @@ public class AppEntityIdFactory implements EntityIdFactory {
     }
 
     @Override
-    public ContractID newContractId(long number) {
+    public ContractID newContractId(final long number) {
         return ContractID.newBuilder()
                 .shardNum(shard)
                 .realmNum(realm)
@@ -83,7 +83,8 @@ public class AppEntityIdFactory implements EntityIdFactory {
     }
 
     @Override
-    public ContractID newContractIdWithEvmAddress(@NonNull Bytes evmAddress) {
+    public ContractID newContractIdWithEvmAddress(@NonNull final Bytes evmAddress) {
+        requireNonNull(evmAddress);
         return ContractID.newBuilder()
                 .shardNum(shard)
                 .realmNum(realm)
@@ -92,7 +93,7 @@ public class AppEntityIdFactory implements EntityIdFactory {
     }
 
     @Override
-    public String hexLongZero(long number) {
+    public String hexLongZero(final long number) {
         final byte[] evmAddress = new byte[20];
         final var shardBytes = Ints.toByteArray((int) shard);
         final var realmBytes = Longs.toByteArray(realm);

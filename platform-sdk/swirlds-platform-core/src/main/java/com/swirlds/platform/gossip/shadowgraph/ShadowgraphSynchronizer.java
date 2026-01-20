@@ -12,16 +12,13 @@ import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.writeMyTipsAndEv
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.writeTheirTipsIHave;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.framework.Stoppable;
-import com.swirlds.common.threading.framework.Stoppable.StopBehavior;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
-import com.swirlds.common.threading.pool.ParallelExecutor;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils.TipsInfo;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -38,8 +35,13 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ThrowingRunnable;
-import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.concurrent.framework.Stoppable;
+import org.hiero.consensus.concurrent.framework.Stoppable.StopBehavior;
+import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
+import org.hiero.consensus.concurrent.pool.ParallelExecutor;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
@@ -70,7 +72,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
      * @param fallenBehindManager  tracks if we have fallen behind
      * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
      * @param executor             for executing read/write tasks in parallel
-     * @param syncLagHandler       callback for reporting median sync lag
+     * @param syncProgressHandler  callback for reporting sync progress
      */
     public ShadowgraphSynchronizer(
             @NonNull final PlatformContext platformContext,
@@ -78,10 +80,10 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
             final int numberOfNodes,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
-            @NonNull final FallenBehindManager fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final ParallelExecutor executor,
-            @NonNull final Consumer<Double> syncLagHandler) {
+            @NonNull final Consumer<SyncProgress> syncProgressHandler) {
 
         super(
                 platformContext,
@@ -91,7 +93,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
                 receivedEventHandler,
                 fallenBehindManager,
                 intakeEventCounter,
-                syncLagHandler);
+                syncProgressHandler);
         this.executor = Objects.requireNonNull(executor);
     }
 
@@ -153,11 +155,17 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
 
             syncMetrics.eventWindow(myWindow, theirTipsAndEventWindow.eventWindow());
 
-            reportRoundDifference(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
+            reportSyncStatus(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
 
-            if (hasFallenBehind(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId())
-                    != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
+            final FallenBehindStatus status =
+                    fallenBehindMonitor.check(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
+            if (status != FallenBehindStatus.NONE_FALLEN_BEHIND) {
                 // aborting the sync since someone has fallen behind
+                logger.info(
+                        SYNC_INFO.getMarker(),
+                        "Connection against {} aborting sync due to {}",
+                        connection.getOtherId(),
+                        status);
                 return false;
             }
 

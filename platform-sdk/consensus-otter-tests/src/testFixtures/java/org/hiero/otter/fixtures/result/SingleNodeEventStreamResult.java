@@ -21,7 +21,8 @@ public interface SingleNodeEventStreamResult {
 
     /**
      * Returns the list of event stream files created during the test up to this moment. The list is ordered
-     * according to the natural ordering of the paths.
+     * according to the natural ordering of the paths. Only event stream files with an accompanying signature file
+     * are included in the list.
      *
      * @return the list of event stream files
      */
@@ -36,6 +37,14 @@ public interface SingleNodeEventStreamResult {
      */
     @NonNull
     List<Path> signatureFiles();
+
+    /**
+     * Returns whether the node has created any event stream file during the test. This can be used as
+     * a sanity check to ensure event streams were actually created.
+     *
+     * @return {@code true} if the node has created any event stream file, {@code false} otherwise
+     */
+    boolean hasAnyEventStreamFile();
 
     /**
      * Returns whether the node has reconnected during the test.

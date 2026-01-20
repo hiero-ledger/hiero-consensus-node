@@ -2,7 +2,6 @@
 package com.swirlds.platform.network.communication;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionManager;
 import com.swirlds.platform.network.NetworkProtocolException;
@@ -12,6 +11,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 
 /**
  * Continuously runs protocol negotiation and protocols over connections supplied by the connection manager
@@ -31,16 +31,11 @@ public class ProtocolNegotiatorThread implements InterruptableRunnable {
     private final RateLimiter socketExceptionRateLimiter;
 
     /**
-     * @param connectionManager
-     * 		supplies network connections
-     * @param sleepMillis
-     *         the number of milliseconds to sleep if a negotiation fails
-     * @param handshakeProtocols
-     * 		the list of protocols to execute when a new connection is established
-     * @param protocols
-     * 		the protocols to negotiate and run
-     * @param time
-     *      the Time object
+     * @param connectionManager  supplies network connections
+     * @param sleepMillis        the number of milliseconds to sleep if a negotiation fails
+     * @param handshakeProtocols the list of protocols to execute when a new connection is established
+     * @param protocols          the protocols to negotiate and run
+     * @param time               the Time object
      */
     public ProtocolNegotiatorThread(
             final ConnectionManager connectionManager,
@@ -71,8 +66,6 @@ public class ProtocolNegotiatorThread implements InterruptableRunnable {
             }
         } catch (final RuntimeException | IOException | NetworkProtocolException | NegotiationException e) {
             NetworkUtils.handleNetworkException(e, currentConn, socketExceptionRateLimiter);
-        } finally {
-            protocols.cleanup();
         }
     }
 }

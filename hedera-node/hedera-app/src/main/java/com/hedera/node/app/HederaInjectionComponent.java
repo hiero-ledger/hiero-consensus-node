@@ -25,11 +25,17 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.metrics.MetricsInjectionModule;
 import com.hedera.node.app.platform.PlatformModule;
+import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.records.BlockRecordInjectionModule;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
+import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.services.ServicesInjectionModule;
@@ -39,7 +45,8 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.RecordCache;
-import com.hedera.node.app.spi.throttle.Throttle;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -57,7 +64,6 @@ import com.hedera.node.app.workflows.query.annotations.UserQueries;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
@@ -121,6 +127,8 @@ public interface HederaInjectionComponent {
 
     IngestWorkflow ingestWorkflow();
 
+    TxPipelineTracker txPipelineTracker();
+
     @UserQueries
     QueryWorkflow queryWorkflow();
 
@@ -153,10 +161,23 @@ public interface HederaInjectionComponent {
 
     CurrentPlatformStatus currentPlatformStatus();
 
+    QuiescenceController quiescenceController();
+
+    SelfNodeAccountIdManager selfNodeAccountIdManager();
+
     @Component.Builder
     interface Builder {
         @BindsInstance
+        Builder tokenServiceImpl(TokenServiceImpl tokenService);
+
+        @BindsInstance
+        Builder consensusServiceImpl(ConsensusServiceImpl consensusService);
+
+        @BindsInstance
         Builder utilServiceImpl(UtilServiceImpl utilService);
+
+        @BindsInstance
+        Builder networkServiceImpl(NetworkServiceImpl networkService);
 
         @BindsInstance
         Builder hintsService(HintsService hintsService);
@@ -172,6 +193,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder scheduleService(ScheduleServiceImpl scheduleService);
+
+        @BindsInstance
+        Builder addressBookService(AddressBookServiceImpl addressBookService);
 
         @BindsInstance
         Builder configProviderImpl(ConfigProviderImpl configProvider);
@@ -204,7 +228,7 @@ public interface HederaInjectionComponent {
         Builder instantSource(InstantSource instantSource);
 
         @BindsInstance
-        Builder throttleFactory(Throttle.Factory throttleFactory);
+        Builder throttleFactory(ScheduleThrottle.Factory throttleFactory);
 
         @BindsInstance
         Builder softwareVersion(SemanticVersion softwareVersion);
@@ -231,10 +255,10 @@ public interface HederaInjectionComponent {
         Builder startupNetworks(StartupNetworks startupNetworks);
 
         @BindsInstance
-        Builder platformStateFacade(PlatformStateFacade platformStateFacade);
+        Builder appContext(AppContext appContext);
 
         @BindsInstance
-        Builder appContext(AppContext appContext);
+        Builder selfNodeAccountIdManager(SelfNodeAccountIdManager selfNodeAccountIdManager);
 
         HederaInjectionComponent build();
     }

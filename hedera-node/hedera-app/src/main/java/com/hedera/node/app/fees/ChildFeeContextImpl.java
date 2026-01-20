@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -16,6 +17,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -100,6 +102,11 @@ public class ChildFeeContextImpl implements FeeContext {
     }
 
     @Override
+    public SimpleFeeCalculator getSimpleFeeCalculator() {
+        return feeManager.getSimpleFeeCalculator();
+    }
+
+    @Override
     public <T> @NonNull T readableStore(@NonNull final Class<T> storeInterface) {
         return context.readableStore(storeInterface);
     }
@@ -139,5 +146,14 @@ public class ChildFeeContextImpl implements FeeContext {
     private Key getPayerKey() {
         final var account = context.readableStore(ReadableAccountStore.class).getAccountById(payerId);
         return computeFeesAsInternalDispatch || account == null ? Key.DEFAULT : account.keyOrThrow();
+    }
+
+    public ExchangeRate activeRate() {
+        return context.activeRate();
+    }
+
+    @Override
+    public long getGasPriceInTinycents() {
+        return feeManager.getGasPriceInTinyCents(consensusNow);
     }
 }

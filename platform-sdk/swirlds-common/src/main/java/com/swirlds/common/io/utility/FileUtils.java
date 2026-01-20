@@ -306,15 +306,6 @@ public final class FileUtils {
     }
 
     /**
-     * Returns the user directory path specified by the {@code user.dir} system property.
-     *
-     * @return the user directory path
-     */
-    public static @NonNull String getUserDir() {
-        return System.getProperty("user.dir");
-    }
-
-    /**
      * Find files in the given directory that end with the given suffix.
      * @param dir the directory to search
      * @param suffix the suffix to match

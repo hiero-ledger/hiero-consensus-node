@@ -12,8 +12,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.Clearable;
-import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.LinkedEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
@@ -23,15 +23,9 @@ import org.hiero.consensus.model.node.NodeId;
  * This class that stores temporary data that is used while calculating consensus inside the platform.
  * This data is not relevant after consensus has been calculated.
  */
-public class EventImpl implements Clearable {
-    /** The base event information, including some gossip specific information */
-    private final PlatformEvent baseEvent;
+public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     /** the round number in which this event reached a consensus order */
     private long roundReceived = ConsensusConstants.ROUND_UNDEFINED;
-    /** the self parent of this */
-    private EventImpl selfParent;
-    /** the other parent of this */
-    private EventImpl otherParent;
     /** has this event been cleared (because it was old and should be discarded)? */
     private boolean cleared = false;
     /** is this a witness? (is round > selfParent's round, or there is no self parent?) */
@@ -87,17 +81,17 @@ public class EventImpl implements Clearable {
     /** The deterministic generation, see {@link DeGen} */
     private int deGen = 0;
 
-    public EventImpl(
-            @NonNull final PlatformEvent platformEvent,
-            @Nullable final EventImpl selfParent,
-            @Nullable final EventImpl otherParent) {
-        Objects.requireNonNull(platformEvent, "baseEvent");
-        this.selfParent = selfParent;
-        this.otherParent = otherParent;
+    /**
+     * Constructor
+     *
+     * @param platformEvent the event we are wrapping
+     * @param allParents    pointers to all parent events
+     */
+    public EventImpl(@NonNull final PlatformEvent platformEvent, @NonNull final List<EventImpl> allParents) {
+        super(platformEvent, allParents);
         // ConsensusImpl.currMark starts at 1 and counts up, so all events initially count as
         // unmarked
         this.mark = ConsensusConstants.EVENT_UNMARKED;
-        this.baseEvent = platformEvent;
     }
 
     //
@@ -108,7 +102,7 @@ public class EventImpl implements Clearable {
      * @return the base event
      */
     public @NonNull PlatformEvent getBaseEvent() {
-        return baseEvent;
+        return getPlatformEvent();
     }
 
     /**
@@ -126,34 +120,6 @@ public class EventImpl implements Clearable {
      */
     public void setRoundReceived(final long roundReceived) {
         this.roundReceived = roundReceived;
-    }
-
-    /**
-     * @return the self parent of this
-     */
-    public @Nullable EventImpl getSelfParent() {
-        return selfParent;
-    }
-
-    /**
-     * @param selfParent the self parent of this
-     */
-    public void setSelfParent(@Nullable final EventImpl selfParent) {
-        this.selfParent = selfParent;
-    }
-
-    /**
-     * @return the other parent of this
-     */
-    public @Nullable EventImpl getOtherParent() {
-        return otherParent;
-    }
-
-    /**
-     * @param otherParent the other parent of this
-     */
-    public void setOtherParent(@Nullable final EventImpl otherParent) {
-        this.otherParent = otherParent;
     }
 
     public boolean isWitness() {
@@ -451,9 +417,8 @@ public class EventImpl implements Clearable {
             return;
         }
         cleared = true;
+        super.clear();
         EventCounter.decrementLinkedEventCount();
-        selfParent = null;
-        otherParent = null;
         clearMetadata();
     }
 
@@ -489,7 +454,7 @@ public class EventImpl implements Clearable {
      * @return true if the event has a self parent
      */
     public boolean hasSelfParent() {
-        return baseEvent.getSelfParent() != null;
+        return getPlatformEvent().getSelfParent() != null;
     }
 
     /**
@@ -498,21 +463,14 @@ public class EventImpl implements Clearable {
      * @return true if the event has other parents
      */
     public boolean hasOtherParent() {
-        return !baseEvent.getOtherParents().isEmpty();
+        return !getPlatformEvent().getOtherParents().isEmpty();
     }
 
     /**
      * @return returns {@link PlatformEvent#getTimeCreated()}}
      */
     public Instant getTimeCreated() {
-        return baseEvent.getTimeCreated();
-    }
-
-    /**
-     * @return returns {@link PlatformEvent#getHash()}}
-     */
-    public Hash getBaseHash() {
-        return baseEvent.getHash();
+        return getPlatformEvent().getTimeCreated();
     }
 
     /**
@@ -521,7 +479,7 @@ public class EventImpl implements Clearable {
      * @return the consensus timestamp of this event
      */
     public Instant getConsensusTimestamp() {
-        return baseEvent.getConsensusTimestamp();
+        return getPlatformEvent().getConsensusTimestamp();
     }
 
     /**
@@ -530,7 +488,7 @@ public class EventImpl implements Clearable {
      * @return the non-deterministic generation of this event
      */
     public long getNGen() {
-        return baseEvent.getNGen();
+        return getPlatformEvent().getNGen();
     }
 
     /**
@@ -539,7 +497,7 @@ public class EventImpl implements Clearable {
      * @return the birth round of this event
      */
     public long getBirthRound() {
-        return baseEvent.getBirthRound();
+        return getPlatformEvent().getBirthRound();
     }
 
     /**
@@ -547,7 +505,7 @@ public class EventImpl implements Clearable {
      */
     @NonNull
     public NodeId getCreatorId() {
-        return baseEvent.getCreatorId();
+        return getPlatformEvent().getCreatorId();
     }
 
     /**
@@ -606,19 +564,19 @@ public class EventImpl implements Clearable {
 
         final EventImpl event = (EventImpl) o;
 
-        return Objects.equals(baseEvent, event.baseEvent) && roundReceived == event.roundReceived;
+        return Objects.equals(getPlatformEvent(), event.getPlatformEvent()) && roundReceived == event.roundReceived;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(baseEvent, roundReceived);
+        return Objects.hash(getPlatformEvent(), roundReceived);
     }
 
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
-        baseEvent.getDescriptor().shortString(sb);
-        final List<EventDescriptorWrapper> allParents = baseEvent.getAllParents();
+        getPlatformEvent().getDescriptor().shortString(sb);
+        final List<EventDescriptorWrapper> allParents = getPlatformEvent().getAllParents();
         for (final EventDescriptorWrapper parent : allParents) {
             parent.shortString(sb);
         }
@@ -630,6 +588,6 @@ public class EventImpl implements Clearable {
      * @return a short string
      */
     public String shortString() {
-        return baseEvent.getDescriptor().shortString();
+        return getPlatformEvent().getDescriptor().shortString();
     }
 }

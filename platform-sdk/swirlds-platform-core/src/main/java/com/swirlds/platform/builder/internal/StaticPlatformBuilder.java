@@ -7,7 +7,6 @@ import static com.swirlds.platform.builder.PlatformBuildConstants.LOG4J_FILE_NAM
 import static com.swirlds.platform.util.BootstrapUtils.startJVMPauseDetectorThread;
 import static com.swirlds.platform.util.BootstrapUtils.writeSettingsUsed;
 
-import com.swirlds.common.metrics.platform.DefaultMetricsProvider;
 import com.swirlds.common.startup.Log4jSetup;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.NodeStartPayload;
@@ -15,10 +14,10 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.CryptoMetrics;
 import com.swirlds.platform.util.BootstrapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
 
 /**
  * Static setup code for a platform. Logic in this class should gradually disappear as we move away from the use of
@@ -29,8 +28,7 @@ public final class StaticPlatformBuilder {
     private static final Logger logger = LogManager.getLogger(StaticPlatformBuilder.class);
 
     // @formatter:off
-    private static final String STARTUP_MESSAGE =
-            """
+    public static final String STARTUP_MESSAGE = """
               //////////////////////
              // Node is Starting //
             //////////////////////""";
@@ -84,7 +82,7 @@ public final class StaticPlatformBuilder {
      * @param configuration the configuration for this node
      * @return true if this is the first time this method has been called, false otherwise
      */
-    public static boolean doStaticSetup(@NonNull final Configuration configuration, @Nullable final Path configPath) {
+    public static boolean doStaticSetup(@NonNull final Configuration configuration, @NonNull final Path settingsPath) {
 
         if (staticSetupCompleted) {
             // Only setup static utilities once
@@ -92,7 +90,7 @@ public final class StaticPlatformBuilder {
         }
         staticSetupCompleted = true;
 
-        BootstrapUtils.performHealthChecks(configPath, configuration);
+        BootstrapUtils.performHealthChecks(settingsPath, configuration);
         writeSettingsUsed(configuration);
 
         // Initialize JVMPauseDetectorThread, if enabled via settings

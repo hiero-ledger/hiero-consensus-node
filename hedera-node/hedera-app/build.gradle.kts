@@ -17,6 +17,7 @@ mainModuleInfo {
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
+    runtimeOnly("io.helidon.webclient.http2")
     runtimeOnly("com.hedera.pbj.grpc.client.helidon")
     runtimeOnly("com.hedera.pbj.grpc.helidon")
 }
@@ -31,7 +32,6 @@ testModuleInfo {
     requires("com.hedera.node.config.test.fixtures")
     requires("com.swirlds.merkledb")
     requires("com.swirlds.config.extensions.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.api.test.fixtures")
     requires("com.swirlds.state.impl.test.fixtures")
@@ -58,10 +58,17 @@ jmhModuleInfo {
     requires("com.hedera.node.app.hapi.utils")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.hedera.node.app.test.fixtures")
+    requires("com.hedera.node.config")
     requires("com.hedera.node.hapi")
     requires("com.hedera.pbj.runtime")
+    requires("com.swirlds.config.api")
+    requires("com.swirlds.config.extensions")
+    requires("com.swirlds.metrics.api")
+    requires("com.swirlds.platform.core")
+    requires("com.swirlds.state.api")
     requires("jmh.core")
     requires("org.hiero.base.crypto")
+    requires("org.hiero.consensus.model")
 }
 
 // Add all the libs dependencies into the jar manifest!

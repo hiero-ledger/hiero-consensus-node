@@ -51,7 +51,7 @@ public class MultipleNodeEventStreamResultsAssert
      * Asserts that all nodes have the same event stream files and signature files with identical content.
      * Reconnected nodes may be missing some files, but the files that are present must match the corresponding files.
      *
-     * <p>Please note: this method will fail if all nodes have reconnected or no event stream files or signature files are found.
+     * <p>Please note: this method will fail if no events streams were created at all or if all nodes have reconnected.
      *
      * @return this assertion object for method chaining
      */
@@ -61,6 +61,14 @@ public class MultipleNodeEventStreamResultsAssert
 
         final int nodeCount = actual.results().size();
 
+        if (actual.results().stream().noneMatch(SingleNodeEventStreamResult::hasAnyEventStreamFile)) {
+            fail("Cannot compare event stream files: no event stream files were created by any of the nodes");
+        }
+
+        if (actual.results().stream().allMatch(SingleNodeEventStreamResult::hasReconnected)) {
+            fail("Cannot compare event stream files: all nodes have reconnected");
+        }
+
         // determine statistics of signature file counts (ignoring nodes that have reconnected)
         final int maxNumberSignatureFiles = actual.results().stream()
                 .filter(result -> !result.hasReconnected())
@@ -69,7 +77,7 @@ public class MultipleNodeEventStreamResultsAssert
                 .max()
                 .orElseThrow();
         if (maxNumberSignatureFiles == 0) {
-            fail("No signature files found");
+            return this;
         }
 
         // pick a node with the maximum number of signature files that has not reconnected

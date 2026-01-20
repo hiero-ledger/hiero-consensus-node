@@ -5,14 +5,12 @@ import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -25,13 +23,9 @@ import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
 
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
-import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.Duration;
@@ -42,14 +36,17 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.TransactionReceipt;
+import com.hedera.hapi.node.tss.LedgerIdNodeContribution;
+import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
-import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
@@ -63,10 +60,13 @@ import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
+import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
+import com.hedera.node.app.spi.records.RecordSource;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
@@ -81,6 +81,7 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -94,7 +95,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -109,6 +109,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -119,6 +120,7 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * This class is responsible for storing the system accounts created during node startup, and then creating
@@ -133,7 +135,6 @@ public class SystemTransactions {
     private static final int DEFAULT_GENESIS_WEIGHT = 500;
     private static final long FIRST_RESERVED_SYSTEM_CONTRACT = 350L;
     private static final long LAST_RESERVED_SYSTEM_CONTRACT = 399L;
-    private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
     private static final long FIRST_MISC_ACCOUNT_NUM = 900L;
     private static final List<ServiceEndpoint> UNKNOWN_HAPI_ENDPOINT =
@@ -158,7 +159,7 @@ public class SystemTransactions {
     private final HederaRecordCache recordCache;
     private final StartupNetworks startupNetworks;
     private final StakePeriodChanges stakePeriodChanges;
-    private final ImmediateStateChangeListener immediateStateChangeListener;
+    private final SelfNodeAccountIdManager selfNodeAccountIdManager;
 
     private int nextDispatchNonce = 1;
 
@@ -180,7 +181,7 @@ public class SystemTransactions {
             @NonNull final HederaRecordCache recordCache,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StakePeriodChanges stakePeriodChanges,
-            @NonNull final ImmediateStateChangeListener immediateStateChangeListener) {
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager) {
         this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -198,7 +199,7 @@ public class SystemTransactions {
         this.recordCache = requireNonNull(recordCache);
         this.startupNetworks = requireNonNull(startupNetworks);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
-        this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
+        this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
     }
 
     /**
@@ -270,6 +271,15 @@ public class SystemTransactions {
                             .build(),
                     i);
         }
+        // Create fee collection account
+        systemContext.dispatchCreation(
+                b -> b.memo("Fee collection account creation record")
+                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                .key(IMMUTABILITY_SENTINEL_KEY)
+                                .autoRenewPeriod(systemAutoRenewPeriod)
+                                .build())
+                        .build(),
+                accountsConfig.feeCollectionAccount());
         // Create the miscellaneous accounts
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         for (long i : LongStream.range(FIRST_MISC_ACCOUNT_NUM, hederaConfig.firstUserEntity())
@@ -371,12 +381,13 @@ public class SystemTransactions {
             final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
             fileService.updateAddressBookAndNodeDetailsAfterFreeze(systemContext, nodeStore);
         }
+        selfNodeAccountIdManager.setSelfNodeAccountId(networkInfo.selfNodeInfo().accountId());
 
         // And then we update the system files for fees schedules, throttles, override properties, and override
         // permissions from any upgrade files that are present in the configured directory
         final var filesConfig = config.getConfigData(FilesConfig.class);
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
-        final List<AutoEntityUpdate<Bytes>> autoSysFileUpdates = List.of(
+        final List<AutoEntityUpdate<Bytes>> autoSysFileUpdates = new ArrayList<>(List.of(
                 new AutoEntityUpdate<>(
                         (ctx, bytes) ->
                                 dispatchSynthFileUpdate(ctx, createFileID(filesConfig.feeSchedules(), config), bytes),
@@ -396,7 +407,16 @@ public class SystemTransactions {
                         (ctx, bytes) -> dispatchSynthFileUpdate(
                                 ctx, createFileID(filesConfig.hapiPermissions(), config), bytes),
                         adminConfig.upgradePermissionOverridesFile(),
-                        in -> parseConfig("override HAPI permissions", in)));
+                        in -> parseConfig("override HAPI permissions", in))));
+        final var feesConfig = config.getConfigData(FeesConfig.class);
+        if (feesConfig.createSimpleFeeSchedule()) {
+            autoSysFileUpdates.add(new AutoEntityUpdate<>(
+                    (ctx, bytes) -> dispatchSynthFileUpdate(
+                            ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),
+                    adminConfig.upgradeSimpleFeeSchedulesFile(),
+                    SystemTransactions::parseSimpleFeesSchedules));
+        }
+
         autoSysFileUpdates.forEach(update -> update.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext));
         final var autoNodeAdminKeyUpdates = new AutoEntityUpdate<Map<Long, Key>>(
                 (ctx, nodeAdminKeys) -> nodeAdminKeys.forEach(
@@ -407,84 +427,96 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+
+        // TODO: Delete this in release 0.71
+        // If fee collection account is enabled, we need to create the fee collection account only for release 0.70
+        if (nodesConfig.feeCollectionAccountEnabled()) {
+            final var accountsConfig = config.getConfigData(AccountsConfig.class);
+            final var feeCollectionAccount = accountsConfig.feeCollectionAccount();
+            // check if account 802 exists
+            final var accounts = state.getWritableStates(TokenService.NAME)
+                    .<AccountID, Account>get(V0490TokenSchema.ACCOUNTS_STATE_ID);
+            if (accounts.contains(idFactory.newAccountId(feeCollectionAccount))) {
+                log.info("Fee collection account already exists, skipping creation");
+                return;
+            }
+
+            final var ledgerConfig = config.getConfigData(LedgerConfig.class);
+            final var systemAutoRenewPeriod = new Duration(ledgerConfig.autoRenewPeriodMaxDuration());
+            systemContext.dispatchCreation(
+                    b -> b.memo("Fee collection account creation for v0.70")
+                            .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                    .key(IMMUTABILITY_SENTINEL_KEY)
+                                    .autoRenewPeriod(systemAutoRenewPeriod)
+                                    .build())
+                            .build(),
+                    feeCollectionAccount);
+        }
     }
 
     /**
-     * Cleans up council-controlled system accounts that are no longer needed.
-     * @param now the current time
-     * @param state the state to clean up
-     * @return true if the cleanup was finished, false otherwise
+     * Dispatches a synthetic node fee payment crypto transfer for the current staking period.
+     *
+     * @param state The state.
+     * @param now The current time.
+     * @param transfers The transfers to dispatch.
      */
-    public boolean do066SystemAccountCleanup(@NonNull final Instant now, @NonNull final State state) {
+    public void dispatchNodePayments(
+            @NonNull final State state, @NonNull final Instant now, @NonNull final TransferList transfers) {
         requireNonNull(state);
         requireNonNull(now);
-        final AtomicReference<AccountID> legacyAccountId = new AtomicReference<>();
-        final Consumer<Consumer<List<StateChange>>> removeLegacyAccount = cb -> {
-            if (streamMode != RECORDS) {
-                immediateStateChangeListener.resetKvStateChanges(null);
-            }
-            // On success, actually remove the legacy account from state
-            final var tokenStates = state.getWritableStates(TokenService.NAME);
-            final var accountsState = tokenStates.<AccountID, Account>get(ACCOUNTS_STATE_ID);
-            accountsState.remove(legacyAccountId.get());
-            ((CommittableWritableStates) tokenStates).commit();
-            if (streamMode != RECORDS) {
-                final var changes = immediateStateChangeListener.getKvStateChanges();
-                if (!changes.isEmpty()) {
-                    cb.accept(changes);
-                }
-            }
-            // And decrement the entity count for the account type
-            final var entityStates = state.getWritableStates(EntityIdService.NAME);
-            final var entityCounters = new WritableEntityIdStoreImpl(entityStates);
-            entityCounters.adjustEntityCount(ACCOUNT, -1);
-            ((CommittableWritableStates) entityStates).commit();
-        };
-        // System context for dispatching CryptoTransfer with an onSuccess callback
-        // that completely removes the legacy account from state after the dispatch
-        // sweeping its dust HBAR into the fee collection account 0.0.98
-        final var systemContext = newSystemContext(
-                now,
-                state,
-                dispatch -> removeLegacyAccount.accept(
-                        changes -> dispatch.streamBuilder().stateChanges(changes)),
-                UseReservedConsensusTimes.YES,
-                TriggerStakePeriodSideEffects.YES);
-        long i = FIRST_SYSTEM_FILE_ENTITY;
-        final var feeCollectionId = idFactory.newAccountId(configProvider
-                .getConfiguration()
-                .getConfigData(LedgerConfig.class)
-                .fundingAccount());
-        final var accountsState = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
-        for (; i < FIRST_POST_SYSTEM_FILE_ENTITY && systemContext.hasDispatchesRemaining(); i++) {
-            final var accountId = idFactory.newAccountId(i);
-            final var legacyAccount = accountsState.get(accountId);
-            if (legacyAccount != null) {
-                legacyAccountId.set(accountId);
-                final long balance = legacyAccount.tinybarBalance();
-                if (balance > 0) {
-                    log.info("Sweeping {} tinybars from {} @ {}", balance, accountId, systemContext.now());
-                    systemContext.dispatchAdmin(b -> b.cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
-                            .transfers(TransferList.newBuilder()
-                                    .accountAmounts(List.of(
-                                            AccountAmount.newBuilder()
-                                                    .accountID(accountId)
-                                                    .amount(-balance)
-                                                    .build(),
-                                            AccountAmount.newBuilder()
-                                                    .accountID(feeCollectionId)
-                                                    .amount(+balance)
-                                                    .build()))
-                                    .build())));
-                } else {
-                    log.info("Removing zero-balance legacy account {} @ {}", accountId, systemContext.now());
-                    removeLegacyAccount.accept(changes -> blockStreamManager.writeItem((t) -> BlockItem.newBuilder()
-                            .stateChanges(new StateChanges(t, new ArrayList<>(changes)))
-                            .build()));
-                }
-            }
+        requireNonNull(transfers);
+
+        if (transfers.accountAmounts().isEmpty()) {
+            log.info("No fees to distribute for nodes");
+            return;
         }
-        return i == FIRST_POST_SYSTEM_FILE_ENTITY;
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+        systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .transfers(transfers)
+                        .build())
+                .build());
+    }
+
+    /**
+     * Externalizes the ledger id and associated verification key for recursive chain-of-trust proofs.
+     *
+     * @param state the current state
+     * @param now the consensus time for the synthetic transaction
+     * @param ledgerId the new ledger id
+     * @param proofKeys the proof keys for the new ledger id
+     * @param targetNodeWeights the weights of the nodes in the target roster
+     * @param historyProofVerificationKey the verification key for the new ledger id
+     */
+    public void externalizeLedgerId(
+            @NonNull final State state,
+            @NonNull final Instant now,
+            @NonNull final Bytes ledgerId,
+            @NonNull final List<ProofKey> proofKeys,
+            @NonNull final SortedMap<Long, Long> targetNodeWeights,
+            @NonNull final Bytes historyProofVerificationKey) {
+        requireNonNull(now);
+        requireNonNull(ledgerId);
+        requireNonNull(proofKeys);
+        requireNonNull(targetNodeWeights);
+        requireNonNull(historyProofVerificationKey);
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+        final List<LedgerIdNodeContribution> contributions = proofKeys.stream()
+                .map(proofKey -> LedgerIdNodeContribution.newBuilder()
+                        .nodeId(proofKey.nodeId())
+                        .historyProofKey(proofKey.key())
+                        .weight(targetNodeWeights.get(proofKey.nodeId()))
+                        .build())
+                .toList();
+        systemContext.dispatchAdmin(b -> b.memo("Ledger id")
+                .ledgerIdPublication(LedgerIdPublicationTransactionBody.newBuilder()
+                        .ledgerId(ledgerId)
+                        .nodeContributions(contributions)
+                        .historyProofVerificationKey(historyProofVerificationKey)
+                        .build()));
     }
 
     /**
@@ -782,7 +814,17 @@ public class SystemTransactions {
                                 .nonce(nextDispatchNonce++)
                                 .build());
                 spec.accept(builder);
-                dispatch(builder.build(), 0, triggerStakePeriodSideEffects);
+                final var body = builder.build();
+                final var output = dispatch(body, 0, triggerStakePeriodSideEffects);
+                final var statuses = output.preferringBlockRecordSource().identifiedReceipts().stream()
+                        .map(RecordSource.IdentifiedReceipt::receipt)
+                        .map(TransactionReceipt::status)
+                        .toList();
+                if (!SUCCESSES.containsAll(statuses)) {
+                    log.warn("Failed to dispatch system transaction {} - {}", body, statuses);
+                } else {
+                    log.info("Successfully dispatched admin transaction {}", body);
+                }
             }
 
             @Override
@@ -823,7 +865,7 @@ public class SystemTransactions {
                 return nextConsTime.get();
             }
 
-            private void dispatch(
+            private HandleOutput dispatch(
                     @NonNull final TransactionBody body,
                     final long entityNum,
                     @NonNull final TriggerStakePeriodSideEffects triggerStakePeriodSideEffects) {
@@ -854,6 +896,7 @@ public class SystemTransactions {
                 if (streamMode != RECORDS) {
                     handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
                 }
+                return handleOutput;
             }
         };
     }
@@ -957,6 +1000,16 @@ public class SystemTransactions {
             final var bytes = in.readAllBytes();
             final var feeSchedules = V0490FileSchema.parseFeeSchedules(bytes);
             return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedules);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static Bytes parseSimpleFeesSchedules(@NonNull final InputStream in) {
+        try {
+            final var bytes = in.readAllBytes();
+            final var feeSchedules = V0490FileSchema.parseSimpleFeesSchedules(bytes);
+            return FeeSchedule.PROTOBUF.toBytes(feeSchedules);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

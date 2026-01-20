@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.sync;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.assertj.core.api.Assertions.fail;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
-import com.swirlds.common.threading.pool.ParallelExecutor;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphInsertionException;
@@ -20,6 +17,8 @@ import com.swirlds.platform.gossip.sync.config.SyncConfig_;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -31,8 +30,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
+import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -54,7 +56,7 @@ public class SyncNode {
     private final int numNodes;
     private final EventEmitter eventEmitter;
     private int eventsEmitted = 0;
-    private final TestingSyncManager syncManager;
+    private final FallenBehindMonitor fallenBehindMonitor;
     private final Shadowgraph shadowGraph;
     private ParallelExecutor executor;
     private Connection connection;
@@ -90,8 +92,6 @@ public class SyncNode {
         this.nodeId = NodeId.of(nodeId);
         this.eventEmitter = eventEmitter;
 
-        syncManager = new TestingSyncManager();
-
         receivedEventQueue = new LinkedBlockingQueue<>();
         receivedEvents = new ArrayList<>();
         generatedEvents = new LinkedList<>();
@@ -104,6 +104,7 @@ public class SyncNode {
                 .withValue(SyncConfig_.MAX_SYNC_EVENT_COUNT, 0)
                 .getOrCreateConfig();
 
+        fallenBehindMonitor = new SyncNodeFakeMonitor(numNodes - 1);
         platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .build();
@@ -224,7 +225,7 @@ public class SyncNode {
                 numNodes,
                 mock(SyncMetrics.class),
                 eventHandler,
-                syncManager,
+                fallenBehindMonitor,
                 mock(IntakeEventCounter.class),
                 executor,
                 lag -> {});
@@ -277,8 +278,8 @@ public class SyncNode {
         shadowGraph.updateEventWindow(eventWindow);
     }
 
-    public TestingSyncManager getSyncManager() {
-        return syncManager;
+    public FallenBehindMonitor getFallenBehindMonitor() {
+        return fallenBehindMonitor;
     }
 
     public List<PlatformEvent> getReceivedEvents() {
@@ -343,5 +344,42 @@ public class SyncNode {
 
     public Boolean getSynchronizerReturn() {
         return synchronizerReturn.get();
+    }
+
+    private static class SyncNodeFakeMonitor extends FallenBehindMonitor {
+        public SyncNodeFakeMonitor(final int numNeighbors) {
+            super(numNeighbors, 0.50);
+        }
+
+        private boolean fallenBehind = false;
+
+        @Override
+        public synchronized FallenBehindStatus check(
+                @NonNull EventWindow self, @NonNull EventWindow other, @NonNull NodeId peer) {
+            final var status = FallenBehindStatus.getStatus(self, other);
+            fallenBehind = FallenBehindStatus.getStatus(self, other)
+                    == com.swirlds.platform.reconnect.FallenBehindStatus.SELF_FALLEN_BEHIND;
+            return status;
+        }
+
+        @Override
+        public boolean isBehindPeer(@NonNull final NodeId peerId) {
+            return false;
+        }
+
+        @Override
+        public synchronized void clear() {
+            fallenBehind = false;
+        }
+
+        @Override
+        public synchronized int reportedSize() {
+            return 0;
+        }
+
+        @Override
+        public boolean hasFallenBehind() {
+            return fallenBehind;
+        }
     }
 }

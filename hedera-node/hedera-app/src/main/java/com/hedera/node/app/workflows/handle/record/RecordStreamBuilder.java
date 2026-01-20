@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
@@ -211,6 +212,11 @@ public class RecordStreamBuilder
     private HederaFunctionality function;
 
     private boolean isContractCreate;
+    /**
+     * The number of storage slots updated during hook creation or update. Slots updated during hook execution are
+     * tracked and updated through RootProxyWorldUpdater.
+     */
+    private int deltaStorageSlotsUpdated;
 
     /**
      * ops duration used by the contract transaction
@@ -308,6 +314,22 @@ public class RecordStreamBuilder
         // create list of sidecar records
         List<TransactionSidecarRecord> transactionSidecarRecords = new ArrayList<>();
         if (contractStateChanges != null) {
+            if (status == REVERTED_SUCCESS) {
+                contractStateChanges = contractStateChanges.stream()
+                        .map(entry -> {
+                            final var changes = new ContractStateChanges(entry.getKey().contractStateChanges().stream()
+                                    .map(change -> change.copyBuilder()
+                                            .storageChanges(change.storageChanges().stream()
+                                                    .map(sc -> sc.copyBuilder()
+                                                            .valueWritten(null)
+                                                            .build())
+                                                    .toList())
+                                            .build())
+                                    .toList());
+                            return new AbstractMap.SimpleEntry<>(changes, entry.getValue());
+                        })
+                        .toList();
+            }
             contractStateChanges.stream()
                     .map(pair -> new TransactionSidecarRecord(
                             transactionRecord.consensusTimestamp(),
@@ -321,12 +343,15 @@ public class RecordStreamBuilder
                         pair.getValue(),
                         new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.ACTIONS, pair.getKey())))
                 .forEach(transactionSidecarRecords::add);
-        contractBytecodes.stream()
-                .map(pair -> new TransactionSidecarRecord(
-                        transactionRecord.consensusTimestamp(),
-                        pair.getValue(),
-                        new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, pair.getKey())))
-                .forEach(transactionSidecarRecords::add);
+        // Any bytecodes created inside a batch and then reverted should not be streamed
+        if (status != REVERTED_SUCCESS) {
+            contractBytecodes.stream()
+                    .map(pair -> new TransactionSidecarRecord(
+                            transactionRecord.consensusTimestamp(),
+                            pair.getValue(),
+                            new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, pair.getKey())))
+                    .forEach(transactionSidecarRecords::add);
+        }
 
         // Log end of user transaction to transaction state log
         logEndTransactionRecord(transactionID, transactionRecord);
@@ -389,8 +414,15 @@ public class RecordStreamBuilder
     // ------------------------------------------------------------------------------------------------------------------------
     // base transaction data
 
+    @Override
     public RecordStreamBuilder parentConsensus(@NonNull final Instant parentConsensus) {
         this.parentConsensus = requireNonNull(parentConsensus, "parentConsensus must not be null");
+        return this;
+    }
+
+    @Override
+    public StreamBuilder triggeringParentConsensus(@NonNull final Instant parentConsensus) {
+        // No-op for backward compatibility with V6 record stream
         return this;
     }
 
@@ -1126,6 +1158,16 @@ public class RecordStreamBuilder
     @Override
     public Bytes getEvmCallResult() {
         return requireNonNull(contractFunctionResult).contractCallResult();
+    }
+
+    @Override
+    public int getDeltaStorageSlotsUpdated() {
+        return deltaStorageSlotsUpdated;
+    }
+
+    @Override
+    public void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated) {
+        this.deltaStorageSlotsUpdated = deltaStorageSlotsUpdated;
     }
 
     /**

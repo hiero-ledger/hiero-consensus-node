@@ -18,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.schedulers.SequentialTaskSchedulerAliveThreadCleanup;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
@@ -34,6 +33,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import org.hiero.base.utility.NonCryptographicHashing;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 
 class DeterministicModelTests implements SequentialTaskSchedulerAliveThreadCleanup {
@@ -335,10 +335,10 @@ class DeterministicModelTests implements SequentialTaskSchedulerAliveThreadClean
 
         final FakeTime time = new FakeTime(randomInstant(random), Duration.ZERO);
         final DeterministicWiringModel deterministicWiringModel1 = WiringModelBuilder.create(new NoOpMetrics(), time)
-                .withDeterministicModeEnabled(true)
+                .deterministic()
                 .build();
         final DeterministicWiringModel deterministicWiringModel2 = WiringModelBuilder.create(new NoOpMetrics(), time)
-                .withDeterministicModeEnabled(true)
+                .deterministic()
                 .build();
         try {
             final long value1 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, deterministicWiringModel1), () -> {
@@ -376,7 +376,7 @@ class DeterministicModelTests implements SequentialTaskSchedulerAliveThreadClean
     @Test
     void circularDataFlowTest() {
         final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
-                .withDeterministicModeEnabled(true)
+                .deterministic()
                 .build();
 
         final AtomicInteger countA = new AtomicInteger();

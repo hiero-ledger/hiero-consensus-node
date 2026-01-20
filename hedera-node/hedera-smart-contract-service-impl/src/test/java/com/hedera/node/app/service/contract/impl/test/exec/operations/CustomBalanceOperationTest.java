@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomBalanceOperation;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.evm.EVM;
@@ -88,6 +89,7 @@ class CustomBalanceOperationTest {
             setupWarmGasCost();
             given(frame.getRemainingGas()).willReturn(1L);
             given(frame.getStackItem(0)).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+            frameUtils.when(() -> FrameUtils.invalidAddressContext(frame)).thenReturn(new InvalidAddressContext());
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils
                     .when(() -> FrameUtils.contractRequired(frame, NON_SYSTEM_LONG_ZERO_ADDRESS, featureFlags))

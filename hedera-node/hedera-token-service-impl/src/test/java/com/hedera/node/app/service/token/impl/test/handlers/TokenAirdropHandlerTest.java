@@ -41,6 +41,7 @@ import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeContextImpl;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAirdropStore;
@@ -50,6 +51,7 @@ import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -90,6 +92,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Mock
     private PureChecksContext pureChecksContext;
+
+    private final EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
 
     @SuppressWarnings("DataFlowIssue")
     @Test
@@ -275,8 +279,6 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         final var txn = newTokenAirdrop(TokenTransferList.newBuilder()
                 .token(TOKEN_2468)
                 // transfers and nftTransfers are intentionally empty (will result in a count of zero transfers)
-                .transfers()
-                .nftTransfers()
                 .build());
         given(pureChecksContext.body()).willReturn(txn);
 
@@ -342,7 +344,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     @Test
     void handleAirdropMultipleTokensToPendingState() {
         givenStoresAndConfig(handleContext);
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
         given(handleContext.savepointStack()).willReturn(stack);
         given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         given(stack.getBaseBuilder(TokenAirdropStreamBuilder.class)).willReturn(tokenAirdropRecordBuilder);
@@ -401,7 +404,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
     @Test
     void tokenTransfersAboveMax() {
         givenStoresAndConfig(handleContext);
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(TokenAirdropStreamBuilder.class)).willReturn(tokenAirdropRecordBuilder);
         var nftWithNoCustomFees = nonFungibleToken
@@ -440,7 +444,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         givenStoresAndConfig(handleContext);
         given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         // mock record builder
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
         var tokenWithNoCustomFees =
                 fungibleToken.copyBuilder().customFees(Collections.emptyList()).build();
         var nftWithNoCustomFees = nonFungibleToken
@@ -482,7 +487,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         givenStoresAndConfig(handleContext);
         given(handleContext.dispatchMetadata()).willReturn(DispatchMetadata.EMPTY_METADATA);
         // mock record builder
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
 
         final var fees = List.of(
                 withFractionalFee(FractionalFee.newBuilder()
@@ -539,7 +545,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         givenStoresAndConfig(handleContext);
 
         // mock record builder
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
         var tokenWithNoCustomFees =
                 fungibleToken.copyBuilder().customFees(Collections.emptyList()).build();
         var nftWithNoCustomFees = nonFungibleToken
@@ -614,7 +621,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS_STATE_ID))
                 .willReturn(writableAirdropState);
         writableAirdropStore = new WritableAirdropStore(writableStates, writableEntityCounters);
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
 
         final var newAirdropValue = airdropWithValue(20);
         final var newAccountAirdrop = accountAirdrop
@@ -647,7 +655,8 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS_STATE_ID))
                 .willReturn(writableAirdropState);
         writableAirdropStore = new WritableAirdropStore(writableStates, writableEntityCounters);
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
+        tokenAirdropHandler =
+                new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallsFactory, entityIdFactory);
 
         var tokenWithNoCustomFees =
                 fungibleToken.copyBuilder().customFees(Collections.emptyList()).build();

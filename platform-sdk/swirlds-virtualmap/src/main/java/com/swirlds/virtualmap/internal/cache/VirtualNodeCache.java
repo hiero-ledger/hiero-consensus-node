@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.cache;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static com.swirlds.virtualmap.internal.cache.VirtualNodeCache.CLASS_ID;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.constructable.constructors.VirtualNodeCacheConstructor;
@@ -43,6 +42,7 @@ import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * A cache for virtual merkel trees.
@@ -507,6 +507,7 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
             p.dirtyLeaves.merge(dirtyLeaves);
             p.dirtyLeafPaths.merge(dirtyLeafPaths);
             p.dirtyHashes.merge(dirtyHashes);
+            // Estimated sizes include both mutations and concurrent array overheads
             p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
             p.estimatedLeafPathsSizeInBytes.addAndGet(estimatedLeafPathsSizeInBytes.get());
             p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
@@ -539,6 +540,11 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
         dirtyLeaves.seal();
         dirtyHashes.seal();
         dirtyLeafPaths.seal();
+
+        // Update estimated size to include concurrent arrays storage overhead
+        estimatedHashesSizeInBytes.addAndGet(dirtyHashes.estimatedStorageMemoryOverhead());
+        estimatedLeavesSizeInBytes.addAndGet(dirtyLeaves.estimatedStorageMemoryOverhead());
+        estimatedLeafPathsSizeInBytes.addAndGet(dirtyLeafPaths.estimatedStorageMemoryOverhead());
     }
 
     // --------------------------------------------------------------------------------------------
@@ -874,7 +880,7 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
      * 		Node path
      * @param hash
      * 		Node hash. Null values are accepted, although observed in tests only. In real scenarios
-     * 	    this method is only called by VirtualHasher (via VirtualRootNode), and it never puts
+     * 	    this method is only called by VirtualHasher (via VirtualMap), and it never puts
      * 	    null hashes to the cache
      * @throws MutabilityException
      * 		if the instance has been sealed
@@ -1250,10 +1256,15 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
             final ConcurrentArray<Mutation<K, V>> array,
             final Map<K, Mutation<K, V>> index,
             @NonNull final VirtualMapConfig virtualMapConfig) {
-        array.parallelTraverse(
-                getCleaningPool(virtualMapConfig),
-                element -> index.compute(element.key, (key, mutation) -> {
-                    if (mutation == null || element.equals(mutation)) {
+        array.parallelTraverse(getCleaningPool(virtualMapConfig), element -> {
+            // If a cache copy is released after flush, some mutations may be already marked as
+            // filtered in dirtyLeavesForFlush() and dirtyHashesForFlush(). When a mutation is
+            // filtered, it means there is a newer mutation for the same key in the same cache
+            // copy. When this newer mutation is purged, it also takes care of the filtered
+            // mutation, so there is no need to handle filtered mutations explicitly
+            if (element.notFiltered()) {
+                index.compute(element.key, (key, mutation) -> {
+                    if ((mutation == null) || element.equals(mutation)) {
                         // Already removed for a more recent mutation
                         return null;
                     }
@@ -1264,7 +1275,9 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
                         }
                     }
                     return mutation;
-                }));
+                });
+            }
+        });
     }
 
     /**

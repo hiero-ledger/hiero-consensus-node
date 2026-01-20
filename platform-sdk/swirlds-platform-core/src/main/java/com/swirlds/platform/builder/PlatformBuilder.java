@@ -2,68 +2,73 @@
 package com.swirlds.platform.builder;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
+import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.pces.PcesUtilities.getDatabaseDirectory;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
+import com.swirlds.platform.metrics.PlatformMetricsConfig;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesConfig;
+import org.hiero.consensus.pces.PcesFileReader;
+import org.hiero.consensus.pces.PcesFileTracker;
 import org.hiero.consensus.roster.RosterHistory;
 
 /**
@@ -78,14 +83,16 @@ public final class PlatformBuilder {
     private final ReservedSignedState initialState;
 
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private final PlatformStateFacade platformStateFacade;
-    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
+    private final StateLifecycleManager stateLifecycleManager;
 
     private final NodeId selfId;
     private final String swirldName;
 
     private Configuration configuration;
     private ExecutorFactory executorFactory;
+
+    private EventCreatorModule eventCreatorModule;
+    private EventIntakeModule eventIntakeModule;
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
@@ -107,9 +114,9 @@ public final class PlatformBuilder {
     private KeysAndCerts keysAndCerts;
 
     /**
-     * The path to the configuration file (i.e. the file with the address book).
+     * The path to the settings file (i.e. the file with the optional settings).
      */
-    private final Path configPath = getAbsolutePath(DEFAULT_CONFIG_FILE_NAME);
+    private final Path settingsPath = getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME);
 
     /**
      * The wiring model to use for this platform.
@@ -150,8 +157,7 @@ public final class PlatformBuilder {
      * @param selfId the ID of this node
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
      * @param rosterHistory the roster history provided by the application to use at startup
-     * @param platformStateFacade the facade to access the platform state
-     * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
+     * @param stateLifecycleManager the state lifecycle manager, used to instantiate the state object from a {@link com.swirlds.virtualmap.VirtualMap} and manage the state lifecycle
      */
     @NonNull
     public static PlatformBuilder create(
@@ -163,8 +169,7 @@ public final class PlatformBuilder {
             @NonNull final NodeId selfId,
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
         return new PlatformBuilder(
                 appName,
                 swirldName,
@@ -174,8 +179,7 @@ public final class PlatformBuilder {
                 selfId,
                 consensusEventStreamName,
                 rosterHistory,
-                platformStateFacade,
-                createStateFromVirtualMap);
+                stateLifecycleManager);
     }
 
     /**
@@ -189,8 +193,7 @@ public final class PlatformBuilder {
      * @param selfId the ID of this node
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
      * @param rosterHistory the roster history provided by the application to use at startup
-     * @param platformStateFacade the facade to access the platform state
-     * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
+     * @param stateLifecycleManager the state lifecycle manager, used to instantiate the state object from a {@link com.swirlds.virtualmap.VirtualMap} and manage the state lifecycle
      */
     private PlatformBuilder(
             @NonNull final String appName,
@@ -201,19 +204,17 @@ public final class PlatformBuilder {
             @NonNull final NodeId selfId,
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
 
-        this.appName = Objects.requireNonNull(appName);
-        this.swirldName = Objects.requireNonNull(swirldName);
-        this.softwareVersion = Objects.requireNonNull(softwareVersion);
-        this.initialState = Objects.requireNonNull(initialState);
-        this.consensusStateEventHandler = Objects.requireNonNull(consensusStateEventHandler);
-        this.selfId = Objects.requireNonNull(selfId);
-        this.consensusEventStreamName = Objects.requireNonNull(consensusEventStreamName);
-        this.rosterHistory = Objects.requireNonNull(rosterHistory);
-        this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
-        this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
+        this.appName = requireNonNull(appName);
+        this.swirldName = requireNonNull(swirldName);
+        this.softwareVersion = requireNonNull(softwareVersion);
+        this.initialState = requireNonNull(initialState);
+        this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
+        this.selfId = requireNonNull(selfId);
+        this.consensusEventStreamName = requireNonNull(consensusEventStreamName);
+        this.rosterHistory = requireNonNull(rosterHistory);
+        this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
     }
 
     /**
@@ -226,7 +227,7 @@ public final class PlatformBuilder {
      */
     @NonNull
     public PlatformBuilder withConfiguration(@NonNull final Configuration configuration) {
-        this.configuration = Objects.requireNonNull(configuration);
+        this.configuration = requireNonNull(configuration);
         checkConfiguration(configuration);
         return this;
     }
@@ -252,7 +253,7 @@ public final class PlatformBuilder {
     public PlatformBuilder withPreconsensusEventCallback(
             @NonNull final Consumer<PlatformEvent> preconsensusEventConsumer) {
         throwIfAlreadyUsed();
-        this.preconsensusEventConsumer = Objects.requireNonNull(preconsensusEventConsumer);
+        this.preconsensusEventConsumer = requireNonNull(preconsensusEventConsumer);
         return this;
     }
 
@@ -276,7 +277,7 @@ public final class PlatformBuilder {
     public PlatformBuilder withConsensusSnapshotOverrideCallback(
             @NonNull final Consumer<ConsensusSnapshot> snapshotOverrideConsumer) {
         throwIfAlreadyUsed();
-        this.snapshotOverrideConsumer = Objects.requireNonNull(snapshotOverrideConsumer);
+        this.snapshotOverrideConsumer = requireNonNull(snapshotOverrideConsumer);
         return this;
     }
 
@@ -293,14 +294,14 @@ public final class PlatformBuilder {
     @NonNull
     public PlatformBuilder withStaleEventCallback(@NonNull final Consumer<PlatformEvent> staleEventConsumer) {
         throwIfAlreadyUsed();
-        this.staleEventConsumer = Objects.requireNonNull(staleEventConsumer);
+        this.staleEventConsumer = requireNonNull(staleEventConsumer);
         return this;
     }
 
     @NonNull
     public PlatformBuilder withExecutionLayer(@NonNull final ExecutionLayer execution) {
         throwIfAlreadyUsed();
-        this.execution = Objects.requireNonNull(execution);
+        this.execution = requireNonNull(execution);
         return this;
     }
 
@@ -314,7 +315,7 @@ public final class PlatformBuilder {
     @NonNull
     public PlatformBuilder withKeysAndCerts(@NonNull final KeysAndCerts keysAndCerts) {
         throwIfAlreadyUsed();
-        this.keysAndCerts = Objects.requireNonNull(keysAndCerts);
+        this.keysAndCerts = requireNonNull(keysAndCerts);
         // Ensure that the platform has a valid signing cert that matches the signing private key.
         // https://github.com/hashgraph/hedera-services/issues/16648
         if (!CryptoUtils.checkCertificate(keysAndCerts.sigCert())) {
@@ -324,7 +325,7 @@ public final class PlatformBuilder {
         final String testString = "testString";
         final Bytes testBytes = Bytes.wrap(testString.getBytes());
         final Signature signature = platformSigner.sign(testBytes.toByteArray());
-        if (!CryptoStatic.verifySignature(
+        if (!ConsensusCryptoUtils.verifySignature(
                 testBytes, signature.getBytes(), keysAndCerts.sigCert().getPublicKey())) {
             throw new IllegalStateException("The signing certificate does not match the signing private key.");
         }
@@ -339,7 +340,7 @@ public final class PlatformBuilder {
      */
     public PlatformBuilder withModel(@NonNull final WiringModel model) {
         throwIfAlreadyUsed();
-        this.model = Objects.requireNonNull(model);
+        this.model = requireNonNull(model);
         return this;
     }
 
@@ -352,7 +353,7 @@ public final class PlatformBuilder {
     @NonNull
     public PlatformBuilder withSecureRandomSupplier(@NonNull final Supplier<SecureRandom> secureRandomSupplier) {
         throwIfAlreadyUsed();
-        this.secureRandomSupplier = Objects.requireNonNull(secureRandomSupplier);
+        this.secureRandomSupplier = requireNonNull(secureRandomSupplier);
         return this;
     }
 
@@ -365,8 +366,73 @@ public final class PlatformBuilder {
     @NonNull
     public PlatformBuilder withPlatformContext(@NonNull final PlatformContext platformContext) {
         throwIfAlreadyUsed();
-        this.platformContext = Objects.requireNonNull(platformContext);
+        this.platformContext = requireNonNull(platformContext);
         return this;
+    }
+
+    /**
+     * Provide the consensus event creator to use for this platform.
+     *
+     * @param eventCreatorModule the consensus event creator
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withEventCreatorModule(@NonNull final EventCreatorModule eventCreatorModule) {
+        throwIfAlreadyUsed();
+        this.eventCreatorModule = requireNonNull(eventCreatorModule);
+        return this;
+    }
+
+    private void initializeEventCreatorModule() {
+        if (this.eventCreatorModule == null) {
+            this.eventCreatorModule = createEventCreatorModule();
+        }
+
+        eventCreatorModule.initialize(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                secureRandomSupplier.get(),
+                keysAndCerts,
+                rosterHistory.getCurrentRoster(),
+                selfId,
+                execution,
+                execution);
+    }
+
+    /**
+     * Provide the consensus event intake to use for this platform.
+     *
+     * @param eventIntakeModule the consensus event intake module
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withEventIntakeModule(@NonNull final EventIntakeModule eventIntakeModule) {
+        throwIfAlreadyUsed();
+        this.eventIntakeModule = requireNonNull(eventIntakeModule);
+        return this;
+    }
+
+    private void initializeEventIntakeModule(
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @Nullable final EventPipelineTracker pipelineTracker) {
+        if (this.eventIntakeModule == null) {
+            this.eventIntakeModule = createEventIntakeModule();
+        }
+
+        eventIntakeModule.initialize(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory,
+                selfId,
+                intakeEventCounter,
+                execution.getTransactionLimits(),
+                platformContext.getRecycleBin(),
+                initialState.get().getRound(),
+                pipelineTracker);
     }
 
     /**
@@ -394,7 +460,7 @@ public final class PlatformBuilder {
             executorFactory = ExecutorFactory.create("platform", null, DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
         }
 
-        final boolean firstPlatform = doStaticSetup(configuration, configPath);
+        final boolean firstPlatform = doStaticSetup(configuration, settingsPath);
 
         final Roster currentRoster = rosterHistory.getCurrentRoster();
 
@@ -432,16 +498,6 @@ public final class PlatformBuilder {
         final ApplicationCallbacks callbacks =
                 new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
-        final AtomicReference<StatusActionSubmitter> statusActionSubmitterAtomicReference = new AtomicReference<>();
-        final SwirldStateManager swirldStateManager = new SwirldStateManager(
-                platformContext,
-                currentRoster,
-                selfId,
-                x -> statusActionSubmitterAtomicReference.get().submitStatusAction(x),
-                softwareVersion,
-                consensusStateEventHandler,
-                platformStateFacade);
-
         if (model == null) {
             final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
 
@@ -453,15 +509,9 @@ public final class PlatformBuilder {
             logger.info(STARTUP.getMarker(), "Default platform pool parallelism: {}", parallelism);
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
-                    .withJvmAnchorEnabled(true)
+                    .enableJvmAnchor()
                     .withDefaultPool(defaultPool)
-                    .withHealthMonitorEnabled(wiringConfig.healthMonitorEnabled())
-                    .withHardBackpressureEnabled(wiringConfig.hardBackpressureEnabled())
-                    .withHealthMonitorCapacity(wiringConfig.healthMonitorSchedulerCapacity())
-                    .withHealthMonitorPeriod(wiringConfig.healthMonitorHeartbeatPeriod())
-                    .withHealthLogThreshold(wiringConfig.healthLogThreshold())
-                    .withHealthLogPeriod(wiringConfig.healthLogPeriod())
-                    .withHealthyReportThreshold(wiringConfig.healthyReportThreshold())
+                    .withWiringConfig(wiringConfig)
                     .build();
         }
 
@@ -475,9 +525,21 @@ public final class PlatformBuilder {
             };
         }
 
-        var platformComponentWiring = PlatformComponents.create(platformContext, model, callbacks);
+        final boolean eventPipelineMetricsEnabled = platformContext
+                .getConfiguration()
+                .getConfigData(PlatformMetricsConfig.class)
+                .eventPipelineMetricsEnabled();
+        final EventPipelineTracker pipelineTracker =
+                eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
 
-        PlatformWiring.wire(platformContext, execution, platformComponentWiring);
+        initializeEventCreatorModule();
+        initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
+
+        final PlatformComponents platformComponentWiring =
+                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
+
+        PlatformWiring.wire(platformContext, execution, platformComponentWiring, callbacks);
+        PlatformWiring.wireMetrics(platformComponentWiring, pipelineTracker);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformComponentWiring,
@@ -495,22 +557,20 @@ public final class PlatformBuilder {
                 snapshotOverrideConsumer,
                 intakeEventCounter,
                 secureRandomSupplier,
-                new FreezeCheckHolder(),
+                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
                 new AtomicReference<>(),
                 initialPcesFiles,
                 consensusEventStreamName,
                 issScratchpad,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
-                statusActionSubmitterAtomicReference,
-                swirldStateManager,
                 new AtomicReference<>(),
-                new AtomicReference<>(),
+                stateLifecycleManager,
                 new AtomicReference<>(),
                 firstPlatform,
                 consensusStateEventHandler,
-                platformStateFacade,
                 execution,
-                createStateFromVirtualMap);
+                new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()),
+                new BlockingResourceProvider<>());
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

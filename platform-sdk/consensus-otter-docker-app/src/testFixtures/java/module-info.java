@@ -14,6 +14,11 @@ module org.hiero.consensus.otter.docker.app {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.state.api;
     requires org.hiero.consensus.utility;
+    requires com.swirlds.state.impl;
+    requires com.swirlds.virtualmap;
+    requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.roster;
     requires org.apache.logging.log4j;
     requires com.hedera.pbj.runtime;
     requires com.hedera.pbj.grpc.helidon;

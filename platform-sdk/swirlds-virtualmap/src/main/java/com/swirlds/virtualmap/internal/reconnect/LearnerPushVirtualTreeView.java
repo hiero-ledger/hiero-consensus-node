@@ -10,7 +10,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
@@ -22,7 +21,6 @@ import com.swirlds.common.merkle.synchronization.task.Lesson;
 import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
@@ -30,13 +28,12 @@ import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * An implementation of {@link LearnerTreeView} for the virtual merkle. The learner during reconnect
@@ -126,38 +123,20 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             final LearningSynchronizer learningSynchronizer,
             final StandardWorkGroup workGroup,
             final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream,
-            final Queue<MerkleNode> rootsToReceive,
-            final AtomicReference<Long> reconstructedRoot) {
+            final MerkleDataOutputStream outputStream) {
         in = new AsyncInputStream<>(inputStream, workGroup, () -> new Lesson<>(this), reconnectConfig);
         in.start();
         final AsyncOutputStream<QueryResponse> out = learningSynchronizer.buildOutputStream(workGroup, outputStream);
         out.start();
 
-        final LearnerPushTask<Long> learnerThread = new LearnerPushTask<>(
-                workGroup, in, out, rootsToReceive, reconstructedRoot, this, learningSynchronizer, mapStats);
+        final LearnerPushTask learnerThread =
+                new LearnerPushTask(workGroup, in, out, this, learningSynchronizer, mapStats);
         learnerThread.start();
     }
 
     @Override
     public void abort() {
         in.abort();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isRootOfState() {
-        return false;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long getOriginalRoot() {
-        return ROOT_PATH;
     }
 
     /**
@@ -246,7 +225,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             // We send the first and last leaf path when reconnecting because we don't have access
             // to this information in the virtual root node at this point in the flow, even though
             // the info has already been sent and resides in the ExternalVirtualMapMetadata that is a sibling
-            // of the VirtualRootNode. This doesn't affect correctness or hashing.
+            // of the VirtualMap. This doesn't affect correctness or hashing.
             final long firstLeafPath = in.readLong();
             final long lastLeafPath = in.readLong();
             reconnectState.setLastLeafPath(lastLeafPath);
@@ -255,14 +234,6 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
         }
         return node;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void initialize() {
-        // no-op
     }
 
     /**
@@ -281,32 +252,8 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public void markForInitialization(final Long node) {
-        // no-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void releaseNode(final Long node) {
-        // no-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void setChild(final Long parent, final int childIndex, final Long child) {
         // No-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long convertMerkleRootToViewType(final MerkleNode node) {
-        throw new UnsupportedOperationException("Nested virtual maps not supported");
     }
 
     private boolean isLeaf(final long path) {

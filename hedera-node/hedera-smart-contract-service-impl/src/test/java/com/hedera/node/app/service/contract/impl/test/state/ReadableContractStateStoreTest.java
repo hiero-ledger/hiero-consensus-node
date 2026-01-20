@@ -91,8 +91,9 @@ class ReadableContractStateStoreTest {
     @Test
     void getsSizeAsExpected() {
         given(readableEntityCounters.getCounterFor(EntityType.CONTRACT_STORAGE)).willReturn(1L);
+        given(readableEntityCounters.getCounterFor(EntityType.EVM_HOOK_STORAGE)).willReturn(2L);
 
-        assertSame(1L, subject.getNumSlots());
+        assertSame(3L, subject.getNumSlots());
     }
 
     @Test

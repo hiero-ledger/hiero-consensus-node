@@ -18,12 +18,8 @@ import com.swirlds.common.merkle.synchronization.task.Lesson;
 import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import com.swirlds.common.merkle.synchronization.task.TeacherPushReceiveTask;
 import com.swirlds.common.merkle.synchronization.task.TeacherPushSendTask;
-import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.ConcurrentNodeStatusTracker;
@@ -31,14 +27,13 @@ import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
-import java.util.Queue;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * An implementation of {@link TeacherTreeView} designed for virtual merkle trees.
@@ -114,17 +109,7 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * The {@link RecordAccessor} used for accessing the original map state.
      */
-    private RecordAccessor records;
-
-    /**
-     * This latch counts down when the view is fully initialized and ready for use.
-     */
-    private final CountDownLatch readyLatch = new CountDownLatch(1);
-
-    /**
-     * Indicates whether this teacher view is ready after {@link #readyLatch} is released.
-     */
-    private final AtomicBoolean ready = new AtomicBoolean(false);
+    private final RecordAccessor records;
 
     /**
      * Create a new {@link TeacherPushVirtualTreeView}.
@@ -147,19 +132,7 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
         // There is no distinction between originalState and reconnectState in this implementation
         super(map, state, state);
         this.reconnectConfig = reconnectConfig;
-        new ThreadConfiguration(threadManager)
-                .setRunnable(() -> {
-                    try {
-                        records = pipeline.pausePipelineAndRun("copy", map::detach);
-                        ready.set(true);
-                    } finally {
-                        readyLatch.countDown();
-                    }
-                })
-                .setComponent("virtualmap")
-                .setThreadName("detacher")
-                .build()
-                .start();
+        this.records = pipeline.pausePipelineAndRun("copy", map::detach);
     }
 
     @Override
@@ -168,8 +141,7 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
             final Time time,
             final StandardWorkGroup workGroup,
             final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream,
-            final Queue<TeacherSubtree> subtrees) {
+            final MerkleDataOutputStream outputStream) {
         final AsyncInputStream<QueryResponse> in =
                 new AsyncInputStream<>(inputStream, workGroup, QueryResponse::new, reconnectConfig);
         in.start();
@@ -178,11 +150,11 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
 
         final AtomicBoolean senderIsFinished = new AtomicBoolean(false);
 
-        final TeacherPushSendTask<Long> teacherSendTask =
-                new TeacherPushSendTask<>(time, reconnectConfig, workGroup, in, out, subtrees, this, senderIsFinished);
+        final TeacherPushSendTask teacherSendTask =
+                new TeacherPushSendTask(time, reconnectConfig, workGroup, in, out, this, senderIsFinished);
         teacherSendTask.start();
-        final TeacherPushReceiveTask<Long> teacherReceiveTask =
-                new TeacherPushReceiveTask<>(workGroup, in, this, senderIsFinished);
+        final TeacherPushReceiveTask teacherReceiveTask =
+                new TeacherPushReceiveTask(workGroup, in, this, senderIsFinished);
         teacherReceiveTask.start();
     }
 
@@ -190,29 +162,7 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public void waitUntilReady() throws InterruptedException {
-        readyLatch.await();
-        if (!ready.get()) {
-            throw new RuntimeException("Failed to wait until teacher view is ready");
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long getRoot() {
-        return ROOT_PATH;
-    }
-
-    private final AtomicLong processed = new AtomicLong(0);
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void addToHandleQueue(final Long node) {
-        processed.incrementAndGet();
         checkValidNode(node, reconnectState);
         accumulatingHandleQueue.add(node);
     }
@@ -396,23 +346,11 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public boolean isCustomReconnectRoot(final Long node) {
-        return node == ROOT_PATH;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void close() {
         try {
-            waitUntilReady();
             records.close();
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "interrupted while attempting to close data source");
-        } catch (final InterruptedException e) {
-            logger.error(EXCEPTION.getMarker(), "Failed to close data source properly", e);
-            Thread.currentThread().interrupt();
         }
     }
 }

@@ -18,9 +18,9 @@ import java.time.Duration;
  * @param hashCombineBatchSize the number of items to hash in a batch
  * @param roundsPerBlock the number of rounds per block
  * @param blockPeriod the block period
- * @param blockItemBatchSize the number of items to send in a batch to block nodes
  * @param receiptEntriesBatchSize the maximum number of receipts to accumulate in a {@link com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries} wrapper before writing a queue state changes item to the block stream
- * @param workerLoopSleepDuration the duration to sleep between iterations of the worker loop
+ * @param maxReadDepth the max allowed depth of nested protobuf messages
+ * @param maxReadBytesSize the max size in bytes of protobuf messages to read
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
@@ -30,9 +30,13 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "32") @NetworkProperty int hashCombineBatchSize,
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
         @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty Duration blockPeriod,
-        @ConfigProperty(defaultValue = "256") @Min(0) @NetworkProperty int blockItemBatchSize,
         @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty int receiptEntriesBatchSize,
-        @ConfigProperty(defaultValue = "10ms") @Min(1) @NodeProperty Duration workerLoopSleepDuration) {
+        @ConfigProperty(defaultValue = "10ms") @Min(1) @NodeProperty Duration workerLoopSleepDuration,
+        @ConfigProperty(defaultValue = "100") @Min(1) @NodeProperty int maxConsecutiveScheduleSecondsToProbe,
+        @ConfigProperty(defaultValue = "1s") @Min(1) @NodeProperty Duration quiescedHeartbeatInterval,
+        @ConfigProperty(defaultValue = "512") @NodeProperty int maxReadDepth,
+        @ConfigProperty(defaultValue = "500000000") @NodeProperty int maxReadBytesSize,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enableStateProofs) {
 
     /**
      * Whether to stream to block nodes.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state.hooks;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
@@ -39,5 +40,10 @@ public class HookEvmFrameStateFactory implements EvmFrameStateFactory {
                 hederaNativeOperations.writableEvmHookStore(),
                 codeFactory,
                 hook);
+    }
+
+    @Override
+    public AccountID hookRentPayerId() {
+        return hook.hookIdOrThrow().entityIdOrThrow().accountIdOrThrow();
     }
 }

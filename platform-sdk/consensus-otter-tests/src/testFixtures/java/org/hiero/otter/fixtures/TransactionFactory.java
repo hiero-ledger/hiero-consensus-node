@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
-import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.otter.fixtures.app.EmptyTransaction;
-import org.hiero.otter.fixtures.app.HashPartition;
-import org.hiero.otter.fixtures.app.OtterFreezeTransaction;
-import org.hiero.otter.fixtures.app.OtterIssTransaction;
-import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.network.transactions.EmptyTransaction;
+import org.hiero.otter.fixtures.network.transactions.HashPartition;
+import org.hiero.otter.fixtures.network.transactions.OtterFreezeTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterIssTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * Utility class for transaction-related operations.
@@ -43,7 +44,7 @@ public class TransactionFactory {
      */
     @NonNull
     public static OtterTransaction createFreezeTransaction(final long nonce, @NonNull final Instant freezeTime) {
-        final com.hedera.hapi.node.base.Timestamp timestamp = CommonUtils.toPbjTimestamp(freezeTime);
+        final com.hedera.hapi.node.base.Timestamp timestamp = toPbjTimestamp(freezeTime);
         final OtterFreezeTransaction freezeTransaction =
                 OtterFreezeTransaction.newBuilder().freezeTime(timestamp).build();
         return OtterTransaction.newBuilder()

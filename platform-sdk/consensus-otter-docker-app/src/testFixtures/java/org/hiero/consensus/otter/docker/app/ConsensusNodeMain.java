@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import io.helidon.webserver.WebServer;
@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.otter.docker.app.logging.DockerLogConfigBuilder;
 import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
 
@@ -40,18 +41,23 @@ public class ConsensusNodeMain {
     /** Logger */
     private static final Logger log = LogManager.getLogger(ConsensusNodeMain.class);
 
+    /**
+     * Main method to start the Consensus Node application.
+     *
+     * @param args command line arguments; expects a single argument representing the node's ID
+     */
     public static void main(final String[] args) {
         if (args.length != 1) {
             throw new IllegalArgumentException("Usage: ConsensusNodeMain <selfId>");
         }
         final long id = Long.parseLong(args[0]);
-        final NodeId selfId = NodeId.newBuilder().id(id).build();
+        final NodeId selfId = NodeId.of(id);
 
         DockerLogConfigBuilder.configure(Path.of(CONTAINER_APP_WORKING_DIR), selfId);
 
         final NodeCommunicationService nodeCommunicationService = new NodeCommunicationService(selfId);
 
-        log.info("Starting ConsensusNodeMain");
+        log.info(STARTUP.getMarker(), "Starting ConsensusNodeMain");
 
         final PbjConfig pbjConfig = PbjConfig.builder()
                 .name("node-communication")
@@ -73,7 +79,7 @@ public class ConsensusNodeMain {
             Thread.currentThread().join();
         } catch (final InterruptedException e) {
             // Only warn, because we expect this exception when we interrupt the thread on a kill request
-            log.warn("Interrupted while running the consensus node manager server", e);
+            log.warn(STARTUP.getMarker(), "Interrupted while running the consensus node manager server", e);
             Thread.currentThread().interrupt();
             System.exit(-1);
         }
@@ -85,12 +91,18 @@ public class ConsensusNodeMain {
     private static void writeStartedMarkerFile() {
         try {
             if (new File(STARTED_MARKER_FILE.toString()).createNewFile()) {
-                log.info("Node Communication Service marker file written to {}", STARTED_MARKER_FILE);
+                log.info(
+                        STARTUP.getMarker(),
+                        "Node Communication Service marker file written to {}",
+                        STARTED_MARKER_FILE);
             } else {
-                log.info("Node Communication Service marker file already exists at {}", STARTED_MARKER_FILE);
+                log.info(
+                        STARTUP.getMarker(),
+                        "Node Communication Service marker file already exists at {}",
+                        STARTED_MARKER_FILE);
             }
         } catch (final IOException e) {
-            log.error("Failed to write Node Communication Service marker file", e);
+            log.error(STARTUP.getMarker(), "Failed to write Node Communication Service marker file", e);
             throw new RuntimeException("Failed to write Node Communication Service marker file", e);
         }
     }

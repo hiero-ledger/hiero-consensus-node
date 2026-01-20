@@ -18,6 +18,8 @@ option java_package = "com.hedera.node.internal.network.legacy";
 // <<<pbj.java_package = "com.hedera.node.internal.network">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
+import "google/protobuf/wrappers.proto";
+
 /**
  * A single block node connection configuration.<br/>
  *
@@ -38,25 +40,151 @@ message BlockNodeConfig {
     string address = 1;
 
     /**
-     * The port of the block node.<br/>
+     * The port of the block node for streaming blocks.<br/>
      * Valid port range is 1 to 65535.
      */
-    int32 port = 2;
+    int32 streaming_port = 2;
+
+    /**
+     * The priority of the block node.<br/>
+     * A lower number indicates a higher priority (e.g., priority 1 is highest).
+     * <p>
+     * This field SHALL be strictly positive.<br/>
+     * Priority MAY be unique, or shared with multiple nodes. Nodes with the same
+     * priority belong to the same priority group.<br/>
+     * In choosing which connections to establish and maintain, the consensus node
+     * SHALL prefer the highest-priority block node(s) over any belonging to
+     * a lower priority group.<br/>
+     * If all nodes in the highest priority group are unresponsive, the consensus
+     * node SHALL connect to a node in the next-highest available priority group.
+     */
+    int32 priority = 3;
+
+    /**
+     * Optional setting that determines the desired maximum size of messages
+     * sent by the consensus node to a block node. Some block items may exceed
+     * this setting, in which case a request may "burst" up to the configured
+     * hard limit.<br/>
+     * If present, this value SHALL override the default.<br/>
+     * This value MUST be smaller than or equal to the configured hard limit.<br/>
+     * This value MUST be strictly positive.
+     */
+    google.protobuf.UInt64Value message_size_soft_limit_bytes = 4;
+
+    /**
+     * Optional setting that determines the absolute maximum size of messages
+     * sent by the consensus node to a block node.<br/>
+     * If present, this value SHALL override the default.<br/>
+     * This value MUST be larger than or equal to the configured soft limit.<br/>
+     * This value MUST be strictly positive.
+     */
+    google.protobuf.UInt64Value message_size_hard_limit_bytes = 5;
+
+    /**
+     * Optional HTTP configuration for the Helidon client.<br />
+     * If present, this configuration SHALL be used to override any default
+     * settings related to setting up the Helidon client to a block node.
+     */
+    HelidonHttpConfig client_http_config = 6;
+
+    /**
+     * Optional gRPC configuration for the Helidon client.<br />
+     * If present, this configuration SHALL be used to override any default
+     * settings related to setting up the Helidon client to a block node.
+     */
+    HelidonGrpcConfig client_grpc_config = 7;
+
+    /**
+     * The port of the block node for accessing the service API.<br/>
+     * Valid port range is 1 to 65535.
+     */
+    int32 service_port = 8;
+}
+
+/**
+ * Optional Helidon HTTP/2 configuration for a specific block node connection.
+ * If present, these values SHALL be used to configure the Helidon WebClient for
+ * connecting to the corresponding block node.
+ */
+message HelidonHttpConfig {
+  /**
+   * Timeout for blocking while waiting for window update when window is depleted.
+   * ISO-8601 duration string (e.g., "PT15S").
+   */
+  google.protobuf.StringValue flow_control_block_timeout = 1;
 
   /**
-   * The priority of the block node.<br/>
-   * A lower number indicates a higher priority (e.g., priority 1 is highest).
-   * <p>
-   * This field SHALL be strictly positive.<br/>
-   * Priority MAY be unique, or shared with multiple nodes. Nodes with the same
-   * priority belong to the same priority group.<br/>
-   * In choosing which connections to establish and maintain, the consensus node
-   * SHALL prefer the highest-priority block node(s) over any belonging to
-   * a lower priority group.<br/>
-   * If all nodes in the highest priority group are unresponsive, the consensus
-   * node SHALL connect to a node in the next-highest available priority group.
+   * Configure INITIAL_WINDOW_SIZE setting for new HTTP/2 connections.
    */
-    int32 priority = 3;
+  google.protobuf.Int32Value initial_window_size = 2;
+
+  /**
+   * Configure initial MAX_FRAME_SIZE setting for new HTTP/2 connections.
+   */
+  google.protobuf.Int32Value max_frame_size = 3;
+
+  /**
+   * Configure initial MAX_HEADER_LIST_SIZE setting for new HTTP/2 connections.
+   */
+  google.protobuf.Int64Value max_header_list_size = 4;
+
+  /**
+   * Name of this HTTP/2 protocol configuration. Default is "h2".
+   */
+  google.protobuf.StringValue name = 5;
+
+  /**
+   * Check healthiness of cached connections with HTTP/2.0 ping frame.
+   */
+  google.protobuf.BoolValue ping = 6;
+
+  /**
+   * Timeout for ping probe used for checking healthiness of cached connections.
+   * ISO-8601 duration string (e.g., "PT0.5S").
+   */
+  google.protobuf.StringValue ping_timeout = 7;
+
+  /**
+   * Prior knowledge of HTTP/2 capabilities of the server.
+   */
+  google.protobuf.BoolValue prior_knowledge = 8;
+}
+
+/**
+ * Optional Helidon gRPC configuration for a specific block node connection.
+ * If present, these values SHALL be used to configure the Helidon gRPC
+ * WebClient for connecting to the corresponding block node.
+ */
+message HelidonGrpcConfig {
+  /**
+   * Whether to continue retrying after a poll wait timeout expired or not. If a read operation timeouts out and this
+   * flag is set to false, the event is logged and the client will retry. Otherwise, an exception is thrown.
+   */
+  google.protobuf.BoolValue abort_poll_time_expired = 1;
+
+  /**
+   * How often to send a heartbeat (HTTP/2 ping) to check if the connection is still alive. This is useful for
+   * long-running, streaming gRPC calls. It is turned off by default but can be enabled by setting the period to a value
+   * greater than 0. ISO-8601 duration string (e.g., "PT0S").
+   */
+  google.protobuf.StringValue heartbeat_period = 2;
+
+  /**
+   * Initial buffer size used to serialize gRPC request payloads. Buffers shall grow according to the payload size, but
+   * setting this initial buffer size to a larger value may improve performance for certain applications.
+   */
+  google.protobuf.Int32Value init_buffer_size = 3;
+
+  /**
+   * Name identifying this client protocol. Defaults to type.
+   */
+  google.protobuf.StringValue name = 4;
+
+  /**
+   * How long to wait for the next HTTP/2 data frame to arrive in underlying stream. Whether this is a fatal error or
+   * not is controlled by abort_poll_time_expired(). ISO-8601 duration string (e.g., "PT10S").
+   */
+  google.protobuf.StringValue poll_wait_time = 5;
 }
 
 /**
@@ -74,4 +202,3 @@ message BlockNodeConnectionInfo {
      */
     repeated BlockNodeConfig nodes = 1;
 }
-

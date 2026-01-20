@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.records;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjSlotUsages;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjStateChanges;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
@@ -16,11 +17,13 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.state.contract.SlotKey;
+import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -78,12 +81,16 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      *
      * @param outcome the EVM transaction outcome
      * @param context the handle context
+     * @param idFactory the entity id factory
      * @return this updated builder
      */
     default ContractOperationStreamBuilder withCommonFieldsSetFrom(
-            @NonNull final CallOutcome outcome, @NonNull final HandleContext context) {
+            @NonNull final CallOutcome outcome,
+            @NonNull final HandleContext context,
+            @NonNull final EntityIdFactory idFactory) {
         requireNonNull(outcome);
         requireNonNull(context);
+        requireNonNull(idFactory);
         if (outcome.actions() != null) {
             // (FUTURE) Remove after switching to block stream
             addContractActions(new ContractActions(outcome.actions()), false);
@@ -109,6 +116,10 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
                 testForIdenticalKeys(o -> {
                     if (o instanceof SlotKey slotKey) {
                         return !changedKeys.contains(slotKey);
+                    }
+                    if (o instanceof EvmHookSlotKey evmHookSlotKey) {
+                        return !changedKeys.contains(
+                                new SlotKey(idFactory.newContractId(HTS_HOOKS_CONTRACT_NUM), evmHookSlotKey.key()));
                     }
                     return false;
                 });

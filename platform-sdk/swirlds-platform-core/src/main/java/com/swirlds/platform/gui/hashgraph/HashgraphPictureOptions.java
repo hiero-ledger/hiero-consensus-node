@@ -11,11 +11,6 @@ public interface HashgraphPictureOptions {
     boolean isPictureFrozen();
 
     /**
-     * @return should the hashgraph be expanded
-     */
-    boolean isExpanded();
-
-    /**
      * @return should round created be written for every event
      */
     boolean writeRoundCreated();

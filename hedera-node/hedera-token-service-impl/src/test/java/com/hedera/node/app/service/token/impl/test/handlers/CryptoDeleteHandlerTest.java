@@ -10,7 +10,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_I
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_ACCOUNT_SAME_AS_DELETE_ACCOUNT;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -35,6 +37,8 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
+import com.hedera.node.app.service.addressbook.impl.ReadableAccountNodeRelStoreImpl;
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
@@ -56,6 +60,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.MapReadableKVState;
 import java.util.List;
 import java.util.Map;
 import org.assertj.core.api.Assertions;
@@ -270,6 +275,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         givenTxnWith(deleteAccountId, transferAccountId);
         given(expiryValidator.isDetached(eq(EntityType.ACCOUNT), anyBoolean(), anyLong()))
                 .willReturn(false);
+        mockReadableAccountNodeState();
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -286,6 +292,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         given(expiryValidator.isDetached(eq(EntityType.ACCOUNT), anyBoolean(), anyLong()))
                 .willReturn(false);
         given(stack.getBaseBuilder(CryptoDeleteStreamBuilder.class)).willReturn(recordBuilder);
+        mockReadableAccountNodeState();
 
         subject.handle(handleContext);
 
@@ -408,6 +415,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         given(expiryValidator.isDetached(eq(EntityType.ACCOUNT), anyBoolean(), anyLong()))
                 .willReturn(false);
         given(stack.getBaseBuilder(CryptoDeleteStreamBuilder.class)).willReturn(recordBuilder);
+        mockReadableAccountNodeState();
 
         subject.handle(handleContext);
 
@@ -456,5 +464,14 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
         final var impl = new TokenServiceApiImpl(configuration, writableStates, op -> false, entityCounters);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(impl);
+    }
+
+    private void mockReadableAccountNodeState() {
+        readableAccountNodeRels = MapReadableKVState.<AccountID, Long>builder(
+                        ACCOUNT_NODE_REL_STATE_ID, ACCOUNTS_STATE_LABEL)
+                .build();
+        given(readableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRels);
+        final var accountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates);
+        given(storeFactory.readableStore(ReadableAccountNodeRelStore.class)).willReturn(accountNodeRelStore);
     }
 }

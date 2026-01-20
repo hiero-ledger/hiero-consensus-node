@@ -9,7 +9,6 @@ import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguratio
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,10 +19,10 @@ import java.util.concurrent.ThreadFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.otter.docker.app.EventMessageFactory;
 import org.hiero.consensus.otter.docker.app.OutboundDispatcher;
-import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.container.proto.Empty;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceInterface;
@@ -32,6 +31,8 @@ import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
+import org.hiero.otter.fixtures.internal.KeysAndCertsConverter;
+import org.hiero.otter.fixtures.internal.ProtobufConverter;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 
@@ -110,6 +111,13 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
             return;
         }
 
+        dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
+
+        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
+            return dispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+        });
+
         if (consensusNodeManager != null) {
             replies.onError(new IllegalStateException("Platform already started"));
             log.info(ERROR.getMarker(), "Invalid request, platform already started: {}", request);
@@ -137,22 +145,11 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
     private void setupStreamingEventDispatcher(@NonNull final Pipeline<? super EventMessage> replies) {
         dispatcher = new OutboundDispatcher(dispatchExecutor, replies);
 
-        // Capture the dispatcher in a final variable so the lambda remains valid
-        final OutboundDispatcher currentDispatcher = dispatcher;
-
         consensusNodeManager.registerPlatformStatusChangeListener(
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
 
         consensusNodeManager.registerConsensusRoundListener(
                 rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
-
-        consensusNodeManager.registerMarkerFileListener(
-                markerFiles -> dispatcher.enqueue(EventMessageFactory.fromMarkerFiles(markerFiles)));
-
-        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
-            return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
-        });
     }
 
     /**
@@ -214,7 +211,10 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
     @Override
     @NonNull
     public synchronized Empty SyntheticBottleneckUpdate(@NonNull final SyntheticBottleneckRequest request) {
-        log.info(DEMO_INFO.getMarker(), "Received synthetic bottleneck request: {}", request);
+        log.info(
+                DEMO_INFO.getMarker(),
+                "Received synthetic bottleneck request: {} ms",
+                request.sleepMillisPerRound());
         if (consensusNodeManager == null) {
             throw new IllegalStateException("Platform not started yet");
         }

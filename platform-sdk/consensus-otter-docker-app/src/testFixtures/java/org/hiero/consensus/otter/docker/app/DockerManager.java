@@ -5,7 +5,6 @@ import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MARKER_FILE;
 import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MARKER_FILE_NAME;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
-import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJavaToolOptions;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -92,16 +91,19 @@ public final class DockerManager implements ContainerControlServiceInterface {
 
         this.selfId = requestSelfId;
 
+        // Set the debug port for the node communication service as JVM arguments
+        // This ensures only the main process gets the debug agent, not tools like jps/jcmd
+        final int debugPort = getNodeCommunicationDebugPort(selfId);
         final ProcessBuilder processBuilder = new ProcessBuilder(
                 "java",
+                "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:" + debugPort,
+                "-Djdk.attach.allowAttachSelf=true",
+                "-XX:+StartAttachListener",
                 "-cp",
                 DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS,
                 CONSENSUS_NODE_MAIN_CLASS,
                 String.valueOf(selfId.id()));
 
-        // Set the debug port for the node communication service in the java environment variable.
-        final int debugPort = getNodeCommunicationDebugPort(selfId);
-        processBuilder.environment().put("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
         processBuilder.inheritIO();
 
         log.info("Starting NodeCommunicationService with self ID: {}", selfId.id());
@@ -118,7 +120,11 @@ public final class DockerManager implements ContainerControlServiceInterface {
                 log.info("NodeCommunicationService initialized");
                 return Empty.DEFAULT;
             } else {
-                log.error("Consensus node process started, but marker file was not detected in the allowed time");
+                if (!process.isAlive()) {
+                    log.error("Consensus node stopped prematurely. Errorcode: {}", process.exitValue());
+                } else {
+                    log.error("Consensus node process started, but marker file was not detected in the allowed time");
+                }
                 throw new IllegalStateException(
                         "Consensus node process started, but marker file was not detected in the allowed time");
             }
@@ -184,6 +190,21 @@ public final class DockerManager implements ContainerControlServiceInterface {
         log.info("Received kill request: {}", request);
         if (process != null) {
             process.destroyForcibly();
+            try {
+                if (process.waitFor(request.timeoutSeconds(), TimeUnit.SECONDS)) {
+                    log.info("Kill request completed.");
+                    return Empty.DEFAULT;
+                } else {
+                    log.error("Failed to terminate the consensus node process within the timeout period.");
+                    throw new IllegalStateException(
+                            "Failed to terminate the consensus node process within the timeout period.");
+                }
+            } catch (final InterruptedException e) {
+                log.error("Interrupted while waiting for the consensus node process to terminate.", e);
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(
+                        "Interrupted while waiting for the consensus node process to terminate.", e);
+            }
         }
         log.info("Kill request completed.");
         return Empty.DEFAULT;

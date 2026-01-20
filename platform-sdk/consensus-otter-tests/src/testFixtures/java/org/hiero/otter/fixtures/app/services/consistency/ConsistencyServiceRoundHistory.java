@@ -23,7 +23,7 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * Object representing the entire history of rounds handled by the Consistency Service.
@@ -230,7 +230,9 @@ public class ConsistencyServiceRoundHistory implements Closeable {
      */
     public void close() {
         try {
-            writer.close();
+            if (writer != null) {
+                writer.close();
+            }
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to close writer for transaction handling history", e);
         }

@@ -95,36 +95,15 @@ public class SingleNodeReconnectResultContinuousAssert
             @NonNull final Duration maximumReconnectTime) {
         return checkContinuously((notification) -> {
             switch (notification) {
-                case final SynchronizationCompleteNotification s ->
-                    failWithMessage(
-                            "Expected maximum reconnect time to be <%s> was <%s>%n%s",
-                            maximumReconnectTime,
-                            Duration.ofSeconds((long) s.payload().getTimeInSeconds()),
-                            s.payload());
-                default -> {
-                    // Ignore other notifications
+                case final SynchronizationCompleteNotification s -> {
+                    final Duration actualTime =
+                            Duration.ofSeconds((long) s.payload().getTimeInSeconds());
+                    if (actualTime.compareTo(maximumReconnectTime) > 0) {
+                        failWithMessage(
+                                "Expected maximum reconnect time to be <%s> was <%s>%n%s",
+                                maximumReconnectTime, actualTime, s.payload());
+                    }
                 }
-            }
-        });
-    }
-
-    /**
-     * Asserts that the node has no reconnects that take longer than the provided time to initialize the tree.
-     *
-     * @param maximumTreeInitializationTime the maximum allowed tree initialization time
-     * @return this assertion object for method chaining
-     */
-    @NonNull
-    public SingleNodeReconnectResultContinuousAssert hasMaximumTreeInitializationTime(
-            final Duration maximumTreeInitializationTime) {
-        return checkContinuously((notification) -> {
-            switch (notification) {
-                case final SynchronizationCompleteNotification s ->
-                    failWithMessage(
-                            "Expected maximum tree initialization time to be <%s> but it took <%s> to initialize the tree%n%s",
-                            maximumTreeInitializationTime,
-                            Duration.ofSeconds((long) s.payload().getInitializationTimeInSeconds()),
-                            s.payload());
                 default -> {
                     // Ignore other notifications
                 }

@@ -29,4 +29,17 @@ public interface HookDispatchStreamBuilder extends StreamBuilder {
      * @return the EVM transaction call result
      */
     Bytes getEvmCallResult();
+
+    /**
+     * Returns the number of storage slots updated during hook creation, update or execution
+     * @return   the number of storage slots updated
+     */
+    int getDeltaStorageSlotsUpdated();
+
+    /**
+     * Sets the number of storage slots updated during hook creation, update or execution
+     *
+     * @param deltaStorageSlotsUpdated the number of storage slots updated
+     */
+    void setDeltaStorageSlotsUpdated(int deltaStorageSlotsUpdated);
 }

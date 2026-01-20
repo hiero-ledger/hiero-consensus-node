@@ -22,14 +22,11 @@ import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.platform.cli.utils.HederaUtils;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.state.SavedStateUtils;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
@@ -49,7 +46,9 @@ import java.util.Scanner;
 import java.util.stream.Collectors;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesConfig;
 import org.hiero.consensus.roster.RosterDiff;
 import org.hiero.consensus.roster.RosterUtils;
 import picocli.CommandLine;
@@ -196,7 +195,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
             copyNetworkOverrideFileToCorrectDirectory();
         }
 
-        copyStateFilesToCorrectDirectory(sourceStateInfo.fileInfo().getDirectory());
+        copyStateFilesToCorrectDirectory(sourceStateInfo.fileInfo().stateDirectory());
 
         truncatePCESFilesIfNotAFreezeState();
 
@@ -229,10 +228,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
             throw new RuntimeException(e);
         }
 
-        final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-
-        final SwirldMain<? extends MerkleNodeState> appMain =
-                HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
+        final SwirldMain<? extends MerkleNodeState> appMain = HederaUtils.createHederaAppMain(platformContext);
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
 
         if (savedStateFiles.isEmpty()) {
@@ -244,16 +240,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 new SimpleRecycleBin(),
                 appMain.getSemanticVersion(),
                 savedStateFiles,
-                v -> {
-                    try {
-                        return appMain.stateRootFromVirtualMap().apply(v);
-                    } catch (UnsupportedOperationException e) {
-                        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
-                        return appMain.newStateRoot();
-                    }
-                },
-                platformStateFacade,
-                platformContext)) {
+                platformContext,
+                appMain.getStateLifecycleManager())) {
             final Hash newHash = rehashTree(
                     platformContext.getMerkleCryptography(),
                     state.get().getState().getRoot());

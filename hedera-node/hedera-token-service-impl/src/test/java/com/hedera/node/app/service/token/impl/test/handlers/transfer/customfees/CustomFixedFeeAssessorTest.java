@@ -15,9 +15,9 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
-import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFixedFeeAssessor;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.ItemizedAssessedFee;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,9 +67,8 @@ public class CustomFixedFeeAssessorTest {
         final var feeMeta = withCustomToken(List.of(hbarFee), TokenType.FUNGIBLE_COMMON);
 
         subject.assessFixedFees(feeMeta, payer, result);
-        assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
-        assertThat(result.getAssessedFeesWithPayerDebits())
-                .contains(new AssessedFeeWithPayerDebits(hbarAssessedFee, null));
+        assertThat(result.getItemizedAssessedFees()).isNotEmpty();
+        assertThat(result.getItemizedAssessedFees()).contains(new ItemizedAssessedFee(hbarAssessedFee, null));
     }
 
     @Test
@@ -79,9 +78,8 @@ public class CustomFixedFeeAssessorTest {
         final var feeMeta = withCustomToken(List.of(hbarFee), TokenType.FUNGIBLE_COMMON);
 
         subject.assessFixedFees(feeMeta, payer, result);
-        assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
-        assertThat(result.getAssessedFeesWithPayerDebits())
-                .contains(new AssessedFeeWithPayerDebits(htsAssessedFee, null));
+        assertThat(result.getItemizedAssessedFees()).isNotEmpty();
+        assertThat(result.getItemizedAssessedFees()).contains(new ItemizedAssessedFee(htsAssessedFee, null));
     }
 
     @Test
@@ -91,7 +89,7 @@ public class CustomFixedFeeAssessorTest {
         final var feeMeta = withCustomToken(List.of(hbarFee), TokenType.FUNGIBLE_COMMON);
 
         subject.assessFixedFees(feeMeta, payer, result);
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
     }
 
     @Test
@@ -101,7 +99,7 @@ public class CustomFixedFeeAssessorTest {
         final var feeMeta = withCustomToken(List.of(hbarFee), TokenType.FUNGIBLE_COMMON);
 
         subject.assessFixedFees(feeMeta, payer, result);
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
     }
 
     @Test
@@ -111,7 +109,7 @@ public class CustomFixedFeeAssessorTest {
         final var feeMeta = withCustomToken(List.of(hbarFee), TokenType.FUNGIBLE_COMMON);
 
         subject.assessFixedFee(feeMeta, payer, hbarFee, result);
-        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
     }
 
     public Token withCustomToken(List<CustomFee> customFees, TokenType tokenType) {

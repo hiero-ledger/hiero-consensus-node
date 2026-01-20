@@ -5,7 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static java.util.Objects.requireNonNull;
 
@@ -137,7 +137,10 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
 
         try {
             return context.dispatch(setupDispatch(
-                            context.payer(), synthTxn, CryptoCreateStreamBuilder.class, NOOP_FEE_CHARGING))
+                            context.payer(),
+                            synthTxn,
+                            CryptoCreateStreamBuilder.class,
+                            DISPATCH_ONLY_NOOP_FEE_CHARGING))
                     .status();
         } catch (HandleException e) {
             // It is critically important we don't let HandleExceptions propagate to the workflow because

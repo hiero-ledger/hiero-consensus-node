@@ -139,7 +139,7 @@ public class CustomFractionalFeeAssessor {
                 // Add assessed custom fees to the result. This is needed to build transaction record
                 // If there are multiple payers, record the details in the result. This is needed to construct
                 // custom fee proposed transfers with hooks
-                result.addAssessedFeeWithPayerDebits(
+                result.addItemizedAssessedFee(
                         AssessedCustomFee.newBuilder()
                                 .effectivePayerAccountId(finalEffPayerNums.toArray(finalEffPayerNumsArray))
                                 .feeCollectorAccountId(collector)
@@ -239,9 +239,11 @@ public class CustomFractionalFeeAssessor {
      */
     private ReclaimResult reclaim(final long amount, @NonNull final Map<AccountID, Long> credits) {
         long availableToReclaim = 0L;
-        for (final var entry : credits.entrySet()) {
-            availableToReclaim += entry.getValue();
-            validateTrue(availableToReclaim >= 0, CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
+        try {
+            availableToReclaim =
+                    credits.values().stream().mapToLong(Long::longValue).reduce(0L, Math::addExact);
+        } catch (final ArithmeticException e) {
+            throw new HandleException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
         }
         final long amountToReclaim = Math.min(amount, availableToReclaim);
 

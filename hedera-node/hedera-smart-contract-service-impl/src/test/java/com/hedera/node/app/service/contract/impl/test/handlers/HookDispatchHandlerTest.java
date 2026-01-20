@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -21,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -65,6 +67,9 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
     @Mock
     private GasCalculator gasCalculator;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
     @Mock(strictness = Mock.Strictness.LENIENT)
     private ContractServiceComponent contractServiceComponent;
 
@@ -85,8 +90,8 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         lenient()
                 .when(gasCalculator.transactionIntrinsicGasCost(
                         org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
-                .thenReturn((long) config.getConfigData(HooksConfig.class).lambdaIntrinsicGasCost());
-        subject = new HookDispatchHandler(() -> factory, gasCalculator, contractServiceComponent);
+                .thenReturn((long) config.getConfigData(HooksConfig.class).evmHookIntrinsicGasCost());
+        subject = new HookDispatchHandler(() -> factory, gasCalculator, entityIdFactory, contractServiceComponent);
     }
 
     @Test
@@ -94,7 +99,7 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         given(handleContext.body()).willReturn(hookDispatchWithCreation());
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(evmHookStore).createEvmHook(any());
+        verify(evmHookStore).createEvmHook(any(), anyLong());
     }
 
     @Test

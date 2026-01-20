@@ -19,6 +19,7 @@ mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 jmhModuleInfo {
     requires("jmh.core")
     requires("com.swirlds.base.test.fixtures")
+    runtimeOnly("com.swirlds.config.impl")
 }
 
 testModuleInfo {
@@ -33,6 +34,8 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
+
+    runtimeOnly("com.swirlds.platform.core")
 }
 
 hammerModuleInfo {

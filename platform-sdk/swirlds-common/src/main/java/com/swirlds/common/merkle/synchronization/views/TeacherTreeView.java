@@ -5,12 +5,10 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
 import java.io.IOException;
-import java.util.Queue;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A "view" into a merkle tree (or subtree) used to perform a reconnect operation. This view is used to access
@@ -32,28 +30,13 @@ public interface TeacherTreeView<T>
      * @param workGroup the work group to run teaching task(s) in
      * @param inputStream the input stream to read data from learner
      * @param outputStream the output stream to write data to learner
-     * @param subtrees if custom tree views are encountered, they must be added to this queue
      */
     void startTeacherTasks(
             final TeachingSynchronizer teachingSynchronizer,
             final Time time,
             final StandardWorkGroup workGroup,
             final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream,
-            final Queue<TeacherSubtree> subtrees);
-
-    /**
-     * Aborts the reconnect process on the teacher side. It may be used to release resources, when
-     * reconnect failed with an exception.
-     */
-    default void abort() {}
-
-    /**
-     * Get the root of the tree.
-     *
-     * @return the root
-     */
-    T getRoot();
+            final MerkleDataOutputStream outputStream);
 
     /**
      * Write data for a merkle leaf to the stream.
@@ -91,26 +74,4 @@ public interface TeacherTreeView<T>
      * @throws IOException If an I/O error occurred
      */
     void writeChildHashes(T parent, SerializableDataOutputStream out) throws IOException;
-
-    /**
-     * Check if a node is the root of the tree with a custom view.
-     *
-     * @param node
-     * 		the node in question
-     * @return if the node is the root of a tree with a custom view
-     */
-    boolean isCustomReconnectRoot(T node);
-
-    /**
-     * It is possible to create a teacher view that is not immediately ready for use, and later becomes ready for use
-     * after miscellaneous background operations complete. This method blocks until that background work is completed,
-     * after which the view is ready to be used during a reconnect.
-     *
-     * @throws InterruptedException
-     * 		if the thread is interrupted
-     */
-    default void waitUntilReady() throws InterruptedException {
-        // By default, a view is considered "ready" after constructed.
-        // If that is not the case for a view implementation, override this method.
-    }
 }

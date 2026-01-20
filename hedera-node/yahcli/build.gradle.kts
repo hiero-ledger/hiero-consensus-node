@@ -19,6 +19,7 @@ testModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
     requires("org.junit.platform.launcher")
+    requires("org.apache.commons.lang3")
     opensTo("org.junit.platform.commons")
 }
 
@@ -46,8 +47,6 @@ val yahCliJar =
         dependsOn(tasks.compileJava, tasks.classes, tasks.processResources)
     }
 
-tasks.assemble { dependsOn(yahCliJar) }
-
 tasks.register<Copy>("copyYahCli") {
     group = "copy"
     from(yahCliJar)
@@ -69,6 +68,9 @@ tasks.test {
 }
 
 tasks.register<Test>("testSubprocess") {
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+
     useJUnitPlatform { includeTags("REGRESSION") }
 
     systemProperty("hapi.spec.initial.port", 25000)

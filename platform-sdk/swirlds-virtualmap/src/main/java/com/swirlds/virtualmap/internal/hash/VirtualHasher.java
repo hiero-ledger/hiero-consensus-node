@@ -6,8 +6,7 @@ import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.logging.legacy.LogMarker;
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -15,7 +14,6 @@ import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -30,7 +28,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.StackTrace;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -86,13 +83,8 @@ public final class VirtualHasher {
     /**
      * This thread-local gets a message digest that can be used for hashing on a per-thread basis.
      */
-    private static final ThreadLocal<MessageDigest> MESSAGE_DIGEST_THREAD_LOCAL = ThreadLocal.withInitial(() -> {
-        try {
-            return MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
-        } catch (final NoSuchAlgorithmException e) {
-            throw new CryptographyException(e, LogMarker.EXCEPTION);
-        }
-    });
+    private static final ThreadLocal<WritableMessageDigest> MESSAGE_DIGEST_THREAD_LOCAL =
+            ThreadLocal.withInitial(() -> new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest()));
 
     /**
      * A function to look up clean hashes by path during hashing. This function is stored in
@@ -222,7 +214,7 @@ public final class VirtualHasher {
                         if (right == null) {
                             final long rightPath = rankPath + i * 2 + 1;
                             right = hashReader.apply(rightPath);
-                            if ((right == null) && (rightPath != 2)) {
+                            if (right == null) {
                                 throw new RuntimeException("Failed to load hash for path = " + rightPath);
                             }
                         }
@@ -240,15 +232,18 @@ public final class VirtualHasher {
         }
 
         static Hash hash(final Hash left, final Hash right) {
-            final MessageDigest md = MESSAGE_DIGEST_THREAD_LOCAL.get();
-            md.reset();
-            // Unique value to make sure internal node hashes are different from leaf hashes
-            md.update((byte) 0x02);
-            left.getBytes().writeTo(md);
+            final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
+            wmd.reset();
+            // Unique value to make sure internal node hashes are different from leaf hashes. This
+            // value indicates the number of child nodes. All internal virtual nodes have 2 children
+            // except a root node in a tree with just one element / leaf. In this and only this case,
+            // the right hash will be set to a marker NO_PATH2_HASH hash object
+            wmd.writeByte(right == NO_PATH2_HASH ? (byte) 0x01 : (byte) 0x02);
+            left.getBytes().writeTo(wmd);
             if (right != NO_PATH2_HASH) { // use identity check rather than equals
-                right.getBytes().writeTo(md);
+                right.getBytes().writeTo(wmd);
             }
-            return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+            return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
         }
     }
 
@@ -257,15 +252,6 @@ public final class VirtualHasher {
     // given leaf data, but executed using #complete() method, and their output is a
     // null hash
     class LeafHashTask extends HashProducingTask {
-
-        // Future work: modify hashing pool thread factory to use custom threads with all
-        // resources available. It should be faster than using thread locals
-        private static final ThreadLocal<byte[]> BYTE_ARRAY_THREAD_LOCAL = ThreadLocal.withInitial(() -> new byte[256]);
-
-        // Future work: modify hashing pool thread factory to use custom threads with all
-        // resources available. It should be faster than using thread locals
-        private static final ThreadLocal<BufferedData> BUFFERED_DATA_THREAD_LOCAL =
-                ThreadLocal.withInitial(() -> BufferedData.wrap(BYTE_ARRAY_THREAD_LOCAL.get()));
 
         // Leaf path
         private final long path;
@@ -295,19 +281,9 @@ public final class VirtualHasher {
         protected boolean onExecute() {
             Hash hash = null;
             if (leaf != null) {
-                final int leafSizeInBytes = leaf.getSizeInBytesForHashing();
-                byte[] arr = BYTE_ARRAY_THREAD_LOCAL.get();
-                BufferedData out = BUFFERED_DATA_THREAD_LOCAL.get();
-                if (out.length() < leafSizeInBytes) {
-                    arr = new byte[leafSizeInBytes];
-                    BYTE_ARRAY_THREAD_LOCAL.set(arr);
-                    out = BufferedData.wrap(arr);
-                    BUFFERED_DATA_THREAD_LOCAL.set(out);
-                }
-                leaf.writeToForHashing(out);
-                final MessageDigest md = MESSAGE_DIGEST_THREAD_LOCAL.get();
-                md.update(arr, 0, Math.toIntExact(out.position()));
-                hash = new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+                final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
+                leaf.writeToForHashing(wmd);
+                hash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
                 listener.onLeafHashed(leaf);
                 listener.onNodeHashed(path, hash);
             }
@@ -410,32 +386,45 @@ public final class VirtualHasher {
             final @NonNull VirtualMapConfig virtualMapConfig) {
         requireNonNull(virtualMapConfig);
 
+        this.hashReader = hashReader;
         // We don't want to include null checks everywhere, so let the listener be NoopListener if null
-        final VirtualHashListener normalizedListener = listener == null
+        this.listener = listener == null
                 ? new VirtualHashListener() {
                     /* noop */
                 }
                 : listener;
+        // Let the listener know we have started hashing.
+        this.listener.onHashingStarted(firstLeafPath, lastLeafPath);
 
         final ForkJoinPool pool = Thread.currentThread() instanceof ForkJoinWorkerThread thread
                 ? thread.getPool()
                 : getHashingPool(virtualMapConfig);
 
-        return pool.invoke(ForkJoinTask.adapt(() -> hashInternal(
-                hashReader,
-                sortedDirtyLeaves,
-                firstLeafPath,
-                lastLeafPath,
-                normalizedListener,
-                virtualMapConfig,
-                pool)));
+        final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(
+                () -> hashInternal(sortedDirtyLeaves, firstLeafPath, lastLeafPath, virtualMapConfig, pool)));
+        if (rootTask != null) {
+            try {
+                rootTask.join();
+            } catch (final Exception e) {
+                if (!shutdown.get()) {
+                    logger.error(EXCEPTION.getMarker(), "Failed to wait for all hashing tasks", e);
+                    throw e;
+                }
+            }
+        }
+
+        this.listener.onHashingCompleted();
+
+        this.hashReader = null;
+        this.listener = null;
+
+        return rootTask != null ? rootTask.getResult() : null;
     }
 
     /**
-     * Internal method calculating the hash of the tree in a given fork-join pool.
+     * Internal method calculating the hash of the tree in a given fork-join pool. This method
+     * returns a root hashing task, which can be used to wait till hashing process is complete.
      *
-     * @param hashReader
-     * 		Return a {@link Hash} by path. Used when this method needs to look up clean nodes.
      * @param sortedDirtyLeaves
      * 		A stream of dirty leaves sorted in <strong>ASCENDING PATH ORDER</strong>, such that path
      * 		1234 comes before 1235. If null or empty, a null hash result is returned.
@@ -445,35 +434,24 @@ public final class VirtualHasher {
      * @param lastLeafPath
      * 		The lastLeafPath of the tree that is being hashed. If &lt; 1, then a null hash result is returned.
      * 		No leaf in {@code sortedDirtyLeaves} may have a path greater than {@code lastLeafPath}.
-     * @param listener
-     *      Hash listener. May be {@code null}
      * @param virtualMapConfig platform configuration for VirtualMap
      * @param pool the pool to use for hashing tasks.
-     * @return calculated root hash, or null if there are no dirty leaves to hash.
+     * @return the root hashing task, or null if there are no dirty leaves to hash.
      */
-    private Hash hashInternal(
-            final @NonNull LongFunction<Hash> hashReader,
+    private ChunkHashTask hashInternal(
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
-            final @NonNull VirtualHashListener listener,
             final @NonNull VirtualMapConfig virtualMapConfig,
             final @NonNull ForkJoinPool pool) {
-        // Let the listener know we have started hashing.
-        listener.onHashingStarted(firstLeafPath, lastLeafPath);
-
         if (!sortedDirtyLeaves.hasNext()) {
             // Nothing to hash.
-            listener.onHashingCompleted();
             return null;
         } else {
             if ((firstLeafPath < 1) || (lastLeafPath < 1)) {
                 throw new IllegalArgumentException("Dirty leaves stream is not empty, but leaf path range is empty");
             }
         }
-
-        this.hashReader = hashReader;
-        this.listener = listener;
 
         // Algo v6. This version is task based, where every task is responsible for hashing a small
         // chunk of the tree. Tasks are running in a fork-join pool, which is shared across all
@@ -651,25 +629,12 @@ public final class VirtualHasher {
         allTasks.forEach((path, task) -> task.complete());
         allTasks.clear();
 
-        try {
-            rootTask.join();
-        } catch (final Exception e) {
-            if (shutdown.get()) {
-                return null;
-            }
-            logger.error(EXCEPTION.getMarker(), "Failed to wait for all hashing tasks", e);
-            throw e;
-        }
-
-        listener.onHashingCompleted();
-
-        this.hashReader = null;
-        this.listener = null;
-
-        return rootTask.getResult();
+        return rootTask;
     }
 
     public Hash emptyRootHash() {
-        return ChunkHashTask.hash(Cryptography.NULL_HASH, Cryptography.NULL_HASH);
+        final MessageDigest md = Cryptography.DEFAULT_DIGEST_TYPE.buildDigest();
+        md.update((byte) 0x00);
+        return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
     }
 }

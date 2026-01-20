@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.spi {
+    requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.hapi;
@@ -30,4 +31,5 @@ module com.hedera.node.app.spi {
     exports com.hedera.node.app.spi.metrics;
     exports com.hedera.node.app.spi.info;
     exports com.hedera.node.app.spi.migrate;
+    exports com.hedera.node.app.spi.fees.util;
 }

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import static com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc.tinycentsToTinybars;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.swirlds.config.api.Configuration;
@@ -35,6 +39,8 @@ public interface FeeContext {
     @NonNull
     FeeCalculatorFactory feeCalculatorFactory();
 
+    SimpleFeeCalculator getSimpleFeeCalculator();
+
     /**
      * Get a readable store given the store's interface. This gives read-only access to the store.
      *
@@ -63,6 +69,7 @@ public interface FeeContext {
 
     /**
      * Returns the number of signatures provided for the transaction.
+     * This is typically the size of the signature map ({@code txInfo.signatureMap().sigPair().size()}).
      * <p>NOTE: this property should not be used for queries</p>
      * @return the number of signatures
      */
@@ -75,4 +82,26 @@ public interface FeeContext {
      * @return the computed fees
      */
     Fees dispatchComputeFees(@NonNull TransactionBody txBody, @NonNull AccountID syntheticPayerId);
+
+    /**
+     * Returns the active Exchange Rate.
+     * @return the active exchange rate
+     */
+    ExchangeRate activeRate();
+
+    /**
+     * Returns the gas price in tinycents.
+     * @return the gas price in tinycents
+     */
+    long getGasPriceInTinycents();
+
+    /**
+     * Gets the number of tinybars equivalent to the given number of tinycents.
+     *
+     * @param amount the amount in tinycents
+     * @return the amount in tinybars
+     */
+    default long tinybarsFromTinycents(final long amount) {
+        return tinycentsToTinybars(amount, fromPbj(activeRate()));
+    }
 }

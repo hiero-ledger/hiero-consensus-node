@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.merkle.util;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -9,12 +9,13 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
+import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A {@link LearningSynchronizer} with simulated latency.
@@ -30,7 +31,8 @@ public class LaggingLearningSynchronizer extends LearningSynchronizer {
     public LaggingLearningSynchronizer(
             final MerkleDataInputStream in,
             final MerkleDataOutputStream out,
-            final MerkleNode root,
+            final MerkleNode newRoot,
+            final LearnerTreeView<?> view,
             final int latencyMilliseconds,
             final Runnable breakConnection,
             final ReconnectConfig reconnectConfig,
@@ -39,11 +41,11 @@ public class LaggingLearningSynchronizer extends LearningSynchronizer {
                 getStaticThreadManager(),
                 in,
                 out,
-                root,
+                newRoot,
+                view,
                 breakConnection,
                 TestMerkleCryptoFactory.getInstance(),
-                reconnectConfig,
-                metrics);
+                reconnectConfig);
 
         this.latencyMilliseconds = latencyMilliseconds;
     }

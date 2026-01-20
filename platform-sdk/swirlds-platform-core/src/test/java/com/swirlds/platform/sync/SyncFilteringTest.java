@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
@@ -32,6 +31,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.Test;
 
@@ -182,8 +182,8 @@ class SyncFilteringTest {
 
     private static void assertTopologicalOrder(
             final PlatformContext platformContext, final List<PlatformEvent> events) {
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
-                platformContext.getConfiguration(), platformContext.getMetrics(), new NoOpIntakeEventCounter());
+        final DefaultOrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(platformContext.getMetrics(), new NoOpIntakeEventCounter());
         orphanBuffer.setEventWindow(new EventWindow(1, 1, events.getFirst().getBirthRound(), 1));
         // Verify topological ordering.
         for (final PlatformEvent event : events) {

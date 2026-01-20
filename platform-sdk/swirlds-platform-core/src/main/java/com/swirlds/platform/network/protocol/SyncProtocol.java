@@ -3,18 +3,18 @@ package com.swirlds.platform.network.protocol;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.sync.protocol.SyncPeerProtocol;
 import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -26,7 +26,7 @@ public class SyncProtocol extends AbstractSyncProtocol<ShadowgraphSynchronizer> 
     private static final Logger logger = LogManager.getLogger(SyncProtocol.class);
 
     private final PlatformContext platformContext;
-    private final FallenBehindManager fallenBehindManager;
+    private final FallenBehindMonitor fallenBehindManager;
     private final Duration sleepAfterSync;
     private final SyncMetrics syncMetrics;
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
@@ -44,7 +44,7 @@ public class SyncProtocol extends AbstractSyncProtocol<ShadowgraphSynchronizer> 
     public SyncProtocol(
             @NonNull final PlatformContext platformContext,
             @NonNull final ShadowgraphSynchronizer synchronizer,
-            @NonNull final FallenBehindManager fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final Duration sleepAfterSync,
             @NonNull final SyncMetrics syncMetrics,
@@ -70,7 +70,7 @@ public class SyncProtocol extends AbstractSyncProtocol<ShadowgraphSynchronizer> 
     public static SyncProtocol create(
             @NonNull final PlatformContext platformContext,
             @NonNull final ShadowgraphSynchronizer synchronizer,
-            @NonNull final FallenBehindManager fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final IntakeEventCounter intakeEventCounter,
             final int rosterSize,
             final SyncMetrics syncMetrics) {
@@ -95,7 +95,6 @@ public class SyncProtocol extends AbstractSyncProtocol<ShadowgraphSynchronizer> 
                 platformContext,
                 Objects.requireNonNull(peerId),
                 synchronizer,
-                fallenBehindManager,
                 permitProvider,
                 intakeEventCounter,
                 gossipHalted::get,

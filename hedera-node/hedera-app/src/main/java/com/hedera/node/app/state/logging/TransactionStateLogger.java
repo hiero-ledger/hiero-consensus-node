@@ -50,13 +50,13 @@ public final class TransactionStateLogger {
      *
      * @param event The event to log
      */
-    public static void logStartEvent(final ConsensusEvent event, final NodeInfo creator) {
+    public static void logStartEvent(final ConsensusEvent event, @Nullable final NodeInfo creator) {
         if (logger.isDebugEnabled()) {
             logger.debug(
                     "  Starting event {} at {} from node {}",
                     event.getConsensusOrder(),
                     event.getConsensusTimestamp(),
-                    creator.nodeId());
+                    creator != null ? creator.nodeId() : null);
         }
     }
 

@@ -53,15 +53,16 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     private static final String CANNOT_CREATE = "Cannot create ";
 
     /**
-     * The factory used to create new {@link EvmFrameState} instances; used once in the
-     * constructor, and then again in {@link #updater()} if that is called.
-     */
-    private final EvmFrameStateFactory evmFrameStateFactory;
-    /**
      * The parent {@link WorldUpdater}, or null if this is the root updater.
      */
     @Nullable
     private final WorldUpdater parent;
+
+    /**
+     * The factory used to create new {@link EvmFrameState} instances; used once in the
+     * constructor, and then again in {@link #updater()} if that is called.
+     */
+    protected final EvmFrameStateFactory evmFrameStateFactory;
 
     /**
      * The {@link EvmFrameState} managing this {@code ProxyWorldUpdater}'s state.

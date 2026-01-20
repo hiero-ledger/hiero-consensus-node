@@ -14,7 +14,6 @@ import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import java.io.FileNotFoundException;
 import org.hiero.base.constructable.ClassConstructorPair;
@@ -40,7 +39,6 @@ public abstract class VirtualMapReconnectBenchBase {
     protected final ReconnectConfig reconnectConfig = new TestConfigBuilder()
             // This is lower than the default, helps test that is supposed to fail to finish faster.
             .withValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, "5s")
-            .withValue(ReconnectConfig_.MAX_ACK_DELAY, "1000ms")
             .getOrCreateConfig()
             .getConfigData(ReconnectConfig.class);
 
@@ -51,8 +49,8 @@ public abstract class VirtualMapReconnectBenchBase {
     protected void setupEach() {
         teacherBuilder = createBuilder();
         learnerBuilder = createBuilder();
-        teacherMap = new VirtualMap("Teacher", teacherBuilder, CONFIGURATION);
-        learnerMap = new VirtualMap("Learner", learnerBuilder, CONFIGURATION);
+        teacherMap = new VirtualMap(teacherBuilder, CONFIGURATION);
+        learnerMap = new VirtualMap(learnerBuilder, CONFIGURATION);
     }
 
     protected static void startup() throws ConstructableRegistryException, FileNotFoundException {
@@ -65,7 +63,6 @@ public abstract class VirtualMapReconnectBenchBase {
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
         registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(new ClassConstructorPair(VirtualRootNode.class, VirtualRootNode::new));
     }
 
     protected MerkleInternal createTreeForMap(VirtualMap map) {

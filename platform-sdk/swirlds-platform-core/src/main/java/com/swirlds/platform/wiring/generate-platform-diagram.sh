@@ -31,13 +31,13 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'PlatformMonitor:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
-    -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter' \
-    -g 'Consensus Engine:ConsensusEngine,EventWindowManager,ConsensusRounds,PreConsensusEvents,PreConsensusEventsSplitter,ConsensusRoundsSplitter,RoundsToCesEvents,staleEvents,staleEventsSplitter' \
+    -g 'EventIntakeModule:EventWindowDispatcher,ClearCommandDispatcher,EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter,📬' \
+    -g 'Consensus Engine:ConsensusEngine,EventWindowManager,ConsensusRounds,PreConsensusEvents,PreConsensusEventsSplitter,ConsensusRoundsSplitter,RoundsToCesEvents' \
     -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \
     -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter,completeStatesReserver,LatestCompleteStateNotifier' \
     -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus,💢' \
-    -g 'Event Creation:EventCreationManager,🍎' \
+    -g 'EventCreatorModule:EventCreationManager,🍎' \
     -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler' \
     -g 'PCES Replay:pcesReplayer,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \

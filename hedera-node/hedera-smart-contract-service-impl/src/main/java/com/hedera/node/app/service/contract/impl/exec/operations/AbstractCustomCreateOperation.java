@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
 
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -13,6 +15,7 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.EVM;
+import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -104,23 +107,26 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
             return new Operation.OperationResult(cost, INSUFFICIENT_GAS);
         }
         final var value = Wei.wrap(frame.getStackItem(0));
-        final var account = frame.getWorldUpdater().getAccount(frame.getRecipientAddress());
+
+        final var senderAddress = getSenderAddress(frame);
+        final var senderAccount = frame.getWorldUpdater().getAccount(senderAddress);
         frame.clearReturnData();
-        if (value.compareTo(account.getBalance()) > 0 || frame.getDepth() >= MAX_STACK_DEPTH) {
+        if (value.compareTo(senderAccount.getBalance()) > 0 || frame.getDepth() >= MAX_STACK_DEPTH) {
             fail(frame);
         } else {
-            spawnChildMessage(frame);
+            // since the sender address should be the hook owner for HTS hook executions,
+            // we need to explicitly pass in the senderAddress and not use sender.getAddress()
+            spawnChildMessage(frame, senderAccount, senderAddress);
         }
         return new Operation.OperationResult(cost, null);
     }
 
-    private void spawnChildMessage(@NonNull final MessageFrame frame) {
+    private void spawnChildMessage(
+            @NonNull final MessageFrame frame, final MutableAccount sender, @NonNull final Address senderAddress) {
         // Calculate memory cost prior to expansion
         final var cost = cost(frame);
         frame.decrementRemainingGas(cost);
-
-        final var account = frame.getWorldUpdater().getAccount(frame.getRecipientAddress());
-        account.incrementNonce();
+        sender.incrementNonce();
 
         final var value = Wei.wrap(frame.getStackItem(0));
         final var inputOffset = clampedToLong(frame.getStackItem(1));
@@ -135,6 +141,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
 
         final var childGasStipend = gasCalculator().gasAvailableForChildCreate(frame.getRemainingGas());
         frame.decrementRemainingGas(childGasStipend);
+
         // child frame is added to frame stack via build method
         MessageFrame.builder()
                 .parentMessageFrame(frame)
@@ -143,7 +150,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
                 .address(contractAddress)
                 .contract(contractAddress)
                 .inputData(Bytes.EMPTY)
-                .sender(frame.getRecipientAddress())
+                .sender(senderAddress)
                 .value(value)
                 .apparentValue(value)
                 .code(codeFactory.createCode(inputData, false))
@@ -179,5 +186,18 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
         }
         final var currentPC = frame.getPC();
         frame.setPC(currentPC + 1);
+    }
+
+    /**
+     * Returns the sender address for the next frame.
+     * This is the recipient address for normal contract creation, but the hook owner address for HTS hook executions.
+     *
+     * @param frame the frame
+     * @return the sender address
+     */
+    protected Address getSenderAddress(final @NonNull MessageFrame frame) {
+        return frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)
+                ? FrameUtils.hookOwnerAddress(frame)
+                : frame.getRecipientAddress();
     }
 }

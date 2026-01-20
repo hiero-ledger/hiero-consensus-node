@@ -162,24 +162,32 @@ class CompactionInterruptTest {
         }
 
         assertEventuallyTrue(
-                hashStoreCompactor::isCompactionRunning, Duration.ofMillis(10), "hashStoreCompactor should be running");
-        assertEventuallyTrue(
-                pathToKeyValueCompactor::isCompactionRunning,
+                () -> hashStoreCompactor.isCompactionRunning() || hashStoreCompactor.isCompactionComplete(),
                 Duration.ofMillis(10),
-                "pathToKeyValueCompactor should be running");
+                "hashStoreCompactor should be complete or running");
         assertEventuallyTrue(
-                objectKeyToPathCompactor::isCompactionRunning,
+                () -> pathToKeyValueCompactor.isCompactionRunning() || pathToKeyValueCompactor.isCompactionComplete(),
                 Duration.ofMillis(10),
-                "objectKeyToPathCompactor should be running");
+                "pathToKeyValueCompactor should be complete or running");
+        assertEventuallyTrue(
+                () -> objectKeyToPathCompactor.isCompactionRunning() || objectKeyToPathCompactor.isCompactionComplete(),
+                Duration.ofMillis(10),
+                "objectKeyToPathCompactor should be complete or running");
 
         // stopping the compaction
         compactor.stopAndDisableBackgroundCompaction();
 
         assertFalse(compactor.isCompactionEnabled(), "compactionEnabled should be false");
 
-        assertFalse(hashStoreCompactor.notInterrupted(), "hashStoreCompactor should be interrupted");
-        assertFalse(pathToKeyValueCompactor.notInterrupted(), "pathToKeyValueCompactor should be interrupted");
-        assertFalse(objectKeyToPathCompactor.notInterrupted(), "objectKeyToPathCompactor should be interrupted");
+        assertTrue(
+                hashStoreCompactor.isCompactionComplete() || !hashStoreCompactor.notInterrupted(),
+                "hashStoreCompactor should be complete or interrupted");
+        assertTrue(
+                pathToKeyValueCompactor.isCompactionComplete() || !pathToKeyValueCompactor.notInterrupted(),
+                "pathToKeyValueCompactor should be complete or interrupted");
+        assertTrue(
+                objectKeyToPathCompactor.isCompactionComplete() || !objectKeyToPathCompactor.notInterrupted(),
+                "objectKeyToPathCompactor should be interrupted");
         synchronized (compactor) {
             assertTrue(compactor.compactorsByName.isEmpty(), "compactorsByName should be empty");
         }

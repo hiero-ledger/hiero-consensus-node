@@ -3,13 +3,13 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.platform.state.service.PlatformStateService.NAME;
 import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
@@ -21,6 +21,7 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
@@ -32,10 +33,12 @@ import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
+import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -53,9 +56,9 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.State;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -71,6 +74,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -85,6 +89,9 @@ class HandleWorkflowTest {
 
     @Mock
     private HintsService hintsService;
+
+    @Mock
+    private QuiescenceController quiescenceController;
 
     @Mock
     private BlockHashSigner blockHashSigner;
@@ -108,7 +115,7 @@ class HandleWorkflowTest {
     private ConfigProvider configProvider;
 
     @Mock
-    private BlockRecordManager blockRecordManager;
+    private BlockRecordManagerImpl blockRecordManager;
 
     @Mock
     private BlockStreamManager blockStreamManager;
@@ -144,7 +151,7 @@ class HandleWorkflowTest {
     private ExchangeRateManager exchangeRateManager;
 
     @Mock
-    private State state;
+    private MerkleNodeState state;
 
     @Mock
     private Round round;
@@ -165,33 +172,39 @@ class HandleWorkflowTest {
     private NodeRewardManager nodeRewardManager;
 
     @Mock
-    private PlatformStateFacade platformStateFacade;
-
-    @Mock
     private BlockBufferService blockBufferService;
-
-    @Mock
-    private ReadableStates readableStates;
-
-    @Mock
-    private EventCore eventCore;
 
     @Mock
     private ReadableSingletonState<Object> platformStateReadableSingletonState;
 
+    @Mock
+    private PlatformState platformState;
+
+    @Mock
+    private NodeFeeManager nodeFeeManager;
+
     private HandleWorkflow subject;
 
+    @BeforeEach
+    void setUp() {
+        final ReadableStates readableStates = mock(ReadableStates.class);
+        final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
+        given(singletonState.get())
+                .willReturn(PlatformState.newBuilder()
+                        .creationSoftwareVersion(
+                                SemanticVersion.newBuilder().minor(1).build())
+                        .build());
+        given(state.getReadableStates(NAME)).willReturn(readableStates);
+        given(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
+                .willReturn(singletonState);
+    }
+
     @Test
-    void onlySkipsEventWithMissingCreator() {
+    void doesntSkipEventWithMissingCreator() {
         final var presentCreatorId = NodeId.of(1L);
         final var missingCreatorId = NodeId.of(2L);
         final var eventFromPresentCreator = mock(ConsensusEvent.class);
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        given(platformStateReadableSingletonState.get())
-                .willReturn(PlatformState.newBuilder().latestFreezeRound(0L).build());
-        given(eventFromMissingCreator.getEventCore()).willReturn(eventCore);
         given(round.iterator())
                 .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
                         .iterator());
@@ -200,14 +213,17 @@ class HandleWorkflowTest {
         given(networkInfo.nodeInfo(presentCreatorId.id())).willReturn(mock(NodeInfo.class));
         given(networkInfo.nodeInfo(missingCreatorId.id())).willReturn(null);
         given(eventFromPresentCreator.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(eventFromMissingCreator.consensusTransactionIterator()).willReturn(emptyIterator());
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(12345L));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
 
         givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
 
         subject.handleRound(state, round, txns -> {});
 
         verify(eventFromPresentCreator).consensusTransactionIterator();
+        verify(eventFromMissingCreator).consensusTransactionIterator();
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
                 .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
@@ -215,9 +231,6 @@ class HandleWorkflowTest {
 
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-
         given(round.iterator()).willReturn(List.of(event).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
         given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
@@ -237,14 +250,12 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithNoParentEvents() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-
         // Setup event with no parents
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.allParentsIterator())
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
         // Set up the round
         given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
@@ -281,15 +292,13 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithParentEventsInCurrentBlock() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentHash = CryptoRandomUtils.randomHash();
 
         // Setup parent in current block
         given(blockStreamManager.getEventIndex(parentHash)).willReturn(Optional.of(5)); // Parent is at index 5
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
         // Setup event with one parent
         EventDescriptorWrapper parent = mock(EventDescriptorWrapper.class);
@@ -338,15 +347,13 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithParentEventsNotInCurrentBlock() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentHash = CryptoRandomUtils.randomHash();
 
         // Setup parent not in current block
         given(blockStreamManager.getEventIndex(parentHash)).willReturn(Optional.empty());
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
         // Setup event with one parent
         EventDescriptor parentDescriptor = EventDescriptor.newBuilder().build();
@@ -397,9 +404,6 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithMixedParentEvents() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-
         // Create event hash and parent hashes
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentInBlockHash = CryptoRandomUtils.randomHash();
@@ -408,6 +412,7 @@ class HandleWorkflowTest {
         // Setup parents - one in block, one not in block
         given(blockStreamManager.getEventIndex(parentInBlockHash)).willReturn(Optional.of(3));
         given(blockStreamManager.getEventIndex(parentNotInBlockHash)).willReturn(Optional.empty());
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
         // Setup descriptors for parents
         EventDescriptor notInBlockDescriptor = EventDescriptor.newBuilder().build();
@@ -509,16 +514,14 @@ class HandleWorkflowTest {
                 blockHashSigner,
                 null,
                 nodeRewardManager,
-                platformStateFacade,
                 blockBufferService,
-                Map.of());
+                Map.of(),
+                quiescenceController,
+                nodeFeeManager);
     }
 
     @Test
     void startRoundShouldCallEnsureNewBlocksPermitted() {
-        given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-
         // Mock the round iterator and event
         final NodeId creatorId = NodeId.of(0);
         final Hash eventHash = CryptoRandomUtils.randomHash();
@@ -527,6 +530,7 @@ class HandleWorkflowTest {
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
         given(event.allParentsIterator())
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
         given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
@@ -537,5 +541,10 @@ class HandleWorkflowTest {
         subject.handleRound(state, round, txn -> {});
 
         verify(blockBufferService).ensureNewBlocksPermitted();
+    }
+
+    private void givenPositiveFreezeRound() {
+        given(platformStateReadableSingletonState.get()).willReturn(platformState);
+        given(platformState.latestFreezeRound()).willReturn(10L);
     }
 }

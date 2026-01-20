@@ -22,6 +22,7 @@ import static org.mockito.BDDMockito.given;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -29,13 +30,16 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Fraction;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftID;
+import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenSupplyType;
+import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
@@ -68,6 +72,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBuilder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.TokenKeyType;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
@@ -78,6 +83,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -98,6 +104,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
@@ -996,6 +1003,10 @@ public class TestHelpers {
                 HederaEvmVersion.VERSION_051,
                 processor,
                 HederaEvmVersion.VERSION_065,
+                processor,
+                HederaEvmVersion.VERSION_066,
+                processor,
+                HederaEvmVersion.VERSION_067,
                 processor);
     }
 
@@ -1062,6 +1073,68 @@ public class TestHelpers {
 
     public static TokenTransferListBuilder tokenTransferList() {
         return new TokenTransferListBuilder();
+    }
+
+    public record TestHbarTransfer(AccountID sender, AccountID receiver, long amount) {}
+
+    public static TransferList transfersLists(@NonNull final List<TestHbarTransfer> hbarTransfers) {
+        final var transferList = TransferList.newBuilder();
+        List<AccountAmount> list = new ArrayList<>();
+        for (TestHbarTransfer hbarTransfer : hbarTransfers) {
+            list.add(AccountAmount.newBuilder()
+                    .accountID(hbarTransfer.receiver())
+                    .amount(hbarTransfer.amount())
+                    .build());
+            list.add(AccountAmount.newBuilder()
+                    .accountID(hbarTransfer.sender())
+                    .amount(-hbarTransfer.amount())
+                    .build());
+        }
+        return transferList.build();
+    }
+
+    public record TestTokenTransfer(
+            TokenID token,
+            boolean isNft,
+            AccountID sender,
+            Account senderAccount,
+            AccountID receiver,
+            Account receiverAccount,
+            long amount) {}
+
+    public static List<TokenTransferList> tokenTransfersLists(@NonNull final List<TestTokenTransfer> tokenTransfers) {
+        List<TokenTransferList> tokenTransferList = new ArrayList<>();
+        for (TestTokenTransfer tokenTransfer : tokenTransfers) {
+            if (!tokenTransfer.isNft()) {
+                tokenTransferList.add(TokenTransferList.newBuilder()
+                        .token(tokenTransfer.token())
+                        .transfers(List.of(
+                                AccountAmount.newBuilder()
+                                        .accountID(tokenTransfer.receiver())
+                                        .amount(tokenTransfer.amount())
+                                        .build(),
+                                AccountAmount.newBuilder()
+                                        .accountID(tokenTransfer.sender())
+                                        .amount(-tokenTransfer.amount())
+                                        .build()))
+                        .build());
+            } else {
+                tokenTransferList.add(TokenTransferList.newBuilder()
+                        .token(tokenTransfer.token())
+                        .nftTransfers(List.of(NftTransfer.newBuilder()
+                                .senderAccountID(tokenTransfer.sender())
+                                .receiverAccountID(tokenTransfer.receiver())
+                                .serialNumber(tokenTransfer.amount())
+                                .build()))
+                        .build());
+            }
+        }
+        return tokenTransferList;
+    }
+
+    public static LogTopic convertAccountToLog(final Account account) {
+        return LogTopic.wrap(org.apache.tuweni.bytes.Bytes.wrap(LogBuilder.expandByteArrayTo32Length(
+                ConversionUtils.priorityAddressOf(account).toArray())));
     }
 
     private static HederaEvmTransactionResult explicitSuccessFrom(

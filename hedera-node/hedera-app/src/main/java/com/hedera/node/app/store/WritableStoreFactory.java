@@ -10,6 +10,7 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
@@ -33,6 +34,7 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
+import com.hedera.node.app.service.token.impl.WritableNodePaymentsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
@@ -59,6 +61,10 @@ public class WritableStoreFactory {
         final Map<Class<?>, StoreEntry> newMap = new HashMap<>();
         // AddressBookService
         newMap.put(WritableNodeStore.class, new StoreEntry(AddressBookService.NAME, WritableNodeStore::new));
+        newMap.put(
+                WritableAccountNodeRelStore.class,
+                new StoreEntry(
+                        AddressBookService.NAME, (states, entityCounters) -> new WritableAccountNodeRelStore(states)));
 
         // ConsensusService
         newMap.put(WritableTopicStore.class, new StoreEntry(ConsensusService.NAME, WritableTopicStore::new));
@@ -74,6 +80,9 @@ public class WritableStoreFactory {
                 new StoreEntry(
                         TokenService.NAME, (states, entityCounters) -> new WritableNetworkStakingRewardsStore(states)));
         newMap.put(WritableStakingInfoStore.class, new StoreEntry(TokenService.NAME, WritableStakingInfoStore::new));
+        newMap.put(
+                WritableNodePaymentsStore.class,
+                new StoreEntry(TokenService.NAME, (states, entityCounters) -> new WritableNodePaymentsStore(states)));
         // FreezeService
         newMap.put(
                 WritableFreezeStore.class,

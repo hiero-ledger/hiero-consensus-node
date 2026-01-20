@@ -14,12 +14,13 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AC
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.IMPERMISSIBLE;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.independentDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -80,8 +81,10 @@ import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -134,6 +137,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
@@ -184,6 +188,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Mock
     private FeeAccumulator feeAccumulator;
+
+    @Mock
+    private FeeCharging feeCharging;
 
     @Mock
     private TransactionChecker transactionChecker;
@@ -306,7 +313,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     void setup() {
         when(serviceScopeLookup.getServiceName(any())).thenReturn(TokenService.NAME);
         readableStoreFactory = new ReadableStoreFactory(baseState);
-        apiFactory = new ServiceApiFactory(stack, configuration, Map.of());
+        apiFactory = new ServiceApiFactory(stack, configuration, Map.of(), NodeFeeAccumulator.NOOP);
         storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, apiFactory);
         subject = createContext(txBody);
 
@@ -315,8 +322,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Test
     void delegatesFeeChargingForPayer() {
-        given(feeAccumulator.chargeFee(payerId, 123L, null)).willReturn(new Fees(0, 123L, 0));
-
+        given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(feeCharging.charge(eq(subject.payer()), eq(subject), any(), eq(new Fees(0, 0L, 123L))))
+                .willReturn(new Fees(0, 123L, 0));
         assertTrue(subject.tryToChargePayer(123L));
     }
 
@@ -328,16 +336,18 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Test
     void delegatesFeeChargingForOtherAccount() {
-        given(feeAccumulator.chargeFee(AccountID.DEFAULT, 123L, null)).willReturn(new Fees(0, 122L, 0));
-
-        assertFalse(subject.tryToCharge(AccountID.DEFAULT, 123L));
+        final var overridePayerId = AccountID.newBuilder().accountNum(12345).build();
+        given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(feeCharging.charge(eq(overridePayerId), eq(subject), any(), eq(new Fees(0, 0, 123L))))
+                .willReturn(new Fees(0, 122L, 0));
+        assertFalse(subject.tryToCharge(overridePayerId, 123L));
     }
 
     @Test
     void delegatesRefunding() {
         subject.refundBestEffort(payerId, 123L);
 
-        verify(feeAccumulator).refundFee(payerId, 123L);
+        verify(feeCharging).refund(payerId, subject, new Fees(0, 123L, 0));
     }
 
     @Test
@@ -419,6 +429,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             blockRecordManager,
             resourcePriceCalculator,
             feeManager,
+            feeCharging,
             storeFactory,
             payerId,
             verifier,
@@ -444,7 +455,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         for (int i = 0; i < allArgs.length; i++) {
             final var index = i;
             // Skip signatureMapSize, payerKey, preHandleResults and batchInnerTxnPreHandler
-            if (index == 2 || index == 4 || index == 24 || index == 25) {
+            if (index == 2 || index == 4 || index == 25 || index == 26) {
                 continue;
             }
             assertThatThrownBy(() -> {
@@ -635,7 +646,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                             StreamBuilder.class,
                             StakingRewards.ON,
                             UsePresetTxnId.NO,
-                            NOOP_FEE_CHARGING,
+                            UNIVERSAL_NOOP_FEE_CHARGING,
                             PropagateFeeChargingStrategy.YES)))
                     .isInstanceOf(NullPointerException.class);
             assertThatThrownBy(() -> subject.dispatch(subDispatch(
@@ -646,7 +657,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                             null,
                             StakingRewards.ON,
                             UsePresetTxnId.NO,
-                            NOOP_FEE_CHARGING,
+                            UNIVERSAL_NOOP_FEE_CHARGING,
                             PropagateFeeChargingStrategy.YES)))
                     .isInstanceOf(NullPointerException.class);
         }
@@ -663,10 +674,10 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                             StreamBuilder.class,
                             StakingRewards.OFF,
                             UsePresetTxnId.NO,
-                            NOOP_FEE_CHARGING,
+                            UNIVERSAL_NOOP_FEE_CHARGING,
                             PropagateFeeChargingStrategy.YES))),
-                    Arguments.of((Consumer<HandleContext>) context -> context.dispatch(
-                            setupDispatch(ALICE.accountID(), txBody, StreamBuilder.class, NOOP_FEE_CHARGING)))));
+                    Arguments.of((Consumer<HandleContext>) context -> context.dispatch(setupDispatch(
+                            ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING)))));
         }
 
         @ParameterizedTest
@@ -731,7 +742,8 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
             Mockito.lenient().when(verifier.verificationFor((Key) any())).thenReturn(verification);
 
-            context.dispatch(setupDispatch(ALICE.accountID(), txBody, StreamBuilder.class, NOOP_FEE_CHARGING));
+            context.dispatch(
+                    setupDispatch(ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING));
 
             verify(dispatchProcessor).processDispatch(childDispatch);
             verify(stack, never()).commitFullStack();
@@ -763,7 +775,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                     StreamBuilder.class,
                     StakingRewards.ON,
                     UsePresetTxnId.NO,
-                    NOOP_FEE_CHARGING,
+                    UNIVERSAL_NOOP_FEE_CHARGING,
                     PropagateFeeChargingStrategy.YES));
 
             verify(dispatchProcessor).processDispatch(childDispatch);
@@ -827,6 +839,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 blockRecordManager,
                 resourcePriceCalculator,
                 feeManager,
+                feeCharging,
                 storeFactory,
                 payerId,
                 verifier,
@@ -846,6 +859,114 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 results,
                 preHandleWorkflow,
                 category);
+    }
+
+    @Test
+    void tryToCharge_bypassesFeeChargingStrategy_whenEnabled_returnsTrue() {
+        given(feeCharging.bypassForExtraHandlerCharges()).willReturn(true);
+        final var amount = 123L;
+        given(feeAccumulator.chargeFee(eq(payerId), eq(amount), any())).willReturn(new Fees(0, amount, 0));
+
+        final var result = subject.tryToCharge(payerId, amount);
+
+        assertTrue(result);
+        verify(feeAccumulator).chargeFee(eq(payerId), eq(amount), any());
+        verify(feeCharging, never()).charge(any(), any(), any());
+    }
+
+    @Test
+    void tryToCharge_bypassesFeeChargingStrategy_whenEnabled_returnsFalseIfNotFullyCharged() {
+        given(feeCharging.bypassForExtraHandlerCharges()).willReturn(true);
+        final var amount = 123L;
+        given(feeAccumulator.chargeFee(eq(payerId), eq(amount), any())).willReturn(new Fees(0, amount - 1, 0));
+
+        final var result = subject.tryToCharge(payerId, amount);
+
+        assertFalse(result);
+        verify(feeAccumulator).chargeFee(eq(payerId), eq(amount), any());
+        verify(feeCharging, never()).charge(any(), any(), any());
+    }
+
+    @Test
+    void refundBestEffort_bypassesFeeChargingStrategy_whenEnabled() {
+        given(feeCharging.bypassForExtraHandlerCharges()).willReturn(true);
+        final var amount = 321L;
+
+        subject.refundBestEffort(payerId, amount);
+
+        verify(feeAccumulator).refundFee(payerId, amount);
+        verify(feeCharging, never()).refund(any(), any());
+    }
+
+    @Test
+    void readableStore_delegatesToStoreFactory() throws Exception {
+        @SuppressWarnings("unchecked")
+        final Class<Object> storeInterface =
+                (Class<Object>) Class.forName("com.hedera.node.app.service.token.ReadableAccountStore");
+        final var store = subject.readableStore(storeInterface);
+        assertThat(store).isNotNull();
+        assertTrue(storeInterface.isInstance(store));
+    }
+
+    @Test
+    void creatorInfo_exposesInjectedNodeInfo() {
+        assertSame(creatorInfo, subject.creatorInfo());
+    }
+
+    @Test
+    void dispatchMetadata_exposesInjectedMetadata() {
+        assertSame(EMPTY_METADATA, subject.dispatchMetadata());
+    }
+
+    @Test
+    void payerId_exposesPrimaryPayer() {
+        assertSame(payerId, subject.payerId());
+    }
+
+    @Test
+    void nodeAccountId_comesFromCreatorInfo() {
+        given(creatorInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+        assertSame(NODE_ACCOUNT_ID, subject.nodeAccountId());
+    }
+
+    @Test
+    void charge_withoutNode_delegatesToFeeAccumulator() {
+        final ObjLongConsumer<AccountID> cb = (id, amt) -> {};
+        given(feeAccumulator.chargeFee(eq(payerId), eq(FEES.totalFee()), any())).willReturn(FEES);
+
+        final var charged = subject.charge(payerId, FEES, cb);
+
+        assertSame(FEES, charged);
+        verify(feeAccumulator).chargeFee(eq(payerId), eq(FEES.totalFee()), any());
+    }
+
+    @Test
+    void charge_withNode_delegatesToFeeAccumulator() {
+        final ObjLongConsumer<AccountID> cb = (id, amt) -> {};
+        given(feeAccumulator.chargeFees(eq(payerId), eq(NODE_ACCOUNT_ID), eq(FEES), any()))
+                .willReturn(FEES);
+
+        final var charged = subject.charge(payerId, FEES, NODE_ACCOUNT_ID, cb);
+
+        assertSame(FEES, charged);
+        verify(feeAccumulator).chargeFees(eq(payerId), eq(NODE_ACCOUNT_ID), eq(FEES), any());
+    }
+
+    @Test
+    void refund_withoutNode_delegatesToFeeAccumulator() {
+        subject.refund(payerId, FEES);
+        verify(feeAccumulator).refundFee(eq(payerId), eq(FEES.totalFee()));
+    }
+
+    @Test
+    void refund_withNode_delegatesToFeeAccumulator() {
+        subject.refund(payerId, FEES, NODE_ACCOUNT_ID);
+        verify(feeAccumulator).refundFees(eq(payerId), eq(FEES), eq(NODE_ACCOUNT_ID));
+    }
+
+    @Test
+    void category_isChild_forFeeChargingContext() {
+        assertThat(subject.category()).isEqualTo(CHILD);
     }
 
     private void mockNeeded() {

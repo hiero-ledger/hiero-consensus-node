@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.ResourceExhaustedException.validateResource;
 import static java.util.Objects.requireNonNull;
@@ -93,7 +94,8 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
                 enhancement,
                 writes,
                 sizeEffects.sizeChanges(),
-                enhancement.operations().getStore());
+                enhancement.operations().getStore(),
+                enhancement.nativeOperations().writableEvmHookStore());
 
         // We now have an apparently valid change set, and want to capture some summary
         // information for the Hedera record
@@ -119,6 +121,19 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     @Override
     public @NonNull TxStorageUsage getTxStorageUsage() {
         return requireNonNull(txStorageUsage);
+    }
+
+    /**
+     * Returns the {@link EvmFrameState} that manages this updater's EVM state.
+     *
+     * <p>This provides real-time access to storage changes during EVM execution,
+     * which is needed for opcode tracing functionality (similar to Ethereum's
+     * {@code debug_traceTransaction}).
+     *
+     * @return the EVM frame state for this updater
+     */
+    public @NonNull EvmFrameState getEvmFrameState() {
+        return evmFrameState;
     }
 
     /**
@@ -164,7 +179,10 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     private void chargeRentFor(@NonNull final SizeEffects sizeEffects) {
         for (final var sizeChange : sizeEffects.sizeChanges()) {
             if (sizeChange.numAdded() > 0) {
-                final var rentFactors = evmFrameState.getRentFactorsFor(sizeChange.contractID());
+                final var contractId = sizeChange.contractID();
+                final var rentFactors = contractId.contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM
+                        ? evmFrameState.getRentFactorsFor(evmFrameStateFactory.hookRentPayerId())
+                        : evmFrameState.getRentFactorsFor(sizeChange.contractID());
                 // Calculate rent and try to charge the allocating contract
                 final var rentInTinycents = rentCalculator.computeFor(
                         sizeEffects.finalSlotsUsed(),

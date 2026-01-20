@@ -131,11 +131,13 @@ public class ScheduleLongTermExecutionTest {
     @HapiTest
     @Tag(MATS)
     final Stream<DynamicTest> scheduleNodeCreateWorks() throws Exception {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
+                cryptoCreate(nodeAccount),
                 scheduleCreate(
                                 "schedule",
-                                nodeCreate("test")
+                                nodeCreate("test", nodeAccount)
                                         .description("hello")
                                         .gossipCaCertificate(generateX509Certificates(2)
                                                 .getFirst()
@@ -151,9 +153,11 @@ public class ScheduleLongTermExecutionTest {
 
     @HapiTest
     final Stream<DynamicTest> scheduleNodeUpdateWorks() throws Exception {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
-                nodeCreate("test")
+                cryptoCreate(nodeAccount),
+                nodeCreate("test", nodeAccount)
                         .description("hello")
                         .gossipCaCertificate(
                                 generateX509Certificates(2).getFirst().getEncoded())
@@ -169,14 +173,15 @@ public class ScheduleLongTermExecutionTest {
 
     @HapiTest
     final Stream<DynamicTest> scheduleDeleteUpdateWorks() throws Exception {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
-                nodeCreate("test")
+                cryptoCreate(nodeAccount),
+                nodeCreate("test", nodeAccount)
                         .description("hello")
                         .gossipCaCertificate(
                                 generateX509Certificates(2).getFirst().getEncoded())
                         .grpcCertificateHash("hash".getBytes())
-                        .accountNum(100)
                         .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
                         .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
                         .adminKey(ED_25519_KEY),

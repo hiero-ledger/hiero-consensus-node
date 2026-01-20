@@ -12,11 +12,11 @@ import static java.util.stream.Collectors.toList;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.forensics.DifferingEntries;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.hapi.utils.forensics.TransactionParts;
 import com.hedera.node.app.state.SingleTransactionRecord;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
@@ -60,12 +60,14 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
 
         @Override
         public @NonNull TransactionRecordParityValidator create(@NonNull final HapiSpec spec) {
-            return new TransactionRecordParityValidator();
+            return new TransactionRecordParityValidator(
+                    spec.targetNetworkOrThrow().shard(),
+                    spec.targetNetworkOrThrow().realm());
         }
     };
 
-    public TransactionRecordParityValidator() {
-        translator = new BlockTransactionalUnitTranslator();
+    public TransactionRecordParityValidator(final long shard, final long realm) {
+        translator = new BlockTransactionalUnitTranslator(shard, realm);
     }
 
     /**
@@ -88,7 +90,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .normalize();
         final var records = StreamFileAccess.STREAM_FILE_ACCESS.readStreamDataFrom(recordsLoc.toString(), "sidecar");
 
-        final var validator = new TransactionRecordParityValidator();
+        final var validator = new TransactionRecordParityValidator(11L, 12L);
         validator.validateBlockVsRecords(blocks, records);
     }
 
@@ -97,8 +99,10 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
             @NonNull final List<Block> blocks, @NonNull final StreamFileAccess.RecordStreamData data) {
         requireNonNull(blocks);
         requireNonNull(data);
-
-        final var rfTranslator = new BlockTransactionalUnitTranslator();
+        logger.info("Starting TransactionRecordParityValidator");
+        final var baseTranslator = translator.getBaseTranslator();
+        final var rfTranslator =
+                new BlockTransactionalUnitTranslator(baseTranslator.getShard(), baseTranslator.getRealm());
         var foundGenesisBlock = false;
         for (final var block : blocks) {
             if (translator.scanBlockForGenesis(block)) {
@@ -199,6 +203,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 }
             }
         }
+        logger.info("TransactionRecordParityValidator PASSED");
     }
 
     private Map<Timestamp, List<TransactionSidecarRecord>> byTime(

@@ -275,45 +275,6 @@
               }
             },
             {
-              "subType": "CRYPTO_TRANSFER_WITH_HOOKS",
-              "nodedata": {
-                "constant": 7574478,
-                "bpt": 12109,
-                "vpt": 30273301,
-                "rbh": 8,
-                "sbh": 1,
-                "gas": 81,
-                "bpr": 12109,
-                "sbpr": 303,
-                "min": 0,
-                "max": 1000000000000000
-              },
-              "networkdata": {
-                "constant": 151489557,
-                "bpt": 242186,
-                "vpt": 605466012,
-                "rbh": 161,
-                "sbh": 12,
-                "gas": 1615,
-                "bpr": 242186,
-                "sbpr": 6055,
-                "min": 0,
-                "max": 1000000000000000
-              },
-              "servicedata": {
-                "constant": 151489557,
-                "bpt": 242186,
-                "vpt": 605466012,
-                "rbh": 161,
-                "sbh": 500000000000,
-                "gas": 852000,
-                "bpr": 242186,
-                "sbpr": 6055,
-                "min": 0,
-                "max": 1000000000000000
-              }
-            },
-            {
               "subType": "TOKEN_FUNGIBLE_COMMON",
               "nodedata": {
                 "constant": 7983519,
@@ -1069,41 +1030,41 @@
           "fees": [
             {
               "subType": "DEFAULT",
-              "nodedata": {
-                "constant": 9248442,
-                "bpt": 14785,
-                "vpt": 36963719,
-                "rbh": 10,
-                "sbh": 1,
-                "gas": 99,
-                "bpr": 14785,
-                "sbpr": 370,
-                "min": 0,
-                "max": 1000000000000000
+              "nodedata" : {
+                "constant" : 59685200,
+                "bpt" : 95419,
+                "vpt" : 238546872,
+                "rbh" : 64,
+                "sbh" : 5,
+                "gas" : 636,
+                "bpr" : 95419,
+                "sbpr" : 2385,
+                "min" : 0,
+                "max" : 1000000000000000
               },
-              "networkdata": {
-                "constant": 147975076,
-                "bpt": 236568,
-                "vpt": 591419509,
-                "rbh": 158,
-                "sbh": 12,
-                "gas": 1577,
-                "bpr": 236568,
-                "sbpr": 5914,
-                "min": 0,
-                "max": 1000000000000000
+              "networkdata" : {
+                "constant" : 1193703997,
+                "bpt" : 1908375,
+                "vpt" : 4770937438,
+                "rbh" : 1272,
+                "sbh" : 95,
+                "gas" : 12722,
+                "bpr" : 1908375,
+                "sbpr" : 47709,
+                "min" : 0,
+                "max" : 1000000000000000
               },
-              "servicedata": {
-                "constant": 147975076,
-                "bpt": 236568,
-                "vpt": 591419509,
-                "rbh": 158,
-                "sbh": 12,
-                "gas": 1577,
-                "bpr": 236568,
-                "sbpr": 5914,
-                "min": 0,
-                "max": 1000000000000000
+              "servicedata" : {
+                "constant" : 1193703997,
+                "bpt" : 1908375,
+                "vpt" : 4770937438,
+                "rbh" : 1272,
+                "sbh" : 95,
+                "gas" : 12722,
+                "bpr" : 1908375,
+                "sbpr" : 47709,
+                "min" : 0,
+                "max" : 1000000000000000
               }
             },
             {
@@ -4230,45 +4191,6 @@
               }
             },
             {
-              "subType": "CRYPTO_TRANSFER_WITH_HOOKS",
-              "nodedata": {
-                "constant": 7574478,
-                "bpt": 12109,
-                "vpt": 30273301,
-                "rbh": 8,
-                "sbh": 1,
-                "gas": 81,
-                "bpr": 12109,
-                "sbpr": 303,
-                "min": 0,
-                "max": 1000000000000000
-              },
-              "networkdata": {
-                "constant": 151489557,
-                "bpt": 242186,
-                "vpt": 605466012,
-                "rbh": 161,
-                "sbh": 12,
-                "gas": 1615,
-                "bpr": 242186,
-                "sbpr": 6055,
-                "min": 0,
-                "max": 1000000000000000
-              },
-              "servicedata": {
-                "constant": 151489557,
-                "bpt": 242186,
-                "vpt": 605466012,
-                "rbh": 161,
-                "sbh": 500000000000,
-                "gas": 852000,
-                "bpr": 242186,
-                "sbpr": 6055,
-                "min": 0,
-                "max": 1000000000000000
-              }
-            },
-            {
               "subType": "TOKEN_FUNGIBLE_COMMON",
               "nodedata": {
                 "constant": 7983519,
@@ -5024,41 +4946,41 @@
           "fees": [
             {
               "subType": "DEFAULT",
-              "nodedata": {
-                "constant": 9248442,
-                "bpt": 14785,
-                "vpt": 36963719,
-                "rbh": 10,
-                "sbh": 1,
-                "gas": 99,
-                "bpr": 14785,
-                "sbpr": 370,
-                "min": 0,
-                "max": 1000000000000000
+              "nodedata" : {
+                "constant" : 59685200,
+                "bpt" : 95419,
+                "vpt" : 238546872,
+                "rbh" : 64,
+                "sbh" : 5,
+                "gas" : 636,
+                "bpr" : 95419,
+                "sbpr" : 2385,
+                "min" : 0,
+                "max" : 1000000000000000
               },
-              "networkdata": {
-                "constant": 147975076,
-                "bpt": 236568,
-                "vpt": 591419509,
-                "rbh": 158,
-                "sbh": 12,
-                "gas": 1577,
-                "bpr": 236568,
-                "sbpr": 5914,
-                "min": 0,
-                "max": 1000000000000000
+              "networkdata" : {
+                "constant" : 1193703997,
+                "bpt" : 1908375,
+                "vpt" : 4770937438,
+                "rbh" : 1272,
+                "sbh" : 95,
+                "gas" : 12722,
+                "bpr" : 1908375,
+                "sbpr" : 47709,
+                "min" : 0,
+                "max" : 1000000000000000
               },
-              "servicedata": {
-                "constant": 147975076,
-                "bpt": 236568,
-                "vpt": 591419509,
-                "rbh": 158,
-                "sbh": 12,
-                "gas": 1577,
-                "bpr": 236568,
-                "sbpr": 5914,
-                "min": 0,
-                "max": 1000000000000000
+              "servicedata" : {
+                "constant" : 1193703997,
+                "bpt" : 1908375,
+                "vpt" : 4770937438,
+                "rbh" : 1272,
+                "sbh" : 95,
+                "gas" : 12722,
+                "bpr" : 1908375,
+                "sbpr" : 47709,
+                "min" : 0,
+                "max" : 1000000000000000
               }
             },
             {

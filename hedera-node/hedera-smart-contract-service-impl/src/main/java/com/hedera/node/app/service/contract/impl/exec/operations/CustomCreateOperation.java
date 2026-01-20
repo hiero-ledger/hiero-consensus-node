@@ -55,7 +55,7 @@ public class CustomCreateOperation extends AbstractCustomCreateOperation {
     protected @NonNull Address setupPendingCreation(@NonNull final MessageFrame frame) {
         final var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
 
-        final var origin = frame.getRecipientAddress();
+        final var origin = getSenderAddress(frame);
         final var originNonce = requireNonNull(updater.getAccount(origin)).getNonce();
         // Decrement nonce by 1 to normalize the effect of transaction execution
         final var address = Address.contractAddress(origin, originNonce - 1);

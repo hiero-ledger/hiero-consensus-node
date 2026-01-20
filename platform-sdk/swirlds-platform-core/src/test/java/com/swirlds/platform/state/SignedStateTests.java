@@ -3,7 +3,9 @@ package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -14,16 +16,13 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -31,9 +30,12 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.exceptions.ReferenceCountException;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.crypto.SignatureVerifier;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("SignedState Tests")
@@ -43,10 +45,7 @@ class SignedStateTests {
      * Generate a signed state.
      */
     private SignedState generateSignedState(final Random random, final MerkleNodeState state) {
-        return new RandomSignedStateGenerator(random)
-                .setState(state)
-                .buildWithFacade()
-                .left();
+        return new RandomSignedStateGenerator(random).setState(state).build();
     }
 
     @AfterEach
@@ -62,10 +61,10 @@ class SignedStateTests {
      */
     private MerkleNodeState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
-        final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var real = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        final var real = VirtualMapStateTestUtils.createTestState();
         TestingAppStateInitializer.initConsensusModuleStates(real, CONFIGURATION);
-        RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
+        RosterStateUtils.setActiveRoster(
+                real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
         final MerkleNode realRoot = state.getRoot();
         final MerkleNode rootSpy = spy(realRoot);
@@ -213,28 +212,45 @@ class SignedStateTests {
     @Test
     @DisplayName("Alternate Constructor Reservations Test")
     void alternateConstructorReservationsTest() {
-        final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
+        final var virtualMap = VirtualMapUtils.createVirtualMap();
 
-        final MerkleNodeState state = spy(new TestVirtualMapState(virtualMap));
+        final MerkleNodeState state = spy(createTestStateWithVM(virtualMap));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
-        final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         TestingAppStateInitializer.initPlatformState(state);
         when(platformState.getRound()).thenReturn(0L);
-        final SignedState signedState = new SignedState(
-                TestPlatformContextBuilder.create().build().getConfiguration(),
-                mock(SignatureVerifier.class),
-                state,
-                "test",
-                false,
-                false,
-                false,
-                platformStateFacade);
+        final SignedState signedState =
+                new SignedState(CONFIGURATION, mock(SignatureVerifier.class), state, "test", false, false, false);
 
         assertFalse(state.isDestroyed(), "state should not yet be destroyed");
 
         signedState.reserve("test").close();
 
         assertTrue(state.isDestroyed(), "state should now be destroyed");
+    }
+
+    /**
+     * Verify behavior when something tries to reserve a state.
+     */
+    @Test
+    @Tag(TestComponentTags.MERKLE)
+    @DisplayName("Test Try Reserve")
+    void tryReserveTest() {
+        final Random random = new Random();
+        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
+        generateSignedState(random, state);
+
+        assertEquals(
+                1,
+                state.getRoot().getReservationCount(),
+                "A state referenced only by a signed state should have a ref count of 1");
+
+        assertTrue(state.getRoot().tryReserve(), "tryReserve() should succeed because the state is not destroyed.");
+        assertEquals(2, state.getRoot().getReservationCount(), "tryReserve() should increment the reference count.");
+
+        state.release();
+        state.release();
+
+        assertTrue(state.isDestroyed(), "state should be destroyed when fully released.");
+        assertFalse(state.getRoot().tryReserve(), "tryReserve() should fail when the state is destroyed");
     }
 }

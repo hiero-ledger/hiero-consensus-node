@@ -69,9 +69,10 @@ class AtomicNodeDeleteTest {
     @Tag(MATS)
     final Stream<DynamicTest> deleteNodeWorks() throws CertificateEncodingException {
         final String nodeName = "mytestnode";
-
+        final String nodeAccount = "nodeAccount";
         return hapiTest(
-                nodeCreate(nodeName)
+                cryptoCreate(nodeAccount),
+                nodeCreate(nodeName, nodeAccount)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 viewNode(nodeName, node -> assertFalse(node.deleted(), "Node should not be deleted")),
                 atomicBatch(nodeDelete(nodeName).batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR),
@@ -81,11 +82,13 @@ class AtomicNodeDeleteTest {
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
     final Stream<DynamicTest> validateFees() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("testKey"),
                 newKeyNamed("randomAccount"),
                 cryptoCreate("payer").balance(10_000_000_000L),
-                nodeCreate("node100")
+                cryptoCreate(nodeAccount),
+                nodeCreate("node100", nodeAccount)
                         .description(description)
                         .fee(ONE_HBAR)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
@@ -125,11 +128,13 @@ class AtomicNodeDeleteTest {
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
     final Stream<DynamicTest> validateFeesInsufficientAmount() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("testKey"),
                 newKeyNamed("randomAccount"),
                 cryptoCreate("payer").balance(10_000_000_000L),
-                nodeCreate("node100")
+                cryptoCreate(nodeAccount),
+                nodeCreate("node100", nodeAccount)
                         .description(description)
                         .fee(ONE_HBAR)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
@@ -160,9 +165,11 @@ class AtomicNodeDeleteTest {
     @HapiTest
     final Stream<DynamicTest> failsAtIngestForUnAuthorizedTxns() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 cryptoCreate("payer").balance(10_000_000_000L),
-                nodeCreate("ntb")
+                cryptoCreate(nodeAccount),
+                nodeCreate("ntb", nodeAccount)
                         .description(description)
                         .fee(ONE_HBAR)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
@@ -178,7 +185,7 @@ class AtomicNodeDeleteTest {
 
     @HapiTest
     final Stream<DynamicTest> handleNodeNotExist() {
-        final String nodeName = "33";
+        final String nodeName = "33445566";
         return hapiTest(
                 atomicBatch(nodeDelete(nodeName).hasKnownStatus(INVALID_NODE_ID).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
@@ -188,8 +195,10 @@ class AtomicNodeDeleteTest {
     @HapiTest
     final Stream<DynamicTest> handleNodeAlreadyDeleted() throws CertificateEncodingException {
         final String nodeName = "mytestnode";
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
-                nodeCreate(nodeName)
+                cryptoCreate(nodeAccount),
+                nodeCreate(nodeName, nodeAccount)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 atomicBatch(nodeDelete(nodeName).batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR),
                 atomicBatch(nodeDelete(nodeName)
@@ -204,12 +213,13 @@ class AtomicNodeDeleteTest {
     final Stream<DynamicTest> handleCanBeExecutedJustWithPrivilegedAccount() throws CertificateEncodingException {
         long PAYER_BALANCE = 1_999_999_999L;
         final String nodeName = "mytestnode";
-
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("adminKey"),
                 newKeyNamed("wrongKey"),
                 cryptoCreate("payer").balance(PAYER_BALANCE).key("wrongKey"),
-                nodeCreate(nodeName)
+                cryptoCreate(nodeAccount),
+                nodeCreate(nodeName, nodeAccount)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 atomicBatch(nodeDelete(nodeName)
                                 .payingWith("payer")
@@ -225,9 +235,10 @@ class AtomicNodeDeleteTest {
     @DisplayName("DAB enable test")
     final Stream<DynamicTest> checkDABEnable() throws CertificateEncodingException {
         final String nodeName = "mytestnode";
-
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
-                nodeCreate(nodeName)
+                cryptoCreate(nodeAccount),
+                nodeCreate(nodeName, nodeAccount)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 overriding("nodes.enableDAB", "false"),
                 atomicBatch(nodeDelete(nodeName).hasPrecheck(NOT_SUPPORTED).batchKey(BATCH_OPERATOR))
@@ -237,11 +248,13 @@ class AtomicNodeDeleteTest {
 
     @HapiTest
     final Stream<DynamicTest> signWithWrongAdminKeyFailed() throws CertificateEncodingException {
+        final String nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("payerKey"),
                 cryptoCreate("payer").key("payerKey").balance(10_000_000_000L),
                 newKeyNamed("adminKey"),
-                nodeCreate("testNode")
+                cryptoCreate(nodeAccount),
+                nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 atomicBatch(nodeDelete("testNode")
@@ -256,11 +269,13 @@ class AtomicNodeDeleteTest {
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @Tag(MATS)
     final Stream<DynamicTest> signWithCorrectAdminKeySuccess() throws CertificateEncodingException {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("payerKey"),
                 cryptoCreate("payer").key("payerKey").balance(10_000_000_000L),
                 newKeyNamed("adminKey"),
-                nodeCreate("testNode")
+                cryptoCreate(nodeAccount),
+                nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 atomicBatch(nodeDelete("testNode")
@@ -273,9 +288,11 @@ class AtomicNodeDeleteTest {
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> deleteNodeWorkWithValidAdminKey() throws CertificateEncodingException {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("adminKey"),
-                nodeCreate("testNode")
+                cryptoCreate(nodeAccount),
+                nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 viewNode("testNode", node -> assertFalse(node.deleted(), "Node should not be deleted")),
@@ -288,9 +305,11 @@ class AtomicNodeDeleteTest {
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> deleteNodeWorkWithTreasuryPayer() throws CertificateEncodingException {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("adminKey"),
-                nodeCreate("testNode")
+                cryptoCreate(nodeAccount),
+                nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 viewNode("testNode", node -> assertFalse(node.deleted(), "Node should not be deleted")),
@@ -301,11 +320,13 @@ class AtomicNodeDeleteTest {
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> deleteNodeWorkWithAddressBookAdminPayer() throws CertificateEncodingException {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("adminKey"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, ONE_HUNDRED_HBARS))
                         .fee(ONE_HBAR),
-                nodeCreate("testNode")
+                cryptoCreate(nodeAccount),
+                nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 viewNode("testNode", node -> assertFalse(node.deleted(), "Node should not be deleted")),
@@ -318,9 +339,11 @@ class AtomicNodeDeleteTest {
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> deleteNodeWorkWithSysAdminPayer() throws CertificateEncodingException {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("adminKey"),
-                nodeCreate("testNode")
+                cryptoCreate(nodeAccount),
+                nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 viewNode("testNode", node -> assertFalse(node.deleted(), "Node should not be deleted")),

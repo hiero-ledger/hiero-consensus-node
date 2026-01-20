@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.util.ArrayList;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -56,9 +55,8 @@ class GrpcBlockItemWriterTest {
 
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
-        final var proof = BlockItem.newBuilder()
-                .blockProof(BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>()))
-                .build();
+        final var proof =
+                BlockItem.newBuilder().blockProof(BlockProof.newBuilder()).build();
 
         grpcBlockItemWriter.writePbjItemAndBytes(proof, bytes);
 
@@ -72,9 +70,8 @@ class GrpcBlockItemWriterTest {
 
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
-        final var proof = BlockItem.newBuilder()
-                .blockProof(BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>()))
-                .build();
+        final var proof =
+                BlockItem.newBuilder().blockProof(BlockProof.newBuilder()).build();
 
         grpcBlockItemWriter.writePbjItem(proof);
 

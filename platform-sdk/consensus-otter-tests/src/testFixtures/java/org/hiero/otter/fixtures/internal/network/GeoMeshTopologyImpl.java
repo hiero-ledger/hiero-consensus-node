@@ -3,7 +3,7 @@ package org.hiero.otter.fixtures.internal.network;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.network.GeoDistributor.calculateNextLocation;
-import static org.hiero.otter.fixtures.network.utils.BandwidthLimit.UNLIMITED;
+import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -18,8 +18,8 @@ import java.util.function.Supplier;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.GeoMeshTopology;
-import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
-import org.hiero.otter.fixtures.network.utils.LatencyRange;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
+import org.hiero.otter.fixtures.network.LatencyRange;
 
 /**
  * An implementation of {@link GeoMeshTopology}.
@@ -27,25 +27,28 @@ import org.hiero.otter.fixtures.network.utils.LatencyRange;
 public class GeoMeshTopologyImpl implements GeoMeshTopology {
 
     private final Map<Node, Location> nodes = new LinkedHashMap<>();
-    private final Map<Connection, ConnectionData> connectionDataMap = new LinkedHashMap<>();
+    private final Map<Connection, ConnectionState> connectionDataMap = new LinkedHashMap<>();
 
     private final Function<Integer, List<? extends Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;
     private final Random random;
 
-    private GeographicLatencyConfiguration configuration = GeographicLatencyConfiguration.DEFAULT;
+    private final GeoMeshTopologyConfiguration configuration;
 
     /**
      * Constructor for the {@link GeoMeshTopologyImpl} class.
      *
+     * @param configuration the geographic latency configuration
      * @param random a random number generator for simulating network conditions
      * @param nodeFactory a function that creates a list of nodes given the count
      * @param instrumentedNodeFactory a supplier that creates an instrumented node
      */
     public GeoMeshTopologyImpl(
+            @NonNull final GeoMeshTopologyConfiguration configuration,
             @NonNull final Random random,
             @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
             @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
+        this.configuration = requireNonNull(configuration);
         this.nodeFactory = requireNonNull(nodeFactory);
         this.instrumentedNodeFactory = requireNonNull(instrumentedNodeFactory);
         this.random = requireNonNull(random);
@@ -143,13 +146,13 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
      */
     @Override
     @NonNull
-    public ConnectionData getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
+    public ConnectionState getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
         final Connection connection = new Connection(sender, receiver);
         return connectionDataMap.computeIfAbsent(connection, this::addConnectionData);
     }
 
     @NonNull
-    private ConnectionData addConnectionData(@NonNull final Connection connection) {
+    private ConnectionState addConnectionData(@NonNull final Connection connection) {
         final Node node1 = connection.node1;
         final Node node2 = connection.node2;
         final LatencyRange latencyRange;
@@ -163,15 +166,7 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
         final long nanos =
                 random.nextLong(latencyRange.min().toNanos(), latencyRange.max().toNanos());
         final Duration latency = Duration.ofNanos(nanos);
-        return new ConnectionData(true, latency, latencyRange.jitterPercent(), UNLIMITED);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setGeographicLatencyConfiguration(@NonNull final GeographicLatencyConfiguration configuration) {
-        this.configuration = requireNonNull(configuration);
+        return new ConnectionState(true, latency, latencyRange.jitterPercent(), UNLIMITED_BANDWIDTH);
     }
 
     private record Connection(@NonNull Node node1, @NonNull Node node2) {

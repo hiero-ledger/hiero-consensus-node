@@ -118,7 +118,7 @@ public class SingleNodeLogResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeLogResultContinuousAssert haveNoErrorLevelMessages() {
+    public SingleNodeLogResultContinuousAssert hasNoErrorLevelMessages() {
         return haveNoMessageWithLevelHigherThan(Level.WARN);
     }
 
@@ -142,7 +142,7 @@ public class SingleNodeLogResultContinuousAssert
 
         final LogSubscriber subscriber = logEntry -> switch (state) {
             case ACTIVE -> {
-                if (!suppressedLogMarkers.contains(logEntry.marker())) {
+                if (logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker())) {
                     check.accept(logEntry);
                 }
                 yield CONTINUE;

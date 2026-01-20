@@ -306,6 +306,15 @@ class HandleHederaOperationsTest {
     }
 
     @Test
+    void updateHookStorageSlotsUsesApi() {
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
+
+        subject.updateHookStorageSlots(NON_SYSTEM_ACCOUNT_ID, 5);
+        verify(tokenServiceApi).updateHookStorageSlots(NON_SYSTEM_ACCOUNT_ID, 5, false);
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void createContractWithNonSelfAdminParentDispatchesAsExpectedThenMarksCreated() throws ParseException {
         final var parent = Account.newBuilder()

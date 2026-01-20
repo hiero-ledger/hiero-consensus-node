@@ -25,6 +25,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenClaimAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableAirdropStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -33,7 +34,7 @@ import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor;
-import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallsFactory;
 import com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper;
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
@@ -74,8 +75,9 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
             @NonNull final TokenAirdropValidator validator,
             @NonNull final CryptoTransferValidator cryptoTransferValidator,
             @NonNull final PendingAirdropUpdater pendingAirdropUpdater,
-            @NonNull final HookCallFactory hookCallFactory) {
-        super(cryptoTransferValidator, hookCallFactory);
+            @NonNull final HookCallsFactory hookCallsFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
+        super(cryptoTransferValidator, hookCallsFactory, entityIdFactory);
         this.validator = validator;
         this.pendingAirdropUpdater = pendingAirdropUpdater;
     }
@@ -160,7 +162,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
      * @param context the handle context
      * @param op the token claim airdrop transaction body
      * @param accountStore the account store
-     * @return a list of validated pending airdrop ids using the {@code 0.0.X} reference for both sender and receiver
+     * @return a set of validated pending airdrop ids using the {@code 0.0.X} reference for both sender and receiver
      * @throws HandleException if the transaction is invalid
      */
     private Set<PendingAirdropId> validateSemantics(
@@ -192,6 +194,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         return standardAirdropIds;
     }
 
+    @NonNull
     @Override
     public Fees calculateFees(@NonNull FeeContext feeContext) {
         var tokensConfig = feeContext.configuration().getConfigData(TokensConfig.class);

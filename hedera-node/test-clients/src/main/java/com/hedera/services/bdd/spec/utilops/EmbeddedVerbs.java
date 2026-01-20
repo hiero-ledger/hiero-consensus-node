@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
+import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.schedule.ScheduledCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
@@ -25,6 +28,7 @@ import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
+import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -127,6 +131,17 @@ public final class EmbeddedVerbs {
      */
     public static ViewAccountOp viewAccount(@NonNull final String name, @NonNull final Consumer<Account> observer) {
         return new ViewAccountOp(name, observer);
+    }
+
+    /**
+     * Returns an operation that allows the test author to view a hook's state.
+     * @param hookId the ID of the hook to view
+     * @param observer the mutation to apply to the account
+     * @return the operation that will mutate the account
+     */
+    public static ViewMappingValueOp<HookId, EvmHookState> viewHook(
+            @NonNull final HookId hookId, @NonNull final Consumer<EvmHookState> observer) {
+        return new ViewMappingValueOp<>(ContractService.NAME, EVM_HOOK_STATES_STATE_ID, hookId, observer);
     }
 
     public static ViewContractOp viewContract(@NonNull final String name, @NonNull final Consumer<Account> observer) {
@@ -282,7 +297,7 @@ public final class EmbeddedVerbs {
                     pbjFunction,
                     null);
             int numSchedulable = 0;
-            for (; !throttleAccumulator.checkAndEnforceThrottle(txnInfo, now, state, null); numSchedulable++) {
+            for (; !throttleAccumulator.checkAndEnforceThrottle(txnInfo, now, state, null, false); numSchedulable++) {
                 // Count until we are throttled
             }
             observer.accept(numSchedulable);

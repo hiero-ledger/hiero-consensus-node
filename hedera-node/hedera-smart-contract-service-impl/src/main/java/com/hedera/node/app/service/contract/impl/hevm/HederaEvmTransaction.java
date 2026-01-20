@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pb
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -12,6 +13,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 
 public record HederaEvmTransaction(
@@ -116,6 +118,7 @@ public record HederaEvmTransaction(
     }
 
     /**
+     * @param exception the exception to set
      * @return a copy of this transaction with the given {@code exception}
      */
     public HederaEvmTransaction withException(@NonNull final HandleException exception) {
@@ -134,13 +137,30 @@ public record HederaEvmTransaction(
                 exception,
                 this.hookDispatch);
     }
+    /**
+     * @return the hook id, or null if this is not a hook dispatch
+     */
+    @Nullable
+    public HookId maybeHookId() {
+        return hookDispatch != null
+                ? new HookId(
+                        hookDispatch.executionOrThrow().hookEntityIdOrThrow(),
+                        hookDispatch.executionOrThrow().callOrThrow().hookIdOrThrow())
+                : null;
+    }
 
     /**
-     * Check if this transaction is a hook dispatch transaction
-     *
-     * @return true if this transaction is a hook dispatch transaction, false otherwise
+     * @return the address of the hook owner, or null if this is not a hook dispatch
      */
-    public boolean isHookDispatch() {
-        return hookDispatch != null;
+    public Address hookOwnerAddress() {
+        if (hookDispatch == null) {
+            return null;
+        }
+        final var ownerEntity = hookDispatch.executionOrThrow().hookEntityIdOrThrow();
+        return ownerEntity.hasContractId()
+                ? Address.fromHexString(
+                        "0x" + Long.toHexString(ownerEntity.contractIdOrThrow().contractNumOrThrow()))
+                : Address.fromHexString(
+                        "0x" + Long.toHexString(ownerEntity.accountIdOrThrow().accountNumOrThrow()));
     }
 }
