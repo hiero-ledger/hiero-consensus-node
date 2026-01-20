@@ -55,7 +55,7 @@ public interface ClprClient extends AutoCloseable {
     ClprMessageQueueMetadata getMessageQueueMetadata(@NonNull ClprLedgerId ledgerId);
 
     @NonNull
-    ResponseCodeEnum processMessageBundle(
+    ResponseCodeEnum submitProcessMessageBundleTxn(
             @NonNull AccountID payerAccountId,
             @NonNull AccountID nodeAccountId,
             @NonNull ClprLedgerId ledgerId,

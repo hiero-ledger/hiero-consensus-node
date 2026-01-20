@@ -267,13 +267,15 @@ public class ClprClientImpl implements ClprClient {
                     Objects.requireNonNull(response.clprMessageQueueMetadata()).messageQueueMetadataProof();
             if (stateProof != null && ClprStateProofUtils.validateStateProof(stateProof)) {
                 return org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageQueueMetadata(stateProof);
+            } else {
+                log.warn("State proof {} is invalid", stateProof);
             }
         }
         return null;
     }
 
     @Override
-    public @NonNull ResponseCodeEnum processMessageBundle(
+    public @NonNull ResponseCodeEnum submitProcessMessageBundleTxn(
             @NonNull AccountID payerAccountId,
             @NonNull AccountID nodeAccountId,
             @NonNull ClprLedgerId ledgerId,
