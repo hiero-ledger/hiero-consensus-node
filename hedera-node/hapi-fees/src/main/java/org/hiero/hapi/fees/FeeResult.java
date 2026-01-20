@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,12 +20,27 @@ public class FeeResult {
     /** The node component in tinycents. */
     private long node = 0;
 
+    /** Add a service fee with details.
+     * @param count the number of units for this fee.
+     * @param cost the actual computed cost of this service fee in tinycents.
+     * */
+    public void addServiceFee(long count, long cost) {
+        details.add(new FeeDetail(count, cost));
+        service = clampedAdd(service, clampedMultiply(count, cost));
     private long nodeBase = 0;
     /** The node base component in Tiny Cents */
     public long getNodeBaseTC() {
         return this.nodeBase;
     }
 
+    /** Add a node fee with details.
+     * @param count the number of units for this fee.
+     * @param cost the actual computed cost of this service fee in tinycents.
+     * */
+    public void addNodeFee(long count, long cost) {
+        details.add(new FeeDetail(count, cost));
+        node = clampedAdd(node, clampedMultiply(count, cost));
+    }
     private List<FeeDetail> nodeExtras = new ArrayList<>();
 
     private int networkMultiplier = 0;

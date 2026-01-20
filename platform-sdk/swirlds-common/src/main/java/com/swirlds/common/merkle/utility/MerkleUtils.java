@@ -1,66 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.utility;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.exceptions.FailedRehashException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Hash;
 
 public final class MerkleUtils {
 
     private static final Logger logger = LogManager.getLogger(MerkleUtils.class);
 
     private MerkleUtils() {}
-
-    /**
-     * Invalidate the hashes of an entire tree (or subtree) rooted at the given node. Does not perform invalidation
-     * for parts of the merkle tree that are self hashing.
-     *
-     * @param root
-     * 		the root of the tree (or subtree)
-     */
-    public static void invalidateTree(final MerkleNode root) {
-        if (root == null) {
-            return;
-        }
-        root.treeIterator()
-                .setFilter(node -> !node.isSelfHashing())
-                .setDescendantFilter(node -> !node.isSelfHashing())
-                .forEachRemaining(MerkleNode::invalidateHash);
-    }
-
-    /**
-     * Rehash the entire tree, discarding any hashes that are already computed.
-     * Does not rehash virtual parts of the tree that are self hashing.
-     *
-     * @param root
-     * 		the root of the tree to hash
-     * @return the computed hash of the {@code root} parameter or null if the parameter was null
-     */
-    public static Hash rehashTree(final MerkleCryptography merkleCryptography, final MerkleNode root) {
-        if (root != null) {
-            invalidateTree(root);
-            final Future<Hash> future = merkleCryptography.digestTreeAsync(root);
-            try {
-                return future.get();
-            } catch (InterruptedException e) {
-                logger.error(EXCEPTION.getMarker(), "Interrupted while waiting for tree hashing to complete", e);
-                Thread.currentThread().interrupt();
-            } catch (ExecutionException e) {
-                logger.error(EXCEPTION.getMarker(), "Async tree hashing failed", e);
-                throw new FailedRehashException(e);
-            }
-        }
-
-        return null;
-    }
 
     private static void buildMerkleString(
             final StringBuilder sb,
