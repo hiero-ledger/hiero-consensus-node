@@ -1160,9 +1160,9 @@ public class ThrottleAccumulator {
             maxUtilization = Math.max(maxUtilization, utilization);
         }
 
-        // Convert from percentage (0-100) to thousandths of one percent (0-100,000)
+        // Convert from percentage (0-100) to hundredths of one percent (basis points, 0-10,000)
         // percentUsed returns a value from 0.0 to 100.0
-        return (int) Math.min(100_000, Math.round(maxUtilization * 1000));
+        return (int) Math.min(10_000, Math.round(maxUtilization * 100));
     }
 
     /**

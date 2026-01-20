@@ -137,14 +137,16 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                 serviceFeeDefinition.highVolumeRates(), utilizationPercentage);
 
         // Apply the multiplier to the service fee
-        // The raw multiplier is scaled by MULTIPLIER_SCALE (1,000,000) and represents the amount to add to 1
-        // So effective multiplier = 1 + (rawMultiplier / MULTIPLIER_SCALE)
-        // We apply this to the service fee: newServiceFee = serviceFee * (1 + rawMultiplier / MULTIPLIER_SCALE)
-        // = serviceFee + serviceFee * rawMultiplier / MULTIPLIER_SCALE
-        if (rawMultiplier > 0) {
-            final long additionalFee =
-                    (result.service * rawMultiplier) / HighVolumePricingCalculator.MULTIPLIER_SCALE;
-            // Add the additional fee as a single unit with the computed cost
+        // The raw multiplier is scaled by MULTIPLIER_SCALE (1,000) and represents the effective multiplier
+        // So effective multiplier = rawMultiplier / MULTIPLIER_SCALE
+        // We apply this to the service fee: newServiceFee = serviceFee * (rawMultiplier / MULTIPLIER_SCALE)
+        // Since rawMultiplier is at least MULTIPLIER_SCALE (1000) for 1.0x, we need to replace the service fee
+        final long multipliedServiceFee = (result.service * rawMultiplier) / HighVolumePricingCalculator.MULTIPLIER_SCALE;
+
+        // Replace the service fee with the multiplied amount
+        // We subtract the original service fee and add the new multiplied fee
+        final long additionalFee = multipliedServiceFee - result.service;
+        if (additionalFee > 0) {
             result.addServiceFee(1, additionalFee);
         }
     }

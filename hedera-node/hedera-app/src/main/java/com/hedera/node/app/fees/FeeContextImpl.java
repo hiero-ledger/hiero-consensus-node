@@ -41,6 +41,7 @@ public class FeeContextImpl implements FeeContext {
     private final Authorizer authorizer;
     private final int numSignatures;
     private final TransactionDispatcher transactionDispatcher;
+
     @Nullable
     private final SynchronizedThrottleAccumulator throttleAccumulator;
 

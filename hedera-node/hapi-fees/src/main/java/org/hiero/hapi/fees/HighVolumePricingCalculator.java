@@ -14,24 +14,25 @@ import org.hiero.hapi.support.fees.VariableRateDefinition;
  * and the pricing curve defined in the fee schedule per HIP-1313.
  *
  * <p>The multiplier is calculated using piecewise linear interpolation between points
- * on the pricing curve. The utilization percentage is expressed in thousandths of one percent
- * (0 to 100,000), and the multiplier values are expressed as values that are divided by
- * 1,000,000 and then added to 1.
+ * on the pricing curve. The utilization percentage is expressed in hundredths of one percent
+ * (basis points, 0 to 10,000), and the multiplier values are expressed as values that are
+ * divided by 1,000.
  *
  * <p>For example:
  * <ul>
- *   <li>utilizationBasisPoints = 50,000 means 50% utilization</li>
- *   <li>multiplier = 1,000,000 means an effective multiplier of 2.0x (1,000,000/1,000,000 + 1)</li>
- *   <li>multiplier = 4,000,000 means an effective multiplier of 5.0x (4,000,000/1,000,000 + 1)</li>
+ *   <li>utilizationBasisPoints = 5,000 means 50% utilization</li>
+ *   <li>multiplier = 1,000 means a multiplier of 1.0x (1,000/1,000)</li>
+ *   <li>multiplier = 2,000 means a multiplier of 2.0x (2,000/1,000)</li>
+ *   <li>multiplier = 5,000 means a multiplier of 5.0x (5,000/1,000)</li>
  * </ul>
  */
 public final class HighVolumePricingCalculator {
 
-    /** The scale factor for utilization percentage (100,000 = 100%). */
-    public static final int UTILIZATION_SCALE = 100_000;
+    /** The scale factor for utilization percentage (10,000 = 100%). */
+    public static final int UTILIZATION_SCALE = 10_000;
 
-    /** The scale factor for multiplier values (1,000,000 = 1.0 added to base of 1). */
-    public static final long MULTIPLIER_SCALE = 1_000_000L;
+    /** The scale factor for multiplier values (1,000 = 1.0x). */
+    public static final long MULTIPLIER_SCALE = 1_000L;
 
     private HighVolumePricingCalculator() {
         // Utility class - prevent instantiation
@@ -42,14 +43,14 @@ public final class HighVolumePricingCalculator {
      * throttle utilization and the variable rate definition from the fee schedule.
      *
      * @param variableRateDefinition the variable rate definition containing max multiplier and pricing curve
-     * @param utilizationBasisPoints the current utilization percentage in thousandths of one percent (0 to 100,000)
-     * @return the calculated multiplier as a long value (scaled by MULTIPLIER_SCALE, then add 1)
+     * @param utilizationBasisPoints the current utilization percentage in hundredths of one percent (0 to 10,000)
+     * @return the calculated multiplier as a long value (scaled by MULTIPLIER_SCALE)
      */
     public static long calculateMultiplier(
             @Nullable final VariableRateDefinition variableRateDefinition, final int utilizationBasisPoints) {
-        // If no variable rate definition, return base multiplier (1x = 0 in scaled form)
+        // If no variable rate definition, return base multiplier (1x = 1000 in scaled form)
         if (variableRateDefinition == null) {
-            return 0;
+            return MULTIPLIER_SCALE;
         }
 
         final int maxMultiplier = variableRateDefinition.maxMultiplier();
@@ -60,8 +61,8 @@ public final class HighVolumePricingCalculator {
 
         long rawMultiplier;
         if (pricingCurve == null || !pricingCurve.hasPiecewiseLinear()) {
-            // No pricing curve specified - use linear interpolation between 1x and max_multiplier
-            rawMultiplier = linearInterpolate(0, 0, UTILIZATION_SCALE, maxMultiplier, clampedUtilization);
+            // No pricing curve specified - use linear interpolation between 1x (1000) and max_multiplier
+            rawMultiplier = linearInterpolate(0, (int) MULTIPLIER_SCALE, UTILIZATION_SCALE, maxMultiplier, clampedUtilization);
         } else {
             // Use piecewise linear curve
             rawMultiplier = interpolatePiecewiseLinear(pricingCurve.piecewiseLinear(), clampedUtilization);
@@ -73,29 +74,29 @@ public final class HighVolumePricingCalculator {
 
     /**
      * Calculates the effective multiplier as a double value (for display/logging purposes).
-     * The effective multiplier is the raw multiplier divided by MULTIPLIER_SCALE plus 1.
+     * The effective multiplier is the raw multiplier divided by MULTIPLIER_SCALE.
      *
      * @param rawMultiplier the raw multiplier value (scaled by MULTIPLIER_SCALE)
      * @return the effective multiplier as a double (e.g., 2.0 for 2x)
      */
     public static double toEffectiveMultiplier(final long rawMultiplier) {
-        return 1.0 + (double) rawMultiplier / MULTIPLIER_SCALE;
+        return (double) rawMultiplier / MULTIPLIER_SCALE;
     }
 
     /**
      * Interpolates the multiplier from a piecewise linear curve based on utilization.
      *
      * @param curve the piecewise linear curve
-     * @param utilizationBasisPoints the utilization percentage (0 to 100,000)
+     * @param utilizationBasisPoints the utilization percentage (0 to 10,000)
      * @return the interpolated multiplier (scaled)
      */
     private static long interpolatePiecewiseLinear(
             @NonNull final PiecewiseLinearCurve curve, final int utilizationBasisPoints) {
         final List<PiecewiseLinearPoint> points = curve.points();
 
-        // Handle empty curve - return base multiplier
+        // Handle empty curve - return base multiplier (1x = 1000)
         if (points.isEmpty()) {
-            return 0;
+            return MULTIPLIER_SCALE;
         }
 
         // Handle single point - return that point's multiplier
