@@ -322,7 +322,7 @@ public class ClprClientImpl implements ClprClient {
                 .build();
 
         final var queryTxn = Query.newBuilder().getClprMessages(queryBody).build();
-        final var response = clprServiceClient.getMessages(queryTxn);
+        final var response = clprServiceClient.getMessageBundle(queryTxn);
         if (response.hasClprMessages()) {
             return response.clprMessages().messageBundle();
         }
