@@ -9,49 +9,49 @@ on:
         default: ""
       enable-spotless-check:
         description: "Spotless Check Enabled"
-        type: string
+        type: boolean
         required: false
-        default: "true"
+        default: true
       enable-dependency-check:
         description: "Dependency Check Enabled"
-        type: string
+        type: boolean
         required: false
-        default: "true"
+        default: true
       enable-unit-tests:
         description: "Unit Testing Enabled"
-        type: string
+        type: boolean
         required: false
-        default: "true"
+        default: true
       enable-integration-tests:
         description: "Integration Testing Enabled"
-        type: string
+        type: boolean
         required: false
-        default: "true"
+        default: true
       enable-hapi-tests:
         description: "HAPI Testing Enabled"
-        type: string
+        type: boolean
         required: false
-        default: "true"
+        default: true
       enable-otter-tests:
         description: "Otter Tests Enabled"
-        type: string
+        type: boolean
         required: false
-        default: "true"
+        default: true
       enable-snyk-scan:
         description: "Snyk Scan Enabled"
-        type: string
+        type: boolean
         required: false
-        default: "true"
+        default: true
       enable-gradle-determinism:
         description: "Gradle Build Determinism Check Enabled"
-        type: string
+        type: boolean
         required: false
-        default: "true"
+        default: true
       enable-docker-determinism:
         description: "Docker Build Determinism Check Enabled"
-        type: string
+        type: boolean
         required: false
-        default: "true"
+        default: true
       custom-job-label:
         description: "Custom Job Label"
         type: string
