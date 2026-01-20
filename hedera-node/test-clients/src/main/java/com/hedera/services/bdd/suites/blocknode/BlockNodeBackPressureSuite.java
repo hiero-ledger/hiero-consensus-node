@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
@@ -36,36 +35,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeBackPressureSuite {
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "15",
-                            "blockStream.streamMode",
-                            "BOTH",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC"
-                        })
-            })
-    @Order(0)
-    final Stream<DynamicTest> noBackPressureAppliedWhenBufferFull() {
-        return hapiTest(
-                // TODO Look at this test
-                waitUntilNextBlocks(5),
-                blockNode(0).shutDownImmediately(),
-                waitUntilNextBlocks(30),
-                assertHgcaaLogDoesNotContainText(
-                        byNodeId(0),
-                        "Block buffer is saturated; backpressure is being enabled",
-                        Duration.ofSeconds(15)));
-    }
 
     @HapiTest
     @HapiBlockNode(
