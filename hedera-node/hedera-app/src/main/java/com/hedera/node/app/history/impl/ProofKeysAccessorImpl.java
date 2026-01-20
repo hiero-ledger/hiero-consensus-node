@@ -4,7 +4,7 @@ package com.hedera.node.app.history.impl;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
+import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.tss.SequentialContentManager;
 import com.hedera.node.config.data.TssConfig;
@@ -64,12 +64,12 @@ public class ProofKeysAccessorImpl
 
     public record SchnorrKeyPair(Bytes privateKey, Bytes publicKey) {
         /**
-         * Translates a {@link SigningAndVerifyingSchnorrKeys} instance into a {@link SchnorrKeyPair}.
+         * Translates a {@link SchnorrKeys} instance into a {@link SchnorrKeyPair}.
          * @param keys the instance to translate
          * @return the translated instance
          */
-        public static SchnorrKeyPair from(@NonNull final SigningAndVerifyingSchnorrKeys keys) {
-            return new SchnorrKeyPair(Bytes.wrap(keys.signingKey()), Bytes.wrap(keys.verifyingKey()));
+        public static SchnorrKeyPair from(@NonNull final SchnorrKeys keys) {
+            return new SchnorrKeyPair(Bytes.wrap(keys.privateKey()), Bytes.wrap(keys.publicKey()));
         }
 
         /**

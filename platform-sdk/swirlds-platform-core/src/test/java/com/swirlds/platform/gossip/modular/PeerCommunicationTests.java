@@ -11,7 +11,6 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
-import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.gossip.ProtocolConfig;
 import com.swirlds.platform.network.PeerCommunication;
 import com.swirlds.platform.network.PeerInfo;
@@ -87,8 +86,7 @@ public class PeerCommunicationTests {
         this.allPeers = new ArrayList<>();
         for (int i = 0; i < nodeCount; i++) {
             NodeId nodeId = NodeId.of(i);
-            KeysAndCerts keysAndCerts =
-                    KeysAndCertsGenerator.generate(nodeId, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+            KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId);
             perNodeCerts.put(nodeId, keysAndCerts);
             allPeers.add(new PeerInfo(nodeId, "127.0.0.1", portBase + i, keysAndCerts.sigCert()));
         }
