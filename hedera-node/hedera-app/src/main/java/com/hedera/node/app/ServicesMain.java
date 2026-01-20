@@ -209,7 +209,6 @@ public class ServicesMain {
         logger.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
-        BootstrapUtils.setupConstructableRegistryWithConfiguration(platformConfig);
         final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);

@@ -7,7 +7,6 @@ import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForSingleton;
 import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.computeClassId;
-import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -146,8 +145,6 @@ public class MerkleTestBase extends StateTestBase {
             registry.registerConstructables("org.hiero");
             registry.registerConstructables("com.swirlds.merkle");
             registry.registerConstructables("com.swirlds.merkle.tree");
-
-            registerVirtualMapConstructables(CONFIGURATION);
         } catch (ConstructableRegistryException ex) {
             throw new AssertionError(ex);
         }
