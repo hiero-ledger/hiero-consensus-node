@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.roy
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -54,8 +55,12 @@ public class CryptoTransferSimpleFeesSuite {
     private static final double ADDITIONAL_ACCOUNT_FEE = 0.0001;
     private static final double ADDITIONAL_TOKEN_FEE = 0.0001;
     private static final double ADDITIONAL_NFT_SERIAL_FEE = 0.0001;
-    private static final double HOOK_FEE = 1.0;
-    private static final double HOOK_OVERHEAD_FEE = 0.0050;
+
+    private static final double HOOK_INVOCATION_USD = 0.005;
+    private static final long HOOK_GAS_LIMIT = 25000;
+    private static final double HBAR_TRANSFER_BASE_USD = 0.0001;
+    private static final double NFT_TRANSFER_BASE_USD = 0.001;
+    private static final double NFT_TRANSFER_WITH_CUSTOM_BASE_USD = 0.002;
 
     // Entity names
     private static final String PAYER = "payer";
@@ -422,7 +427,12 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(50 * ONE_HBAR)
                         .via("hbarWithHookTxn"),
-                validateChargedUsd("hbarWithHookTxn", HOOK_FEE + HBAR_TRANSFER_FEE + HOOK_OVERHEAD_FEE));
+                sourcingContextual(spec -> {
+                    final long tinybarGasCost =
+                            5_000_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd("hbarWithHookTxn", HBAR_TRANSFER_FEE + HOOK_INVOCATION_USD + usdGasCost);
+                }));
     }
 
     @HapiTest
@@ -446,7 +456,13 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(50 * ONE_HBAR)
                         .via("tokenWithHookTxn"),
-                validateChargedUsd("tokenWithHookTxn", HOOK_FEE + HBAR_TRANSFER_FEE + HOOK_OVERHEAD_FEE));
+                sourcingContextual(spec -> {
+                    final long tinybarGasCost =
+                            5_000_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "tokenWithHookTxn", TOKEN_TRANSFER_FEE + HOOK_INVOCATION_USD + usdGasCost);
+                }));
     }
 
     @HapiTest
@@ -474,7 +490,13 @@ public class CryptoTransferSimpleFeesSuite {
                         .fee(50 * ONE_HBAR)
                         .via("nftWithHooksTxn"),
                 // 2 hooks (sender + receiver)
-                validateChargedUsd("nftWithHooksTxn", 2 * HOOK_FEE + HBAR_TRANSFER_FEE + HOOK_OVERHEAD_FEE));
+                sourcingContextual(spec -> {
+                    final long tinybarGasCost =
+                            5_000_000L * 2 * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "nftWithHooksTxn", NFT_TRANSFER_BASE_USD + 2 * HOOK_INVOCATION_USD + usdGasCost);
+                }));
     }
 
     private static ByteString metadata(final int idNumber) {

@@ -19,8 +19,12 @@ import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.state.State;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.MerkleProof;
+import com.swirlds.state.QueueState;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableQueueState;
@@ -34,6 +38,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
@@ -200,8 +205,8 @@ public class BlockStreamManagerWrapper {
         }
     }
 
-    // Minimal State implementation
-    private static class BenchmarkState implements State {
+    // Minimal MerkleNodeState implementation
+    private static class BenchmarkState implements MerkleNodeState {
         private Hash hash;
         private final AtomicReference<BlockStreamInfo> blockStreamInfoRef;
         private long blockNumber = 0;
@@ -211,8 +216,13 @@ public class BlockStreamManagerWrapper {
         }
 
         @Override
-        public @NonNull State copy() {
+        public @NonNull MerkleNodeState copy() {
             return this; // No-op for benchmark
+        }
+
+        @Override
+        public MerkleNode getRoot() {
+            return null; // Not needed for benchmark
         }
 
         @Override
@@ -233,6 +243,117 @@ public class BlockStreamManagerWrapper {
                     .intermediatePreviousBlockRootHashes(Collections.emptyList())
                     .intermediateBlockRootsLeafCount(0L)
                     .build());
+        }
+
+        // MerkleNodeState required methods - minimal stub implementations for benchmarking
+        @Override
+        public void commitSingletons() {
+            // No-op for benchmark
+        }
+
+        @Override
+        public void initializeState(@NonNull StateMetadata<?, ?> md) {
+            // No-op for benchmark
+        }
+
+        @Override
+        public void removeServiceState(@NonNull String serviceName, int stateId) {
+            // No-op for benchmark
+        }
+
+        @Override
+        public Hash getHashForPath(long path) {
+            return null;
+        }
+
+        @Override
+        public MerkleProof getMerkleProof(long path) {
+            return null;
+        }
+
+        @Override
+        public long getSingletonPath(int stateId) {
+            return -1;
+        }
+
+        @Override
+        public long getQueueElementPath(int stateId, @NonNull Bytes expectedValue) {
+            return -1;
+        }
+
+        @Override
+        public long getKvPath(int stateId, @NonNull Bytes key) {
+            return -1;
+        }
+
+        @Override
+        public Bytes getKv(int stateId, @NonNull Bytes key) {
+            return null;
+        }
+
+        @Override
+        public Bytes getSingleton(int singletonId) {
+            return null;
+        }
+
+        @Override
+        public QueueState getQueueState(int stateId) {
+            return null;
+        }
+
+        @Override
+        public Bytes peekQueueHead(int stateId) {
+            return null;
+        }
+
+        @Override
+        public Bytes peekQueueTail(int stateId) {
+            return null;
+        }
+
+        @Override
+        public Bytes peekQueue(int stateId, int index) {
+            return null;
+        }
+
+        @Override
+        public List<Bytes> getQueueAsList(int stateId) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void updateSingleton(int stateId, @NonNull Bytes value) {
+            // No-op for benchmark
+        }
+
+        @Override
+        public void removeSingleton(int stateId) {
+            // No-op for benchmark
+        }
+
+        @Override
+        public void updateKv(int stateId, @NonNull Bytes key, Bytes value) {
+            // No-op for benchmark
+        }
+
+        @Override
+        public void removeKv(int stateId, @NonNull Bytes key) {
+            // No-op for benchmark
+        }
+
+        @Override
+        public void pushQueue(int stateId, @NonNull Bytes value) {
+            // No-op for benchmark
+        }
+
+        @Override
+        public Bytes popQueue(int stateId) {
+            return null;
+        }
+
+        @Override
+        public void removeQueue(int stateId) {
+            // No-op for benchmark
         }
 
         @Override
