@@ -108,6 +108,13 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     private int incomingEventsCounter = 0;
 
+
+    /**
+     * Last time we have finished receiving events
+     */
+    private long lastReceiveEventFinished;
+
+
     private final SyncGuard syncGuard;
 
     /**
@@ -166,6 +173,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.fallBehindRateLimiter = new RateLimiter(time, Duration.ofMinutes(1));
         this.disableBroadcastPingThreshold = disableBroadcastPingThreshold;
+        this.lastReceiveEventFinished = time.nanoTime();
     }
 
     /**
@@ -230,6 +238,10 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     // protocol thread (which is equivalent to read-thread)
     public void cleanup() {
+        if (state.mySyncData != null) {
+            // it might be partial sync, but we still need to mark it as finished for metrics to work correctly
+            reportSyncFinished();
+        }
         clearInternalState();
         state.peerStillSendingEvents = false;
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OUTSIDE_OF_RPC);
@@ -343,10 +355,10 @@ public class RpcPeerHandler implements GossipRpcReceiver {
             return;
         }
         // this is one of two important parts of the code to keep outside critical section - receiving events
-        final long start = time.nanoTime();
+
         incomingEventsCounter += gossipEvents.size();
         gossipEvents.forEach(this::handleIncomingSyncEvent);
-        this.syncMetrics.eventsReceived(start, gossipEvents.size());
+        this.syncMetrics.eventsReceived(lastReceiveEventFinished, gossipEvents.size());
     }
 
     /**
@@ -361,6 +373,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
             this.syncMetrics.reportSyncPhase(peerId, SyncPhase.SENDING_EVENTS);
         }
         state.peerStillSendingEvents = false;
+        this.lastReceiveEventFinished = time.nanoTime();
     }
 
     @Override
@@ -484,7 +497,6 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         incomingEventsCounter = 0;
         outgoingEventsCounter = 0;
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.IDLE);
-        syncMetrics.syncFinished();
     }
 
     /**
