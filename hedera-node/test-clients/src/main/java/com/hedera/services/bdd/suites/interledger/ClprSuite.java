@@ -43,6 +43,7 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.hiero.hapi.interledger.state.clpr.ClprMessage;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
+import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
@@ -277,7 +278,7 @@ public class ClprSuite implements LifecycleTest {
                 .ledgerShortId(0)
                 .build();
         return hapiTest(
-                // set target node to use with the CLPR client
+                // Specify node 0 as the target node to illicit local ledger responses
                 doingContextual(spec -> {
                     final var tNode = spec.getNetworkNodes().getFirst();
                     assertThat(tNode).isNotNull();
@@ -307,8 +308,9 @@ public class ClprSuite implements LifecycleTest {
         AtomicReference<ClprMessageBundle> fetchResult = new AtomicReference<>();
         Bytes msgData = Bytes.wrap("Hello CLPR".getBytes());
         ClprMessage msg = ClprMessage.newBuilder().messageData(msgData).build();
-        ClprMessageBundle bundleToProcess =
-                ClprMessageBundle.newBuilder().messages(msg).build();
+        ClprMessageBundle bundleToProcess = ClprMessageBundle.newBuilder()
+                .messages(List.of(ClprMessagePayload.newBuilder().message(msg).build()))
+                .build();
         return hapiTest(
                 // set target node
                 doingContextual(spec -> {
@@ -329,7 +331,7 @@ public class ClprSuite implements LifecycleTest {
                     assertThat(fetchResult.get()).isEqualTo(bundleToProcess);
                     final var firstMsg = fetchResult.get().messages().getFirst();
                     assertThat(firstMsg).isNotNull();
-                    final var resultMsgData = firstMsg.messageData();
+                    final var resultMsgData = firstMsg.message().messageData();
                     assertThat(resultMsgData.asUtf8String(0, resultMsgData.length()))
                             .isEqualTo("Hello CLPR");
                 }));
@@ -468,8 +470,11 @@ public class ClprSuite implements LifecycleTest {
             try (final var client = createClient(node.get())) {
                 final var config = tryFetchLedgerConfiguration(node.get());
                 final var payer = asAccount(spec, 2);
-                client.processMessageBundle(
-                        toPbj(payer), node.get().getAccountId(), toPbj(config).ledgerId(), messageBundle);
+                client.submitProcessMessageBundleTxn(
+                        toPbj(payer),
+                        node.get().getAccountId(),
+                        toPbj(config).ledgerId(),
+                        messageBundle);
             }
         });
     }

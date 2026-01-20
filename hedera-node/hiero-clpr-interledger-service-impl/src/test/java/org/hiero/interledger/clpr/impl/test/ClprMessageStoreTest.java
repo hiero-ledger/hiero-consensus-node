@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.hiero.hapi.interledger.state.clpr.ClprMessage;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 import org.hiero.interledger.clpr.impl.ReadableClprMessageStoreImpl;
 import org.hiero.interledger.clpr.impl.WritableClprMessageStoreImpl;
@@ -35,7 +36,8 @@ class ClprMessageStoreTest {
                 ClprMessageKey.newBuilder().messageId(11).ledgerShortId(12).build();
         Bytes msgData = Bytes.wrap("Hello CLPR".getBytes());
         ClprMessage msg = ClprMessage.newBuilder().messageData(msgData).build();
-        final var messageValue = ClprMessageValue.newBuilder().message(msg).build();
+        final var payload = ClprMessagePayload.newBuilder().message(msg).build();
+        final var messageValue = ClprMessageValue.newBuilder().payload(payload).build();
 
         writableStore.put(messageKey, messageValue);
         assertEquals(messageValue, readableStore.get(messageKey));

@@ -68,7 +68,7 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
                         .messageId(messageId.getAndIncrement())
                         .ledgerShortId(ledgerShortId.get())
                         .build();
-                final var value = ClprMessageValue.newBuilder().message(msg).build();
+                final var value = ClprMessageValue.newBuilder().payload(msg).build();
                 writableMessagesStore.put(key, value);
             });
         });
