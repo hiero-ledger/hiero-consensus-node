@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
+import static com.swirlds.base.test.fixtures.util.DataUtils.randomUtf8Bytes;
 import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
 import static com.swirlds.platform.StateFileManagerTests.hashState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
@@ -29,6 +30,7 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
@@ -46,6 +48,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
@@ -122,6 +126,9 @@ class SignedStateFileReadWriteTest {
     @DisplayName("Write Then Read State File Test")
     void writeThenReadStateFileTest() throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
+        final SigSet sigSet = new SigSet();
+        sigSet.addSignature(NodeId.of(1), new Signature(SignatureType.ED25519, randomUtf8Bytes(16)));
+        signedState.setSigSet(sigSet);
         final Path signatureSetFile = testDirectory.resolve(SIGNATURE_SET_FILE_NAME);
 
         assertFalse(exists(signatureSetFile), "signature set file should not yet exist");
