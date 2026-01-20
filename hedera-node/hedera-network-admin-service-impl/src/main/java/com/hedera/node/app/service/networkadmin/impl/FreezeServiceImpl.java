@@ -29,10 +29,8 @@ public final class FreezeServiceImpl implements FreezeService {
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
-        final var upgradeFileHashKeyState = writableStates.<ProtoBytes>getSingleton(UPGRADE_FILE_HASH_STATE_ID);
-        upgradeFileHashKeyState.put(ProtoBytes.DEFAULT);
-        final var freezeTimeKeyState = writableStates.<Timestamp>getSingleton(FREEZE_TIME_STATE_ID);
-        freezeTimeKeyState.put(Timestamp.DEFAULT);
+        writableStates.<ProtoBytes>getSingleton(UPGRADE_FILE_HASH_STATE_ID).put(ProtoBytes.DEFAULT);
+        writableStates.<Timestamp>getSingleton(FREEZE_TIME_STATE_ID).put(Timestamp.DEFAULT);
         return true;
     }
 }

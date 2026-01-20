@@ -98,6 +98,7 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.InputStream;
@@ -119,6 +120,8 @@ import java.util.function.Function;
 import java.util.stream.LongStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
+import edu.umd.cs.findbugs.annotations.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -165,6 +168,14 @@ public class SystemTransactions {
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
 
     private int nextDispatchNonce = 1;
+
+    @FunctionalInterface
+    public interface KvStateChangeStreaming {
+        void doStreamingKVChanges(
+                @NonNull WritableStates writableStates,
+                @Nullable WritableStates entityIdWritableStates,
+                @NonNull Runnable action);
+    }
 
     /**
      * Constructs a new {@link SystemTransactions}.
@@ -219,19 +230,21 @@ public class SystemTransactions {
      *
      * @param now the current time
      * @param state the state to set up
+     * @param kvStateChangeStreaming the callback to stream KV state changes
      */
-    public void doGenesisSetup(@NonNull final Instant now, @NonNull final State state) {
+    public void doGenesisSetup(@NonNull final Instant now, @NonNull final State state, @NonNull final KvStateChangeStreaming kvStateChangeStreaming) {
         requireNonNull(now);
         requireNonNull(state);
         // Ensure all singletons exist (will be externalized in state changes at end of genesis block if appropriate)
         final var config = configProvider.getConfiguration();
+        log.info("==== START ====");
         for (final var r : servicesRegistry.registrations()) {
             final var service = r.service();
+            // Maybe EmptyWritableStates if the service's schemas register no state definitions at all
             final var writableStates = state.getWritableStates(service.getServiceName());
-            if (service.doGenesisSetup(writableStates, config)) {
-                ((CommittableWritableStates) writableStates).commit();
-            }
+            kvStateChangeStreaming.doStreamingKVChanges(writableStates, null, () -> service.doGenesisSetup(writableStates, config));
         }
+        log.info("==== END ====");
 
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
         final var systemContext = newSystemContext(

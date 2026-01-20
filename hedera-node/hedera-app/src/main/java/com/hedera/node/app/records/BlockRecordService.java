@@ -63,11 +63,8 @@ public final class BlockRecordService implements Service {
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
-        final var blocksState = writableStates.getSingleton(BLOCKS_STATE_ID);
-        // Note there is by convention no post-upgrade work to do if starting from genesis
-        blocksState.put(GENESIS_BLOCK_INFO);
-        final var runningHashState = writableStates.getSingleton(RUNNING_HASHES_STATE_ID);
-        runningHashState.put(GENESIS_RUNNING_HASHES);
+        writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID).put(GENESIS_BLOCK_INFO);
+        writableStates.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID).put(GENESIS_RUNNING_HASHES);
         return true;
     }
 }

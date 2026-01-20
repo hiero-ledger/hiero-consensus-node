@@ -55,8 +55,7 @@ public class BlockStreamService implements Service {
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
-        final var state = writableStates.getSingleton(BLOCK_STREAM_INFO_STATE_ID);
-        state.put(GENESIS_BLOCK_STREAM_INFO);
+        writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID).put(GENESIS_BLOCK_STREAM_INFO);
         return true;
     }
 

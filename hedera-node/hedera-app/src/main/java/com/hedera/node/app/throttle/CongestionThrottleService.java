@@ -39,11 +39,8 @@ public class CongestionThrottleService implements Service {
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
-        log.info("Creating genesis throttle snapshots and congestion level starts");
-        final var throttleSnapshots = writableStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
-        throttleSnapshots.put(ThrottleUsageSnapshots.DEFAULT);
-        final var congestionLevelStarts = writableStates.getSingleton(CONGESTION_LEVEL_STARTS_STATE_ID);
-        congestionLevelStarts.put(CongestionLevelStarts.DEFAULT);
+        writableStates.<ThrottleUsageSnapshots>getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID).put(ThrottleUsageSnapshots.DEFAULT);
+        writableStates.<CongestionLevelStarts>getSingleton(CONGESTION_LEVEL_STARTS_STATE_ID).put(CongestionLevelStarts.DEFAULT);
         return true;
     }
 }

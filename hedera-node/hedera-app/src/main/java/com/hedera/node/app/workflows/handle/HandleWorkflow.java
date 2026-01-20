@@ -283,7 +283,6 @@ public class HandleWorkflow {
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
-
         final boolean isGenesis =
                 switch (streamMode) {
                     case RECORDS ->
@@ -293,7 +292,7 @@ public class HandleWorkflow {
         if (isGenesis) {
             final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
             logger.info("Doing genesis setup before {}", genesisEventTime);
-            systemTransactions.doGenesisSetup(genesisEventTime, state);
+            systemTransactions.doGenesisSetup(genesisEventTime, state, this::doStreamingKVChanges);
             transactionsDispatched = true;
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();
@@ -900,12 +899,15 @@ public class HandleWorkflow {
             immediateStateChangeListener.resetKvStateChanges(null);
         }
         action.run();
-        ((CommittableWritableStates) writableStates).commit();
+        if (writableStates instanceof CommittableWritableStates committableWritableStates) {
+            committableWritableStates.commit();
+        }
         if (entityIdWritableStates != null) {
             ((CommittableWritableStates) entityIdWritableStates).commit();
         }
         if (streamMode != RECORDS) {
             final var changes = immediateStateChangeListener.getKvStateChanges();
+            logger.info("Changes: {}", changes);
             if (!changes.isEmpty()) {
                 blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
                         .stateChanges(new StateChanges(now, new ArrayList<>(changes)))
