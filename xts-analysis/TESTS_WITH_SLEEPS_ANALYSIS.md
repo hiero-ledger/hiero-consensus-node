@@ -1,5 +1,27 @@
 # Tests with Sleeps - Analysis and Recommendations
 
+---
+
+## ⚠️ Key Finding: Major Optimizations Already Complete
+
+**The largest sleep-related conversions have already been implemented.**
+
+|                                     Test                                      |  Original Sleep  |         Current Status          |
+|-------------------------------------------------------------------------------|------------------|---------------------------------|
+| `DisabledLongTermExecutionScheduleTest.scheduledTestGetsDeletedIfNotExecuted` | **31 minutes**   | ✅ Already `@RepeatableHapiTest` |
+| `TxnRecordRegression.receiptUnavailableAfterCacheTtl`                         | **179 seconds**  | ✅ Already `@RepeatableHapiTest` |
+| `RepeatableHip423Tests` (all tests)                                           | 5-8 seconds each | ✅ Already `@RepeatableHapiTest` |
+| `RepeatableScheduleLongTermSignTest` (all tests)                              | 6 seconds each   | ✅ Already `@RepeatableHapiTest` |
+
+**The remaining convertible tests total only ~37 seconds of sleep time**, and due to subprocess parallelism (tests run concurrently), actual wall-clock savings would be minimal or potentially negative (since embedded/repeatable tests run sequentially).
+
+**Recommendation:** Further conversions for time savings are **not recommended**. Consider conversion only for:
+- **Determinism** (eliminating timing-based test flakiness)
+- **Reduced flakiness** (virtual time eliminates race conditions)
+- **Faster local development** (individual test runs)
+
+---
+
 ## Key Insight: Understanding Sleep Behavior in Different Modes
 
 ### The Three Execution Modes
@@ -157,27 +179,34 @@ Awaitility.await()
 
 ## Implementation Priority
 
-### High Priority (Greatest Time Savings)
+### ✅ Already Complete (No Action Needed)
 
-1. **Convert schedule-related tests to repeatable mode**
-   - `ScheduleExecutionTest.java` (40+ tests)
-   - `ScheduleLongTermExecutionTest.java`
-   - Schedule tests benefit most from virtual time
-2. **Convert fee validation tests to repeatable mode**
-   - Multiple 1-2 second sleeps per test
-   - Pure business logic - easy to convert
+The highest-impact conversions have **already been done**:
 
-### Medium Priority
+1. **`DisabledLongTermExecutionScheduleTest.scheduledTestGetsDeletedIfNotExecuted`** - 31 minute sleep → instant
+2. **`TxnRecordRegression.receiptUnavailableAfterCacheTtl`** - 179 second sleep → instant
+3. **`RepeatableHip423Tests`** - All schedule expiry tests
+4. **`RepeatableScheduleLongTermSignTest`** - All signature collection tests
 
-3. **Token/Crypto tests without ECDSA**
-   - Large number of tests
-   - Many are pure business logic
+### Low Priority (Minimal Time Savings)
 
-### Low Priority
+The remaining convertible tests offer **diminishing returns**:
 
-4. **Tests with ECDSA** - Require more careful analysis
-5. **Tests with parallelism** - May need restructuring
+1. **Fee validation tests** - ~13 seconds total, run in parallel
+2. **Contract query tests** - ~10 seconds total, run in parallel
+3. **Token/Crypto tests** - Various small sleeps, run in parallel
+
+**Note:** Due to subprocess parallelism, converting these tests may not improve wall-clock time and could potentially increase it (parallel → sequential execution).
+
+### Not Recommended for Time Savings
+
+4. **Tests with ECDSA** - Can only go to embedded mode
+5. **Tests with parallelism** - Would need restructuring
 6. **Subprocess-only tests** - Cannot convert
+
+### Alternative: Consider for Determinism/Flakiness
+
+If tests experience timing-related flakiness, conversion to repeatable mode may still be valuable regardless of time savings.
 
 ---
 

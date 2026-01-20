@@ -2,6 +2,84 @@
 
 This document analyzes which subprocess-mode tests could potentially be converted to embedded or repeatable mode without breaking their purpose.
 
+---
+
+## ⚠️ Key Finding: Major Sleep Optimizations Already Complete
+
+**The largest sleep-related conversions have already been implemented.**
+
+|                                     Test                                      |  Original Sleep  |         Current Status          |
+|-------------------------------------------------------------------------------|------------------|---------------------------------|
+| `DisabledLongTermExecutionScheduleTest.scheduledTestGetsDeletedIfNotExecuted` | **31 minutes**   | ✅ Already `@RepeatableHapiTest` |
+| `TxnRecordRegression.receiptUnavailableAfterCacheTtl`                         | **179 seconds**  | ✅ Already `@RepeatableHapiTest` |
+| `RepeatableHip423Tests` (all tests)                                           | 5-8 seconds each | ✅ Already `@RepeatableHapiTest` |
+| `RepeatableScheduleLongTermSignTest` (all tests)                              | 6 seconds each   | ✅ Already `@RepeatableHapiTest` |
+
+**The remaining convertible tests total only ~37 seconds of sleep time**, and due to subprocess parallelism, actual time savings would be minimal.
+
+**Recommendation:** Further conversions should be motivated by **determinism** or **flakiness reduction**, not time savings. See `SUBPROCESS_TESTS_WITH_SLEEPS.md` for detailed analysis.
+
+---
+
+## Critical Context: Subprocess Test Execution Model
+
+Before analyzing conversions, it's essential to understand how subprocess tests execute:
+
+### Execution Flow (Per Tag)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    TAG EXECUTION (e.g., CRYPTO)                 │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Network starts (once per tag)                               │
+│  2. Tests execute in RANDOM order                               │
+│     ├── Test A → modifies state, generates logs/streams         │
+│     ├── Test B → modifies state, generates logs/streams         │
+│     ├── Test C → modifies state, generates logs/streams         │
+│     └── ... (all tests in tag)                                  │
+│  3. Validation tests run LAST:                                  │
+│     ├── StreamValidationTest → verifies all stream output       │
+│     └── LogValidationTest → verifies all log output             │
+│  4. Network stops                                               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Facts
+
+|         Aspect         |                           Behavior                           |
+|------------------------|--------------------------------------------------------------|
+| **Network lifecycle**  | Started once per tag, stopped after validation               |
+| **Test execution**     | **Subprocess: PARALLEL** / Embedded & Repeatable: SEQUENTIAL |
+| **Test order**         | Random (except validation tests run last)                    |
+| **State accumulation** | All tests modify shared state                                |
+| **Validation scope**   | Validates cumulative output of ALL tests in tag              |
+
+### Parallelism Impact
+
+|      Mode      | Execution  |               Wall-Clock Time                |
+|----------------|------------|----------------------------------------------|
+| **Subprocess** | Parallel   | ≈ longest single test (sleeps overlap)       |
+| **Embedded**   | Sequential | = sum of all test durations                  |
+| **Repeatable** | Sequential | = sum of all test durations (sleeps instant) |
+
+**Time savings reality check:** In subprocess mode, parallel test sleeps overlap. Converting to repeatable eliminates sleeps but adds sequential overhead. Tests with **isolated long sleeps** (like the 31-minute schedule expiry test) benefit most.
+
+### Impact on Conversion
+
+1. **State changes in embedded/repeatable mode are NOT applied to subprocess network**
+   - Converted tests won't contribute to the state that gets validated
+2. **Converted tests must move to a NEW tag**
+   - Cannot mix subprocess and embedded tests in same tag
+   - Example: `CRYPTO` → keep subprocess tests, create `CRYPTO_REPEATABLE` for converted tests
+3. **Validation coverage changes**
+   - Original tag's validation only covers remaining subprocess tests
+   - May need new validation strategy for converted test groups
+4. **Most tests are independent (no explicit dependencies)**
+   - Random order means tests shouldn't rely on each other's state
+   - But validation checks cumulative state of all tests together
+
+---
+
 ## Conversion Criteria
 
 ### Tests That MUST Stay in Subprocess Mode
@@ -405,18 +483,26 @@ ContractGetInfoSuite.java
 
 ## Recommended Conversion Strategy
 
+### Important: Tag-Level Considerations
+
+Given the subprocess execution model (network per tag, validation at end), conversions should be planned at the **tag level** or create **new tags** for converted tests.
+
 ### Phase 1: Low-Risk, High-Value Conversions
 
 Start with tests that:
 1. Have no ECDSA usage
 2. Don't use `setNode()` or `inParallel()`
 3. Have sleeps that would benefit from virtual time
-4. Are tagged with high execution frequency (MATS)
+4. Are **self-contained** (create own entities, don't rely on cumulative state)
+5. Are tagged with high execution frequency (MATS)
 
-**Priority candidates:**
-- Schedule-related tests (benefit most from virtual time)
-- Token CRUD tests (pure business logic)
-- File operation tests (simple, no special requirements)
+**Priority candidates (create new tags):**
+
+|        New Tag        |       Tests to Move        |  Original Tag  |              Rationale               |
+|-----------------------|----------------------------|----------------|--------------------------------------|
+| `FEES_REPEATABLE`     | All fee validation suites  | Various        | Pure fee assertions, self-contained  |
+| `SCHEDULE_REPEATABLE` | Schedule tests with sleeps | MISC           | Would save 31+ minutes of sleep time |
+| `QUERIES_REPEATABLE`  | Contract query tests       | SMART_CONTRACT | Query-only, no state modification    |
 
 ### Phase 2: Embedded-Only Conversions
 
@@ -425,19 +511,42 @@ Tests that can convert to embedded but not repeatable:
 - Tests using `inParallel()` for load testing
 - Tests that don't need timing optimization
 
+**Note:** Embedded tests may still produce streams, consider validation needs.
+
 ### Phase 3: Careful Analysis Required
 
 Tests needing individual analysis:
 - Tests using `setNode()` - may be testing multi-node behavior
 - Throttling tests - timing behavior may differ
 - Leaky tests - may have subtle dependencies
+- Tests whose output is critical to stream validation
+
+### Phase 4: Not Recommended for Conversion
+
+Keep in subprocess if:
+- Tests are critical to end-of-tag stream/log validation
+- Tests intentionally verify subprocess-specific behavior
+- Tests have complex state dependencies with other tests in tag
 
 ---
 
-## Next Steps
+## Implementation Checklist
 
-1. Select a subset of high-confidence candidates
-2. Add `@EmbeddedHapiTest` or `@RepeatableHapiTest` annotations
-3. Run tests to verify they pass
-4. Measure execution time improvement
-5. Update tags to exclude from subprocess runs
+When converting tests:
+
+1. **Identify target tests** - Select self-contained tests with sleeps
+2. **Create new tag** - e.g., `FEES_REPEATABLE`
+3. **Update test annotations** - Change `@HapiTest` to `@RepeatableHapiTest`
+4. **Add tag annotation** - `@Tag("FEES_REPEATABLE")`
+5. **Update Gradle tasks** - Create new task like `hapiRepeatableFees`
+6. **Verify original tag validation** - Ensure remaining subprocess tests still pass validation
+7. **Consider new validation** - Add lightweight validation for converted group if needed
+8. **Measure improvement** - Track execution time savings
+
+---
+
+## Related Documentation
+
+- `SUBPROCESS_TESTS_WITH_SLEEPS.md` - Detailed list of tests with sleep calls and conversion targets
+- `XTS_TEST_GROUPS_OVERVIEW.md` - Overview of all XTS test groups and tags
+- `TESTS_WITH_SLEEPS_ANALYSIS.md` - Analysis of sleep patterns and optimization strategies

@@ -2,6 +2,21 @@
 
 This document lists all HAPI tests that run in subprocess mode (the slowest execution mode).
 
+---
+
+## ⚠️ Key Finding: Major Sleep Optimizations Already Complete
+
+The longest-running sleep-based tests have **already been converted** to `@RepeatableHapiTest`:
+
+|                                     Test                                      | Original Sleep  |   Status    |
+|-------------------------------------------------------------------------------|-----------------|-------------|
+| `DisabledLongTermExecutionScheduleTest.scheduledTestGetsDeletedIfNotExecuted` | **31 minutes**  | ✅ Converted |
+| `TxnRecordRegression.receiptUnavailableAfterCacheTtl`                         | **179 seconds** | ✅ Converted |
+
+Further conversions for time savings offer **diminishing returns** (~37 seconds total remaining). See `SUBPROCESS_TESTS_WITH_SLEEPS.md` for details.
+
+---
+
 ## Understanding Subprocess Mode
 
 **Subprocess mode** runs actual Hedera nodes as separate JVM processes:

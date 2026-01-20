@@ -10,6 +10,26 @@ This document contains findings from analyzing the XTS (Extended Test Suite) tes
 
 ---
 
+## ⚠️ Key Finding: Major Sleep Optimizations Already Complete
+
+**The largest sleep-related optimizations have already been implemented.**
+
+|                                     Test                                      |  Original Sleep  |         Current Status          |
+|-------------------------------------------------------------------------------|------------------|---------------------------------|
+| `DisabledLongTermExecutionScheduleTest.scheduledTestGetsDeletedIfNotExecuted` | **31 minutes**   | ✅ Already `@RepeatableHapiTest` |
+| `TxnRecordRegression.receiptUnavailableAfterCacheTtl`                         | **179 seconds**  | ✅ Already `@RepeatableHapiTest` |
+| `RepeatableHip423Tests` (all tests)                                           | 5-8 seconds each | ✅ Already `@RepeatableHapiTest` |
+| `RepeatableScheduleLongTermSignTest` (all tests)                              | 6 seconds each   | ✅ Already `@RepeatableHapiTest` |
+
+**The remaining convertible tests total only ~37 seconds of sleep time**, and due to subprocess parallelism (tests run concurrently), actual wall-clock savings would be minimal.
+
+**Recommendation:** Further sleep-based conversions are **not recommended** for time savings. Focus optimization efforts on:
+- Unit test improvements (Awaitility patterns)
+- Test infrastructure optimizations
+- Reducing test setup/teardown overhead
+
+---
+
 ## 1. Duplicated Test Logic
 
 ### Problem Description
