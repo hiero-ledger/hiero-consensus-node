@@ -1018,7 +1018,7 @@ public class TokenTransactSpecs {
                 .when(tokenDelete(A_TOKEN))
                 .then(cryptoTransfer(movingUnique(A_TOKEN, 1).between(TOKEN_TREASURY, FIRST_USER))
                         .signedBy(SIGNING_KEY_TREASURY, SIGNING_KEY_FIRST_USER, DEFAULT_PAYER)
-                        .hasKnownStatus(TOKEN_WAS_DELETED));
+                        .hasPrecheck(TOKEN_WAS_DELETED));
     }
 
     @HapiTest

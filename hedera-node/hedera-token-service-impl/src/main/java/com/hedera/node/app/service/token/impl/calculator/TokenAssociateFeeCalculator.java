@@ -10,6 +10,8 @@ import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
+import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 public class TokenAssociateFeeCalculator implements ServiceFeeCalculator {
@@ -19,11 +21,18 @@ public class TokenAssociateFeeCalculator implements ServiceFeeCalculator {
             @NonNull final TransactionBody txnBody,
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
-            @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
+            @NonNull final FeeSchedule feeSchedule) {
         // Add service base + extras
+        final var op = txnBody.tokenAssociate();
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT);
         feeResult.addServiceFee(1, serviceDef.baseFee());
+        addExtraFee(
+                feeResult,
+                serviceDef,
+                Extra.TOKEN_ASSOCIATE,
+                feeSchedule,
+                op.tokens().size());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {
