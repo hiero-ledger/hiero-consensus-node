@@ -303,7 +303,7 @@ public class VirtualMapState implements MerkleNodeState {
      * {@inheritDoc}
      */
     @Override
-    @Nullable
+    @NonNull
     public Hash getHash() {
         return virtualMap.getHash();
     }

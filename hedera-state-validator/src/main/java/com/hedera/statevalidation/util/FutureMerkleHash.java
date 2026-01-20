@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.merkle.hash;
+package com.hedera.statevalidation.util;
 
-import com.swirlds.common.merkle.MerkleNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -11,7 +10,7 @@ import java.util.concurrent.TimeoutException;
 import org.hiero.base.crypto.Hash;
 
 /**
- * This future object is used by {@link MerkleHashBuilder#digestTreeAsync(MerkleNode)} to return a hash to the user.
+ * This future object is used to represent the eventual hash of a Merkle tree.
  */
 public class FutureMerkleHash implements Future<Hash> {
 

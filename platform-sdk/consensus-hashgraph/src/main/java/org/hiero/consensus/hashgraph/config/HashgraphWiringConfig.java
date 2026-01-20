@@ -13,6 +13,6 @@ import com.swirlds.config.api.ConfigProperty;
 @ConfigData("hashgraph.wiring")
 public record HashgraphWiringConfig(
         @ConfigProperty(
-                        defaultValue =
-                                "SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
-                TaskSchedulerConfiguration consensusEngine) {}
+                defaultValue =
+                        "SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+        TaskSchedulerConfiguration consensusEngine) {}

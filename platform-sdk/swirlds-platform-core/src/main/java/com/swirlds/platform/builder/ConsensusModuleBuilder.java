@@ -6,9 +6,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.utility.NoOpRecycleBin;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -25,6 +22,7 @@ import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
@@ -107,7 +105,6 @@ public class ConsensusModuleBuilder {
                 new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
         final TransactionLimits transactionLimits = new TransactionLimits(0, 0);
-        final RecycleBin recycleBin = new NoOpRecycleBin();
         final long startingRound = 0L;
         final EventPipelineTracker eventPipelineTracker = null;
 
@@ -121,7 +118,6 @@ public class ConsensusModuleBuilder {
                 selfId,
                 intakeEventCounter,
                 transactionLimits,
-                recycleBin,
                 startingRound,
                 eventPipelineTracker);
         return eventIntakeModule;

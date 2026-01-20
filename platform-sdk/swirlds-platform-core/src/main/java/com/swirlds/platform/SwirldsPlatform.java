@@ -223,7 +223,6 @@ public class SwirldsPlatform implements Platform {
 
         final ReconnectController reconnectController = new ReconnectController(
                 currentRoster,
-                getContext().getMerkleCryptography(),
                 this,
                 platformContext,
                 platformCoordinator,

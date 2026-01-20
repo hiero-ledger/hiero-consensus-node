@@ -6,7 +6,6 @@ import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.WireFilter;
 import com.swirlds.component.framework.wires.output.OutputWire;
@@ -43,6 +42,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.Queue;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -394,12 +394,17 @@ public class PlatformWiring {
             components
                     .pcesInlineWriterWiring()
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("pces", platformEvent));
+                    .solderForMonitoring(
+                            platformEvent -> pipelineTracker.recordEvent("pces", platformEvent.getTimeReceived()));
             pipelineTracker.registerMetric("consensus");
             components
                     .hashgraphModule()
                     .consensusRoundOutputWire()
-                    .solderForMonitoring(consensusRound -> pipelineTracker.recordRounds("consensus", consensusRound));
+                    .solderForMonitoring(consensusEngineOutput -> pipelineTracker.recordEvents(
+                            "consensus",
+                            consensusEngineOutput.getConsensusEvents().stream()
+                                    .map(PlatformEvent::getTimeReceived)
+                                    .toList()));
         }
     }
 

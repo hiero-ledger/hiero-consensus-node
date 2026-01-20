@@ -15,8 +15,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
@@ -28,7 +26,6 @@ import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
@@ -39,7 +36,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -86,23 +82,16 @@ public class ConsensusNodeManager {
      * @param activeRoster the roster of nodes in the network, must not be {@code null}
      * @param version the semantic version of the platform, must not be {@code null}
      * @param keysAndCerts the keys and certificates for this node, must not
-     * @param backgroundExecutor the executor to run background tasks, must not be {@code null}
      */
     public ConsensusNodeManager(
             @NonNull final NodeId selfId,
             @NonNull final Configuration platformConfig,
             @NonNull final Roster activeRoster,
             @NonNull final SemanticVersion version,
-            @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final Executor backgroundExecutor) {
+            @NonNull final KeysAndCerts keysAndCerts) {
 
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
-        TestingAppStateInitializer.registerConstructablesForStorage(platformConfig);
-
-        // Immediately initialize the cryptography and merkle cryptography factories
-        // to avoid using default behavior instead of that defined in platformConfig
-        final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         setupGlobalMetrics(platformConfig);
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
@@ -114,8 +103,8 @@ public class ConsensusNodeManager {
         final RecycleBin recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
 
-        final PlatformContext platformContext = PlatformContext.create(
-                platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
+        final PlatformContext platformContext =
+                PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), platformConfig);
 

@@ -209,14 +209,7 @@ public class ReconnectStateLearner {
         // The learner view will be closed by LearningSynchronizer
         final LearnerTreeView<?> learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
-                threadManager,
-                in,
-                out,
-                reconnectRoot,
-                learnerView,
-                connection::disconnect,
-                platformContext.getMerkleCryptography(),
-                reconnectConfig);
+                threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
         try {
             synchronizer.synchronize();
             logger.info(RECONNECT.getMarker(), () -> mapStats.format());

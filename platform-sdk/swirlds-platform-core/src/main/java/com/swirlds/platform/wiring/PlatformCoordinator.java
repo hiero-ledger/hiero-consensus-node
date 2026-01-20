@@ -31,8 +31,8 @@ import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
-import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -45,7 +45,8 @@ import org.hiero.consensus.round.EventWindowUtils;
  *
  * @param components
  */
-public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
+public record PlatformCoordinator(
+        @NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
         implements StatusActionSubmitter {
 
     /**

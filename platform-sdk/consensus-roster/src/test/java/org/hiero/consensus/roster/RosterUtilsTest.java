@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.RosterStateUtils;
