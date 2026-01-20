@@ -1083,17 +1083,14 @@ public class ConsensusImpl implements Consensus {
         final long prx = parentRound(x); // parent round of x
 
         x.initStronglySeeP(numMembers);
-        for (int mm = 0; mm < numMembers; mm++) {
-            boolean computationFinished = false;
+        perMemberLoop: for (int mm = 0; mm < numMembers; mm++) {
             for (final EventImpl parent : parents(x)) {
                 if (stronglySeeP(parent, mm) != null && parentRound(parent) == prx) {
+                    // if x has the same parentRound as one of its parents, then it inherits their strongly see
+                    // we don't need to do the full calculation
                     x.setStronglySeeP(mm, stronglySeeP(parent, mm));
-                    computationFinished = true;
-                    break;
+                    continue perMemberLoop;
                 }
-            }
-            if (computationFinished) {
-                continue;
             }
 
             // the canonical witness by mm that is seen by x thru someone else
