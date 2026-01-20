@@ -187,12 +187,6 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Debug Matrix Values
-        run: |
-          echo "Current runner: ${{ matrix.os }}"
-          echo "Raw matrix output: ${{ needs.generate-matrix.outputs.matrix }}"
-          echo "All matrix values: ${{ toJSON(matrix) }}"
-
       - name: Standardize Git Line Endings
         run: |
           git config --global core.autocrlf false
