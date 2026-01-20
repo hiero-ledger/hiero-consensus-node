@@ -21,8 +21,8 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -61,43 +61,45 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
+            @Nullable final SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
 
-        final ReadableTokenStore tokenStore = feeContext.readableStore(ReadableTokenStore.class);
-        final var op = txnBody.cryptoTransferOrThrow();
-        final long numAccounts = countUniqueAccounts(op);
-        final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
-        final var hookInfo = getHookInfo(op);
-
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.addServiceBaseTC(serviceDef.baseFee());
+        if (simpleFeeContext.feeContext() != null) {
 
-        final Extra transferType = determineTransferType(tokenCounts);
-        if (transferType != null) {
-            addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
-        }
-        if (hookInfo.numHookInvocations() > 0) {
-            final var config = feeContext.configuration();
-            // Avoid overflow in by clamping effective limit. Since we validate each hook dispatch can't
-            // exceed maxGasPerSec downstream, we need to allow to charge upto maxGasPerSec * numHookInvocations
-            final long effectiveGasLimit = Math.max(
-                    0,
-                    Math.min(
-                            hookInfo.numHookInvocations()
-                                    * config.getConfigData(ContractsConfig.class)
-                                            .maxGasPerSec(),
-                            hookInfo.totalGasLimitOfHooks()));
-            addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, hookInfo.numHookInvocations());
-            addExtraFee(feeResult, serviceDef, GAS, feeSchedule, effectiveGasLimit);
-        }
+            final ReadableTokenStore tokenStore = simpleFeeContext.feeContext().readableStore(ReadableTokenStore.class);
+            final var op = txnBody.cryptoTransferOrThrow();
+            final long numAccounts = countUniqueAccounts(op);
+            final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
+            final var hookInfo = getHookInfo(op);
 
-        addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
-        final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
-        addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
-        final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
-        addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, totalNft);
+            final Extra transferType = determineTransferType(tokenCounts);
+            if (transferType != null) {
+                addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
+            }
+            if (hookInfo.numHookInvocations() > 0) {
+                final var config = simpleFeeContext.feeContext().configuration();
+                // Avoid overflow in by clamping effective limit. Since we validate each hook dispatch can't
+                // exceed maxGasPerSec downstream, we need to allow to charge upto maxGasPerSec * numHookInvocations
+                final long effectiveGasLimit = Math.max(
+                        0,
+                        Math.min(
+                                hookInfo.numHookInvocations()
+                                        * config.getConfigData(ContractsConfig.class)
+                                                .maxGasPerSec(),
+                                hookInfo.totalGasLimitOfHooks()));
+                addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, hookInfo.numHookInvocations());
+                addExtraFee(feeResult, serviceDef, GAS, feeSchedule, effectiveGasLimit);
+            }
+
+            addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
+            final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
+            addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
+            final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
+            addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, totalNft);
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 
 import java.util.ArrayList;
@@ -20,27 +21,12 @@ public class FeeResult {
     /** The node component in tinycents. */
     private long node = 0;
 
-    /** Add a service fee with details.
-     * @param count the number of units for this fee.
-     * @param cost the actual computed cost of this service fee in tinycents.
-     * */
-    public void addServiceFee(long count, long cost) {
-        details.add(new FeeDetail(count, cost));
-        service = clampedAdd(service, clampedMultiply(count, cost));
     private long nodeBase = 0;
     /** The node base component in Tiny Cents */
     public long getNodeBaseTC() {
         return this.nodeBase;
     }
 
-    /** Add a node fee with details.
-     * @param count the number of units for this fee.
-     * @param cost the actual computed cost of this service fee in tinycents.
-     * */
-    public void addNodeFee(long count, long cost) {
-        details.add(new FeeDetail(count, cost));
-        node = clampedAdd(node, clampedMultiply(count, cost));
-    }
     private List<FeeDetail> nodeExtras = new ArrayList<>();
 
     private int networkMultiplier = 0;
@@ -56,7 +42,7 @@ public class FeeResult {
 
     public void addServiceExtra(String name, long per_unit, long used, int included, long charged) {
         serviceExtras.add(new FeeDetail(name, per_unit, used, included, charged));
-        service = clampedAdd(service, per_unit * charged);
+        service = clampedAdd(service, clampedMultiply(per_unit, charged));
     }
 
     /** Add the node base fee in tiny cents.
@@ -77,7 +63,7 @@ public class FeeResult {
      */
     public void addNodeExtra(String name, long per_unit, long used, int included, long charged) {
         nodeExtras.add(new FeeDetail(name, per_unit, used, included, charged));
-        node = clampedAdd(node, per_unit * charged);
+        node = clampedAdd(node, clampedMultiply(per_unit, charged));
     }
 
     /** Set the network multiplier. This is the factor multiplied by the node fee to calculate the network fee
@@ -133,13 +119,5 @@ public class FeeResult {
                 + ", serviceBase=" + serviceBase
                 + ", serviceDetails=" + serviceExtras
                 + '}';
-    }
-
-    private static long clampedAdd(final long a, final long b) {
-        try {
-            return Math.addExact(a, b);
-        } catch (final ArithmeticException ae) {
-            return a > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
-        }
     }
 }
