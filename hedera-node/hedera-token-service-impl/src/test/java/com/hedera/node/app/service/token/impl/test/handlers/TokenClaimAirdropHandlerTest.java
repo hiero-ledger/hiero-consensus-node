@@ -14,6 +14,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.PendingAirdropId;
@@ -27,6 +29,8 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.TokensConfig;
+import com.swirlds.config.api.Configuration;
 import java.util.ArrayList;
 import java.util.List;
 import org.assertj.core.api.Assertions;
@@ -100,6 +104,7 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Test
     void pureChecksEmptyAirDropIDListThrows() {
+        mockConfig();
         final var txn = newTokenClaimAirdrop(
                 TokenClaimAirdropTransactionBody.newBuilder().build());
         given(pureChecksContext.body()).willReturn(txn);
@@ -110,6 +115,7 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Test
     void pureChecksPendingAirDropListIsNullThrows() {
+        mockConfig();
         final var txn = newTokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder()
                 .pendingAirdrops((List<PendingAirdropId>) null)
                 .build());
@@ -122,6 +128,7 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Test
     void pureChecksPendingAirDropDuplicateThrows() {
+        mockConfig();
         final List<PendingAirdropId> pendingAirdropIds = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             pendingAirdropIds.add(PendingAirdropId.newBuilder()
@@ -142,6 +149,7 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Test
     void pureChecksHasValidPath() {
+        mockConfig();
         final List<PendingAirdropId> pendingAirdropIds = new ArrayList<>();
         final var token9754 = asToken(9754);
         pendingAirdropIds.add(PendingAirdropId.newBuilder()
@@ -169,6 +177,7 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Test
     void pureChecksEmptySenderThrows() {
+        mockConfig();
         final List<PendingAirdropId> pendingAirdropIds = new ArrayList<>();
         pendingAirdropIds.add(PendingAirdropId.newBuilder()
                 .receiverId(ACCOUNT_ID_3333)
@@ -184,6 +193,7 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Test
     void pureChecksEmptyReceiverThrows() {
+        mockConfig();
         final List<PendingAirdropId> pendingAirdropIds = new ArrayList<>();
         pendingAirdropIds.add(PendingAirdropId.newBuilder()
                 .senderId(ACCOUNT_ID_4444)
@@ -490,6 +500,14 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         // check sender's pending airdrops head id and count
         assertThat(writableAccountStore.get(spenderId).headPendingAirdropId()).isEqualTo(thirdPendingAirdropId);
         assertThat(writableAccountStore.get(spenderId).numberPendingAirdrops()).isEqualTo(2);
+    }
+
+    private void mockConfig() {
+        final var configMock = mock(Configuration.class);
+        final var tokenConfigMock = mock(TokensConfig.class);
+        when(tokenConfigMock.airdropsClaimEnabled()).thenReturn(true);
+        when(configMock.getConfigData(TokensConfig.class)).thenReturn(tokenConfigMock);
+        when(pureChecksContext.configuration()).thenReturn(configMock);
     }
 
     private PendingAirdropId setUpFourthPendingAirdrop() {
