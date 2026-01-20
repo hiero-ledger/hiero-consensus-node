@@ -82,7 +82,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(TOKEN)
 @Tag(MATS)
 class AtomicBatchTokenServiceEndToEndTests {
-
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final String FT_FOR_END_TO_END = "ftForEndToEnd";
     private static final String NFT_FOR_END_TO_END = "nftForEndToEnd";
@@ -475,7 +474,7 @@ class AtomicBatchTokenServiceEndToEndTests {
 
                     // confirm token was deleted
                     cryptoTransfer(movingUnique(NFT_FOR_END_TO_END, 5L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                            .hasKnownStatus(TOKEN_WAS_DELETED)));
+                            .hasPrecheck(TOKEN_WAS_DELETED)));
         }
 
         @HapiTest
@@ -521,7 +520,7 @@ class AtomicBatchTokenServiceEndToEndTests {
 
                     // confirm token was deleted
                     cryptoTransfer(movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                            .hasKnownStatus(TOKEN_WAS_DELETED)));
+                            .hasPrecheck(TOKEN_WAS_DELETED)));
         }
 
         @HapiTest
@@ -1876,7 +1875,7 @@ class AtomicBatchTokenServiceEndToEndTests {
                         cryptoTransfer(moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                                 .payingWith(OWNER)
                                 .via("transferAfterDeleteTxn")
-                                .hasKnownStatus(TOKEN_WAS_DELETED),
+                                .hasPrecheck(TOKEN_WAS_DELETED),
 
                         // validate account balances and token info
                         getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_BURN, 5L),
@@ -2452,7 +2451,7 @@ class AtomicBatchTokenServiceEndToEndTests {
                         cryptoTransfer(moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                                 .payingWith(OWNER)
                                 .via("transferAfterDeleteTxn")
-                                .hasKnownStatus(TOKEN_WAS_DELETED),
+                                .hasPrecheck(TOKEN_WAS_DELETED),
 
                         // validate account balances and token info
                         getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_BURN, 100L),
