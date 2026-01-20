@@ -984,9 +984,6 @@ public class ConsensusImpl implements Consensus {
      */
     private @Nullable EventImpl lastSee(@Nullable final EventImpl x, final long m) {
         final int numMembers;
-        final EventImpl sp;
-        final EventImpl op;
-
         if (x == null) {
             return null;
         }
@@ -1002,40 +999,35 @@ public class ConsensusImpl implements Consensus {
 
         for (int mm = 0; mm < numMembers; mm++) {
             if (creatorIndexEquals(x, mm)) {
+                // mm created x, so x is considered to see itself
                 x.setLastSee(mm, x);
-            } else {
-                //                final EventImpl lsop = lastSee(op, mm);
-                //                final EventImpl lssp = lastSee(sp, mm);
-                //                // Note: getDeGen() might return DeGen.GENERATION_UNDEFINED in some instances, this
-                // will be for events
-                //                // that will not affect consensus, so it makes no difference
-                //                final long lsopGen = lsop == null ? DeGen.GENERATION_UNDEFINED : lsop.getDeGen();
-                //                final long lsspGen = lssp == null ? DeGen.GENERATION_UNDEFINED : lssp.getDeGen();
-                final List<EventImpl> parents = parents(x);
+                continue;
+            }
+            final List<EventImpl> parents = parents(x);
+            if (parents.isEmpty()) {
+                // no parents, so cannot see anything
+                x.setLastSee(mm, null);
+                continue;
+            }
+            EventImpl latestEventSeen = null;
+            for (final EventImpl parent : parents) {
+                final EventImpl candidate = lastSee(parent, mm);
+                if (candidate == null) {
+                    continue;
+                }
+                if (latestEventSeen == null) {
+                    latestEventSeen = candidate;
+                    continue;
+                }
 
-                if (parents.isEmpty()) {
-                    x.setLastSee(mm, null);
-                } else {
-                    EventImpl bestLastSeenEvent = null;
-                    for (final EventImpl parent : parents) {
-                        final EventImpl candidateLastSeenEvent = lastSee(parent, mm);
-                        if (candidateLastSeenEvent == null) {
-                            continue;
-                        }
-                        if (bestLastSeenEvent == null) {
-                            bestLastSeenEvent = candidateLastSeenEvent;
-                            continue;
-                        }
-
-                        if ((round(candidateLastSeenEvent) > round(bestLastSeenEvent))
-                                || (candidateLastSeenEvent.getDeGen() > bestLastSeenEvent.getDeGen()
-                                        && (firstSee(candidateLastSeenEvent, mm) == firstSee(bestLastSeenEvent, mm)))) {
-                            bestLastSeenEvent = candidateLastSeenEvent;
-                        }
-                    }
-                    x.setLastSee(mm, bestLastSeenEvent);
+                if ((round(candidate) > round(latestEventSeen))
+                        || (candidate.getDeGen() > latestEventSeen.getDeGen()
+                                && (firstSee(candidate, mm) == firstSee(latestEventSeen, mm)))) {
+                    latestEventSeen = candidate;
                 }
             }
+            x.setLastSee(mm, latestEventSeen);
+
         }
         return x.getLastSee((int) m);
     }
