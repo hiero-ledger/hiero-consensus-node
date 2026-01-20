@@ -194,8 +194,7 @@ public class CryptoUpdateSuite {
     @LeakyHapiTest(overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
     @Tag(MATS)
     final Stream<DynamicTest> usdFeeAsExpectedCryptoUpdate() {
-        double baseFee = 0.000214;
-        double baseFeeWithExpiry = 0.00022;
+        double baseFee = 0.00022;
 
         final var baseTxn = "baseTxn";
         final var plusOneTxn = "plusOneTxn";
@@ -231,9 +230,7 @@ public class CryptoUpdateSuite {
                         .expiring(expiration.get() + THREE_MONTHS_IN_SECONDS)
                         .blankMemo()
                         .via(baseTxn)),
-                getAccountInfo("canonicalAccount")
-                        .hasMaxAutomaticAssociations(0)
-                        .logged(),
+                getAccountInfo("canonicalAccount").hasMaxAutomaticAssociations(0),
                 cryptoUpdate("autoAssocTarget")
                         .payingWith("autoAssocTarget")
                         .blankMemo()
@@ -245,17 +242,13 @@ public class CryptoUpdateSuite {
                         .blankMemo()
                         .maxAutomaticAssociations(11)
                         .via(plusTenTxn),
-                getAccountInfo("autoAssocTarget")
-                        .hasMaxAutomaticAssociations(11)
-                        .logged(),
+                getAccountInfo("autoAssocTarget").hasMaxAutomaticAssociations(11),
                 cryptoUpdate("autoAssocTarget")
                         .payingWith("autoAssocTarget")
                         .blankMemo()
                         .maxAutomaticAssociations(5000)
                         .via(plusFiveKTxn),
-                getAccountInfo("autoAssocTarget")
-                        .hasMaxAutomaticAssociations(5000)
-                        .logged(),
+                getAccountInfo("autoAssocTarget").hasMaxAutomaticAssociations(5000),
                 cryptoUpdate("autoAssocTarget")
                         .payingWith("autoAssocTarget")
                         .blankMemo()
@@ -273,10 +266,8 @@ public class CryptoUpdateSuite {
                         .blankMemo()
                         .maxAutomaticAssociations(-1)
                         .via(validNegativeTxn),
-                getAccountInfo("autoAssocTarget")
-                        .hasMaxAutomaticAssociations(-1)
-                        .logged(),
-                validateChargedUsd(baseTxn, baseFeeWithExpiry, allowedPercentDiff),
+                getAccountInfo("autoAssocTarget").hasMaxAutomaticAssociations(-1),
+                validateChargedUsd(baseTxn, baseFee, allowedPercentDiff),
                 validateChargedUsd(plusOneTxn, baseFee, allowedPercentDiff),
                 validateChargedUsd(plusTenTxn, baseFee, allowedPercentDiff),
                 validateChargedUsd(plusFiveKTxn, baseFee, allowedPercentDiff),

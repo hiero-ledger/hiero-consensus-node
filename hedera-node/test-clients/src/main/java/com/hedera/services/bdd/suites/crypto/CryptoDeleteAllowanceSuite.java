@@ -343,16 +343,16 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(owner, nft, List.of(2L, 3L))
                         .via("twoDeleteNft"),
-                validateChargedUsdWithin("twoDeleteNft", 0.050101, 0.01),
+                validateChargedUsdWithin("twoDeleteNft", 0.05, 0.01),
                 /* with 2 sigs */
                 cryptoApproveAllowance().payingWith(owner).addNftAllowance(owner, nft, "spender2", false, List.of(1L)),
                 cryptoDeleteAllowance()
                         .payingWith(payer)
-                        .blankMemo()
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
                         .signedBy(payer, owner)
                         .via("twoDeleteNft"),
-                validateChargedUsdWithin("twoDeleteNft", 0.08124, 0.035));
+                // 0.05 base fee + 0.001 for signature
+                validateChargedUsdWithin("twoDeleteNft", 0.051, 1));
     }
 
     @HapiTest

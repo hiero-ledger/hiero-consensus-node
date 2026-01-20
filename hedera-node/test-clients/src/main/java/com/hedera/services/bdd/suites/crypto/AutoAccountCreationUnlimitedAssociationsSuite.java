@@ -67,7 +67,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 public class AutoAccountCreationUnlimitedAssociationsSuite {
-
     public static final String TRUE = "true";
     public static final String FALSE = "false";
     public static final String LAZY_MEMO = "";
@@ -81,7 +80,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     private static final String AUTO_MEMO = "";
     private static final String CIVILIAN = "somebody";
     private static final String SPONSOR = "autoCreateSponsor";
-    private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
+    private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 41666666L;
     private static final String HBAR_XFER = "hbarXfer";
     private static final String FT_XFER = "ftXfer";
     private static final String NFT_XFER = "nftXfer";
@@ -91,7 +90,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     @Tag(MATS)
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationHappyPath() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
+        final long transferFee = 1833333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 newKeyNamed(VALID_ALIAS),
@@ -147,7 +146,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationsDisabled() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
+        final long transferFee = 1833333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 overriding("entities.unlimitedAutoAssociationsEnabled", FALSE),
@@ -174,8 +173,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
-                            .hasNoAliasInChildRecord(0)
-                            .logged();
+                            .hasNoAliasInChildRecord(0);
                     allRunFor(spec, lookup);
                     final var sponsor = spec.registry().getAccountID(SPONSOR);
                     final var payer = spec.registry().getAccountID(PAYER);
@@ -197,8 +195,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                                 .receiverSigReq(false)
                                 .expiry(creationTime.get() + THREE_MONTHS_IN_SECONDS, 0)
                                 .memo(AUTO_MEMO)
-                                .maxAutoAssociations(0))
-                        .logged()));
+                                .maxAutoAssociations(0))));
     }
 
     @HapiTest
@@ -289,7 +286,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     // verify completed hollow account
                     var completedAccount = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             .has(accountWith()
-                                    .expectedBalanceWithChargedUsd(2 * ONE_HBAR, 0.00015, 10)
+                                    .expectedBalanceWithChargedUsd(2 * ONE_HBAR, 0.001, 10)
                                     .key(SECP_256K1_SOURCE_KEY)
                                     .noAlias()
                                     .autoRenew(THREE_MONTHS_IN_SECONDS)

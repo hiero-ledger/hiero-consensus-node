@@ -18,6 +18,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -29,7 +30,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
-import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
@@ -44,13 +44,13 @@ import javax.inject.Singleton;
 /** This class contains all checks related to instances of {@link Query} */
 @Singleton
 public class QueryChecker {
-
     private final Authorizer authorizer;
     private final CryptoTransferHandler cryptoTransferHandler;
     private final SolvencyPreCheck solvencyPreCheck;
     private final ExpiryValidation expiryValidation;
     private final FeeManager feeManager;
     private final TransactionDispatcher dispatcher;
+    private final ConfigProviderImpl configProvider;
 
     /**
      * Constructor of {@code QueryChecker}
@@ -72,13 +72,14 @@ public class QueryChecker {
             @NonNull final ExpiryValidation expiryValidation,
             @NonNull final FeeManager feeManager,
             final TransactionDispatcher dispatcher,
-            @NonNull final TransactionChecker transactionChecker) {
+            @NonNull final ConfigProviderImpl configProvider) {
         this.authorizer = requireNonNull(authorizer);
         this.cryptoTransferHandler = requireNonNull(cryptoTransferHandler);
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck);
         this.expiryValidation = requireNonNull(expiryValidation);
         this.feeManager = requireNonNull(feeManager);
         this.dispatcher = requireNonNull(dispatcher);
+        this.configProvider = requireNonNull(configProvider);
     }
 
     /**
@@ -94,7 +95,7 @@ public class QueryChecker {
             throw new PreCheckException(INSUFFICIENT_TX_FEE);
         }
         final var txBody = transactionInfo.txBody();
-        final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
+        final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher, configProvider.getConfiguration());
         cryptoTransferHandler.pureChecks(pureChecksContext);
     }
 

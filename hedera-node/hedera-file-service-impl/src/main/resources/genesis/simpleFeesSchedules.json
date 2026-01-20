@@ -85,20 +85,30 @@
         },
         {
           "name": "CryptoApproveAllowance",
-          "baseFee": 500000000,
+          "baseFee": 499000000,
           "extras": [
             { "name": "ALLOWANCES", "includedCount": 1 }
           ]
         },
         {
           "name": "CryptoDeleteAllowance",
-          "baseFee": 500000000,
+          "baseFee": 499000000,
           "extras": [
             { "name": "ALLOWANCES", "includedCount": 1 }
           ]
         },
         {
           "name": "CryptoGetAccountBalance",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "CryptoGetInfo",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "CryptoGetAccountRecords",
           "baseFee": 0,
           "extras": []
         }
@@ -138,16 +148,6 @@
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 0,
-          "extras": []
-        },
-        {
-          "name": "CryptoGetInfo",
-          "baseFee": 0,
-          "extras": []
-        },
-        {
-          "name": "CryptoGetAccountRecords",
           "baseFee": 0,
           "extras": []
         }

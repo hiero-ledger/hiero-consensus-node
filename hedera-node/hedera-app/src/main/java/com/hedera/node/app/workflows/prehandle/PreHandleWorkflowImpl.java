@@ -321,7 +321,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                 throw new PreCheckException(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
             }
             // First, perform semantic checks on the transaction
-            final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
+            final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher, configuration);
             dispatcher.dispatchPureChecks(pureChecksContext);
             // Then gather the signatures from the transaction handler
             dispatcher.dispatchPreHandle(context);

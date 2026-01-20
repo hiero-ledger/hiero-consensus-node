@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.workflows;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -23,4 +24,12 @@ public interface PureChecksContext {
      * @throws PreCheckException
      */
     void dispatchPureChecks(@NonNull TransactionBody body) throws PreCheckException;
+
+    /**
+     * Returns the current {@link Configuration}.
+     *
+     * @return the {@link Configuration}
+     */
+    @NonNull
+    Configuration configuration();
 }
