@@ -22,7 +22,7 @@
     { "name":  "ACCOUNTS",                       "fee": 1000000 },
     { "name":  "FUNGIBLE_TOKENS",                 "fee": 1000000 },
     { "name":  "NON_FUNGIBLE_TOKENS",            "fee": 1000000 },
-    { "name":  "GAS",                            "fee": 1 },
+    { "name":  "GAS",                            "fee": 852 },
     { "name":  "ALLOWANCES",                     "fee": 500000000 },
     { "name":  "TOKEN_CREATE_WITH_CUSTOM_FEE",   "fee": 10000000000 },
     { "name":  "TOKEN_MINT_NFT",                 "fee": 199000000 },
@@ -33,7 +33,7 @@
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
     { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 499000000},
     { "name":  "SCHEDULE_CREATE_CONTRACT_CALL_BASE",        "fee": 900000000},
-    { "name":  "HOOK_EXECUTION",                            "fee": 10000000000 }
+    { "name":  "HOOK_EXECUTION",                            "fee": 50000000 }
   ],
   "services": [
     {
@@ -42,6 +42,46 @@
         {
           "name": "HookStore",
           "baseFee": 49000000
+        },
+        {
+          "name": "ContractCreate",
+          "baseFee": 9999000000,
+          "extras": [
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "ContractCall",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "ContractUpdate",
+          "baseFee": 259000000,
+          "extras": [
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "ContractDelete",
+          "baseFee": 69000000,
+          "extras": []
+        },
+        {
+          "name": "EthereumTransaction",
+          "baseFee": 0,
+          "extras": [
+            {
+              "name": "BYTES",
+              "includedCount": 6144
+            }
+          ]
         }
       ]
     },
@@ -99,7 +139,7 @@
             {  "name": "TOKEN_TRANSFER_BASE",             "includedCount": 0 },
             {  "name": "TOKEN_TRANSFER_BASE_CUSTOM_FEES", "includedCount": 0 },
             {  "name": "HOOK_EXECUTION",                  "includedCount": 0 },
-            {  "name": "HOOK_UPDATES",                    "includedCount": 0 },
+            {  "name": "GAS",                             "includedCount": 0 },
             {  "name": "ACCOUNTS",                        "includedCount": 2 },
             {  "name": "FUNGIBLE_TOKENS",                 "includedCount": 1 },
             {  "name": "NON_FUNGIBLE_TOKENS",             "includedCount": 1 }

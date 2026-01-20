@@ -139,7 +139,7 @@ jobs:
           # Extract package versions from the parent package.json
           SDK_VERSION=$(node -e "console.log(require('../package.json').version)")
           LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
-          PROTO_VERSION=$(node -e "console.log(require('../package.json').dependencies['@hiero-ledger/proto'])")
+          PROTO_VERSION=$(node -e "console.log(require('../packages/proto/package.json').version)")
 
           echo "Using SDK version: ${SDK_VERSION}"
           echo "Using long version: ${LONG_VERSION}"
