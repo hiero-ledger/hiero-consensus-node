@@ -261,7 +261,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
 
     @Override
     public int numTxnBytes() {
-        return (int) txnInfo.serializedSignedTxOrThrow().length();
+        // serialized signed transaction is null for system transaction dispatches
+        return (int)
+                (txnInfo.serializedSignedTx() != null
+                        ? txnInfo.serializedSignedTx().length()
+                        : 0);
     }
 
     @Override

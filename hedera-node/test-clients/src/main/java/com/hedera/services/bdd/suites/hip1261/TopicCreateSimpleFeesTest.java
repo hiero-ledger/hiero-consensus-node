@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
@@ -53,6 +54,7 @@ import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -790,9 +792,11 @@ public class TopicCreateSimpleFeesTest {
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
-                            // Get the transaction bytes from the registry
                             final var txnBytes = spec.registry().getBytes(INNER_ID);
-                            txnSize.set(txnBytes.length);
+                            // Get the transaction bytes from the registry
+                            final var transaction = Transaction.parseFrom(txnBytes);
+                            final var signedTxnBytes = serializedSignedTxFrom(transaction);
+                            txnSize.set(signedTxnBytes.length);
 
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
@@ -805,7 +809,7 @@ public class TopicCreateSimpleFeesTest {
                                 initialNodeBalance,
                                 afterNodeBalance,
                                 expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize.get()),
-                                3)));
+                                0.01)));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)

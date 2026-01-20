@@ -227,11 +227,6 @@ public class ConsensusServiceSimpleFeesSuite {
                                     .fee(ONE_HBAR)
                                     .via("submit-message-txn")),
                     "submit-message-txn",
-                    // base == 0
-                    // network + node = 1000000 (node fee has more bytes)
-                    // extra bytes = 1023-100= 923
-                    // byte cost = 110000
-                    // total = 102530000
                     0.0245529996,
                     1,
                     0.024772,

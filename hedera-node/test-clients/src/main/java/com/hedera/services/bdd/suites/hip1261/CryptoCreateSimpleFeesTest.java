@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -60,6 +61,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
@@ -995,7 +997,11 @@ public class CryptoCreateSimpleFeesTest {
                         getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
                             final var txnBytes = spec.registry().getBytes(INNER_ID);
-                            txnSize.set(txnBytes.length);
+                            // Extract SignedTransaction bytes from the Transaction bytes
+                            // The node charges fees based on SignedTransaction size, not Transaction size
+                            final var transaction = Transaction.parseFrom(txnBytes);
+                            final var signedTxnBytes = serializedSignedTxFrom(transaction);
+                            txnSize.set(signedTxnBytes.length);
 
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
