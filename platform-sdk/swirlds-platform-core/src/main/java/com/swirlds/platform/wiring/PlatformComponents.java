@@ -19,7 +19,6 @@ import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
-import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerDataCounter;
@@ -55,7 +54,6 @@ import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.orphan.OrphanBuffer;
 
 /**
  * Encapsulates wiring for {@link SwirldsPlatform}.
@@ -64,8 +62,6 @@ public record PlatformComponents(
         WiringModel model,
         EventCreatorModule eventCreatorModule,
         EventIntakeModule eventIntakeModule,
-        ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
-        ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
         ConsensusWiring consensusEngineWiring,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
@@ -118,8 +114,6 @@ public record PlatformComponents(
             @NonNull final SavedStateController savedStateController,
             @NonNull final AppNotifier notifier) {
 
-        eventSignatureValidatorWiring.bind(builder::buildEventSignatureValidator);
-        orphanBufferWiring.bind(builder::buildOrphanBuffer);
         consensusEngineWiring.bind(builder::buildConsensusEngine);
         stateSnapshotManagerWiring.bind(builder::buildStateSnapshotManager);
         stateSignerWiring.bind(builder::buildStateSigner);
@@ -173,8 +167,6 @@ public record PlatformComponents(
                 model,
                 eventCreatorModule,
                 eventIntakeModule,
-                new ComponentWiring<>(model, EventSignatureValidator.class, config.eventSignatureValidator()),
-                new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer()),
                 ConsensusWiring.create(model, config.consensusEngine()),
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler()),
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
