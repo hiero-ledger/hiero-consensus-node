@@ -13,28 +13,28 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.contract.ContractCallLocalQuery;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractDeleteTransactionBody;
-import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
-import com.hedera.hapi.node.contract.EthereumTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
-import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
-import com.hedera.node.app.service.contract.impl.calculator.ContractDeleteFeeCalculator;
-import com.hedera.node.app.service.contract.impl.calculator.ContractUpdateFeeCalculator;
-import com.hedera.node.app.service.contract.impl.calculator.EthereumFeeCalculator;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.hapi.node.contract.ContractCallLocalQuery;
 import com.hedera.hapi.node.contract.ContractGetBytecodeQuery;
 import com.hedera.hapi.node.contract.ContractGetInfoQuery;
+import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
+import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallLocalFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractDeleteFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractGetByteCodeFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractGetInfoFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractUpdateFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.EthereumFeeCalculator;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
+import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -47,8 +47,8 @@ import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
 import org.hiero.hapi.support.fees.NodeFee;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -59,6 +59,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public class ContractServiceFeeCalculatorsTest {
     @Mock
     private QueryContext queryContext;
+
+    @Mock
     private FeeContext feeContext;
 
     private SimpleFeeCalculatorImpl feeCalculator;
@@ -68,11 +70,13 @@ public class ContractServiceFeeCalculatorsTest {
         var testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(
                 testSchedule,
-                Set.of( new ContractCreateFeeCalculator(),
+                Set.of(
+                        new ContractCreateFeeCalculator(),
                         new ContractUpdateFeeCalculator(),
                         new ContractDeleteFeeCalculator(),
                         new ContractCallFeeCalculator(),
-                        new EthereumFeeCalculator(),
+                        new EthereumFeeCalculator()),
+                Set.of(
                         new ContractCallLocalFeeCalculator(),
                         new ContractGetInfoFeeCalculator(),
                         new ContractGetByteCodeFeeCalculator()));
@@ -146,6 +150,21 @@ public class ContractServiceFeeCalculatorsTest {
                         100000L,
                         0L,
                         200000L));
+    }
+
+    @ParameterizedTest(name = "{index}: {0}")
+    @MethodSource("provideTestCases")
+    @DisplayName("Fee calculation for all ContractFeeCalculators")
+    void testFeeCalculators(TestCase testCase) {
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
+        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
+
+        assertThat(result).isNotNull();
+        assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
+        assertThat(result.service).isEqualTo(testCase.expectedServiceFee);
+        assertThat(result.network).isEqualTo(testCase.expectedNetworkFee);
+    }
+
     @Test
     void testContractCallLocal() {
         final var query = Query.newBuilder()
@@ -171,11 +190,6 @@ public class ContractServiceFeeCalculatorsTest {
 
         assertThat(result).isEqualTo(666);
     }
-    @ParameterizedTest(name = "{index}: {0}")
-    @MethodSource("provideTestCases")
-    @DisplayName("Fee calculation for all ContractFeeCalculators")
-    void testFeeCalculators(TestCase testCase) {
-        lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
     @Test
     void testContractGetInfo() {
@@ -183,13 +197,8 @@ public class ContractServiceFeeCalculatorsTest {
                 .contractGetInfo(ContractGetInfoQuery.newBuilder())
                 .build();
         final var result = feeCalculator.calculateQueryFee(query, queryContext);
-        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
 
         assertThat(result).isEqualTo(777);
-        assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
-        assertThat(result.service).isEqualTo(testCase.expectedServiceFee);
-        assertThat(result.network).isEqualTo(testCase.expectedNetworkFee);
     }
 
     private static FeeSchedule createTestFeeSchedule() {
@@ -203,7 +212,6 @@ public class ContractServiceFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000),
                         makeExtraDef(Extra.KEYS, 10000000),
-                        makeExtraDef(Extra.BYTES, 110000))
                         makeExtraDef(Extra.BYTES, 10))
                 .services(makeService(
                         "ContractService",
@@ -219,7 +227,7 @@ public class ContractServiceFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.KEYS, 0),
                                 makeExtraIncluded(Extra.BYTES, 1000)),
                         makeServiceFee(HederaFunctionality.CONTRACT_DELETE, 69000000),
-                        makeServiceFee(HederaFunctionality.ETHEREUM_TRANSACTION, 0)))
+                        makeServiceFee(HederaFunctionality.ETHEREUM_TRANSACTION, 0),
                         makeServiceFee(HederaFunctionality.CONTRACT_CALL_LOCAL, 555),
                         makeServiceFee(HederaFunctionality.CONTRACT_GET_BYTECODE, 666),
                         makeServiceFee(HederaFunctionality.CONTRACT_GET_INFO, 777)))
