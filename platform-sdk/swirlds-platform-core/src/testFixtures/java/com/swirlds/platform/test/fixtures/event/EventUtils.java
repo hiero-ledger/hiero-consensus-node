@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -103,7 +104,7 @@ public final class EventUtils {
         final Set<EventImpl> eventsEncountered = new HashSet<>();
 
         for (final EventImpl event : events) {
-            if (event.getAllParents().stream().anyMatch(eventsEncountered::contains)) {
+            if (event.getAllParents().stream().anyMatch(Predicate.not(eventsEncountered::contains))) {
                 return false;
             }
             eventsEncountered.add(event);
