@@ -121,6 +121,7 @@ jobs:
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
           checkout-token: "${{ secrets.access-token }}"
+
       - name: Get Commit Info
         id: commit-info
         run: |
