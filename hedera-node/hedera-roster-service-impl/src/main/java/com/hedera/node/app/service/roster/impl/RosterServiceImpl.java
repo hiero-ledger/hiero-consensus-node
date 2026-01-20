@@ -25,7 +25,7 @@ import org.hiero.consensus.roster.WritableRosterStore;
  * Not exposed outside `hedera-app`.
  */
 public class RosterServiceImpl implements Service {
-    public static final int MIGRATION_ORDER = PlatformStateService.PLATFORM_STATE_SERVICE.migrationOrder() - 1;
+    public static final int MIGRATION_ORDER = PlatformStateService.PLATFORM_MIGRATION_ORDER - 1;
 
     public static final String NAME = "RosterService";
 

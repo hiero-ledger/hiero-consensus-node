@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGER_ID;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PLATFORM_STATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
@@ -668,6 +669,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 startOfStateHash,
                 "Wrong start of block state hash for block #" + blockNumber);
 
+        logger.info("Validating block proof for block #{}", blockNumber);
         // Our proof method will be different depending on whether this is a direct or indirect proof.
         // Direct proofs have a signed block proof; indirect proofs do not.
         if (!proof.hasSignedBlockProof()) {
@@ -708,10 +710,6 @@ public class StateChangesValidator implements BlockStreamValidator {
 
         // If hints are enabled, verify the signature using the hints library
         if (hintsLibrary != null) {
-            // (FUTURE: GH issue #22676) Re-enable using the hints and history libraries to verify the
-            // chain-of-trust. Necessary protobuf changes cause the following code not to compile, but
-            // the method for retrieving the verification key hasn't yet been finalized, so this code
-            // is disabled for a short time until such method is enumerated.
             final var signature = proof.signedBlockProofOrThrow().blockSignature();
             if (historyLibrary == null) {
                 // C.f. cases in BlockStreamManagerImpl.finishProofWithSignature(); cannot use the
@@ -730,6 +728,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 // Use convenience API to verify signature
                 TSS.verifyTSS(
                         ledgerIdFromState.toByteArray(), signature.toByteArray(), expectedBlockHash.toByteArray());
+                logger.info("Verified signature on #{} via TSS", blockNumber);
             }
             if (indirectProofsNeedVerification()) {
                 logger.info("Verifying contiguous indirect proofs prior to block {}", blockNumber);
@@ -781,6 +780,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                     stateChangesSummary.countSingletonPut(serviceName, stateId);
                     if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
                         ledgerIdFromState = ((ProtoBytes) singleton).value();
+                    } else if (stateChange.stateId() == STATE_ID_PLATFORM_STATE.protoOrdinal()) {
+                        logger.info("Updating platform state: {}", singleton);
                     }
                 }
                 case MAP_UPDATE -> {

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -20,11 +20,13 @@ class PlatformStateServiceTest {
     @Mock
     private SchemaRegistry registry;
 
+    private final PlatformStateService subject = new PlatformStateService(config -> SemanticVersion.DEFAULT);
+
     @Test
     void registersTwoSchema() {
         final ArgumentCaptor<Schema> captor = ArgumentCaptor.forClass(Schema.class);
         given(registry.register(captor.capture())).willReturn(registry);
-        PLATFORM_STATE_SERVICE.registerSchemas(registry);
+        subject.registerSchemas(registry);
         final var schemas = captor.getAllValues();
         assertEquals(1, schemas.size(), "Wrong number of registered schemas");
         assertInstanceOf(V0540PlatformStateSchema.class, schemas.getFirst());

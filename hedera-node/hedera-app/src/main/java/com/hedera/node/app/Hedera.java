@@ -14,7 +14,6 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedT
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.PlatformStateUtils.creationSemanticVersionOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.lastFrozenTimeOf;
@@ -285,6 +284,7 @@ public final class Hedera
     private final AddressBookServiceImpl addressBookServiceImpl;
 
     private final RosterServiceImpl rosterServiceImpl;
+    private final PlatformStateService platformStateService;
 
     /**
      * The block stream service singleton, kept as a field here to reuse information learned
@@ -532,6 +532,8 @@ public final class Hedera
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         rosterServiceImpl = new RosterServiceImpl(
                 this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState), this::startupNetworks);
+        platformStateService = new PlatformStateService(
+                config -> config.getConfigData(VersionConfig.class).servicesVersion());
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
                 bootstrapConfig.getConfigData(HederaConfig.class).nodeTransactionMaxBytes(),
@@ -562,7 +564,7 @@ public final class Hedera
                         networkServiceImpl,
                         addressBookServiceImpl,
                         rosterServiceImpl,
-                        PLATFORM_STATE_SERVICE)
+                        platformStateService)
                 .forEach(servicesRegistry::register);
         final var blockStreamsEnabled = isBlockStreamEnabled();
         stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
@@ -1270,9 +1272,8 @@ public final class Hedera
         final var initialStateHash = new InitialStateHash(initialStateHashFuture, roundNum);
 
         final var rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
-        final var currentRoster = trigger == GENESIS
-                ? rosterFrom(startupNetworks().genesisNetworkOrThrow(configProvider.getConfiguration()))
-                : requireNonNull(rosterStore.getActiveRoster());
+        final var currentRoster =
+                trigger == GENESIS ? genesisRosterOrThrow() : requireNonNull(rosterStore.getActiveRoster());
         final var networkInfo = new StateNetworkInfo(
                 platform.getSelfId().id(),
                 trigger == GENESIS ? null : state,

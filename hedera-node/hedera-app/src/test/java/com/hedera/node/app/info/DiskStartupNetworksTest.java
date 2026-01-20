@@ -6,7 +6,6 @@ import static com.hedera.node.app.info.DiskStartupNetworks.ARCHIVE;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
@@ -234,12 +233,11 @@ class DiskStartupNetworksTest {
     private State stateContainingInfoFrom(@NonNull final Network network) {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
-        given(startupNetworks.genesisNetworkOrThrow(DEFAULT_CONFIG)).willReturn(network);
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         SemanticVersion currentVersion =
                 bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion();
         Set.of(
-                        PLATFORM_STATE_SERVICE,
+                        new PlatformStateService(config -> SemanticVersion.DEFAULT),
                         new EntityIdServiceImpl(),
                         new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state, () -> startupNetworks),
                         new AddressBookServiceImpl())
@@ -259,7 +257,7 @@ class DiskStartupNetworksTest {
         addRosterInfo(state, network);
         addAddressBookInfo(state, network);
         final var writableStates = state.getWritableStates(PlatformStateService.NAME);
-        PLATFORM_STATE_SERVICE.doGenesisSetup(writableStates, DEFAULT_CONFIG);
+        new PlatformStateService(config -> SemanticVersion.DEFAULT).doGenesisSetup(writableStates, DEFAULT_CONFIG);
         ((CommittableWritableStates) writableStates).commit();
         return state;
     }

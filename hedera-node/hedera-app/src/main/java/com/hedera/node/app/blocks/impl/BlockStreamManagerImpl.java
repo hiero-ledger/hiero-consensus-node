@@ -372,11 +372,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             blockNumber = blockStreamInfo.blockNumber() + 1;
             if (hintsEnabled && !hasCheckedForPendingBlocks) {
-                final var hasBeenFrozen = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
-                                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID)
-                                .get())
-                        .hasLastFrozenTime();
-                if (hasBeenFrozen) {
+                final var platformState = state.getReadableStates(PlatformStateService.NAME)
+                        .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID)
+                        .get();
+                if (platformState != null && platformState.hasLastFrozenTime()) {
                     recoverPendingBlocks();
                 }
                 hasCheckedForPendingBlocks = true;

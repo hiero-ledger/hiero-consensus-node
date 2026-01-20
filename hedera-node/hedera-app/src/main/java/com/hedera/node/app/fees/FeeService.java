@@ -37,7 +37,6 @@ public class FeeService implements Service {
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         // Set the initial exchange rates (from the bootstrap config) as the midnight rates
-        final var midnightRatesState = writableStates.getSingleton(MIDNIGHT_RATES_STATE_ID);
         final var bootstrapConfig = configuration.getConfigData(BootstrapConfig.class);
         final var exchangeRateSet = ExchangeRateSet.newBuilder()
                 .currentRate(ExchangeRate.newBuilder()
@@ -51,7 +50,7 @@ public class FeeService implements Service {
                         .expirationTime(TimestampSeconds.newBuilder().seconds(bootstrapConfig.ratesNextExpiry()))
                         .build())
                 .build();
-        midnightRatesState.put(exchangeRateSet);
+        writableStates.getSingleton(MIDNIGHT_RATES_STATE_ID).put(exchangeRateSet);
         return true;
     }
 }

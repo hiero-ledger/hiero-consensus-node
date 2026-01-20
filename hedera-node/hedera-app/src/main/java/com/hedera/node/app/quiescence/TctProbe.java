@@ -117,16 +117,13 @@ public class TctProbe {
      * @return the block stream info
      */
     public static @NonNull BlockStreamInfo blockStreamInfoFrom(@NonNull final State state, boolean inGenesisBlock) {
-        try {
-            final var blockStreamInfoState = state.getReadableStates(BlockStreamService.NAME)
-                    .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
-            return requireNonNull(blockStreamInfoState.get());
-        } catch (Exception e) {
-            if (inGenesisBlock) {
-                return GENESIS_BLOCK_STREAM_INFO;
-            } else {
-                throw e;
-            }
+        final var blockStreamInfoState = state.getReadableStates(BlockStreamService.NAME)
+                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
+        final var blockStreamInfo = blockStreamInfoState.get();
+        if (blockStreamInfo == null && inGenesisBlock) {
+            return GENESIS_BLOCK_STREAM_INFO;
+        } else {
+            return requireNonNull(blockStreamInfo);
         }
     }
 

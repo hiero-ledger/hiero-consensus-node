@@ -4,7 +4,6 @@ package com.hedera.statevalidation.util;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static com.swirlds.platform.state.signed.StartupStateUtils.copyInitialSignedState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
@@ -52,11 +51,13 @@ import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.standalone.ExecutorComponent;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -225,7 +226,8 @@ public final class StateUtils {
                         new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
                             throw new UnsupportedOperationException("No startup networks available");
                         }),
-                        PLATFORM_STATE_SERVICE)
+                        new PlatformStateService(
+                                c -> c.getConfigData(VersionConfig.class).servicesVersion()))
                 .forEach(servicesRegistry::register);
 
         return servicesRegistry;
