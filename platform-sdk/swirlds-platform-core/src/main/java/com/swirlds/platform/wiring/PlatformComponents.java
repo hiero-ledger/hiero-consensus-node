@@ -54,7 +54,6 @@ import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.orphan.OrphanBuffer;
 
 /**
  * Encapsulates wiring for {@link SwirldsPlatform}.
@@ -64,7 +63,6 @@ public record PlatformComponents(
         EventCreatorModule eventCreatorModule,
         EventIntakeModule eventIntakeModule,
         HashgraphModule hashgraphModule,
-        ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
         ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring,
@@ -116,7 +114,6 @@ public record PlatformComponents(
             @NonNull final SavedStateController savedStateController,
             @NonNull final AppNotifier notifier) {
 
-        orphanBufferWiring.bind(builder::buildOrphanBuffer);
         stateSnapshotManagerWiring.bind(builder::buildStateSnapshotManager);
         stateSignerWiring.bind(builder::buildStateSigner);
         pcesReplayerWiring.bind(pcesReplayer);
@@ -171,7 +168,6 @@ public record PlatformComponents(
                 eventCreatorModule,
                 eventIntakeModule,
                 hashgraphModule,
-                new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer()),
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler()),
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
                 new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),

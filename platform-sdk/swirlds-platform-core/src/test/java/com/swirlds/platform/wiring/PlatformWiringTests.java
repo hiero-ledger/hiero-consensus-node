@@ -56,7 +56,6 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.roster.RosterHistory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -105,7 +104,6 @@ class PlatformWiringTests {
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents, ApplicationCallbacks.EMPTY);
         componentBuilder
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
-                .withOrphanBuffer(mock(OrphanBuffer.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))
                 .withTransactionPrehandler(mock(TransactionPrehandler.class))

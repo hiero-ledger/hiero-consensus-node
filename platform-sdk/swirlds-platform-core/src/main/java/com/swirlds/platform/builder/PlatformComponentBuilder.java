@@ -62,8 +62,6 @@ import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.orphan.DefaultOrphanBuffer;
-import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.pces.PcesConfig;
 import org.hiero.consensus.pces.PcesFileManager;
 import org.hiero.consensus.pces.PcesUtilities;
@@ -91,7 +89,6 @@ public class PlatformComponentBuilder {
     private final PlatformBuildingBlocks blocks;
 
     private StateGarbageCollector stateGarbageCollector;
-    private OrphanBuffer orphanBuffer;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
@@ -217,39 +214,6 @@ public class PlatformComponentBuilder {
             stateGarbageCollector = new DefaultStateGarbageCollector(blocks.platformContext());
         }
         return stateGarbageCollector;
-    }
-
-    /**
-     * Build the orphan buffer if it has not yet been built. If one has been provided via
-     * {@link #withOrphanBuffer(OrphanBuffer)}, that orphan buffer will be used. If this method is called more than
-     * once, only the first call will build the orphan buffer. Otherwise, the default orphan buffer will be created and
-     * returned.
-     *
-     * @return the orphan buffer
-     */
-    @NonNull
-    public OrphanBuffer buildOrphanBuffer() {
-        if (orphanBuffer == null) {
-            orphanBuffer = new DefaultOrphanBuffer(blocks.platformContext().getMetrics(), blocks.intakeEventCounter());
-        }
-        return orphanBuffer;
-    }
-
-    /**
-     * Provide an orphan buffer in place of the platform's default orphan buffer.
-     *
-     * @param orphanBuffer the orphan buffer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withOrphanBuffer(@NonNull final OrphanBuffer orphanBuffer) {
-        throwIfAlreadyUsed();
-        if (this.orphanBuffer != null) {
-            throw new IllegalStateException("Orphan buffer has already been set");
-        }
-        this.orphanBuffer = Objects.requireNonNull(orphanBuffer);
-
-        return this;
     }
 
     /**

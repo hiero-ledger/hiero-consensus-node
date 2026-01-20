@@ -36,7 +36,6 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.round.EventWindowUtils;
@@ -69,7 +68,6 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // whether to change the order of these lines.
 
         components.eventIntakeModule().flush();
-        components.orphanBufferWiring().flush();
         components.pcesInlineWriterWiring().flush();
         components.gossipWiring().flush();
         components.hashgraphModule().flush();
@@ -124,7 +122,6 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
         components.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
-        components.orphanBufferWiring().getInputWire(OrphanBuffer::clear).inject(NoInput.getInstance());
         components.gossipWiring().getClearInput().inject(NoInput.getInstance());
         components
                 .stateSignatureCollectorWiring()
