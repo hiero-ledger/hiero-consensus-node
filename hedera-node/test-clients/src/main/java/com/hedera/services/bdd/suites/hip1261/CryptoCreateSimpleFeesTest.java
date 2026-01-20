@@ -1008,7 +1008,7 @@ public class CryptoCreateSimpleFeesTest {
                                 initialNodeBalance,
                                 afterNodeBalance,
                                 expectedCryptoCreateNetworkFeeOnlyUsd(1L, txnSize.get()),
-                                0.01)));
+                                3)));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)

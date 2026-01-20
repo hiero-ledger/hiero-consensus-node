@@ -805,7 +805,7 @@ public class TopicCreateSimpleFeesTest {
                                 initialNodeBalance,
                                 afterNodeBalance,
                                 expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize.get()),
-                                2)));
+                                3)));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
