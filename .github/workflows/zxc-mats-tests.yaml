@@ -125,7 +125,7 @@ jobs:
         id: commit-info
         run: |
           COMMIT_SHA=$(git rev-parse HEAD)
-          echo "sha=${COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
 
   build:
     name: "${{ inputs.custom-job-label }} Compile Code"
