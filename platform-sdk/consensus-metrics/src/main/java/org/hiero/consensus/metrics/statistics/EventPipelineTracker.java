@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.metrics.event;
+package org.hiero.consensus.metrics.statistics;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.hiero.consensus.metrics.statistics.AverageAndMaxTimeStat;
-import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
  * Tracks the delay experienced by events at each stage of the event processing pipeline.
@@ -51,12 +49,12 @@ public class EventPipelineTracker {
      * Records the delay experienced by a single event after the specified stage.
      *
      * @param name  the name of the stage
-     * @param event the event to record
+     * @param start the {@link Instant} when the event entered the pipeline
      */
-    public void recordEvent(@NonNull final String name, @NonNull final PlatformEvent event) {
+    public void recordEvent(@NonNull final String name, @NonNull final Instant start) {
         final AverageAndMaxTimeStat stat = metricMap.get(name);
         if (stat != null) {
-            stat.update(event.getTimeReceived());
+            stat.update(start);
         } else {
             throw new IllegalArgumentException("No metric registered for stage: " + name);
         }
@@ -66,32 +64,13 @@ public class EventPipelineTracker {
      * Records the delay experienced by a list of events after the specified stage.
      *
      * @param name   the name of the stage
-     * @param events the list of events to record
+     * @param starts the list of instances when each event entered the pipeline
      */
-    public void recordEvents(@NonNull final String name, @NonNull final List<PlatformEvent> events) {
+    public void recordEvents(@NonNull final String name, @NonNull final List<Instant> starts) {
         final AverageAndMaxTimeStat stat = metricMap.get(name);
         if (stat != null) {
-            for (final PlatformEvent event : events) {
-                stat.update(event.getTimeReceived());
-            }
-        } else {
-            throw new IllegalArgumentException("No metric registered for stage: " + name);
-        }
-    }
-
-    /**
-     * Records the delay experienced by all events in the given consensus rounds after the specified stage.
-     *
-     * @param name            the name of the stage
-     * @param consensusRounds the list of consensus rounds to record
-     */
-    public void recordRounds(@NonNull final String name, @NonNull final List<ConsensusRound> consensusRounds) {
-        final AverageAndMaxTimeStat stat = metricMap.get(name);
-        if (stat != null) {
-            for (final ConsensusRound round : consensusRounds) {
-                for (final PlatformEvent event : round.getConsensusEvents()) {
-                    stat.update(event.getTimeReceived());
-                }
+            for (final Instant start : starts) {
+                stat.update(start);
             }
         } else {
             throw new IllegalArgumentException("No metric registered for stage: " + name);
