@@ -11,6 +11,7 @@ import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
@@ -158,6 +159,8 @@ public class ConsensusImpl implements Consensus {
     private final Roster roster;
     /** the total weight of all roster entries. */
     private final long rosterTotalWeight;
+    /** true if at least one node has a supermajority of the weight. */
+    private final boolean nodeHasSupermajorityWeight;
     /** roster indices map. */
     private final Map<Long, Integer> rosterIndicesMap;
     /** metrics related to consensus */
@@ -224,6 +227,8 @@ public class ConsensusImpl implements Consensus {
         this.roster = roster;
         this.rosterTotalWeight = RosterUtils.computeTotalWeight(roster);
         this.rosterIndicesMap = RosterUtils.toIndicesMap(roster);
+        final long maxWeight = roster.rosterEntries().stream().mapToLong(RosterEntry::weight).max().orElse(0);
+        this.nodeHasSupermajorityWeight = Threshold.SUPER_MAJORITY.isSatisfiedBy(maxWeight, rosterTotalWeight);
 
         this.rounds = new ConsensusRounds(config, roster);
 
@@ -1179,7 +1184,17 @@ public class ConsensusImpl implements Consensus {
             previousParentRound = parentRound;
         }
 
-        if (!allParentsHaveTheSameRound) {
+        //
+        // If parents have unequal rounds, we can assign the higher parent round to this event
+        // because if the higher parent round couldn't strongly see a supermajority of witnesses,
+        // then this event also cannot.
+        //
+        // There is an edge case where a single node has a super majority of weight. In this case,
+        // we do want to advance if the parent with the higher round has a super majority, so we
+        // continue to the super majority check below. This edge case only occurs in testing, so
+        // we do not optimize for it here.
+        //
+        if (!allParentsHaveTheSameRound && !nodeHasSupermajorityWeight) {
             x.setRoundCreated(greatestParentRound);
             return x.getRoundCreated();
         }
@@ -1216,24 +1231,6 @@ public class ConsensusImpl implements Consensus {
         // it's not a supermajority, so don't advance to the next round
         x.setRoundCreated(parentRound(x));
         return x.getRoundCreated();
-    }
-
-    /**
-     * Check if the creator of this event has a supermajority of weight in the roster
-     *
-     * @param x the event being queried
-     * @return true if the creator of this event has a supermajority of weight in the roster
-     */
-    private boolean hasSuperMajority(@Nullable final EventImpl x) {
-        if (x == null) {
-            return false;
-        }
-        final Integer memberIndex = rosterIndicesMap.get(x.getCreatorId().id());
-        if (memberIndex == null) {
-            return false;
-        }
-        final long weight = getWeight(memberIndex);
-        return Threshold.SUPER_MAJORITY.isSatisfiedBy(weight, rosterTotalWeight);
     }
 
     /**
