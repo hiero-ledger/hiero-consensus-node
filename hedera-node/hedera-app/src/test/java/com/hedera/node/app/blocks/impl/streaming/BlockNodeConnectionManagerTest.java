@@ -1369,7 +1369,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Path file = tempDir.resolve("block-nodes.json");
         final List<BlockNodeConfig> configs = new ArrayList<>();
         final BlockNodeConfig config = BlockNodeConfig.newBuilder()
-                .address("localhost")
                 .streamingPort(8080)
                 .servicePort(8081)
                 .priority(0)
@@ -1431,8 +1430,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Path dir = tempDir;
         final Path file = dir.resolve("block-nodes.json");
 
-        final String json =
-                """
+        final String json = """
                 {
                   "nodes": [
                     {

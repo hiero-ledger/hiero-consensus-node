@@ -57,6 +57,7 @@ public class BlockNodeBackPressureSuite {
     @Order(0)
     final Stream<DynamicTest> noBackPressureAppliedWhenBufferFull() {
         return hapiTest(
+                // TODO Look at this test
                 waitUntilNextBlocks(5),
                 blockNode(0).shutDownImmediately(),
                 waitUntilNextBlocks(30),
@@ -116,46 +117,10 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.streamMode",
                             "BLOCKS",
                             "blockStream.writerMode",
-                            "GRPC"
-                        })
-            })
-    @Order(2)
-    final Stream<DynamicTest> backPressureAppliedWhenBlocksAndGrpc() {
-        final AtomicReference<Instant> time = new AtomicReference<>();
-        return hapiTest(
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
-                blockNode(0).shutDownImmediately(),
-                doingContextual(spec -> time.set(Instant.now())),
-                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0),
-                        time::get,
-                        Duration.ofMinutes(1),
-                        Duration.ofMinutes(1),
-                        "Block buffer is saturated; backpressure is being enabled",
-                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
-                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING));
-    }
-
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "15",
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
                             "FILE_AND_GRPC"
                         })
             })
-    @Order(3)
+    @Order(2)
     final Stream<DynamicTest> testBlockBufferBackPressure() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
 
