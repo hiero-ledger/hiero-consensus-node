@@ -69,10 +69,7 @@ public interface ServiceFeeCalculator {
             if (ref.name() == extra) {
                 int included = ref.includedCount();
                 long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
-                final long overage = Math.max(0,amount - included);
-                if (overage > 0) {
-                    result.addServiceExtraFeeTinyCents(ref.name().name(), extraFee, amount, included);
-                }
+                result.addServiceExtraFeeTinyCents(ref.name().name(), extraFee, amount, included);
             }
         }
     }

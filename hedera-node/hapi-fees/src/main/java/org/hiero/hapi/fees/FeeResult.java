@@ -65,9 +65,11 @@ public class FeeResult {
      * @param included how many of the extra were included for free
      */
     public void addServiceExtraFeeTinyCents(String name, long per_unit, long used, long included) {
-        var charged = used-included;
-        serviceExtrasDetails.add(new FeeDetail(name, per_unit, used, included, charged));
-        serviceTotal = clampedAdd(serviceTotal, clampedMultiply(per_unit, charged));
+        var charged = Math.max(0, used - included);
+        if (charged > 0) {
+            serviceExtrasDetails.add(new FeeDetail(name, per_unit, used, included, charged));
+            serviceTotal = clampedAdd(serviceTotal, clampedMultiply(per_unit, charged));
+        }
     }
 
     /**
@@ -112,9 +114,11 @@ public class FeeResult {
      * @param included how many of the extra were included for free
      */
     public void addNodeExtraFeeTinyCents(String name, long per_unit, long used, long included) {
-        var charged = used-included;
-        nodeExtrasDetails.add(new FeeDetail(name, per_unit, used, included, charged));
-        nodeTotal = clampedAdd(nodeTotal, clampedMultiply(per_unit, charged));
+        var charged = Math.max(0, used - included);
+        if (charged > 0) {
+            nodeExtrasDetails.add(new FeeDetail(name, per_unit, used, included, charged));
+            nodeTotal = clampedAdd(nodeTotal, clampedMultiply(per_unit, charged));
+        }
     }
     /**
      * Details about the service fee extras, broken down by label.

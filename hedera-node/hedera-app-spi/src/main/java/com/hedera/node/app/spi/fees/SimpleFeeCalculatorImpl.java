@@ -58,10 +58,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull final FeeResult result, @NonNull final Iterable<ExtraFeeReference> extras, final long signatures) {
         for (final ExtraFeeReference ref : extras) {
             final long used = ref.name() == SIGNATURES ? signatures : 0;
-            if (used > ref.includedCount()) {
-                final long unitFee = getExtraFee(ref.name());
-                result.addNodeExtraFeeTinyCents(ref.name().name(),unitFee, used, ref.includedCount());
-            }
+            final long unitFee = getExtraFee(ref.name());
+            result.addNodeExtraFeeTinyCents(ref.name().name(), unitFee, used, ref.includedCount());
         }
     }
 
