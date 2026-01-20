@@ -19,8 +19,7 @@ public final class PlatformCliLogo {
     /**
      * PCLI logo without ANSI colors.
      */
-    public static final String LOGO =
-            """
+    public static final String LOGO = """
 			 .----------------.  .----------------.  .----------------.  .----------------.
 			| .--------------. || .--------------. || .--------------. || .--------------. |
 			| |   ______     | || |     ______   | || |   _____      | || |     _____    | |
