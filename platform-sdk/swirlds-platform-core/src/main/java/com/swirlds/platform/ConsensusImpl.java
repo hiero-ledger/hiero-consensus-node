@@ -511,6 +511,10 @@ public class ConsensusImpl implements Consensus {
      * @param event the event to calculate metadata for
      */
     private void calculateMetadata(@NonNull final EventImpl event) {
+        event.setRosterIndex(
+                rosterIndicesMap.getOrDefault(event.getCreatorId().id(), -1)
+        );
+
         if (notRelevantForConsensus(event) || rounds.isLastDecidedJudge(event)) {
             return;
         }
@@ -942,13 +946,6 @@ public class ConsensusImpl implements Consensus {
     }
 
     /**
-     * @return all non-ancient parents of event x
-     */
-    private @NonNull List<EventImpl> parents(@NonNull final EventImpl x) {
-        return x.getAllParents().stream().filter(Predicate.not(this::ancient)).toList();
-    }
-
-    /**
      * Check if the event is ancient
      *
      * @param x the event to check
@@ -1010,14 +1007,17 @@ public class ConsensusImpl implements Consensus {
                 x.setLastSee(mm, x);
                 continue;
             }
-            final List<EventImpl> parents = parents(x);
-            if (parents.isEmpty()) {
+            if (x.getAllParents().isEmpty()) {
                 // no parents, so cannot see anything
                 x.setLastSee(mm, null);
                 continue;
             }
             EventImpl latestEventSeen = null;
-            for (final EventImpl parent : parents) {
+            for (final EventImpl parent : x.getAllParents()) {
+                if(ancient(parent)){
+                    // we can ignore ancient parents
+                    continue;
+                }
                 final EventImpl candidate = lastSee(parent, mm);
                 if (candidate == null) {
                     continue;
@@ -1091,7 +1091,10 @@ public class ConsensusImpl implements Consensus {
         x.initStronglySeeP(numMembers);
         perMemberLoop:
         for (int mm = 0; mm < numMembers; mm++) {
-            for (final EventImpl parent : parents(x)) {
+            for (final EventImpl parent : x.getAllParents()) {
+                if(ancient(parent)) {
+                    continue;
+                }
                 if (stronglySeeP(parent, mm) != null && parentRound(parent) == prx) {
                     // if x has the same parentRound as one of its parents, then it inherits their strongly see
                     // we don't need to do the full calculation
@@ -1174,7 +1177,10 @@ public class ConsensusImpl implements Consensus {
         long greatestParentRound = ConsensusConstants.ROUND_NEGATIVE_INFINITY;
         long previousParentRound = Long.MIN_VALUE;
         boolean allParentsHaveTheSameRound = true;
-        for (final EventImpl parent : parents(x)) {
+        for (final EventImpl parent : x.getAllParents()) {
+            if(ancient(parent)) {
+                continue;
+            }
             final long parentRound = round(parent);
             if (parentRound > greatestParentRound) {
                 greatestParentRound = parentRound;
@@ -1353,10 +1359,7 @@ public class ConsensusImpl implements Consensus {
      * @return true if this creator is in the address book and has the given index
      */
     private boolean creatorIndexEquals(@NonNull final EventImpl e, final int index) {
-        if (!rosterIndicesMap.containsKey(e.getCreatorId().id())) {
-            return false;
-        }
-        return rosterIndicesMap.get(e.getCreatorId().id()) == index;
+        return e.getRosterIndex() == index;
     }
 
     @Override

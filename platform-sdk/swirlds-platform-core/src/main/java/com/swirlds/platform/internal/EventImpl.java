@@ -81,6 +81,8 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     /** The deterministic generation, see {@link DeGen} */
     private int deGen = 0;
 
+    private int rosterIndex = -1;
+
     /**
      * Constructor
      *
@@ -580,5 +582,13 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      */
     public String shortString() {
         return getPlatformEvent().getDescriptor().shortString();
+    }
+
+    public int getRosterIndex() {
+        return rosterIndex;
+    }
+
+    public void setRosterIndex(final int rosterIndex) {
+        this.rosterIndex = rosterIndex;
     }
 }

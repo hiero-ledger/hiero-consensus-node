@@ -85,10 +85,10 @@ public class ConsensusBenchmark {
 
         /*
             Results on a M1 Max MacBook Pro:
-            Benchmark                              (numEvents)  (numNodes)  (seed)  Mode  Cnt     Score     Error  Units
-            ConsensusBenchmark.calculateConsensus       100000           4       0  avgt    3   373.780 ± 214.697  ms/op
-            ConsensusBenchmark.calculateConsensus       100000          10       0  avgt    3   714.159 ±  50.984  ms/op
-            ConsensusBenchmark.calculateConsensus       100000          30       0  avgt    3  2358.441 ± 311.102  ms/op
+            Benchmark                              (numEvents)  (numNodes)  (seed)  Mode  Cnt    Score     Error  Units
+            ConsensusBenchmark.calculateConsensus       100000           4       0  avgt    3   79.660 ± 210.852  ms/op
+            ConsensusBenchmark.calculateConsensus       100000          10       0  avgt    3  165.470 ± 132.313  ms/op
+            ConsensusBenchmark.calculateConsensus       100000          30       0  avgt    3  573.532 ± 241.649  ms/op
         */
     }
 }
