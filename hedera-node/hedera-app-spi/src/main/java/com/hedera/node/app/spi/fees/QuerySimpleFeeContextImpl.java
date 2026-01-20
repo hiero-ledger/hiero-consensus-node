@@ -29,5 +29,4 @@ public class QuerySimpleFeeContextImpl implements SimpleFeeContext {
     public QueryContext queryContext() {
         return this.queryContext;
     }
-
 }

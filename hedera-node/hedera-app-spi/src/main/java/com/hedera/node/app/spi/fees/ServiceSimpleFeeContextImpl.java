@@ -29,5 +29,4 @@ public class ServiceSimpleFeeContextImpl implements SimpleFeeContext {
     public QueryContext queryContext() {
         return null;
     }
-
 }

@@ -93,10 +93,8 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
             return null;
         }
 
-
         public void setNumTxnSignatures(int sigcount) {
             this._numTxnSignatures = sigcount;
         }
-
     }
 }

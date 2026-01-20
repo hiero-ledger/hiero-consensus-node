@@ -9,8 +9,9 @@ public interface SimpleFeeContext {
 
     int numTxnBytes(); // added in a different PR so we can have BYTE extras in the node fees
 
-    @Nullable FeeContext feeContext(); // may be null
+    @Nullable
+    FeeContext feeContext(); // may be null
 
-    @Nullable QueryContext queryContext(); // may be null
-
+    @Nullable
+    QueryContext queryContext(); // may be null
 }
