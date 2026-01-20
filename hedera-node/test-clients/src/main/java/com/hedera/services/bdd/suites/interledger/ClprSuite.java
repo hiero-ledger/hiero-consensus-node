@@ -471,10 +471,7 @@ public class ClprSuite implements LifecycleTest {
                 final var config = tryFetchLedgerConfiguration(node.get());
                 final var payer = asAccount(spec, 2);
                 client.submitProcessMessageBundleTxn(
-                        toPbj(payer),
-                        node.get().getAccountId(),
-                        toPbj(config).ledgerId(),
-                        messageBundle);
+                        toPbj(payer), node.get().getAccountId(), toPbj(config).ledgerId(), messageBundle);
             }
         });
     }

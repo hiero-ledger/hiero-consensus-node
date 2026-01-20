@@ -495,7 +495,8 @@ public class ClprEndpointClient {
         //        remoteClient.processMessageBundle()
         final var msgBundle = ClprMessageBundle.DEFAULT;
 
-        final var status = remoteClient.processMessageBundle(selfAccount, nodeAccount, remoteLedgerId, msgBundle);
+        final var status =
+                remoteClient.submitProcessMessageBundleTxn(selfAccount, nodeAccount, remoteLedgerId, msgBundle);
         return status;
     }
 

@@ -19,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.state.clpr.ClprMessage;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 import org.hiero.interledger.clpr.ClprStateProofUtils;
@@ -91,11 +92,13 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
             final var msgString = "Message ID: %d; Ledger ID: %d".formatted(i, metadata.ledgerShortId());
             final var messageKey =
                     ClprMessageKey.newBuilder().messageId(i).ledgerShortId(0).build();
-            final var message = ClprMessage.newBuilder()
-                    .messageData(Bytes.wrap(msgString.getBytes()))
+            final var payload = ClprMessagePayload.newBuilder()
+                    .message(ClprMessage.newBuilder()
+                            .messageData(Bytes.wrap(msgString.getBytes()))
+                            .build())
                     .build();
             final var messageValue =
-                    ClprMessageValue.newBuilder().message(message).build();
+                    ClprMessageValue.newBuilder().payload(payload).build();
             messageStore.put(messageKey, messageValue);
 
             return metadata.copyBuilder().nextOutgoingMessageId(1).build();
