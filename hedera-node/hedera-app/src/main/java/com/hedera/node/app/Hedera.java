@@ -768,20 +768,18 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         if (!onceOnlyServiceInitializationPostDaggerHasHappened) {
             contractServiceImpl.createMetrics();
             onceOnlyServiceInitializationPostDaggerHasHappened = true;
-            // TODO: Re-enable native library verification once Besu fixes
-            // https://github.com/hyperledger/besu-native/issues/274
-            //            try {
-            //                // Verify the native libraries
-            //                contractServiceImpl.nativeLibVerifier().verifyNativeLibs();
-            //            } catch (final IllegalStateException e) {
-            //                // This block will be invoked only if the contracts.evm.nativeLibVerification.halt is
-            // enabled
-            //                // We should be shutting down the node if the verification fails
-            //                // to ensure that no unhandled exceptions from the native libs are thrown
-            //                // so that we prevent possibly catastrophic failures.
-            //                shutdown();
-            //                System.exit(1);
-            //            }
+            try {
+                // Verify the native libraries
+                contractServiceImpl.nativeLibVerifier().verifyNativeLibs();
+            } catch (final IllegalStateException e) {
+                // This block will be invoked only if the contracts.evm.nativeLibVerification.halt is
+                // enabled
+                // We should be shutting down the node if the verification fails
+                // to ensure that no unhandled exceptions from the native libs are thrown
+                // so that we prevent possibly catastrophic failures.
+                shutdown();
+                System.exit(1);
+            }
         }
     }
 
