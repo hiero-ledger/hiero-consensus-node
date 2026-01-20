@@ -27,6 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
+import java.math.BigInteger;
 import java.util.*;
 
 // BESU imports
@@ -117,7 +118,10 @@ public class BonnevilleEVM extends HEVM {
         /* 50 */ "pop ", "mld ", "mst ", "mst8", "Csld", "Csst", "jmp ", "jmpi", "pc  ", "59  ", "gas ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
         };
 
+    // Used in create()
     static final Bytes CREATE2_PREFIX = Bytes.fromHexString("0xFF");
+    // Used in exp()
+    static final BigInteger MOD_BASE = BigInteger.TWO.pow(256);
 
 }
 
@@ -213,7 +217,7 @@ class BEVM {
         // Custom Self-Destruct hook
         _selfDestruct = (AbstractOperation)operations[0xFF];
         // ChainID from BESU, if no custom op overrides
-        _chainID = ((ChainIdOperation)operations[0x46]).getChainId().getLong(0);
+        _chainID = operations[0x46] instanceof ChainIdOperation chain ? chain.getChainId().getLong(0) : 0;
     }
 
 
@@ -340,7 +344,7 @@ class BEVM {
             val1 = (val1 << 8) | (bs[ 4+i]&0xFF);
         long val2 = 0;
         for( int i=0; i<4; i++ )
-            val1 = (val1 << 8) | (bs[   i]&0xFF);
+            val2 = (val2 << 8) | (bs[   i]&0xFF);
         return push(val0,val1,val2,0);
     }
 
@@ -354,12 +358,12 @@ class BEVM {
         long x3 = getLong(src,off, len);
         return push(x0,x1,x2,x3);
     }
-    //private static long getLongQ( byte[] src, int off, len ) {
-    //    long adr = 0;
-    //    for( int i=0; i<len; i++ )
-    //        adr = (adr << 8) | (src[off+i]&0xFF);
-    //    return adr;
-    //}
+
+    private ExceptionalHaltReason push( BigInteger bi ) {
+        var bytes = bi.toByteArray();
+        var len = Math.min(32,bytes.length);
+        return push(bytes,bytes.length-len,len);
+    }
 
 
 
@@ -661,6 +665,7 @@ class BEVM {
             if( rhs0==1 ) return push(lhs0,lhs1,lhs2,lhs3);
         }
 
+        // Multiply as shifts
         int lbc0 = Long.bitCount(lhs0), lbc1 = Long.bitCount(lhs1), lbc2 = Long.bitCount(lhs2), lbc3 = Long.bitCount(lhs3);
         if( lbc0+lbc1+lbc2+lbc3 == 1 ) {
             int shf = shf(lbc0,lbc1,lbc2,lbc3, lhs0, lhs1, lhs2, lhs3);
@@ -670,6 +675,15 @@ class BEVM {
         if( rbc0+rbc1+rbc2+rbc3 == 1 ) {
             int shf = shf(rbc0,rbc1,rbc2,rbc3, rhs0, rhs1, rhs2, rhs3);
             return shl(shf,lhs0,lhs1,lhs2,lhs3);
+        }
+        // Long-hand
+        if( (rhs1 | rhs2 | rhs3)==0 ) {
+            // Long-hand
+            long val0 = lhs0*rhs0;
+            long val1 = lhs1*rhs0 + Math.unsignedMultiplyHigh(lhs0,rhs0);
+            long val2 = lhs2*rhs0 + Math.unsignedMultiplyHigh(lhs1,rhs0);
+            long val3 = lhs3*rhs0 + Math.unsignedMultiplyHigh(lhs2,rhs0);
+            return push(val0,val1,val2,val3);
         }
 
         throw new TODO();
@@ -717,7 +731,7 @@ class BEVM {
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-        // Divide by 0,1,2^n shortcuts
+        // Divide by 0 or 1
         if( (lhs1 | lhs2 | lhs3)==0 ) {
             if( lhs0==0 ) return push0();
         }
@@ -725,15 +739,21 @@ class BEVM {
             if( rhs0==0 ) return push0();
             if( rhs0==1 ) return push(lhs0,lhs1,lhs2,lhs3);
         }
+        // Divide by 2^n
         int rbc0 = Long.bitCount(rhs0), rbc1 = Long.bitCount(rhs1), rbc2 = Long.bitCount(rhs2), rbc3 = Long.bitCount(rhs3);
         if( rbc0+rbc1+rbc2+rbc3 == 1 ) {
             int shf = shf(rbc0,rbc1,rbc2,rbc3, rhs0,rhs1,rhs2,rhs3);
             return shr(shf,lhs0,lhs1,lhs2,lhs3);
         }
+        // Divide by self
         if( lhs0==rhs0 && lhs1==rhs1 && lhs2==rhs2 && lhs3==rhs3 )
             return push(1);
 
-        throw new TODO();
+        // BigInteger fallback
+        _sp += 2;               // Re-push bytes
+        var dividend = new BigInteger(1, popBytes().toArrayUnsafe());
+        var divisor  = new BigInteger(1, popBytes().toArrayUnsafe());
+        return push(dividend.divide(divisor));
     }
 
     private ExceptionalHaltReason sdiv() {
@@ -863,8 +883,11 @@ class BEVM {
                     return shl((int)pow0*log2,1,0,0,0);
             }
         }
-        // Prolly BigInteger
-        throw new TODO();
+        // BigInteger fallback
+        _sp += 2;               // Re-push bytes
+        var base = new BigInteger(1, popBytes().toArrayUnsafe());
+        var pow  = new BigInteger(1, popBytes().toArrayUnsafe());
+        return push(base.modPow(pow,BonnevilleEVM.MOD_BASE));
     }
 
     // Sgn extend
@@ -913,25 +936,26 @@ class BEVM {
     // Pop 2 words and Unsigned compare them.  Caller safety checked.
     private int uCompareTo() {
         // CNC - Somehow this version is slower, "as if" Long.compareUnsigned did not inline
-        //long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
-        //long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-        //int          rez = Long.compareUnsigned(lhs3,rhs3);
-        //if( rez==0 ) rez = Long.compareUnsigned(lhs2,rhs2);
-        //if( rez==0 ) rez = Long.compareUnsigned(lhs1,rhs1);
-        //if( rez==0 ) rez = Long.compareUnsigned(lhs0,rhs0);
-        //return rez;
-        // Slightly faster... and inlines better.
-        _sp -= 2;
-        if( STK3[_sp+1] == STK3[_sp] ) {
-            if( STK2[_sp+1] == STK2[_sp] ) {
-                if( STK1[_sp+1] == STK1[_sp] ) {
-                    if( STK0[_sp+1] == STK0[_sp] )
-                        return 0;
-                    return STK0[_sp+1]+Long.MIN_VALUE < STK0[_sp]+Long.MIN_VALUE ? -1 : 1;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        int          rez = Long.compareUnsigned(lhs3,rhs3);
+        if( rez==0 ) rez = Long.compareUnsigned(lhs2,rhs2);
+        if( rez==0 ) rez = Long.compareUnsigned(lhs1,rhs1);
+        if( rez==0 ) rez = Long.compareUnsigned(lhs0,rhs0);
+        return rez;
 
-                } else throw new TODO();
-            } else throw new TODO();
-        } else throw new TODO();
+        // Slightly faster... and inlines better.
+        //_sp -= 2;
+        //if( STK3[_sp+1] == STK3[_sp] ) {
+        //    if( STK2[_sp+1] == STK2[_sp] ) {
+        //        if( STK1[_sp+1] == STK1[_sp] ) {
+        //            if( STK0[_sp+1] == STK0[_sp] )
+        //                return 0;
+        //            return STK0[_sp+1]+Long.MIN_VALUE < STK0[_sp]+Long.MIN_VALUE ? -1 : 1;
+        //
+        //        } else throw new TODO();
+        //    } else throw new TODO();
+        //} else throw new TODO();
     }
 
     // Unsigned Less Than
