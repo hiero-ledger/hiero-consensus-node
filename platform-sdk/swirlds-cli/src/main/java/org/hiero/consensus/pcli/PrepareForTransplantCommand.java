@@ -5,7 +5,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.state.SavedStateUtils;
@@ -74,8 +73,7 @@ public class PrepareForTransplantCommand extends AbstractCommand {
                 Time.getCurrent(),
                 new NoOpMetrics(),
                 FileSystemManager.create(configuration),
-                new SimpleRecycleBin(),
-                MerkleCryptographyFactory.create(configuration));
+                new SimpleRecycleBin());
 
         System.out.println("Transplanting state from: " + statePath);
         final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(statePath, platformContext);

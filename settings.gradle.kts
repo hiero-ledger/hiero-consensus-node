@@ -52,5 +52,11 @@ javaModules {
     // Platform-base demo applications
     directory("example-apps") { group = "com.hedera.hashgraph" }
 
+    directory("hiero-observability") {
+        group = "org.hiero.observability"
+
+        module("hiero-metrics") { artifact = "hiero-metrics" }
+    }
+
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }

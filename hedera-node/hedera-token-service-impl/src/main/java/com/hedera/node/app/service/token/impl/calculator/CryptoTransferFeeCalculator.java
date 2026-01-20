@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.calculator;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler.getHookInfo;
+import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.TokenValidations.REQUIRE_NOT_PAUSED;
+import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import static org.hiero.hapi.support.fees.Extra.ACCOUNTS;
 import static org.hiero.hapi.support.fees.Extra.FUNGIBLE_TOKENS;
+import static org.hiero.hapi.support.fees.Extra.GAS;
 import static org.hiero.hapi.support.fees.Extra.HOOK_EXECUTION;
 import static org.hiero.hapi.support.fees.Extra.NON_FUNGIBLE_TOKENS;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TRANSFER_BASE;
@@ -18,6 +23,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashSet;
@@ -62,8 +68,8 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         final ReadableTokenStore tokenStore = feeContext.readableStore(ReadableTokenStore.class);
         final var op = txnBody.cryptoTransferOrThrow();
         final long numAccounts = countUniqueAccounts(op);
-        final long numHooks = countHooks(op);
         final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
+        final var hookInfo = getHookInfo(op);
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
         feeResult.addServiceFee(1, serviceDef.baseFee());
@@ -72,7 +78,21 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         if (transferType != null) {
             addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
         }
-        addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, numHooks);
+        if (hookInfo.numHookInvocations() > 0) {
+            final var config = feeContext.configuration();
+            // Avoid overflow in by clamping effective limit. Since we validate each hook dispatch can't
+            // exceed maxGasPerSec downstream, we need to allow to charge upto maxGasPerSec * numHookInvocations
+            final long effectiveGasLimit = Math.max(
+                    0,
+                    Math.min(
+                            hookInfo.numHookInvocations()
+                                    * config.getConfigData(ContractsConfig.class)
+                                            .maxGasPerSec(),
+                            hookInfo.totalGasLimitOfHooks()));
+            addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, hookInfo.numHookInvocations());
+            addExtraFee(feeResult, serviceDef, GAS, feeSchedule, effectiveGasLimit);
+        }
+
         addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
         final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
         addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
@@ -127,7 +147,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
 
         for (final var ttl : op.tokenTransfers()) {
             final var tokenId = ttl.tokenOrThrow();
-            final var token = tokenStore.get(tokenId);
+            final var token = getIfUsable(tokenId, tokenStore, REQUIRE_NOT_PAUSED, INVALID_TOKEN_ID);
             final boolean hasCustomFees = !token.customFees().isEmpty();
             final boolean isFungible = token.tokenType() == TokenType.FUNGIBLE_COMMON;
             if (isFungible) {
@@ -148,48 +168,6 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
             }
         }
         return new TokenCounts(standardFungible, standardNft, customFeeFungible, customFeeNft);
-    }
-
-    /**
-     * Counts hooks across all transfers in the operation.
-     */
-    private long countHooks(@NonNull final CryptoTransferTransactionBody op) {
-        long hookCount = 0;
-        if (op.hasTransfers()) {
-            for (final var aa : op.transfersOrThrow().accountAmounts()) {
-                if (aa.hasPreTxAllowanceHook()) {
-                    hookCount++;
-                }
-                if (aa.hasPrePostTxAllowanceHook()) {
-                    hookCount += 2; // Pre + Post = 2 executions
-                }
-            }
-        }
-        for (final var ttl : op.tokenTransfers()) {
-            for (final var transfer : ttl.transfers()) {
-                if (transfer.hasPreTxAllowanceHook()) {
-                    hookCount++;
-                }
-                if (transfer.hasPrePostTxAllowanceHook()) {
-                    hookCount += 2; // Pre + Post = 2 executions
-                }
-            }
-            for (final var nft : ttl.nftTransfers()) {
-                if (nft.hasPreTxSenderAllowanceHook()) {
-                    hookCount++;
-                }
-                if (nft.hasPrePostTxSenderAllowanceHook()) {
-                    hookCount += 2; // Pre + Post = 2 executions
-                }
-                if (nft.hasPreTxReceiverAllowanceHook()) {
-                    hookCount++;
-                }
-                if (nft.hasPrePostTxReceiverAllowanceHook()) {
-                    hookCount += 2; // Pre + Post = 2 executions
-                }
-            }
-        }
-        return hookCount;
     }
 
     /**

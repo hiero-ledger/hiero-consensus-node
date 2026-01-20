@@ -2,13 +2,11 @@
 package com.swirlds.common.merkle.synchronization;
 
 import static com.swirlds.base.units.UnitConstants.MILLISECONDS_TO_SECONDS;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
@@ -17,7 +15,6 @@ import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -69,8 +66,6 @@ public class LearningSynchronizer implements ReconnectNodeCount {
     private long synchronizationTimeMilliseconds;
     private long hashTimeMilliseconds;
 
-    private final MerkleCryptography merkleCryptography;
-
     protected final ReconnectConfig reconnectConfig;
 
     /**
@@ -98,14 +93,12 @@ public class LearningSynchronizer implements ReconnectNodeCount {
             @NonNull final MerkleNode newRoot,
             @NonNull final LearnerTreeView<?> view,
             @NonNull final Runnable breakConnection,
-            @NonNull final MerkleCryptography merkleCryptography,
             @NonNull final ReconnectConfig reconnectConfig) {
 
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
 
         inputStream = Objects.requireNonNull(in, "inputStream is null");
         outputStream = Objects.requireNonNull(out, "outputStream is null");
-        this.merkleCryptography = Objects.requireNonNull(merkleCryptography, "merkleCryptography is null");
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
 
         this.newRoot = Objects.requireNonNull(newRoot, "newRoot is null");
@@ -136,12 +129,11 @@ public class LearningSynchronizer implements ReconnectNodeCount {
      */
     private void hash() throws InterruptedException {
         logger.info(RECONNECT.getMarker(), "hashing tree");
-        try {
-            merkleCryptography.digestTreeAsync(newRoot).get();
-        } catch (ExecutionException e) {
-            logger.error(EXCEPTION.getMarker(), "exception while computing hash of reconstructed tree", e);
-            return;
-        }
+        final long start = System.currentTimeMillis();
+
+        newRoot.getHash(); // calculate hash
+
+        hashTimeMilliseconds = System.currentTimeMillis() - start;
         logger.info(RECONNECT.getMarker(), "hashing complete");
     }
 
