@@ -23,6 +23,8 @@ public class StandardSerdes {
             new FeesJsonToGrpcBytes(),
             112L,
             new XRatesJsonToGrpcBytes(),
+            113L,
+            new SimpleFeesJsonToGrpcBytes(),
             121L,
             new JutilPropsToSvcCfgBytes("application.properties"),
             122L,

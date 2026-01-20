@@ -45,6 +45,9 @@ path is given, the file belongs in the top-level directory with the JAR.
 ## upgrade/throttles.json
 * If specified, this file serves as the sole input for the `yahcli sysfiles upload throttles` command post-upgrade, replacing any existing throttles with its contents. In its absence, the default is sourced from `:/hedera-node/hedera-file-service-impl/src/main/resources/genesis/throttles.json`.
 
+## upgrade/simpleFeesSchedules.json
+* If present and `fees.createSimpleFeeSchedule` is enabled post-upgrade, this file updates the simple fee schedules (file `0.0.113`). The default source is `hedera-node/hedera-file-service-impl/src/main/resources/genesis/simpleFeesSchedules.json`.
+
 ## javaOptions
 * Script to start `HGCApp` with all needed options
 

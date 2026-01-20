@@ -249,6 +249,34 @@ public class SystemFileExportsTest {
     }
 
     @GenesisHapiTest
+    final Stream<DynamicTest> syntheticSimpleFeesSchedulesUpdateHappensAtUpgradeBoundary() throws ParseException {
+        final var simpleFeesJson = resourceAsString("testSystemFiles/test-simple-fees.json");
+        final var upgradeSimpleFees = org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(
+                Bytes.wrap(SYS_FILE_SERDES.get(113L).toRawFile(simpleFeesJson, null)));
+        return hapiTest(
+                recordStreamMustIncludePassFrom(selectedItems(
+                        sysFileExportValidator(
+                                "files.simpleFeesSchedules",
+                                upgradeSimpleFees,
+                                SystemFileExportsTest::parseSimpleFeeSchedule),
+                        3,
+                        TxnUtils::isSysFileUpdate)),
+                // Enable simple fee schedules
+                sourcingContextual(spec -> overriding("fees.createSimpleFeeSchedule", "true")),
+                // Write the upgrade file to the node's working dirs
+                doWithStartupConfig(
+                        "networkAdmin.upgradeSimpleFeeSchedulesFile",
+                        simpleFeesFile -> writeToNodeWorkingDirs(simpleFeesJson, "data", "config", simpleFeesFile)),
+                waitUntilNextBlock().withBackgroundTraffic(true),
+                // Simulate an upgrade boundary
+                simulatePostUpgradeTransaction(),
+                // Verify by creating a transaction and checking fees
+                withOpContext((spec, opLog) -> spec.tryReinitializingFees()),
+                cryptoCreate("testAccount"),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+    }
+
+    @GenesisHapiTest
     final Stream<DynamicTest> syntheticPropertyOverridesUpdateHappensAtUpgradeBoundary()
             throws InvalidProtocolBufferException {
         final var overrideProperties = "tokens.nfts.maxBatchSizeMint=2";
@@ -431,6 +459,11 @@ public class SystemFileExportsTest {
         return CurrentAndNextFeeSchedule.parseFrom(bytes);
     }
 
+    private static org.hiero.hapi.support.fees.FeeSchedule parseSimpleFeeSchedule(final byte[] bytes)
+            throws ParseException {
+        return org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(Bytes.wrap(bytes));
+    }
+
     private static ThrottleDefinitions parseThrottleDefs(final byte[] bytes) throws InvalidProtocolBufferException {
         return ThrottleDefinitions.parseFrom(bytes);
     }
@@ -440,7 +473,7 @@ public class SystemFileExportsTest {
     }
 
     private interface ParseFunction<T> {
-        T parse(@NonNull byte[] bytes) throws InvalidProtocolBufferException;
+        T parse(@NonNull byte[] bytes) throws Exception;
     }
 
     private static VisibleItemsValidator nodeUpdatesValidator() {
@@ -478,7 +511,7 @@ public class SystemFileExportsTest {
             final T actual;
             try {
                 actual = parser.parse(synthOp.getContents().toByteArray());
-            } catch (InvalidProtocolBufferException e) {
+            } catch (Exception e) {
                 throw new IllegalStateException(fileNumProperty + " update was not parseable", e);
             }
             assertEquals(expectedValue, actual);
