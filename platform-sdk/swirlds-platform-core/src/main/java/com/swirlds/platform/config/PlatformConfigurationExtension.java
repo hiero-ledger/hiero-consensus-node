@@ -44,7 +44,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
 
         // Load Configuration Definitions
         return Set.of(
-                AddressBookConfig.class,
                 BasicConfig.class,
                 MerkleDbConfig.class,
                 OSHealthCheckConfig.class,

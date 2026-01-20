@@ -12,6 +12,7 @@ testModuleInfo {
     requires("com.swirlds.merkledb.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.mockito")
+    requires("com.hedera.node.hapi")
     requires("org.mockito.junit.jupiter")
     runtimeOnly("com.swirlds.config.api")
     runtimeOnly("com.swirlds.config.impl")

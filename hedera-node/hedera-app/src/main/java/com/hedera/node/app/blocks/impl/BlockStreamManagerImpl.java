@@ -74,8 +74,8 @@ import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -333,7 +333,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void startRound(@NonNull final Round round, @NonNull final State state) {
+    public void startRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
         if (lastBlockHash == null) {
             throw new IllegalStateException("Last block hash must be initialized before starting a round");
         }
@@ -491,7 +491,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public boolean endRound(@NonNull final State state, final long roundNum) {
+    public boolean endRound(@NonNull final MerkleNodeState state, final long roundNum) {
         final var storeFactory = new ReadableStoreFactory(state);
         final var platformStateStore = storeFactory.getStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
@@ -500,12 +500,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             lifecycle.onCloseBlock(state);
             // No-op if quiescence is disabled
             quiescenceController.finishHandlingInProgressBlock();
-            // FUTURE WORK: the state should always be an instance of VirtualMapState
-            // https://github.com/hiero-ledger/hiero-consensus-node/issues/21284
-            if (state instanceof VirtualMapState hederaNewStateRoot) {
-                hederaNewStateRoot.commitSingletons();
-            }
-
+            state.commitSingletons();
             // Flush all boundary state changes besides the BlockStreamInfo
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
@@ -748,6 +743,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * <p>
      * Synchronized to ensure that block proofs are always written in order, even in edge cases where multiple
      * pending block proofs become available at the same time.
+     * <p>
+     * <b>Note: It's critical to refrain from changing the signing algorithm while the chain of trust verification
+     * is disabled!</b> See GitHub issue #22676 for more details.
      *
      * @param blockHash the block hash of the latest signed block. May be for a block later than the one being proven.
      * @param blockSignature the signature to use in the block proof
@@ -757,8 +755,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private synchronized void finishProofWithSignature(
             @NonNull final Bytes blockHash,
             @NonNull final Bytes blockSignature,
-            @Nullable final Bytes verificationKey,
-            @Nullable final ChainOfTrustProof chainOfTrustProof) {
+            @SuppressWarnings("unused") @Nullable final Bytes verificationKey,
+            @SuppressWarnings("unused") @Nullable final ChainOfTrustProof chainOfTrustProof) {
         // Find the block whose hash is the signed message
         PendingBlock signedBlock = null;
         for (final var block : pendingBlocks) {
@@ -773,9 +771,27 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
         final long blockNumber = signedBlock.number();
 
+        final Bytes effectiveSignature;
+        if (verificationKey != null && chainOfTrustProof != null) {
+            if (chainOfTrustProof.hasWrapsProof()) {
+                effectiveSignature =
+                        verificationKey.append(blockSignature).append(chainOfTrustProof.wrapsProofOrThrow());
+            } else {
+                effectiveSignature = verificationKey
+                        .append(blockSignature)
+                        .append(chainOfTrustProof
+                                .aggregatedNodeSignaturesOrThrow()
+                                .aggregatedSignature());
+            }
+        } else if (verificationKey != null) {
+            effectiveSignature = verificationKey.append(blockSignature);
+        } else {
+            effectiveSignature = blockSignature;
+        }
         // Write proofs for all pending blocks up to and including the signed block number
-        final var latestSignedBlockProof =
-                TssSignedBlockProof.newBuilder().blockSignature(blockSignature).build();
+        final var latestSignedBlockProof = TssSignedBlockProof.newBuilder()
+                .blockSignature(effectiveSignature)
+                .build();
         while (!pendingBlocks.isEmpty() && pendingBlocks.peek().number() <= blockNumber) {
             final var currentPendingBlock = pendingBlocks.poll();
             final BlockProof.Builder proof;
@@ -816,12 +832,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 indirectProofCounter.increment();
             }
 
-            if (verificationKey != null) {
-                proof.verificationKey(verificationKey);
-                if (chainOfTrustProof != null) {
-                    proof.verificationKeyProof(chainOfTrustProof);
-                }
-            }
+            // (FUTURE: GH issue #22676) Re-enable setting the verification key and chain of trust proof
+            // once the API is finalized
+            //            if (verificationKey != null) {
+            //                proof.verificationKey(verificationKey);
+            //                if (chainOfTrustProof != null) {
+            //                    proof.verificationKeyProof(chainOfTrustProof);
+            //                }
+            //            }
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             currentPendingBlock.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             currentPendingBlock.writer().closeCompleteBlock();

@@ -106,10 +106,8 @@ class HighVolumePricingCalculatorTest {
         @DisplayName("Interpolates correctly between curve points")
         void interpolatesBetweenCurvePoints() {
             // Create a curve: 0% -> 0, 50% -> 1,000,000, 100% -> 4,000,000
-            final var curve = createPiecewiseLinearCurve(
-                    point(0, 0),
-                    point(50_000, 1_000_000),
-                    point(100_000, 4_000_000));
+            final var curve =
+                    createPiecewiseLinearCurve(point(0, 0), point(50_000, 1_000_000), point(100_000, 4_000_000));
             final var variableRate = createVariableRateWithCurve(4_000_000, curve);
 
             // At 25% (between 0% and 50%), should interpolate to 500,000
@@ -126,9 +124,7 @@ class HighVolumePricingCalculatorTest {
         @DisplayName("Returns first point multiplier when utilization is below first point")
         void returnsFirstPointWhenBelowFirstPoint() {
             // Curve starts at 10% utilization
-            final var curve = createPiecewiseLinearCurve(
-                    point(10_000, 500_000),
-                    point(100_000, 4_000_000));
+            final var curve = createPiecewiseLinearCurve(point(10_000, 500_000), point(100_000, 4_000_000));
             final var variableRate = createVariableRateWithCurve(4_000_000, curve);
 
             // At 5% (below first point), should return first point's multiplier
@@ -139,9 +135,7 @@ class HighVolumePricingCalculatorTest {
         @DisplayName("Returns last point multiplier when utilization is above last point")
         void returnsLastPointWhenAboveLastPoint() {
             // Curve ends at 80% utilization
-            final var curve = createPiecewiseLinearCurve(
-                    point(0, 0),
-                    point(80_000, 3_000_000));
+            final var curve = createPiecewiseLinearCurve(point(0, 0), point(80_000, 3_000_000));
             final var variableRate = createVariableRateWithCurve(4_000_000, curve);
 
             // At 90% (above last point), should return last point's multiplier
@@ -178,9 +172,8 @@ class HighVolumePricingCalculatorTest {
         @DisplayName("Caps result at max multiplier")
         void capsResultAtMaxMultiplier() {
             // Create a curve that would exceed max multiplier
-            final var curve = createPiecewiseLinearCurve(
-                    point(0, 0),
-                    point(100_000, 10_000_000)); // Would be 11x at 100%
+            final var curve =
+                    createPiecewiseLinearCurve(point(0, 0), point(100_000, 10_000_000)); // Would be 11x at 100%
             final var variableRate = createVariableRateWithCurve(4_000_000, curve);
 
             // Should be capped at max_multiplier (4,000,000)
@@ -232,8 +225,8 @@ class HighVolumePricingCalculatorTest {
         void standardHip1313PricingCurve() {
             // This is the example curve from HIP-1313
             final var curve = createPiecewiseLinearCurve(
-                    point(0, 0),           // 0% -> 1x (0 raw)
-                    point(50_000, 1_000_000),  // 50% -> 2x (1,000,000 raw)
+                    point(0, 0), // 0% -> 1x (0 raw)
+                    point(50_000, 1_000_000), // 50% -> 2x (1,000,000 raw)
                     point(100_000, 4_000_000)); // 100% -> 5x (4,000,000 raw)
             final var variableRate = createVariableRateWithCurve(4_000_000, curve);
 
@@ -252,9 +245,7 @@ class HighVolumePricingCalculatorTest {
     // Helper methods
 
     private static VariableRateDefinition createVariableRateWithLinearCurve(int maxMultiplier) {
-        return VariableRateDefinition.newBuilder()
-                .maxMultiplier(maxMultiplier)
-                .build();
+        return VariableRateDefinition.newBuilder().maxMultiplier(maxMultiplier).build();
     }
 
     private static VariableRateDefinition createVariableRateWithCurve(int maxMultiplier, PiecewiseLinearCurve curve) {
@@ -265,16 +256,13 @@ class HighVolumePricingCalculatorTest {
     }
 
     private static PiecewiseLinearCurve createPiecewiseLinearCurve(PiecewiseLinearPoint... points) {
-        return PiecewiseLinearCurve.newBuilder()
-                .points(List.of(points))
-                .build();
+        return PiecewiseLinearCurve.newBuilder().points(List.of(points)).build();
     }
 
-    private static PiecewiseLinearPoint point(int utilizationPercentage, int multiplier) {
+    private static PiecewiseLinearPoint point(int utilizationBasisPoints, int multiplier) {
         return PiecewiseLinearPoint.newBuilder()
-                .utilizationPercentage(utilizationPercentage)
+                .utilizationBasisPoints(utilizationBasisPoints)
                 .multiplier(multiplier)
                 .build();
     }
 }
-

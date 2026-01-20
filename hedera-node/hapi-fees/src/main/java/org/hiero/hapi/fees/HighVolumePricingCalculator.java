@@ -20,7 +20,7 @@ import org.hiero.hapi.support.fees.VariableRateDefinition;
  *
  * <p>For example:
  * <ul>
- *   <li>utilizationPercentage = 50,000 means 50% utilization</li>
+ *   <li>utilizationBasisPoints = 50,000 means 50% utilization</li>
  *   <li>multiplier = 1,000,000 means an effective multiplier of 2.0x (1,000,000/1,000,000 + 1)</li>
  *   <li>multiplier = 4,000,000 means an effective multiplier of 5.0x (4,000,000/1,000,000 + 1)</li>
  * </ul>
@@ -42,11 +42,11 @@ public final class HighVolumePricingCalculator {
      * throttle utilization and the variable rate definition from the fee schedule.
      *
      * @param variableRateDefinition the variable rate definition containing max multiplier and pricing curve
-     * @param utilizationPercentage the current utilization percentage in thousandths of one percent (0 to 100,000)
+     * @param utilizationBasisPoints the current utilization percentage in thousandths of one percent (0 to 100,000)
      * @return the calculated multiplier as a long value (scaled by MULTIPLIER_SCALE, then add 1)
      */
     public static long calculateMultiplier(
-            @Nullable final VariableRateDefinition variableRateDefinition, final int utilizationPercentage) {
+            @Nullable final VariableRateDefinition variableRateDefinition, final int utilizationBasisPoints) {
         // If no variable rate definition, return base multiplier (1x = 0 in scaled form)
         if (variableRateDefinition == null) {
             return 0;
@@ -56,7 +56,7 @@ public final class HighVolumePricingCalculator {
         final PricingCurve pricingCurve = variableRateDefinition.pricingCurve();
 
         // Clamp utilization to valid range
-        final int clampedUtilization = Math.max(0, Math.min(utilizationPercentage, UTILIZATION_SCALE));
+        final int clampedUtilization = Math.max(0, Math.min(utilizationBasisPoints, UTILIZATION_SCALE));
 
         long rawMultiplier;
         if (pricingCurve == null || !pricingCurve.hasPiecewiseLinear()) {
@@ -86,11 +86,11 @@ public final class HighVolumePricingCalculator {
      * Interpolates the multiplier from a piecewise linear curve based on utilization.
      *
      * @param curve the piecewise linear curve
-     * @param utilizationPercentage the utilization percentage (0 to 100,000)
+     * @param utilizationBasisPoints the utilization percentage (0 to 100,000)
      * @return the interpolated multiplier (scaled)
      */
     private static long interpolatePiecewiseLinear(
-            @NonNull final PiecewiseLinearCurve curve, final int utilizationPercentage) {
+            @NonNull final PiecewiseLinearCurve curve, final int utilizationBasisPoints) {
         final List<PiecewiseLinearPoint> points = curve.points();
 
         // Handle empty curve - return base multiplier
@@ -109,10 +109,10 @@ public final class HighVolumePricingCalculator {
 
         for (int i = 0; i < points.size(); i++) {
             final PiecewiseLinearPoint point = points.get(i);
-            if (point.utilizationPercentage() <= utilizationPercentage) {
+            if (point.utilizationBasisPoints() <= utilizationBasisPoints) {
                 lowerPoint = point;
             }
-            if (point.utilizationPercentage() >= utilizationPercentage && upperPoint == null) {
+            if (point.utilizationBasisPoints() >= utilizationBasisPoints && upperPoint == null) {
                 upperPoint = point;
             }
         }
@@ -128,24 +128,23 @@ public final class HighVolumePricingCalculator {
         }
 
         // If we're exactly on a point, return that point's multiplier
-        if (lowerPoint.utilizationPercentage() == upperPoint.utilizationPercentage()) {
+        if (lowerPoint.utilizationBasisPoints() == upperPoint.utilizationBasisPoints()) {
             return upperPoint.multiplier();
         }
 
         // Interpolate between the two points
         return linearInterpolate(
-                lowerPoint.utilizationPercentage(),
+                lowerPoint.utilizationBasisPoints(),
                 lowerPoint.multiplier(),
-                upperPoint.utilizationPercentage(),
+                upperPoint.utilizationBasisPoints(),
                 upperPoint.multiplier(),
-                utilizationPercentage);
+                utilizationBasisPoints);
     }
 
     /**
      * Performs linear interpolation between two points.
      */
-    private static long linearInterpolate(
-            final int x1, final long y1, final int x2, final long y2, final int x) {
+    private static long linearInterpolate(final int x1, final long y1, final int x2, final long y2, final int x) {
         if (x2 == x1) {
             return y1;
         }
@@ -156,4 +155,3 @@ public final class HighVolumePricingCalculator {
         return y1 + (dy * offset) / dx;
     }
 }
-

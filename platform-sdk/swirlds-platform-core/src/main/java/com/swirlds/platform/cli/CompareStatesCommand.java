@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import picocli.CommandLine;
@@ -132,15 +131,7 @@ public final class CompareStatesCommand extends AbstractCommand {
                         stateDirPath, platformContext, stateLifecycleManager)
                 .reservedSignedState();
         logger.info(LogMarker.CLI.getMarker(), "Hashing state");
-        try {
-            platformContext
-                    .getMerkleCryptography()
-                    .digestTreeAsync(signedState.get().getState().getRoot())
-                    .get();
-        } catch (final InterruptedException | ExecutionException e) {
-            throw new RuntimeException("unable to hash state", e);
-        }
-
+        signedState.get().getState().getHash(); // calculate hash
         return signedState;
     }
 
@@ -154,7 +145,7 @@ public final class CompareStatesCommand extends AbstractCommand {
         BootstrapUtils.setupConstructableRegistry();
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
-                ConfigurationBuilder.create(), getAbsolutePath("settings.txt"), configurationPaths);
+                ConfigurationBuilder.create(), getAbsolutePath("settings.txt"));
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         try (final ReservedSignedState stateA = loadAndHashState(platformContext, stateAPath)) {

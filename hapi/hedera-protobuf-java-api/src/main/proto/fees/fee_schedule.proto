@@ -241,17 +241,11 @@ message UnreadableTransactionFee {
 message VariableRateDefinition {
   /**
    * Maximum multiplier to prevent extreme pricing (cost ceiling).
+   * This value SHOULD be greater than or equal to 1000, any value less than 1000 SHALL be treated as 1000.
+   * This value SHALL be divided by 1000 before it is applied as a multiplier, a value of `1000` is therefore a multiplier of `1.000`.
    * Given the normal price of the transaction, the computed variable price
-   * will not exceed `max_multiplier` * `standard_fee`. Provides predictability
-   * for users regardless of utilization. The minimum price will be the
-   * `standard_fee`. This value is divided by 1,000,000 and then added to the
-   * minimum value of 1.
-   * <p>
-   * ##Example
-   * A value of `2,450,300` results in an _effective_ floating point multiplier
-   * of `3.4503`.<br/>
-   * A value of `0` results in an _effective_ floating point
-   * multiplier of `1.0`.
+   * will not exceed this multiplier * `standard_fee`. Provides predictability
+   * for users regardless of utilization.
    */
   uint32 max_multiplier = 2;
 
@@ -312,14 +306,15 @@ message PiecewiseLinearCurve {
  */
 message PiecewiseLinearPoint {
   /**
-   * The utilization percentage for this point, in thousandths of one percent.
-   * This value must be between 0 and 100,000, inclusive.
+   * The utilization percentage for this point, in hundredths of one percent.
+   * This value must be between 0 and 10,000, inclusive.
    */
-  uint32 utilization_percentage = 1;
+  uint32 utilization_basis_points = 1;
 
   /**
    * The multiplier to apply at this utilization percentage.
-   * This value is divided by 1,000,000 then added to 1.
+   * This value SHOULD be greater than or equal to 1000, any value less than 1000 SHALL be treated as 1000
+   * This value SHALL be divided by 1000 before it is applied as a multiplier, a value of `1000` is therefore a multiplier of `1.000`.
    */
   uint32 multiplier = 2;
 }

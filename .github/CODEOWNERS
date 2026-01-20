@@ -81,6 +81,8 @@
 /platform-sdk/swirlds-unit-tests/structures/        @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-virtualmap/                   @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
+/hiero-observability                                @hiero-ledger/hiero-consensus-node-foundation-codeowners
+
 ####################
 #####   HAPI  ######
 ####################
@@ -117,7 +119,7 @@ gradlew                                             @hiero-ledger/github-maintai
 gradlew.bat                                         @hiero-ledger/github-maintainers
 **/build-logic/                                     @hiero-ledger/github-maintainers
 **/gradle.*                                         @hiero-ledger/github-maintainers
-**/*.gradle.*                                       @hiero-ledger/github-maintainers
+**/*.gradle.*                                       @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/hiero-consensus-node-consensus-codeowners
 
 # Codacy Tool Configurations
 /config/                                            @hiero-ledger/github-maintainers

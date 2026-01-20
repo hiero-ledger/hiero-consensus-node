@@ -9,8 +9,6 @@ import java.time.Duration;
 /**
  * Contains configuration values for the platform schedulers.
  *
- * @param eventSignatureValidator              configuration for the event signature validator scheduler
- * @param orphanBuffer                         configuration for the orphan buffer scheduler
  * @param consensusEngine                      configuration for the consensus engine scheduler
  * @param stateSigner                          configuration for the state signer scheduler
  * @param pcesSequencer                        configuration for the preconsensus event sequencer scheduler
@@ -38,57 +36,76 @@ import java.time.Duration;
  */
 @ConfigData("platformSchedulers")
 public record PlatformSchedulersConfig(
-        @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration eventSignatureValidator,
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration orphanBuffer,
         @ConfigProperty(
-                        defaultValue =
-                                "SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
-                TaskSchedulerConfiguration consensusEngine,
+                defaultValue =
+                        "SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+        TaskSchedulerConfiguration consensusEngine,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration stateSnapshotManager,
+        TaskSchedulerConfiguration stateSnapshotManager,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration stateSigner,
+        TaskSchedulerConfiguration stateSigner,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
-                TaskSchedulerConfiguration pcesInlineWriter,
+        TaskSchedulerConfiguration pcesInlineWriter,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
-                TaskSchedulerConfiguration futureEventBuffer,
+        TaskSchedulerConfiguration futureEventBuffer,
+
         @ConfigProperty(defaultValue = "DIRECT") TaskSchedulerConfiguration pcesSequencer,
+
         @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration applicationTransactionPrehandler,
+        TaskSchedulerConfiguration applicationTransactionPrehandler,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration stateSignatureCollector,
+        TaskSchedulerConfiguration stateSignatureCollector,
+
         @ConfigProperty(
-                        defaultValue =
-                                "SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
-                TaskSchedulerConfiguration transactionHandler,
+                defaultValue =
+                        "SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+        TaskSchedulerConfiguration transactionHandler,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration issDetector,
+        TaskSchedulerConfiguration issDetector,
+
         @ConfigProperty(defaultValue = "DIRECT") TaskSchedulerConfiguration issHandler,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(100) UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration hashLogger,
+        TaskSchedulerConfiguration hashLogger,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5) UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration latestCompleteStateNotifier,
+        TaskSchedulerConfiguration latestCompleteStateNotifier,
+
         @ConfigProperty(
-                        defaultValue =
-                                "SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
-                TaskSchedulerConfiguration stateHasher,
+                defaultValue =
+                        "SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+        TaskSchedulerConfiguration stateHasher,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(60) UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration stateGarbageCollector,
+        TaskSchedulerConfiguration stateGarbageCollector,
+
         @ConfigProperty(defaultValue = "200ms") Duration stateGarbageCollectorHeartbeatPeriod,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration signedStateSentinel,
+        TaskSchedulerConfiguration signedStateSentinel,
+
         @ConfigProperty(defaultValue = "10s") Duration signedStateSentinelHeartbeatPeriod,
         @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration consensusEventStream,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration roundDurabilityBuffer,
+        TaskSchedulerConfiguration roundDurabilityBuffer,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration platformMonitor,
+        TaskSchedulerConfiguration platformMonitor,
+
         @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration transactionPool,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration gossip,
+        TaskSchedulerConfiguration gossip,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration branchDetector,
+        TaskSchedulerConfiguration branchDetector,
+
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration branchReporter) {}
+        TaskSchedulerConfiguration branchReporter) {}
