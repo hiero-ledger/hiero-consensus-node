@@ -27,6 +27,7 @@ import com.hedera.node.app.fees.schemas.V0490FeeSchema;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
+import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
@@ -140,6 +141,13 @@ public interface FacilityInitModule {
     @Singleton
     static Set<QueryFeeCalculator> provideFileQueryFeeCalculators(FileServiceImpl fileService) {
         return fileService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideContractServiceFeeCalculators(ContractServiceImpl contractService) {
+        return contractService.serviceFeeCalculators();
     }
 
     @Provides

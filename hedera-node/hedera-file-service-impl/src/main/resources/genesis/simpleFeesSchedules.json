@@ -42,6 +42,46 @@
         {
           "name": "HookStore",
           "baseFee": 49000000
+        },
+        {
+          "name": "ContractCreate",
+          "baseFee": 9999000000,
+          "extras": [
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "ContractCall",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "ContractUpdate",
+          "baseFee": 259000000,
+          "extras": [
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "ContractDelete",
+          "baseFee": 69000000,
+          "extras": []
+        },
+        {
+          "name": "EthereumTransaction",
+          "baseFee": 0,
+          "extras": [
+            {
+              "name": "BYTES",
+              "includedCount": 6144
+            }
+          ]
         }
       ]
     },

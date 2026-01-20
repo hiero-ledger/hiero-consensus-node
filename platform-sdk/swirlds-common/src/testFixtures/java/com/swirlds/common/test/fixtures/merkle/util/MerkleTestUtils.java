@@ -22,7 +22,6 @@ import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleExternalLeaf;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal2;
@@ -1045,7 +1044,6 @@ public final class MerkleTestUtils {
                                 newRoot,
                                 learnerView,
                                 streams::disconnect,
-                                TestMerkleCryptoFactory.getInstance(),
                                 reconnectConfig) {
 
                             @Override
@@ -1278,11 +1276,11 @@ public final class MerkleTestUtils {
         System.out.println("starting: " + startingTree);
         System.out.println("desired: " + desiredTree);
 
-        if (startingTree != null && startingTree.getHash() == null) {
-            TestMerkleCryptoFactory.getInstance().digestTreeSync(startingTree);
+        if (startingTree != null) {
+            startingTree.getHash(); // calculate hash
         }
-        if (desiredTree != null && desiredTree.getHash() == null) {
-            TestMerkleCryptoFactory.getInstance().digestTreeSync(desiredTree);
+        if (desiredTree != null) {
+            desiredTree.getHash(); // calculate hash
         }
         return testSynchronization(startingTree, desiredTree, 0, reconnectConfig);
     }

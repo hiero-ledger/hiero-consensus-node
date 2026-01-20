@@ -61,7 +61,6 @@ import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -69,7 +68,6 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.constructable.ConstructableUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
@@ -163,9 +161,6 @@ public final class StateUtils {
         ConstructableRegistry.getInstance().registerConstructables("com.hedera.hapi");
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
         ConstructableRegistry.getInstance().registerConstructables("org.hiero.base");
-
-        ConstructableUtils.registerVirtualMapConstructables(getConfiguration());
-        BootstrapUtils.setupConstructableRegistryWithConfiguration(getConfiguration());
     }
 
     /**
