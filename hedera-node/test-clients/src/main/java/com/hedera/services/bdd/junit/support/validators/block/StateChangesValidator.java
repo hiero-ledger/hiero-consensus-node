@@ -308,6 +308,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         // get the state hash before applying the state changes from current block
         this.genesisStateHash = stateToBeCopied.getRoot().getHash();
         assertEquals(emptyStateHash, genesisStateHash, "Genesis state hash should be empty");
+        logger.info("Genesis state hash was empty - {}", emptyStateHash);
         this.proofSeqFactory =
                 (stateProofsEnabled == StateProofsEnabled.YES) ? IndirectProofSequenceValidator::new : () -> null;
 

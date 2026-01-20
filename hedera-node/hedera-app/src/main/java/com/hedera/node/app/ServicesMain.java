@@ -233,6 +233,7 @@ public class ServicesMain {
             hedera.initializeStatesApi(state, RESTART, platformConfig);
         }
         hedera.setInitialStateHash(reservedState.hash());
+        logger.info("Initial state hash: {}", reservedState.hash().toHex());
 
         // --- Create the platform context and initialize the cryptography ---
         final var rosterHistory = genesisNetwork.get()
