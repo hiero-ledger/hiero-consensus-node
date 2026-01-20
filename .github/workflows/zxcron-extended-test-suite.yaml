@@ -292,7 +292,7 @@ jobs:
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      commit_sha: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch_name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
