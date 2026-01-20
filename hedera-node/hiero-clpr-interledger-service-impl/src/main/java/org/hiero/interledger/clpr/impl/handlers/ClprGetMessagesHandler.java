@@ -12,7 +12,10 @@ import com.hedera.node.app.spi.workflows.FreeQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import javax.inject.Inject;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.clpr.ClprGetMessagesResponse;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
@@ -20,6 +23,7 @@ import org.hiero.interledger.clpr.ReadableClprMessageStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
 public class ClprGetMessagesHandler extends FreeQueryHandler {
+    private static final Logger log = LogManager.getLogger(ClprGetMessagesHandler.class);
     private final ClprStateProofManager stateProofManager;
 
     @Inject
@@ -65,7 +69,7 @@ public class ClprGetMessagesHandler extends FreeQueryHandler {
         if (msg != null) {
             final var result = ClprGetMessagesResponse.newBuilder()
                     .header(header)
-                    .messageBundle(ClprMessageBundle.newBuilder().messages(msg.message()))
+                    .messageBundle(ClprMessageBundle.newBuilder().messages(List.of(msg.payload())))
                     .build();
             return Response.newBuilder().clprMessages(result).build();
         }
