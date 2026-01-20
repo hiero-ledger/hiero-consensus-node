@@ -440,8 +440,7 @@ public class BlockNodeSuite {
                                 "/localhost:%s/ACTIVE] Connection will be closed at the next block boundary",
                                 portNumbers.get(3)),
                         String.format(
-                                "/localhost:%s/ACTIVE] Block boundary reached; closing connection (finished sending block)",
-                                portNumbers.get(3)),
+                                "/localhost:%s/ACTIVE] Block boundary reached; closing connection", portNumbers.get(3)),
                         String.format("/localhost:%s/CLOSING] Closing connection.", portNumbers.get(3)),
                         String.format(
                                 "/localhost:%s/CLOSING] Connection state transitioned from ACTIVE to CLOSING",

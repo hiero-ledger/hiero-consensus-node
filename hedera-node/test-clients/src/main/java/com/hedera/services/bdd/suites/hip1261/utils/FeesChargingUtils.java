@@ -219,24 +219,6 @@ public class FeesChargingUtils {
                 true,
                 false);
     }
-    //
-    //    public static double expectedCryptoTransferFT_WithCustomFullFeeUsd(
-    //            long sigs,
-    //            long uniqueHooksExecuted,
-    //            long uniqueAccounts,
-    //            long uniqueFungibleTokens,
-    //            long uniqueNonFungibleTokens) {
-    //
-    //        return expectedCryptoTransferFullFeeUsd(
-    //                sigs,
-    //                uniqueHooksExecuted,
-    //                uniqueAccounts,
-    //                uniqueFungibleTokens,
-    //                uniqueNonFungibleTokens,
-    //                false,
-    //                false,
-    //                true);
-    //    }
 
     public static double expectedCryptoTransferNFTFullFeeUsd(
             long sigs,
