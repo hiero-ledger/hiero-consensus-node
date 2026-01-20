@@ -260,9 +260,9 @@ message StateKey {
     proto.HookId ContractService_I_EVM_HOOK_STATES = 51;
 
     /**
-     * A state identifier for lambda storage.
+     * A state identifier for EVM hook storage.
      */
-    com.hedera.hapi.node.state.hooks.LambdaSlotKey ContractService_I_LAMBDA_STORAGE = 52;
+    com.hedera.hapi.node.state.hooks.EvmHookSlotKey ContractService_I_EVM_HOOK_STORAGE = 52;
 
     /**
      * A state identifier for account to node relationships.
@@ -603,9 +603,9 @@ message StateValue {
     com.hedera.hapi.node.state.hooks.EvmHookState ContractService_I_EVM_HOOK_STATES = 51;
 
     /**
-     * A state identifier for lambda storage.
+     * A state identifier for EVM hook storage.
      */
-    proto.SlotValue ContractService_I_LAMBDA_STORAGE = 52;
+    proto.SlotValue ContractService_I_EVM_HOOK_STORAGE = 52;
 
     /**
      * A state identifier for account to node relationships.

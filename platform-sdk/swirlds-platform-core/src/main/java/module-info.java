@@ -26,7 +26,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gui.hashgraph.internal;
     exports com.swirlds.platform.network.connection;
     exports com.swirlds.platform.network.connectivity;
-    exports com.swirlds.platform.event.validation;
     exports com.swirlds.platform.eventhandling;
     exports com.swirlds.platform.gui;
     exports com.swirlds.platform.gui.model;
@@ -46,7 +45,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gossip.sync;
     exports com.swirlds.platform.scratchpad;
     exports com.swirlds.platform.system;
-    exports com.swirlds.platform.system.address;
     exports com.swirlds.platform.system.transaction;
     exports com.swirlds.platform.system.state.notifications;
     exports com.swirlds.platform.system.status;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 plugins {
-    id("org.hiero.gradle.build") version "0.6.2"
+    id("org.hiero.gradle.build") version "0.6.4"
     id("com.hedera.pbj.pbj-compiler") version "0.12.10" apply false
 }
 
@@ -52,6 +52,12 @@ javaModules {
 
     // Platform-base demo applications
     directory("example-apps") { group = "com.hedera.hashgraph" }
+
+    directory("hiero-observability") {
+        group = "org.hiero.observability"
+
+        module("hiero-metrics") { artifact = "hiero-metrics" }
+    }
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }
