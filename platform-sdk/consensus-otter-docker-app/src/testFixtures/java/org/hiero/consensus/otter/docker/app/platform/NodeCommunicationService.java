@@ -32,7 +32,6 @@ import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.KeysAndCertsConverter;
-import org.hiero.otter.fixtures.internal.ProtobufConverter;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 
@@ -111,7 +110,7 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
             return;
         }
 
-        dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
+        dispatcher = new OutboundDispatcher(dispatchExecutor, replies);
 
         InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
             dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
@@ -162,8 +161,7 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
      * @param replies The pipeline used to send error messages back to the test framework.
      * @return {@code true} if the request is invalid; {@code false} otherwise.
      */
-    private static boolean isInvalidRequest(
-            final StartRequest request, final Pipeline<? super EventMessage> replies) {
+    private static boolean isInvalidRequest(final StartRequest request, final Pipeline<? super EventMessage> replies) {
         if (!request.hasVersion()) {
             log.info(ERROR.getMarker(), "Invalid request - version must be specified: {}", request);
             replies.onError(new IllegalArgumentException("version has to be specified"));
@@ -195,8 +193,13 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
             throw new IllegalStateException("Platform not started yet");
         }
 
-        final boolean result = consensusNodeManager.submitTransaction(request.payload().toByteArray());
-        return new TransactionRequestAnswer(result);
+        int numFailed = 0;
+        for (final com.hedera.pbj.runtime.io.buffer.Bytes payload : request.payload()) {
+            if (!consensusNodeManager.submitTransaction(payload.toByteArray())) {
+                numFailed++;
+            }
+        }
+        return new TransactionRequestAnswer(numFailed);
     }
 
     /**
@@ -211,10 +214,7 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
     @Override
     @NonNull
     public synchronized Empty SyntheticBottleneckUpdate(@NonNull final SyntheticBottleneckRequest request) {
-        log.info(
-                DEMO_INFO.getMarker(),
-                "Received synthetic bottleneck request: {} ms",
-                request.sleepMillisPerRound());
+        log.info(DEMO_INFO.getMarker(), "Received synthetic bottleneck request: {} ms", request.sleepMillisPerRound());
         if (consensusNodeManager == null) {
             throw new IllegalStateException("Platform not started yet");
         }

@@ -27,14 +27,12 @@ public final class DockerMain {
     public DockerMain() {
         final DockerManager dockerManager = new DockerManager();
 
-        final PbjConfig pbjConfig = PbjConfig.builder()
-                .name("container-control")
-                .build();
+        final PbjConfig pbjConfig =
+                PbjConfig.builder().name("container-control").build();
 
         webServer = WebServer.builder()
                 .port(CONTAINER_CONTROL_PORT)
-                .addRouting(PbjRouting.builder()
-                        .service(dockerManager))
+                .addRouting(PbjRouting.builder().service(dockerManager))
                 .addProtocol(pbjConfig)
                 .build();
     }

@@ -59,15 +59,13 @@ public class ConsensusNodeMain {
 
         log.info(STARTUP.getMarker(), "Starting ConsensusNodeMain");
 
-        final PbjConfig pbjConfig = PbjConfig.builder()
-                .name("node-communication")
-                .build();
+        final PbjConfig pbjConfig =
+                PbjConfig.builder().name("node-communication").build();
 
         // Start the consensus node manager WebServer
         final WebServer nodeWebServer = WebServer.builder()
                 .port(NODE_COMM_SERVICE_PORT)
-                .addRouting(PbjRouting.builder()
-                        .service(nodeCommunicationService))
+                .addRouting(PbjRouting.builder().service(nodeCommunicationService))
                 .addProtocol(pbjConfig)
                 .build();
 

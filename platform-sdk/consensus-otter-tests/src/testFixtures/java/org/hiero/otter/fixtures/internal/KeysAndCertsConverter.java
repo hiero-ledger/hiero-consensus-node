@@ -41,11 +41,15 @@ public class KeysAndCertsConverter {
         try {
             return ProtoKeysAndCerts.newBuilder()
                     .sigKeyType(keysAndCerts.sigKeyPair().getPrivate().getAlgorithm())
-                    .sigPrivateKey(Bytes.wrap(keysAndCerts.sigKeyPair().getPrivate().getEncoded()))
-                    .sigPublicKey(Bytes.wrap(keysAndCerts.sigKeyPair().getPublic().getEncoded()))
+                    .sigPrivateKey(
+                            Bytes.wrap(keysAndCerts.sigKeyPair().getPrivate().getEncoded()))
+                    .sigPublicKey(
+                            Bytes.wrap(keysAndCerts.sigKeyPair().getPublic().getEncoded()))
                     .agrKeyType(keysAndCerts.agrKeyPair().getPrivate().getAlgorithm())
-                    .agrPrivateKey(Bytes.wrap(keysAndCerts.agrKeyPair().getPrivate().getEncoded()))
-                    .agrPublicKey(Bytes.wrap(keysAndCerts.agrKeyPair().getPublic().getEncoded()))
+                    .agrPrivateKey(
+                            Bytes.wrap(keysAndCerts.agrKeyPair().getPrivate().getEncoded()))
+                    .agrPublicKey(
+                            Bytes.wrap(keysAndCerts.agrKeyPair().getPublic().getEncoded()))
                     .sigCertType(keysAndCerts.sigCert().getType())
                     .sigCertificate(Bytes.wrap(keysAndCerts.sigCert().getEncoded()))
                     .agrCertType(keysAndCerts.agrCert().getType())

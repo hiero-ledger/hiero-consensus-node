@@ -174,15 +174,17 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         // Create PBJ gRPC clients
         final PbjGrpcClientConfig config = new PbjGrpcClientConfig(
-                java.time.Duration.ofSeconds(60), Tls.builder().enabled(false).build(),
-                java.util.Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO);
+                java.time.Duration.ofSeconds(60),
+                Tls.builder().enabled(false).build(),
+                java.util.Optional.empty(),
+                ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO);
 
         final WebClient containerControlWebClient = WebClient.builder()
                 .baseUri("http://" + container.getHost() + ":" + container.getMappedPort(CONTAINER_CONTROL_PORT))
                 .build();
         this.containerControlGrpcClient = new PbjGrpcClient(containerControlWebClient, config);
-        this.containerControlClient =
-                new ContainerControlServiceInterface.ContainerControlServiceClient(containerControlGrpcClient, requestOptions);
+        this.containerControlClient = new ContainerControlServiceInterface.ContainerControlServiceClient(
+                containerControlGrpcClient, requestOptions);
 
         final WebClient nodeCommWebClient = WebClient.builder()
                 .baseUri("http://" + container.getHost() + ":" + container.getMappedPort(NODE_COMMUNICATION_PORT))
@@ -233,12 +235,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 .roster(roster())
                 .keysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
                 .version(version)
-                .overriddenProperties(nodeConfiguration.overriddenProperties())
+                .overriddenProperties(nodeConfiguration.overrideProperties())
                 .build();
 
         // Create PBJ client for node communication
-        this.nodeCommClient =
-                new NodeCommunicationServiceInterface.NodeCommunicationServiceClient(nodeCommGrpcClient, requestOptions);
+        this.nodeCommClient = new NodeCommunicationServiceInterface.NodeCommunicationServiceClient(
+                nodeCommGrpcClient, requestOptions);
 
         // Create pipeline to receive streaming events
         final Pipeline<EventMessage> eventPipeline = new Pipeline<>() {
@@ -335,9 +337,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     protected void doStopSyntheticBottleneck(@NonNull final Duration timeout) {
         log.info("Stopping synthetic bottleneck on node {}", selfId);
         // Note: PBJ clients use timeout configured at client creation (60s)
-        nodeCommClient.SyntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
-                .sleepMillisPerRound(0)
-                .build());
+        nodeCommClient.SyntheticBottleneckUpdate(
+                SyntheticBottleneckRequest.newBuilder().sleepMillisPerRound(0).build());
     }
 
     /**
@@ -355,7 +356,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     case DONT_QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
                 };
         // Note: PBJ clients use timeout configured at client creation (60s)
-        nodeCommClient.QuiescenceCommandUpdate(QuiescenceRequest.newBuilder().command(dto).build());
+        nodeCommClient.QuiescenceCommandUpdate(
+                QuiescenceRequest.newBuilder().command(dto).build());
     }
 
     /**
@@ -368,15 +370,14 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
 
         try {
+            final TransactionRequest.Builder builder = TransactionRequest.newBuilder();
             for (final OtterTransaction transaction : transactions) {
-                final TransactionRequest request = TransactionRequest.newBuilder()
-                        .payload(OtterTransaction.PROTOBUF.toBytes(transaction))
-                        .build();
-
-                final TransactionRequestAnswer answer = nodeCommClient.SubmitTransaction(request);
-                if (!answer.result()) {
-                    fail("Failed to submit transaction for node %d.".formatted(selfId.id()));
-                }
+                builder.payload(OtterTransaction.PROTOBUF.toBytes(transaction));
+            }
+            final TransactionRequestAnswer answer = nodeCommClient.SubmitTransaction(builder.build());
+            if (answer.numFailed() > 0) {
+                fail("%d out of %d transaction(s) failed to submit for node %d."
+                        .formatted(answer.numFailed(), transactions.size(), selfId.id()));
             }
         } catch (final Exception e) {
             fail("Failed to submit transaction(s) to node %d".formatted(selfId.id()), e);
@@ -654,12 +655,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
                 case CONSENSUS_ROUNDS ->
                     resultsCollector.addConsensusRounds(ProtobufConverter.toPlatform(event.consensusRounds()));
-                case MARKER_FILE_ADDED -> {
-                    final java.util.List<String> markerFiles =
-                            event.markerFileAdded().markerFileName();
-                    log.info("Received marker file event from node {}: {}", selfId, markerFiles);
-                    resultsCollector.addMarkerFiles(markerFiles);
-                }
                 default -> log.warn("Received unexpected event: {}", event);
             }
         }

@@ -5,7 +5,7 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.test-fixtures")
     id("org.hiero.gradle.feature.test-integration")
-    id("com.hedera.pbj.pbj-compiler") version "0.12.1"
+    id("com.hedera.pbj.pbj-compiler")
 }
 
 description = "Consensus Otter Test Framework"
@@ -13,9 +13,9 @@ description = "Consensus Otter Test Framework"
 dependencies {
     testFixturesImplementation(platform(project(":hiero-dependency-versions")))
     testFixturesImplementation("com.hedera.pbj:pbj-grpc-client-helidon")
-    testFixturesImplementation("io.helidon.webclient:helidon-webclient")
-    testFixturesImplementation("io.helidon.webclient:helidon-webclient-grpc")
-    testFixturesImplementation("io.helidon.webclient:helidon-webclient-http2")
+    testFixturesRuntimeOnly("io.helidon.webclient:helidon-webclient")
+    testFixturesRuntimeOnly("io.helidon.webclient:helidon-webclient-grpc")
+    testFixturesRuntimeOnly("io.helidon.webclient:helidon-webclient-http2")
     testFixturesImplementation("io.helidon.common:helidon-common-tls")
 }
 
@@ -58,18 +58,11 @@ testModuleInfo {
     requires("org.hiero.consensus.roster")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
-    requires("awaitility")
     requiresStatic("com.github.spotbugs.annotations")
 }
 
-testIntegrationModuleInfo {
-    requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.logging")
-    requires("org.apache.logging.log4j")
-    requires("org.hiero.otter.fixtures")
-    requires("org.assertj.core")
-    requires("org.junit.jupiter.params")
-    requiresStatic("com.github.spotbugs.annotations")
+extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {
+    runtimeOnly("io.grpc.netty.shaded")
 }
 
 extensions.getByName<GradleOnlyDirectives>("testChaosModuleInfo").apply {
@@ -101,36 +94,38 @@ tasks.compileTestFixturesJava {
 
 // Workaround for PBJ code generation bug with field named 'result'
 abstract class FixPbjGeneratedCodeTask : DefaultTask() {
-    @get:InputFile
-    @get:Optional
-    abstract val inputFile: RegularFileProperty
+    @get:InputFile @get:Optional abstract val inputFile: RegularFileProperty
 
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
+    @get:OutputFile abstract val outputFile: RegularFileProperty
 
     @TaskAction
     fun fix() {
         val file = inputFile.get().asFile
         if (file.exists()) {
             val content = file.readText()
-            val fixed = content
-                .replace("if (result != DEFAULT.result)", "if (this.result != DEFAULT.result)")
-                .replace("Boolean.hashCode(result)", "Boolean.hashCode(this.result)")
+            val fixed =
+                content
+                    .replace("if (result != DEFAULT.result)", "if (this.result != DEFAULT.result)")
+                    .replace("Boolean.hashCode(result)", "Boolean.hashCode(this.result)")
             outputFile.get().asFile.writeText(fixed)
         }
     }
 }
 
 tasks.register<FixPbjGeneratedCodeTask>("fixPbjGeneratedCode") {
-    val targetFile = layout.buildDirectory.file("generated/source/pbj-proto/testFixtures/java/org/hiero/otter/fixtures/container/proto/TransactionRequestAnswer.java")
+    val targetFile =
+        layout.buildDirectory.file(
+            "generated/source/pbj-proto/testFixtures/java/org/hiero/otter/fixtures/container/proto/TransactionRequestAnswer.java"
+        )
     inputFile.set(targetFile)
     outputFile.set(targetFile)
 }
 
-tasks.named("compileTestFixturesJava") {
-    dependsOn("fixPbjGeneratedCode")
-}
+tasks.named("compileTestFixturesJava") { dependsOn("fixPbjGeneratedCode") }
 
-tasks.named("generateTestFixturesPbjSource") {
-    finalizedBy("fixPbjGeneratedCode")
-}
+tasks.named("generateTestFixturesPbjSource") { finalizedBy("fixPbjGeneratedCode") }
+
+// Ensure explodeCodeSourceTestFixtures runs after fixPbjGeneratedCode
+tasks
+    .matching { it.name == "explodeCodeSourceTestFixtures" }
+    .configureEach { mustRunAfter("fixPbjGeneratedCode") }

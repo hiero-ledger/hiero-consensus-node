@@ -7,6 +7,7 @@ import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;

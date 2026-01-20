@@ -11,7 +11,7 @@ dependencies {
     testFixturesImplementation(platform(project(":hiero-dependency-versions")))
     testFixturesImplementation("com.hedera.pbj:pbj-grpc-helidon")
     testFixturesImplementation("io.helidon.webserver:helidon-webserver")
-    testFixturesImplementation("io.helidon.webserver:helidon-webserver-http2")
+    testFixturesRuntimeOnly("io.helidon.webserver:helidon-webserver-http2")
 }
 
 testFixturesModuleInfo {

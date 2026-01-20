@@ -64,8 +64,9 @@ public class TransactionFactory {
     public static OtterTransaction createSelfIssTransaction(final long nonce, @NonNull final NodeId nodeId) {
         final HashPartition hashPartition =
                 HashPartition.newBuilder().nodeId(List.of(nodeId.id())).build();
-        final OtterIssTransaction issTransaction =
-                OtterIssTransaction.newBuilder().partition(List.of(hashPartition)).build();
+        final OtterIssTransaction issTransaction = OtterIssTransaction.newBuilder()
+                .partition(List.of(hashPartition))
+                .build();
         return OtterTransaction.newBuilder()
                 .nonce(nonce)
                 .issTransaction(issTransaction)
@@ -84,8 +85,9 @@ public class TransactionFactory {
     @NonNull
     public static OtterTransaction createIssTransaction(final long nonce, @NonNull final List<Node> nodes) {
         final List<HashPartition> hashPartitions = nodes.stream()
-                .map(node ->
-                        HashPartition.newBuilder().nodeId(List.of(node.selfId().id())).build())
+                .map(node -> HashPartition.newBuilder()
+                        .nodeId(List.of(node.selfId().id()))
+                        .build())
                 .toList();
         final OtterIssTransaction issTransaction =
                 OtterIssTransaction.newBuilder().partition(hashPartitions).build();

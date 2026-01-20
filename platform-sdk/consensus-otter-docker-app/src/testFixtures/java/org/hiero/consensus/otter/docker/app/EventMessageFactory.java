@@ -8,7 +8,6 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.LogEntry;
-import org.hiero.otter.fixtures.container.proto.MarkerFileAdded;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.ProtoConsensusRound;
 import org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds;
@@ -36,9 +35,7 @@ public final class EventMessageFactory {
         final PlatformStatusChange protoStatusChange =
                 PlatformStatusChange.newBuilder().newStatus(newStatus.name()).build();
 
-        return EventMessage.newBuilder()
-                .platformStatusChange(protoStatusChange)
-                .build();
+        return EventMessage.newBuilder().platformStatusChange(protoStatusChange).build();
     }
 
     /**
@@ -55,9 +52,7 @@ public final class EventMessageFactory {
         final ProtoConsensusRounds protoConsensusRounds =
                 ProtoConsensusRounds.newBuilder().rounds(protoRounds).build();
 
-        return EventMessage.newBuilder()
-                .consensusRounds(protoConsensusRounds)
-                .build();
+        return EventMessage.newBuilder().consensusRounds(protoConsensusRounds).build();
     }
 
     /**
@@ -70,18 +65,5 @@ public final class EventMessageFactory {
     public static EventMessage fromStructuredLog(@NonNull final StructuredLog log) {
         final LogEntry logEntry = ProtobufConverter.fromPlatform(log);
         return EventMessage.newBuilder().logEntry(logEntry).build();
-    }
-
-    /**
-     * Creates an {@link EventMessage} representing the addition of marker files.
-     *
-     * @param markerFiles the list of marker file names
-     * @return the corresponding {@link EventMessage}
-     */
-    @NonNull
-    public static EventMessage fromMarkerFiles(@NonNull final List<String> markerFiles) {
-        final MarkerFileAdded markerFileAdded =
-                MarkerFileAdded.newBuilder().markerFileName(markerFiles).build();
-        return EventMessage.newBuilder().markerFileAdded(markerFileAdded).build();
     }
 }

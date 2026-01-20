@@ -17,6 +17,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -162,8 +163,8 @@ public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
             while (transactionIterator.hasNext()) {
                 final ConsensusTransaction consensusTransaction = transactionIterator.next();
                 try {
-                    final OtterTransaction transaction = OtterTransaction.PROTOBUF.parse(
-                            consensusTransaction.getApplicationTransaction());
+                    final OtterTransaction transaction =
+                            OtterTransaction.PROTOBUF.parse(consensusTransaction.getApplicationTransaction());
                     for (final OtterService service : allServices) {
                         service.handleTransaction(
                                 state.getWritableStates(service.name()),

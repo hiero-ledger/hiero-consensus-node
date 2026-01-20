@@ -15,13 +15,12 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.state.impl;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
-    requires transitive com.google.common;
+    requires transitive com.google.protobuf;
     requires transitive org.apache.logging.log4j.core;
     requires transitive org.apache.logging.log4j;
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
     requires transitive org.testcontainers;
-    requires com.hedera.node.app.hapi.utils;
     requires com.hedera.pbj.grpc.client.helidon;
     requires com.swirlds.config.extensions;
     requires com.swirlds.platform.core.test.fixtures;
@@ -39,8 +38,6 @@ module org.hiero.otter.fixtures {
     requires com.github.dockerjava.api;
     requires io.helidon.common.tls;
     requires io.helidon.webclient.api;
-    requires io.helidon.webclient.grpc;
-    requires io.helidon.webclient.http2;
     requires java.net.http;
     requires org.antlr.antlr4.runtime;
     requires org.apache.commons.lang3;

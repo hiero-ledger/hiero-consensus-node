@@ -109,8 +109,6 @@ public class ProtobufConverter {
         return com.google.protobuf.ByteString.copyFrom(sourceBytes.toByteArray());
     }
 
-
-
     /**
      * Converts a ConsensusRound to a ProtoConsensusRound.
      *
@@ -145,10 +143,9 @@ public class ProtobufConverter {
     @NonNull
     public static org.hiero.consensus.model.hashgraph.ConsensusRound toPlatform(
             @NonNull final org.hiero.otter.fixtures.container.proto.ProtoConsensusRound sourceRound) {
-        final List<org.hiero.consensus.model.event.PlatformEvent> events =
-                sourceRound.consensusEvents().stream()
-                        .map(ProtobufConverter::toPlatform)
-                        .toList();
+        final List<org.hiero.consensus.model.event.PlatformEvent> events = sourceRound.consensusEvents().stream()
+                .map(ProtobufConverter::toPlatform)
+                .toList();
 
         return new org.hiero.consensus.model.hashgraph.ConsensusRound(
                 sourceRound.consensusRoster(),
@@ -168,9 +165,7 @@ public class ProtobufConverter {
     @NonNull
     public static List<org.hiero.consensus.model.hashgraph.ConsensusRound> toPlatform(
             @NonNull final org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds sourceRounds) {
-        return sourceRounds.rounds().stream()
-                .map(ProtobufConverter::toPlatform)
-                .toList();
+        return sourceRounds.rounds().stream().map(ProtobufConverter::toPlatform).toList();
     }
 
     private static org.hiero.otter.fixtures.container.proto.ProtoPlatformEvent fromPlatform(

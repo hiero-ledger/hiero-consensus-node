@@ -202,8 +202,7 @@ public final class DockerManager implements ContainerControlServiceInterface {
             } catch (final InterruptedException e) {
                 log.error("Interrupted while waiting for the consensus node process to terminate.", e);
                 Thread.currentThread().interrupt();
-                throw new RuntimeException(
-                        "Interrupted while waiting for the consensus node process to terminate.", e);
+                throw new RuntimeException("Interrupted while waiting for the consensus node process to terminate.", e);
             }
         }
         log.info("Kill request completed.");
