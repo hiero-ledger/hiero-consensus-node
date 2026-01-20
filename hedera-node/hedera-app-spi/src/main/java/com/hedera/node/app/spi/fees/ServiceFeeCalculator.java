@@ -21,7 +21,6 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -30,20 +29,21 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /** Calculates transaction and query fees. Null context = approximate, non-null = exact using state. */
 public interface ServiceFeeCalculator {
+
     /**
-     * Accumulated service fees as a side effect into the given fee result. This will be implemented by every
-     * single handler's fee calculator.
+     * Accumulate service fees using the Simple Fee context.
      *
      * @param txnBody the transaction body
-     * @param feeContext the fee context
+     * @param context the simple fee context
      * @param feeResult the fee result
      * @param feeSchedule the fee schedule
      */
     void accumulateServiceFee(
             @NonNull TransactionBody txnBody,
-            @Nullable FeeContext feeContext,
+            @NonNull SimpleFeeContext context,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule);
+
     /**
      * Returns the transaction type this calculator is for.
      * @return the transaction type
@@ -69,9 +69,9 @@ public interface ServiceFeeCalculator {
             if (ref.name() == extra) {
                 int included = ref.includedCount();
                 long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
-                if (amount > included) {
-                    final long overage = amount - included;
-                    result.addServiceFee(overage, extraFee);
+                final long overage = Math.max(0, amount - included);
+                if (amount > 0) {
+                    result.addServiceExtra(ref.name().name(), extraFee, amount, included, overage);
                 }
             }
         }

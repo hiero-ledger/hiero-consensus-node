@@ -161,20 +161,21 @@ class TransactionDispatcherTest {
             // And: Transaction body is provided
             given(feeContext.body()).willReturn(txBody);
             given(feeContext.activeRate()).willReturn(testExchangeRate);
+            var simpleFeeContext = new TransactionDispatcher.SimpleFeeContextImpl(feeContext);
 
             // And: Simple fee calculator returns a fee result
             final var feeResult = new FeeResult();
-            feeResult.node = 100000L; // 100K tinycents
-            feeResult.network = 200000L; // 200K tinycents
-            feeResult.service = 498500000L; // 498.5M tinycents
+            feeResult.addNodeBaseTC(100000L); // 100K tinycents
+            feeResult.setNetworkMultiplier(2); // 200K tinycents
+            feeResult.addServiceBaseTC(498500000L); // 498.5M tinycents
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateTxFee(txBody, feeContext)).willReturn(feeResult);
+            given(simpleFeeCalculator.calculateTxFee(txBody, simpleFeeContext)).willReturn(feeResult);
 
             // When
             final var result = subject.dispatchComputeFees(feeContext);
 
             // Then: Should use simple fee calculator
-            verify(simpleFeeCalculator).calculateTxFee(txBody, feeContext);
+            verify(simpleFeeCalculator).calculateTxFee(txBody, simpleFeeContext);
 
             // Verify fees are converted from tinycents to tinybars (divide by 12)
             assertThat(result).isNotNull();

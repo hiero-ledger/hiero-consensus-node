@@ -91,6 +91,7 @@ import java.time.InstantSource;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -1138,6 +1139,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                     .thenReturn(new VersionedConfigImpl(configuration, DEFAULT_CONFIG_VERSION));
             given(queryContext.configuration()).willReturn(configuration);
             given(queryContext.exchangeRateInfo()).willReturn(testExchangeRateInfo);
+            var simpleFeeContext = new QueryWorkflowImpl.QuerySimpleFeeContext(queryContext);
 
             doAnswer(invocationOnMock -> {
                         final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
@@ -1149,7 +1151,10 @@ class QueryWorkflowImplTest extends AppTestBase {
                     .runAllChecks(any(), any(), any(), any());
 
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateQueryFee(query, queryContext)).willReturn(100000L);
+            final var result = new FeeResult();
+            result.addNodeBaseTC(100000L);
+            given(simpleFeeCalculator.calculateQueryFee(query, simpleFeeContext))
+                    .willReturn(result);
 
             mockTopicGetInfoHandler(query, queryHeader, payment);
 

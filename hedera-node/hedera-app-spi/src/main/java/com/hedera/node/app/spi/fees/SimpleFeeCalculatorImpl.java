@@ -6,9 +6,7 @@ import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -58,11 +56,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull final FeeResult result, @NonNull final Iterable<ExtraFeeReference> extras, final long signatures) {
         for (final ExtraFeeReference ref : extras) {
             final long used = ref.name() == SIGNATURES ? signatures : 0;
-            if (used > ref.includedCount()) {
-                final long overage = used - ref.includedCount();
-                final long unitFee = getExtraFee(ref.name());
-
-                result.addNodeFee(overage, unitFee);
+            final long overage = Math.max(0, used - ref.includedCount());
+            final long unitFee = getExtraFee(ref.name());
+            if (used > 0) {
+                result.addNodeExtra(ref.name().name(), unitFee, used, ref.includedCount(), overage);
             }
         }
     }
@@ -71,27 +68,27 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Calculates fees for CryptoDelete transactions per HIP-1261.
      * CryptoDelete uses only SIGNATURES extra for the service fee.
      *
-     * @param txnBody the transaction body
-     * @param feeContext the fee context containing signature count
+     * @param txnBody    the transaction body
+     * @param context the fee context containing signature count
      * @return the calculated fee result
      */
     @NonNull
     @Override
-    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
+    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext context) {
         // Extract primitive counts (no allocations)
-        final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
+        final long signatures = context.numTxnSignatures();
         final var result = new FeeResult();
 
         // Add node base and extras
-        result.addNodeFee(1, feeSchedule.node().baseFee());
+        result.addNodeBaseTC(feeSchedule.node().baseFee());
         addNodeExtras(result, feeSchedule.node().extras(), signatures);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
-        result.addNetworkFee(result.node * multiplier);
+        result.setNetworkMultiplier(multiplier);
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
-        serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
+        serviceFeeCalculator.accumulateServiceFee(txnBody, context, result, feeSchedule);
         return result;
     }
 
@@ -129,16 +126,16 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     /**
      * Default implementation for query fee calculation.
      *
-     * @param query The query to calculate fees for
-     * @param queryContext the query context
+     * @param query        The query to calculate fees for
+     * @param context the query context
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
     @Override
-    public long calculateQueryFee(@NonNull final Query query, @NonNull final QueryContext queryContext) {
+    public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final SimpleFeeContext context) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
-        queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
-        return result.total();
+        queryFeeCalculator.accumulateNodePayment(query, context, result, feeSchedule);
+        return result;
     }
 }

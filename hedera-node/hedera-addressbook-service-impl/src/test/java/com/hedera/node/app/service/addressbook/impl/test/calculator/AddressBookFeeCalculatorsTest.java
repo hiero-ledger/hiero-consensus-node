@@ -18,6 +18,7 @@ import com.hedera.node.app.service.addressbook.impl.calculator.NodeDeleteFeeCalc
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeUpdateFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceSimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -102,11 +103,11 @@ class AddressBookFeeCalculatorsTest {
     @DisplayName("Fee calculation for all Node*FeeCalculators")
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
-        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
+        final var result = feeCalculator.calculateTxFee(testCase.body, new ServiceSimpleFeeContextImpl(feeContext));
         assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
-        assertThat(result.service).isEqualTo(testCase.expectedServiceFee);
-        assertThat(result.network).isEqualTo(testCase.expectedNetworkFee);
+        assertThat(result.nodeTotalTC()).isEqualTo(testCase.expectedNodeFee);
+        assertThat(result.serviceTotalTC()).isEqualTo(testCase.expectedServiceFee);
+        assertThat(result.networkTotalTC()).isEqualTo(testCase.expectedNetworkFee);
     }
 
     private static FeeSchedule createTestFeeSchedule() {

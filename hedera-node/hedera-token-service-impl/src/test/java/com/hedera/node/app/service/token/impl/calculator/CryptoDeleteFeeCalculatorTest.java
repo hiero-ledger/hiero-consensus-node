@@ -10,6 +10,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.ServiceSimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
@@ -55,14 +56,14 @@ class CryptoDeleteFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
             // Then: Real production values from simpleFeesSchedules.json
             // node=100000, network=200000, service=49850000 (base only, no extras)
             assertThat(result).isNotNull();
-            assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.service).isEqualTo(49850000L);
-            assertThat(result.network).isEqualTo(200000L);
+            assertThat(result.nodeTotalTC()).isEqualTo(100000L);
+            assertThat(result.serviceTotalTC()).isEqualTo(49850000L);
+            assertThat(result.networkTotalTC()).isEqualTo(200000L);
         }
 
         @Test
@@ -76,11 +77,11 @@ class CryptoDeleteFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
             // Then: Base service fee only - CryptoDelete doesn't call addExtraFee
             // service=49850000
-            assertThat(result.service).isEqualTo(49850000L);
+            assertThat(result.serviceTotalTC()).isEqualTo(49850000L);
         }
 
         @Test
@@ -94,11 +95,11 @@ class CryptoDeleteFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, new ServiceSimpleFeeContextImpl(feeContext));
 
             // Then: Base service fee only - CryptoDelete doesn't call addExtraFee
             // service=49850000 (SIGNATURES are handled by node fee, not service fee)
-            assertThat(result.service).isEqualTo(49850000L);
+            assertThat(result.serviceTotalTC()).isEqualTo(49850000L);
         }
     }
 

@@ -10,11 +10,13 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.config.data.FeesConfig;
@@ -138,7 +140,7 @@ public class TransactionDispatcher {
             final var handler = getHandler(feeContext.body());
             if (shouldUseSimpleFees(feeContext)) {
                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                        .calculateTxFee(feeContext.body(), feeContext);
+                        .calculateTxFee(feeContext.body(), new SimpleFeeContextImpl(feeContext));
                 return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
             }
             return handler.calculateFees(feeContext);
@@ -308,5 +310,33 @@ public class TransactionDispatcher {
 
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };
+    }
+
+    public static class SimpleFeeContextImpl implements SimpleFeeContext {
+        private final FeeContext feeContext;
+
+        public SimpleFeeContextImpl(FeeContext feeContext) {
+            this.feeContext = feeContext;
+        }
+
+        @Override
+        public int numTxnSignatures() {
+            return this.feeContext.numTxnSignatures();
+        }
+
+        @Override
+        public int numTxnBytes() {
+            return 0;
+        }
+
+        @Override
+        public FeeContext feeContext() {
+            return this.feeContext;
+        }
+
+        @Override
+        public QueryContext queryContext() {
+            return null;
+        }
     }
 }

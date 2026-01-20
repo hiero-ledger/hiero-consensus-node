@@ -4,9 +4,7 @@ package com.hedera.node.app.spi.fees;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
 import com.hedera.hapi.node.transaction.Query;
-import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -15,19 +13,18 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 public interface QueryFeeCalculator {
     /**
-     * Accumulated service fees as a side effect into the given fee result. This will be implemented by every
-     * single handler's fee calculator.
+     * Accumulate query fees using the transaction body and query context.
      *
-     * @param query the query body
-     * @param queryContext the query state
-     * @param feeResult the fee result
-     * @param feeSchedule the fee schedule
+     * @param query        the query body
+     * @param feeResult    the fee result
+     * @param feeSchedule  the fee schedule
      */
     void accumulateNodePayment(
             @NonNull Query query,
-            @Nullable QueryContext queryContext,
+            @NonNull SimpleFeeContext context,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule);
+
     /**
      * Returns the query type this calculator is for.
      * @return the query type
@@ -55,7 +52,7 @@ public interface QueryFeeCalculator {
                 long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
                 if (amount > included) {
                     final long overage = amount - included;
-                    result.addServiceFee(overage, extraFee);
+                    result.addServiceExtra(ref.name().name(), extraFee, amount, included, overage);
                 }
             }
         }

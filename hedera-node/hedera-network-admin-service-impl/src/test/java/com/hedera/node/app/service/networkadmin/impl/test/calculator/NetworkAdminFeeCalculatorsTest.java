@@ -12,6 +12,7 @@ import com.hedera.node.app.service.networkadmin.impl.calculator.GetByKeyFeeCalcu
 import com.hedera.node.app.service.networkadmin.impl.calculator.GetVersionInfoFeeCalculator;
 import com.hedera.node.app.service.networkadmin.impl.calculator.TransactionGetReceiptFeeCalculator;
 import com.hedera.node.app.service.networkadmin.impl.calculator.TransactionGetRecordFeeCalculator;
+import com.hedera.node.app.spi.fees.QuerySimpleFeeContextImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -36,11 +37,14 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
+                Query.newBuilder().build(),
+                new QuerySimpleFeeContextImpl(mockQueryContext),
+                feeResult,
+                createTestFeeSchedule());
 
-        assertThat(feeResult.node).isEqualTo(0L);
-        assertThat(feeResult.network).isEqualTo(0L);
-        assertThat(feeResult.service).isEqualTo(GET_VERSION_INFO_FEE);
+        assertThat(feeResult.nodeTotalTC()).isEqualTo(0L);
+        assertThat(feeResult.networkTotalTC()).isEqualTo(0L);
+        assertThat(feeResult.serviceTotalTC()).isEqualTo(GET_VERSION_INFO_FEE);
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.NETWORK_GET_VERSION_INFO);
     }
 
@@ -52,11 +56,14 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
+                Query.newBuilder().build(),
+                new QuerySimpleFeeContextImpl(mockQueryContext),
+                feeResult,
+                createTestFeeSchedule());
 
-        assertThat(feeResult.node).isEqualTo(0L);
-        assertThat(feeResult.network).isEqualTo(0L);
-        assertThat(feeResult.service).isEqualTo(GET_BY_KEY_FEE);
+        assertThat(feeResult.nodeTotalTC()).isEqualTo(0L);
+        assertThat(feeResult.networkTotalTC()).isEqualTo(0L);
+        assertThat(feeResult.serviceTotalTC()).isEqualTo(GET_BY_KEY_FEE);
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.GET_BY_KEY);
     }
 
@@ -68,11 +75,14 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
+                Query.newBuilder().build(),
+                new QuerySimpleFeeContextImpl(mockQueryContext),
+                feeResult,
+                createTestFeeSchedule());
 
-        assertThat(feeResult.node).isEqualTo(0L);
-        assertThat(feeResult.network).isEqualTo(0L);
-        assertThat(feeResult.service).isEqualTo(TRANSACTION_GET_RECEIPT_FEE);
+        assertThat(feeResult.nodeTotalTC()).isEqualTo(0L);
+        assertThat(feeResult.networkTotalTC()).isEqualTo(0L);
+        assertThat(feeResult.serviceTotalTC()).isEqualTo(TRANSACTION_GET_RECEIPT_FEE);
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.TRANSACTION_GET_RECEIPT);
     }
 
@@ -84,11 +94,14 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
+                Query.newBuilder().build(),
+                new QuerySimpleFeeContextImpl(mockQueryContext),
+                feeResult,
+                createTestFeeSchedule());
 
-        assertThat(feeResult.node).isEqualTo(0L);
-        assertThat(feeResult.network).isEqualTo(0L);
-        assertThat(feeResult.service).isEqualTo(TRANSACTION_GET_RECORD_FEE);
+        assertThat(feeResult.nodeTotalTC()).isEqualTo(0L);
+        assertThat(feeResult.networkTotalTC()).isEqualTo(0L);
+        assertThat(feeResult.serviceTotalTC()).isEqualTo(TRANSACTION_GET_RECORD_FEE);
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.TRANSACTION_GET_RECORD);
     }
 

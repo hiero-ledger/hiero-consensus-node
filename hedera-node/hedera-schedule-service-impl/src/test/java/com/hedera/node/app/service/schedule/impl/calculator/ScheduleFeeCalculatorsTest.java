@@ -22,6 +22,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceSimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -201,12 +202,12 @@ class ScheduleFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
+        final var result = feeCalculator.calculateTxFee(testCase.body, new ServiceSimpleFeeContextImpl(feeContext));
 
         assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
-        assertThat(result.service).isEqualTo(testCase.expectedServiceFee);
-        assertThat(result.network).isEqualTo(testCase.expectedNetworkFee);
+        assertThat(result.nodeTotalTC()).isEqualTo(testCase.expectedNodeFee);
+        assertThat(result.serviceTotalTC()).isEqualTo(testCase.expectedServiceFee);
+        assertThat(result.networkTotalTC()).isEqualTo(testCase.expectedNetworkFee);
     }
 
     @Test
@@ -216,11 +217,12 @@ class ScheduleFeeCalculatorsTest {
         final var queryFeeCalculator = new ScheduleGetInfoFeeCalculator();
         final var feeResult = new FeeResult();
 
-        queryFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+        queryFeeCalculator.accumulateNodePayment(
+                query, new ServiceSimpleFeeContextImpl(null), feeResult, createTestFeeSchedule());
 
-        assertThat(feeResult.node).isEqualTo(0L);
-        assertThat(feeResult.network).isEqualTo(0L);
-        assertThat(feeResult.service).isEqualTo(5L);
+        assertThat(feeResult.nodeTotalTC()).isEqualTo(0L);
+        assertThat(feeResult.networkTotalTC()).isEqualTo(0L);
+        assertThat(feeResult.serviceTotalTC()).isEqualTo(5L);
     }
 
     private static FeeSchedule createTestFeeSchedule() {

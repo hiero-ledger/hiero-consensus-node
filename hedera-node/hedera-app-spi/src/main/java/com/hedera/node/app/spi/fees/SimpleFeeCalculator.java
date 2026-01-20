@@ -19,7 +19,6 @@ package com.hedera.node.app.spi.fees;
 
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
@@ -28,9 +27,10 @@ import org.hiero.hapi.support.fees.Extra;
 public interface SimpleFeeCalculator {
 
     @NonNull
-    FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull FeeContext feeContext);
+    FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull SimpleFeeContext context);
 
-    long calculateQueryFee(@NonNull Query query, @NonNull QueryContext queryContext);
+    @NonNull
+    FeeResult calculateQueryFee(@NonNull Query query, @NonNull SimpleFeeContext context);
 
     long getExtraFee(Extra extra);
 }

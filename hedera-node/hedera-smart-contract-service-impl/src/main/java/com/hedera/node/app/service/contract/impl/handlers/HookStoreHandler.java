@@ -36,6 +36,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -45,7 +46,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -70,7 +70,7 @@ public class HookStoreHandler implements TransactionHandler {
         @Override
         public void accumulateServiceFee(
                 @NonNull final TransactionBody txnBody,
-                @Nullable final FeeContext feeContext,
+                @NonNull final SimpleFeeContext context,
                 @NonNull final FeeResult feeResult,
                 @NonNull final FeeSchedule feeSchedule) {
             requireNonNull(txnBody);
@@ -79,7 +79,10 @@ public class HookStoreHandler implements TransactionHandler {
             final var fee = lookupServiceFee(feeSchedule, HederaFunctionality.HOOK_STORE);
             requireNonNull(fee);
             final var op = txnBody.hookStoreOrThrow();
-            feeResult.addServiceFee(slotCount(op.storageUpdates()), fee.baseFee());
+            // TODO: what does this code do? why is it multiplying the base fee times a count instead of using an extra?
+            //      feeResult.addServiceFee(slotCount(op.storageUpdates()), fee.baseFee());
+            final var slots = slotCount(op.storageUpdates());
+            feeResult.addServiceBaseTC(slots * fee.baseFee());
         }
     }
 
