@@ -102,6 +102,6 @@ public class HookStoreHandlerTest {
 
         subject.accumulateServiceFee(tx, feeContext, feeResult, feeSchedule);
 
-        verify(feeResult).addServiceFee(3, 1000000000L);
+        verify(feeResult).setServiceBaseFeeTinyCents(3 * 1000000000L);
     }
 }

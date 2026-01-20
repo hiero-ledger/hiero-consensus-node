@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 
 import java.util.ArrayList;
@@ -12,79 +13,154 @@ import java.util.List;
  * All values are in tinycents.
  */
 public class FeeResult {
-    /** The service component in tinycents. */
-    public long service = 0;
-    /** The node component in tinycents. */
-    public long node = 0;
-    /** The network component in tinycents. */
-    public long network = 0;
-    /** Details about the fee, broken down by label. */
-    public List<FeeDetail> details = new ArrayList<>();
+    private long serviceBase = 0;
+    private List<FeeDetail> serviceExtrasDetails = new ArrayList<>();
+    private long serviceTotal = 0;
+    private long nodeBase;
+    private List<FeeDetail> nodeExtrasDetails = new ArrayList<>();
+    private long nodeTotal = 0;
+    private int networkMultiplier = 0;
+    private int congestionMultiplier = 0;
 
-    /** Add a service fee with details.
-     * @param count the number of units for this fee.
-     * @param cost the actual computed cost of this service fee in tinycents.
-     * */
-    public void addServiceFee(long count, long cost) {
-        details.add(new FeeDetail(count, cost));
-        service = clampedAdd(service, clampedMultiply(count, cost));
+    public FeeResult() {}
+
+    public FeeResult(long serviceTotal, long nodeTotal, int networkMultiplier) {
+        this.serviceTotal = serviceTotal;
+        this.nodeTotal = nodeTotal;
+        this.networkMultiplier = networkMultiplier;
     }
 
-    /** Add a node fee with details.
-     * @param count the number of units for this fee.
-     * @param cost the actual computed cost of this service fee in tinycents.
-     * */
-    public void addNodeFee(long count, long cost) {
-        details.add(new FeeDetail(count, cost));
-        node = clampedAdd(node, clampedMultiply(count, cost));
+    /**
+     * Get the total Service component in tiny cents.
+     */
+    public long getServiceTotalTinyCents() {
+        return serviceTotal;
     }
 
-    /** Add a network fee with details.
+    /**
+     * Set the Service baseFee in tiny cents.
+     *
+     * @param cost the base fee component of this service fee in tinycents.
+     *
+     */
+    public void setServiceBaseFeeTinyCents(long cost) {
+        this.serviceBase = cost;
+        this.serviceTotal = clampedAdd(serviceTotal, cost);
+    }
+
+    /**
+     * Get the Service base fee in tiny cents.
+     *
+     * @return service base fee
+     *
+     */
+    public long getServiceBaseFeeTinyCents() {
+        return this.serviceBase;
+    }
+
+    /** Add a Service extra fee in tiny cents.
+     * @param name the name of this extra
+     * @param per_unit the cost of a single extra in tiny cents.
+     * @param used how many of the extra were used
+     * @param included how many of the extra were included for free
+     */
+    public void addServiceExtraFeeTinyCents(String name, long per_unit, long used, long included) {
+        var charged = used-included;
+        serviceExtrasDetails.add(new FeeDetail(name, per_unit, used, included, charged));
+        serviceTotal = clampedAdd(serviceTotal, clampedMultiply(per_unit, charged));
+    }
+
+    /**
+     * Details about the service fee extras, broken down by label.
+     */
+    public List<FeeDetail> getServiceExtraDetails() {
+        return this.serviceExtrasDetails;
+    }
+
+    /**
+     * Get the total Node component of the fee in tinycents.
+     */
+    public long getNodeTotalTinyCents() {
+        return nodeTotal;
+    }
+
+    /**
+     * Set the Node baseFee in tiny cents.
+     *
      * @param cost the actual computed cost of this service fee in tinycents.
-     * */
-    public void addNetworkFee(long cost) {
-        details.add(new FeeDetail(1, cost));
-        network = clampedAdd(network, cost);
+     *
+     */
+    public void setNodeBaseFeeTinyCents(long cost) {
+        this.nodeBase = cost;
+        this.nodeTotal = clampedAdd(nodeTotal, cost);
+    }
+
+    /**
+     * Get the Service base fee in tiny cents.
+     *
+     * @return service base fee
+     *
+     */
+    public long getNodeBaseFeeTinyCents() {
+        return this.nodeBase;
+    }
+
+    /** Add a Node extra fee in tiny cents.
+     * @param name the name of this extra
+     * @param per_unit the cost of a single extra in tiny cents.
+     * @param used how many of the extra were used
+     * @param included how many of the extra were included for free
+     */
+    public void addNodeExtraFeeTinyCents(String name, long per_unit, long used, long included) {
+        var charged = used-included;
+        nodeExtrasDetails.add(new FeeDetail(name, per_unit, used, included, charged));
+        nodeTotal = clampedAdd(nodeTotal, clampedMultiply(per_unit, charged));
+    }
+    /**
+     * Details about the service fee extras, broken down by label.
+     */
+    public List<FeeDetail> getNodeExtraDetails() {
+        return this.nodeExtrasDetails;
+    }
+
+    /** Set the network multiplier */
+    public void setNetworkMultiplier(int networkMultiplier) {
+        this.networkMultiplier = networkMultiplier;
+    }
+    /** Get the network multiplier */
+    public int getNetworkMultiplier() {
+        return this.networkMultiplier;
+    }
+
+    /**
+     * Get the Network component in tiny cents. This will always
+     * be a multiple of the Node fee
+     */
+    public long getNetworkTotalTinyCents() {
+        return clampedMultiply(this.getNodeTotalTinyCents(), this.networkMultiplier);
     }
 
     public void clearFees() {
-        node = 0L;
-        network = 0L;
-        service = 0L;
-        details.clear();
+        this.serviceExtrasDetails.clear();
+        this.serviceTotal = 0;
+        this.nodeExtrasDetails.clear();
+        this.nodeTotal = 0;
+        this.networkMultiplier = 0;
     }
 
-    /** the total fee in tinycents. */
-    public long total() {
-        return clampedAdd(clampedAdd(this.node, this.network), this.service);
+    /**
+     * The total computed fee of this transaction (Service + Node + Network) in tiny cents.
+     */
+    public long totalTinyCents() {
+        return clampedAdd(
+                clampedAdd(this.getNodeTotalTinyCents(), this.getNetworkTotalTinyCents()),
+                this.getServiceTotalTinyCents());
     }
 
-    /** Utility class representing the details of a particular fee component. */
-    public static class FeeDetail {
-        public long count;
-        public long fee;
-
-        public FeeDetail(long count, long fee) {
-            this.count = count;
-            this.fee = fee;
-        }
-
-        @Override
-        public String toString() {
-            return "FeeDetail{" + this.count + ", " + this.fee + "}";
-        }
-    }
+    public record FeeDetail(String name, long per_unit, long used, long included, long charged) {}
 
     @Override
     public String toString() {
-        return "FeeResult{" + "fee=" + this.total() + ", details=" + details + '}';
-    }
-
-    private static long clampedAdd(final long a, final long b) {
-        try {
-            return Math.addExact(a, b);
-        } catch (final ArithmeticException ae) {
-            return a > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
-        }
+        return "FeeResult{" + "fee=" + this.totalTinyCents() + ", details=" + getServiceExtraDetails() + '}';
     }
 }

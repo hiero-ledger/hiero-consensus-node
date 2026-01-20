@@ -25,7 +25,7 @@ public class ContractCreateFeeCalculator implements ServiceFeeCalculator {
         final var adminKey = txnBody.contractCreateInstanceOrThrow().adminKey();
         final long keys = adminKey != null ? countKeys(adminKey) : 0;
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CONTRACT_CREATE);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keys);
     }
 

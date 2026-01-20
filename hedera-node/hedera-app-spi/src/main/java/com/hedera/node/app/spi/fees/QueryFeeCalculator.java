@@ -55,7 +55,7 @@ public interface QueryFeeCalculator {
                 long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
                 if (amount > included) {
                     final long overage = amount - included;
-                    result.addServiceFee(overage, extraFee);
+                    result.setServiceBaseFeeTinyCents(extraFee);
                 }
             }
         }

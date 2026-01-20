@@ -59,10 +59,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         for (final ExtraFeeReference ref : extras) {
             final long used = ref.name() == SIGNATURES ? signatures : 0;
             if (used > ref.includedCount()) {
-                final long overage = used - ref.includedCount();
                 final long unitFee = getExtraFee(ref.name());
-
-                result.addNodeFee(overage, unitFee);
+                result.addNodeExtraFeeTinyCents(ref.name().name(),unitFee, used, ref.includedCount());
             }
         }
     }
@@ -83,11 +81,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
 
         // Add node base and extras
-        result.addNodeFee(1, feeSchedule.node().baseFee());
+        result.setNodeBaseFeeTinyCents(feeSchedule.node().baseFee());
         addNodeExtras(result, feeSchedule.node().extras(), signatures);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
-        result.addNetworkFee(result.node * multiplier);
+        result.setNetworkMultiplier(multiplier);
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
@@ -139,6 +137,6 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
         queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
-        return result.total();
+        return result.totalTinyCents();
     }
 }

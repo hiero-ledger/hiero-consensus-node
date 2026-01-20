@@ -27,7 +27,7 @@ public class FileGetContentsFeeCalculator implements QueryFeeCalculator {
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_GET_CONTENTS);
         final var fileContents = fileStore.getFileLeaf(op.fileIDOrThrow()).contents();
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, fileContents.length());
     }
 

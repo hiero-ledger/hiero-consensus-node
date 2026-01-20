@@ -555,11 +555,8 @@ class QueryCheckerTest extends AppTestBase {
         final var activeRate =
                 ExchangeRate.newBuilder().hbarEquiv(120).centEquiv(1000).build();
         final var simpleFeeCalculator = mock(SimpleFeeCalculator.class);
-        final var transferFeeResult = new FeeResult();
-        // create object with total fee 1000
-        transferFeeResult.addNetworkFee(500);
-        transferFeeResult.addNodeFee(2, 200);
-        transferFeeResult.addServiceFee(1, 100);
+        // create object with total fee 1000 = 100 + 300 + 300 * 2
+        final var transferFeeResult = new FeeResult(100, 300, 2);
         // hbar equivalent should be 120
         final var expectedFee = 120;
 

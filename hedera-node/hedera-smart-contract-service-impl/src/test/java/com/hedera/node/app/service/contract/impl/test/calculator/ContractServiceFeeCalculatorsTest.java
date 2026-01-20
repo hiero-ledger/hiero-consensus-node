@@ -141,9 +141,9 @@ class ContractServiceFeeCalculatorsTest {
         final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
 
         assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
-        assertThat(result.service).isEqualTo(testCase.expectedServiceFee);
-        assertThat(result.network).isEqualTo(testCase.expectedNetworkFee);
+        assertThat(result.getNodeTotalTinyCents()).isEqualTo(testCase.expectedNodeFee);
+        assertThat(result.getServiceTotalTinyCents()).isEqualTo(testCase.expectedServiceFee);
+        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(testCase.expectedNetworkFee);
     }
 
     private static FeeSchedule createTestFeeSchedule() {
