@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -25,7 +24,6 @@ import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -2041,63 +2039,6 @@ class VirtualNodeCacheTest extends VirtualTestBase {
             assertEquals(appleLeaf(1), snapshot.lookupLeafByPath(1), "value should match expected");
             assertEquals(bananaLeaf(2), snapshot.lookupLeafByKey(B_KEY), "value should match expected");
             assertEquals(bananaLeaf(2), snapshot.lookupLeafByPath(2), "value should match expected");
-        }
-    }
-
-    /**
-     * This test validates that serialization happens only on snapshot instances.
-     * if we try to serialize a non-snapshot instance, then an
-     * {@link IllegalStateException} is thrown.
-     *
-     * @throws IOException
-     * 		In case of error
-     */
-    @Test
-    @DisplayName("serialize should only be called on a snapshot")
-    void serializingBeforeSnapshot() throws IOException {
-        try (final InputOutputStream ioStream = new InputOutputStream()) {
-            final Exception exception = assertThrows(
-                    IllegalStateException.class,
-                    () -> ioStream.getOutput().writeSerializable(cache, true),
-                    "Serialization should be done on a snapshot");
-            assertEquals(
-                    "Trying to serialize a non-snapshot instance",
-                    exception.getMessage(),
-                    "Serialization is only valid on snapshot");
-        }
-    }
-
-    /**
-     * This test validates that the snapshot of a copy is serialized and
-     * deserialized correctly by matching its contents against the
-     * original cache (cache0).
-     *
-     * @throws IOException
-     * 		In case of error
-     */
-    @Test
-    @DisplayName("Deserialized cache matches its non-copied original cache")
-    void serializeAndDeserialize() throws IOException {
-        final List<CacheInfo> caches = createCaches();
-        final List<CacheInfo> snapshots = caches.stream()
-                .map(original ->
-                        new CacheInfo(original.cache.snapshot(), original.firstLeafPath, original.lastLeafPath))
-                .toList();
-
-        final List<CacheInfo> expectedCaches = createCaches();
-        for (int i = 0; i < snapshots.size(); i++) {
-            final CacheInfo snapshot = snapshots.get(i);
-            final CacheInfo expected = expectedCaches.get(i);
-
-            try (final InputOutputStream ioStream = new InputOutputStream()) {
-                ioStream.getOutput().writeSerializable(snapshot.cache, true);
-                ioStream.startReading();
-
-                final VirtualNodeCache deserializedCache = ioStream.getInput().readSerializable();
-                final CacheInfo deserializedInfo =
-                        new CacheInfo(deserializedCache, snapshot.firstLeafPath, snapshot.lastLeafPath);
-                validateSnapshot(expected, deserializedInfo, i);
-            }
         }
     }
 
