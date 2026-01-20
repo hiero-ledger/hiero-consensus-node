@@ -29,7 +29,7 @@ import "interledger/state/clpr/clpr_message_queue.proto";
  * which are related or must be handled together to preserve ordering or
  * atomicity semantics required by the CLPR protocol.
  *
- * Implementations MUST validate the bundle contents and MAY reject the
+ * Implementations MUST validate the bundle contents and MUST reject the
  * transaction if the bundle is malformed, contains invalid messages, or
  * violates protocol constraints.
  */

@@ -46,9 +46,9 @@ message ClprGetMessageQueueMetadataQuery {
 
 /**
  * A response to a `ClprGetMessageQueueMetadataQuery`.
- *
- * This MAY return a state proof of the `ClprMessageQueueMetadata` for the
- * ledger id provided in the query. <br/>
+ * <p>
+ * On success, this MUST return a state proof of the `ClprMessageQueueMetadata` for the
+ * ledger id provided in the query.
  */
 message ClprGetMessageQueueMetadataResponse {
   /**
