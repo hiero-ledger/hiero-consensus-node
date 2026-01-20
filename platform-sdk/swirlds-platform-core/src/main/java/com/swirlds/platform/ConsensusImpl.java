@@ -1277,6 +1277,10 @@ public class ConsensusImpl implements Consensus {
         if (x.getFirstWitnessS() != null) { // if already found and memoized, return it
             return x.getFirstWitnessS();
         }
+        if (round(x) > parentRound(x)) {
+            x.setFirstWitnessS(x);
+            return x;
+        }
 
         // Find the first parent that is in the same round as x. The first witness of that parent
         // is the first witness of x. If there are no parents with the same round as x, then the
@@ -1290,16 +1294,6 @@ public class ConsensusImpl implements Consensus {
 
         x.setFirstWitnessS(x);
         return x;
-
-        // calculate, memoize, and return the result
-        //        if (round(x) > parentRound(x)) {
-        //            x.setFirstWitnessS(x);
-        //        } else if (round(x) == round(selfParent(x))) {
-        //            x.setFirstWitnessS(firstWitnessS(selfParent(x)));
-        //        } else {
-        //            x.setFirstWitnessS(firstWitnessS(otherParent(x)));
-        //        }
-        //        return x.getFirstWitnessS();
     }
 
     /**
