@@ -2,11 +2,17 @@
 package com.hedera.node.app.history.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.config.data.TssConfig;
+import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,8 +35,11 @@ public class V069HistorySchema extends Schema<SemanticVersion> {
     public static final int WRAPS_MESSAGE_HISTORIES_STATE_ID =
             StateKey.KeyOneOfType.HISTORYSERVICE_I_WRAPS_MESSAGE_HISTORIES.protoOrdinal();
 
-    public V069HistorySchema() {
+    private final HistoryService historyService;
+
+    public V069HistorySchema(@NonNull final HistoryService historyService) {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
+        this.historyService = requireNonNull(historyService);
     }
 
     @NonNull
@@ -42,5 +51,17 @@ public class V069HistorySchema extends Schema<SemanticVersion> {
                 ConstructionNodeId.PROTOBUF,
                 WrapsMessageHistory.PROTOBUF,
                 MAX_WRAPS_MESSAGE_HISTORIES));
+    }
+
+    @Override
+    public void restart(@NonNull final MigrationContext ctx) {
+        if (!ctx.isGenesis() && ctx.appConfig().getConfigData(TssConfig.class).historyEnabled()) {
+            final var activeConstruction = requireNonNull(ctx.newStates()
+                    .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
+                    .get());
+            if (activeConstruction.hasTargetProof()) {
+                historyService.setLatestHistoryProof(activeConstruction.targetProofOrThrow());
+            }
+        }
     }
 }

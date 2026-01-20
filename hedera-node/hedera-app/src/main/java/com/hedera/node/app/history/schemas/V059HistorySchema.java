@@ -67,11 +67,8 @@ public class V059HistorySchema extends Schema<SemanticVersion> {
     public static final String PROOF_VOTES_KEY = "PROOF_VOTES";
     public static final int PROOF_VOTES_STATE_ID = StateKey.KeyOneOfType.HISTORYSERVICE_I_PROOF_VOTES.protoOrdinal();
 
-    private final HistoryService historyService;
-
-    public V059HistorySchema(@NonNull final HistoryService historyService) {
+    public V059HistorySchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
-        this.historyService = requireNonNull(historyService);
     }
 
     @Override
@@ -98,30 +95,5 @@ public class V059HistorySchema extends Schema<SemanticVersion> {
                         ConstructionNodeId.PROTOBUF,
                         HistoryProofVote.PROTOBUF,
                         MAX_PROOF_VOTES));
-    }
-
-    @Override
-    public void restart(@NonNull final MigrationContext ctx) {
-        final var states = ctx.newStates();
-        final var ledgerIdState = states.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID);
-        if (ledgerIdState.get() == null) {
-            ledgerIdState.put(ProtoBytes.DEFAULT);
-        }
-        final var activeConstructionState =
-                states.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
-        if (activeConstructionState.get() == null) {
-            activeConstructionState.put(HistoryProofConstruction.DEFAULT);
-        }
-        final var nextConstructionState =
-                states.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
-        if (nextConstructionState.get() == null) {
-            nextConstructionState.put(HistoryProofConstruction.DEFAULT);
-        }
-        final var activeConstruction =
-                requireNonNull(states.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
-                        .get());
-        if (activeConstruction.hasTargetProof()) {
-            historyService.setLatestHistoryProof(activeConstruction.targetProofOrThrow());
-        }
     }
 }

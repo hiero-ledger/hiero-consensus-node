@@ -156,8 +156,8 @@ public class HistoryServiceImpl implements HistoryService {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        registry.register(new V059HistorySchema(this));
-        registry.register(new V069HistorySchema());
+        registry.register(new V059HistorySchema());
+        registry.register(new V069HistorySchema(this));
     }
 
     @Override
