@@ -25,7 +25,7 @@ public final class FreezeServiceImpl implements FreezeService {
     }
 
     @Override
-    public void doGenesisSetup(
+    public boolean doGenesisSetup(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
@@ -33,5 +33,6 @@ public final class FreezeServiceImpl implements FreezeService {
         upgradeFileHashKeyState.put(ProtoBytes.DEFAULT);
         final var freezeTimeKeyState = writableStates.<Timestamp>getSingleton(FREEZE_TIME_STATE_ID);
         freezeTimeKeyState.put(Timestamp.DEFAULT);
+        return true;
     }
 }

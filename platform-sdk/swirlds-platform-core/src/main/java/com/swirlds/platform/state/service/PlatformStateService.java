@@ -57,7 +57,7 @@ public enum PlatformStateService implements Service {
     }
 
     @Override
-    public void doGenesisSetup(
+    public boolean doGenesisSetup(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
@@ -65,6 +65,7 @@ public enum PlatformStateService implements Service {
         stateSingleton.put(UNINITIALIZED_PLATFORM_STATE);
         final var platformStateStore = new WritablePlatformStateStore(writableStates);
         platformStateStore.bulkUpdate(genesisStateSpec(configuration));
+        return true;
     }
 
     /**

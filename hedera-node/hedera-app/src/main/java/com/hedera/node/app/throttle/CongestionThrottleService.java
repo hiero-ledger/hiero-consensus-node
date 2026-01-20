@@ -35,7 +35,7 @@ public class CongestionThrottleService implements Service {
     }
 
     @Override
-    public void doGenesisSetup(
+    public boolean doGenesisSetup(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
@@ -44,5 +44,6 @@ public class CongestionThrottleService implements Service {
         throttleSnapshots.put(ThrottleUsageSnapshots.DEFAULT);
         final var congestionLevelStarts = writableStates.getSingleton(CONGESTION_LEVEL_STARTS_STATE_ID);
         congestionLevelStarts.put(CongestionLevelStarts.DEFAULT);
+        return true;
     }
 }

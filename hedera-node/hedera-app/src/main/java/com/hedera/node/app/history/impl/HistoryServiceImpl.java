@@ -161,7 +161,7 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     @Override
-    public void doGenesisSetup(
+    public boolean doGenesisSetup(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
@@ -172,5 +172,6 @@ public class HistoryServiceImpl implements HistoryService {
         writableStates
                 .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                 .put(HistoryProofConstruction.DEFAULT);
+        return true;
     }
 }

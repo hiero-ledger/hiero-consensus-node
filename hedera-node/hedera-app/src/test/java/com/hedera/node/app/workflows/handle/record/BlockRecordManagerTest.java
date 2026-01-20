@@ -45,6 +45,7 @@ import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -202,7 +203,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 producer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform)) {
+                platform,
+                InitTrigger.RESTART)) {
             if (!startMode.equals("GENESIS")) {
                 blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             }
@@ -295,7 +297,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 producer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform)) {
+                platform,
+                InitTrigger.RESTART)) {
             blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
             int transactionCount = 0;
@@ -448,7 +451,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(BlockRecordStreamProducer.class),
                 quiescenceController,
                 quiescedHeartbeat,
-                platform);
+                platform,
+                InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(CONSENSUS_TIME));
@@ -465,7 +469,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(BlockRecordStreamProducer.class),
                 quiescenceController,
                 quiescedHeartbeat,
-                platform);
+                platform,
+                InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(EPOCH));

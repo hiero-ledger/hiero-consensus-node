@@ -33,7 +33,7 @@ public class FeeService implements Service {
     }
 
     @Override
-    public void doGenesisSetup(
+    public boolean doGenesisSetup(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         // Set the initial exchange rates (from the bootstrap config) as the midnight rates
@@ -52,5 +52,6 @@ public class FeeService implements Service {
                         .build())
                 .build();
         midnightRatesState.put(exchangeRateSet);
+        return true;
     }
 }

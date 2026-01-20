@@ -28,7 +28,7 @@ public class BlockStreamService implements Service {
      * The block stream manager increments the previous number when starting a block; so to start
      * the genesis block number at {@code 0}, we set the "previous" number to {@code -1}.
      */
-    private static final BlockStreamInfo GENESIS_INFO =
+    public static final BlockStreamInfo GENESIS_BLOCK_STREAM_INFO =
             BlockStreamInfo.newBuilder().blockNumber(-1).build();
 
     public static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
@@ -51,12 +51,13 @@ public class BlockStreamService implements Service {
     }
 
     @Override
-    public void doGenesisSetup(
+    public boolean doGenesisSetup(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
         final var state = writableStates.getSingleton(BLOCK_STREAM_INFO_STATE_ID);
-        state.put(GENESIS_INFO);
+        state.put(GENESIS_BLOCK_STREAM_INFO);
+        return true;
     }
 
     /**

@@ -47,12 +47,15 @@ public interface Service {
 
     /**
      * Does any state initialization (typically setting default singleton values) that is required at genesis.
+     *
      * @param writableStates the writable states to initialize
      * @param configuration the configuration to use
+     * @return whether any initialization was done
      */
-    default void doGenesisSetup(
+    default boolean doGenesisSetup(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
+        return false;
     }
 }

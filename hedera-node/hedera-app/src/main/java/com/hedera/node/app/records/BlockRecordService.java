@@ -35,6 +35,16 @@ public final class BlockRecordService implements Service {
      * The epoch timestamp, a placeholder for time of an event that has never happened.
      */
     public static final Timestamp EPOCH = new Timestamp(0, 0);
+    /**
+     * The block info at genesis.
+     */
+    public static final BlockInfo GENESIS_BLOCK_INFO =
+            new BlockInfo(-1, EPOCH, Bytes.EMPTY, EPOCH, true, EPOCH, EPOCH, EPOCH);
+    /**
+     * The running hashes at genesis.
+     */
+    public static final RunningHashes GENESIS_RUNNING_HASHES =
+            RunningHashes.newBuilder().runningHash(GENESIS_HASH).build();
 
     @NonNull
     @Override
@@ -49,17 +59,15 @@ public final class BlockRecordService implements Service {
     }
 
     @Override
-    public void doGenesisSetup(
+    public boolean doGenesisSetup(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
         final var blocksState = writableStates.getSingleton(BLOCKS_STATE_ID);
         // Note there is by convention no post-upgrade work to do if starting from genesis
-        final var blocks = new BlockInfo(-1, EPOCH, Bytes.EMPTY, EPOCH, true, EPOCH, EPOCH, EPOCH);
-        blocksState.put(blocks);
+        blocksState.put(GENESIS_BLOCK_INFO);
         final var runningHashState = writableStates.getSingleton(RUNNING_HASHES_STATE_ID);
-        final var runningHashes =
-                RunningHashes.newBuilder().runningHash(GENESIS_HASH).build();
-        runningHashState.put(runningHashes);
+        runningHashState.put(GENESIS_RUNNING_HASHES);
+        return true;
     }
 }

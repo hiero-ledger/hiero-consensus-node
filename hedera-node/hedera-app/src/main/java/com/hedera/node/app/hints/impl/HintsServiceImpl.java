@@ -201,7 +201,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
-    public void doGenesisSetup(
+    public boolean doGenesisSetup(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
@@ -212,6 +212,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
                 .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
                 .put(HintsConstruction.DEFAULT);
         writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID).put(CRSState.DEFAULT);
+        return true;
     }
 
     @Override

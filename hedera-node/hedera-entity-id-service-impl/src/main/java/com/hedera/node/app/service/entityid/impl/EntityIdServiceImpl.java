@@ -30,7 +30,7 @@ public class EntityIdServiceImpl extends EntityIdService {
     }
 
     @Override
-    public void doGenesisSetup(
+    public boolean doGenesisSetup(
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
@@ -39,5 +39,6 @@ public class EntityIdServiceImpl extends EntityIdService {
         final long entityNum = hederaConfig.firstUserEntity() - 1;
         log.info("Setting initial entity id to {}", entityNum);
         entityIdState.put(new EntityNumber(entityNum));
+        return true;
     }
 }

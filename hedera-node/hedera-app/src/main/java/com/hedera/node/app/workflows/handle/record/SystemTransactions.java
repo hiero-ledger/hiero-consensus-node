@@ -228,8 +228,9 @@ public class SystemTransactions {
         for (final var r : servicesRegistry.registrations()) {
             final var service = r.service();
             final var writableStates = state.getWritableStates(service.getServiceName());
-            service.doGenesisSetup(writableStates, config);
-            ((CommittableWritableStates) writableStates).commit();
+            if (service.doGenesisSetup(writableStates, config)) {
+                ((CommittableWritableStates) writableStates).commit();
+            }
         }
 
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
