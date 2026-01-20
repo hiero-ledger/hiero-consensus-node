@@ -23,10 +23,23 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+/*
+to use this first download historical data.
+
+This example downloads a one-hour slice on November 10th 2025 from 8:00:00 to 8:59:59.
+
+gsutil -u hedera-regression cp "gs://hedera-preview-testnet-streams/recordstreams/record0.0.9/2025-11-10T08*" .
+try again with -m
+
+
+
+ */
 public class SimpleFeesRecordStreamTest {
     private static class CSVWriter {
 
@@ -116,14 +129,14 @@ public class SimpleFeesRecordStreamTest {
         final StandaloneFeeCalculator calc =
                 new StandaloneFeeCalculatorImpl(state, properties, new AppEntityIdFactory(DEFAULT_CONFIG));
 
-        final String records_dir = "../../temp/";
+        final String records_dir = "../../temp/t/2025-11-10-8";
 
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
             paths.filter(Files::isRegularFile).forEach(file -> {
-                if (!file.toString().endsWith("rcd")) {
+                if (!file.toString().endsWith("rcd.gz")) {
                     return;
                 }
-                try (final var fin = new FileInputStream(file.toFile())) {
+                try (final var fin = new GZIPInputStream(new FileInputStream(file.toFile()))) {
                     // we have to read the first 4 bytes
                     final var recordFileVersion =
                             ByteBuffer.wrap(fin.readNBytes(4)).getInt();
@@ -157,13 +170,11 @@ public class SimpleFeesRecordStreamTest {
         final var rate = record.getReceipt().getExchangeRate();
         var fract = ((double) result.totalTC())
                 / (double) (txnFee * rate.getCurrentRate().getCentEquiv());
-        if (Math.abs(1 - fract) > 0.05) {
-            csv.field(body.data().kind().name());
-            csv.field(result.totalTC());
-            csv.field(txnFee * rate.getCurrentRate().getCentEquiv());
-            csv.fieldPercentage(fract * 100);
-            csv.field(result.toString());
-            csv.endLine();
-        }
+        csv.field(body.data().kind().name());
+        csv.field(result.totalTC());
+        csv.field(txnFee * rate.getCurrentRate().getCentEquiv());
+        csv.fieldPercentage(fract * 100);
+        csv.field(result.toString());
+        csv.endLine();
     }
 }
