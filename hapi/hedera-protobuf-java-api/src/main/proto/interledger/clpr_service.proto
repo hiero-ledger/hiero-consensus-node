@@ -75,7 +75,7 @@ service ClprService {
      * Processes a bundle of messages received from a remote ledger.
      * <p>
      * This transaction submits a bundle of messages to be executed or stored by
-     * this ledger as part of the interledger communication protocol.
+     * this ledger.
      * <p>
      * The request body MUST be a
      * [ClprProcessMessageBundleTransactionBody](#org.hiero.hapi.interledger.clpr.ClprProcessMessageBundleTransactionBody)
@@ -93,5 +93,5 @@ service ClprService {
      * The response body SHALL be a
      * [ClprGetMessagesResponse](#org.hiero.hapi.interledger.clpr.ClprGetMessagesResponse)
      */
-    rpc getMessages (proto.Query) returns (proto.Response);
+    rpc getMessageBundle (proto.Query) returns (proto.Response);
 }
