@@ -25,7 +25,7 @@ public final class ClprServiceDefinition implements RpcServiceDefinition {
             new RpcMethodDefinition<>("updateMessageQueueMetadata", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("getMessageQueueMetadata", Query.class, Response.class),
             new RpcMethodDefinition<>("processMessageBundle", Transaction.class, TransactionResponse.class),
-            new RpcMethodDefinition<>("getMessages", Query.class, Response.class));
+            new RpcMethodDefinition<>("getMessageBundle", Query.class, Response.class));
 
     private ClprServiceDefinition() {
         // Forbid instantiation
