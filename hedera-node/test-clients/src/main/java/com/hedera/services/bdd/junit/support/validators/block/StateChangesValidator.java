@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_HINTS_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGER_ID;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NEXT_HINTS_CONSTRUCTION;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF_KEY_SETS;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTERS;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTER_STATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
@@ -15,7 +10,6 @@ import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
-import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.schemas.V069HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
@@ -44,18 +38,13 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.entity.EntityCounts;
-import com.hedera.hapi.node.state.hints.HintsConstruction;
-import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
-import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.WrapsMessageDetails;
 import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
-import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
@@ -133,7 +122,7 @@ public class StateChangesValidator implements BlockStreamValidator {
      * The probability that the validator will verify an intermediate block proof; we always verify the first and
      * the last one that has an available block proof. (The blocks immediately preceding a freeze will not have proofs.)
      */
-    private static final double PROOF_VERIFICATION_PROB = 0.05;
+    private static final double PROOF_VERIFICATION_PROB = 1.0;
 
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
 
@@ -155,13 +144,6 @@ public class StateChangesValidator implements BlockStreamValidator {
     @Nullable
     private LedgerIdPublicationTransactionBody ledgerIdPublication;
 
-    /**
-     * Initialized to the weights in the genesis roster, and updated to the weights in the active
-     * hinTS construction as it is updated.
-     */
-    @Nullable
-    private Map<Long, Long> activeWeights;
-
     @Nullable
     private final HintsLibrary hintsLibrary;
 
@@ -173,9 +155,6 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private final Map<Bytes, Set<Long>> signers = new HashMap<>();
     private final Map<Bytes, Long> blockNumbers = new HashMap<>();
-    private final Map<Long, PreprocessedKeys> preprocessedKeys = new HashMap<>();
-    private final Map<Long, Bytes> proofKeys = new HashMap<>();
-    private final Map<Bytes, Roster> rosters = new HashMap<>();
 
     /**
      * Tracks a sequence of indirect state proofs preceding a signed block proof. This field should <b>not</b>
@@ -350,15 +329,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                                 (int) b.items().getFirst().blockHeaderOrThrow().number())
                         .findFirst()
                         .orElseThrow();
-        blocks.stream()
-                .flatMap(b -> b.items().stream())
-                .filter(BlockItem::hasStateChanges)
-                .flatMap(i -> i.stateChangesOrThrow().stateChanges().stream())
-                .filter(change -> change.stateId() == STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal())
-                .map(change -> change.singletonUpdateOrThrow().hintsConstructionValueOrThrow())
-                .filter(HintsConstruction::hasHintsScheme)
-                .forEach(c -> preprocessedKeys.put(
-                        c.constructionId(), c.hintsSchemeOrThrow().preprocessedKeysOrThrow()));
         final IncrementalStreamingHasher incrementalBlockHashes =
                 new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
         incrementalBlockHashes.addLeaf(BlockStreamManager.ZERO_BLOCK_HASH.toByteArray());
@@ -701,7 +671,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         assertEquals(
                 footer.startOfBlockStateRootHash(),
                 startOfStateHash,
-                "Wrong start of state hash for block #" + blockNumber);
+                "Wrong start of block state hash for block #" + blockNumber);
 
         // Our proof method will be different depending on whether this is a direct or indirect proof.
         // Direct proofs have a signed block proof; indirect proofs do not.
@@ -814,31 +784,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                     final var singleton = BlockStreamUtils.singletonPutFor(stateChange.singletonUpdateOrThrow());
                     singletonState.put(singleton);
                     stateChangesSummary.countSingletonPut(serviceName, stateId);
-                    if (stateChange.stateId() == STATE_ID_NEXT_HINTS_CONSTRUCTION.protoOrdinal()) {
-                        final var construction = (HintsConstruction) singleton;
-                        if (construction.hasHintsScheme()) {
-                            final var nextScheme = construction.hintsSchemeOrThrow();
-                            final var nextVk =
-                                    nextScheme.preprocessedKeysOrThrow().verificationKey();
-                            requireNonNull(activeWeights);
-                            final var candidateRoster = rosters.get(construction.targetRosterHash());
-                        }
-                    } else if (stateChange.stateId() == STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal()) {
-                        final var construction = (HintsConstruction) singleton;
-                        if (construction.hasHintsScheme()) {
-                            final var proverWeights = Map.copyOf(requireNonNull(activeWeights));
-                            activeWeights = requireNonNull(maybeWeightsFrom(construction));
-                        }
-                    } else if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
+                    if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
                         ledgerIdFromState = ((ProtoBytes) singleton).value();
-                    } else if (stateChange.stateId() == STATE_ID_ROSTER_STATE.protoOrdinal()) {
-                        if (activeWeights == null) {
-                            final var rosterState = (RosterState) singleton;
-                            final var activeRoster = rosters.get(
-                                    rosterState.roundRosterPairs().getFirst().activeRosterHash());
-                            activeWeights = activeRoster.rosterEntries().stream()
-                                    .collect(toMap(RosterEntry::nodeId, RosterEntry::weight));
-                        }
                     }
                 }
                 case MAP_UPDATE -> {
@@ -852,11 +799,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                             .computeIfAbsent(stateName, k -> new HashSet<>())
                             .add(key);
                     stateChangesSummary.countMapUpdate(serviceName, stateId);
-                    if (stateId == STATE_ID_ROSTERS.protoOrdinal()) {
-                        rosters.put(((ProtoBytes) key).value(), (Roster) value);
-                    } else if (stateId == STATE_ID_PROOF_KEY_SETS.protoOrdinal()) {
-                        proofKeys.put(((NodeId) key).id(), ((ProofKeySet) value).key());
-                    } else if (stateId == WRAPS_MESSAGE_HISTORIES_STATE_ID) {
+                    if (stateId == WRAPS_MESSAGE_HISTORIES_STATE_ID) {
                         final long nodeId = ((ConstructionNodeId) key).nodeId();
                         wrapsMessages.put(nodeId, ((WrapsMessageHistory) value).messages());
                     }

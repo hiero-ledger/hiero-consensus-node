@@ -82,7 +82,9 @@ public final class StateInitializer {
                 "interrupted while attempting to hash the state");
 
         // If our hash changes as a result of the new address book then our old signatures may become invalid.
-        signedState.pruneInvalidSignatures();
+        if (trigger != GENESIS) {
+            signedState.pruneInvalidSignatures();
+        }
 
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
         logger.info(
