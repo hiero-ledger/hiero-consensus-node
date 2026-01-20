@@ -128,8 +128,7 @@ public class ChildFeeContextImpl implements FeeContext {
 
     @Override
     public int numTxnBytes() {
-        // Child transactions are synthetic and don't have serialized bytes
-        return 0;
+        return TransactionBody.PROTOBUF.measureRecord(body);
     }
 
     @Override

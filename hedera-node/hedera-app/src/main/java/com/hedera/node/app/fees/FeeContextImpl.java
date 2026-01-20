@@ -138,9 +138,7 @@ public class FeeContextImpl implements FeeContext {
 
     @Override
     public int numTxnBytes() {
-        return txInfo.serializedSignedTx() != null
-                ? (int) txInfo.serializedSignedTx().length()
-                : 0;
+        return (int) txInfo.serializedSignedTxOrThrow().length();
     }
 
     @Override
