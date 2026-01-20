@@ -334,6 +334,7 @@ jobs:
             ${{ needs.mats-snyk-scan.result || 'skipped' }}
           )
           job_failure_modes=(
+            ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.build.outputs.failure-mode || 'none' }}
             ${{ needs.dependency-check.outputs.failure-mode || 'none' }}
             ${{ needs.spotless.outputs.failure-mode || 'none' }}

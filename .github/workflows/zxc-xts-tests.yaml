@@ -117,9 +117,31 @@ defaults:
     shell: bash
 
 jobs:
+  commit-info:
+    name: Get Commit Info
+    runs-on: hl-cn-citr-lin-sm
+    outputs:
+      sha: ${{ steps.commit-info.outputs.sha }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ needs.commit-info.outputs.sha }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+      - name: Get Commit Info
+        id: commit-info
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
+
   build:
     name: Compile Code
     uses: ./.github/workflows/zxc-compile-application-code.yaml
+    needs:
+      - commit-info
     with:
       java-version: "21.0.6"
       java-distribution: "temurin"
@@ -132,6 +154,7 @@ jobs:
   xts-timing-sensitive-tests:
     name: XTS Timing Sensitive Tests
     needs:
+      - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-timing-sensitive-tests.yaml
@@ -145,6 +168,7 @@ jobs:
   xts-time-consuming-tests:
     name: XTS Time Consuming Tests
     needs:
+      - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-time-consuming-tests.yaml
@@ -158,6 +182,7 @@ jobs:
   xts-hammer-tests:
     name: XTS Hammer Tests
     needs:
+      - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-hammer-tests.yaml
@@ -171,6 +196,7 @@ jobs:
   xts-hapi-tests:
     name: XTS HAPI Tests
     needs:
+      - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
@@ -193,6 +219,7 @@ jobs:
   xts-otter-tests:
     name: XTS Otter Tests
     needs:
+      - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' }}
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
@@ -208,6 +235,7 @@ jobs:
   xts-chaos-otter-tests:
     name: XTS Chaos Otter Tests
     needs:
+      - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' && contains(inputs.custom-job-label, 'Dry Run') }}
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
@@ -223,6 +251,7 @@ jobs:
   hedera-node-jrs-panel:
     name: Hedera Node JRS Panel
     needs:
+      - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-hedera-node-jrs-panel == 'true' }}
     uses: ./.github/workflows/zxc-jrs-regression.yaml
@@ -248,6 +277,7 @@ jobs:
   sdk-tck-regression-panel:
     name: SDK TCK Regression Panel
     needs:
+      - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-sdk-tck-regression-panel == 'true' }}
     uses: ./.github/workflows/zxc-tck-regression.yaml
@@ -263,6 +293,7 @@ jobs:
   mirror-node-regression-panel:
     name: Mirror Node Regression Panel
     needs:
+      - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-mirror-node-regression-panel == 'true' }}
     uses: ./.github/workflows/zxc-mirror-node-regression.yaml
@@ -279,6 +310,7 @@ jobs:
   json-rpc-relay-regression-panel:
     name: JSON-RPC Relay Regression Panel
     needs:
+      - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-rpc-relay-regression-panel == 'true' }}
     uses: ./.github/workflows/zxc-json-rpc-relay-regression.yaml
@@ -293,6 +325,7 @@ jobs:
   block-node-regression-panel:
     name: Block Node Regression Panel
     needs:
+      - commit-info
       - build
     if: ${{ needs.build.result == 'success' && inputs.enable-block-node-regression-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
     uses: ./.github/workflows/zxc-block-node-regression.yaml
@@ -311,6 +344,7 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     needs:
+      - commit-info
       - build
       - xts-timing-sensitive-tests
       - xts-time-consuming-tests
@@ -331,6 +365,7 @@ jobs:
         id: set-failure-mode
         run: |
           job_statuses=(
+            ${{ needs.commit-info.result || 'skipped' }}
             ${{ needs.build.result || 'skipped' }}
             ${{ needs.xts-timing-sensitive-tests.result || 'skipped' }}
             ${{ needs.xts-time-consuming-tests.result || 'skipped' }}
@@ -339,6 +374,7 @@ jobs:
             ${{ needs.xts-otter-tests.result || 'skipped' }}
           )
           job_failure_modes=(
+            ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.build.outputs.failure-mode || 'none' }}
             ${{ needs.xts-timing-sensitive-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-time-consuming-tests.outputs.failure-mode || 'none' }}
@@ -347,6 +383,7 @@ jobs:
             ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
           )
           job_names=(
+            "commit-info"
             "build"
             "xts-timing-sensitive-tests"
             "xts-time-consuming-tests"
