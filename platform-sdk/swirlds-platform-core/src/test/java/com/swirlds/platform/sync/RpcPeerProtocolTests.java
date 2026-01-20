@@ -173,6 +173,16 @@ public class RpcPeerProtocolTests {
                     }
                     cleanup();
                 }
+
+                @Override
+                public void receiveBroadcastEvent(final GossipEvent gossipEvent) {
+                    // no-op
+                }
+
+                @Override
+                public void reportPing(final long pingMillis) {
+                    // no-op
+                }
             });
 
             new Thread(() -> {
