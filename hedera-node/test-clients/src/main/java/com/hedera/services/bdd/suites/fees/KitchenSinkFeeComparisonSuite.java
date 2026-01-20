@@ -5,17 +5,26 @@ import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
+import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocalWithFunctionAbi;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -34,12 +43,18 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiPrng;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.revokeTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.systemFileDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.systemFileUndelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCancelAirdrop;
@@ -59,7 +74,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
@@ -69,14 +86,24 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeAbort;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.FREEZE_ADMIN;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_DELETE_ADMIN;
+import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_UNDELETE_ADMIN;
+import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
+import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -96,6 +123,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.security.cert.CertificateEncodingException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -123,7 +152,7 @@ import org.junit.jupiter.api.Tag;
  * <p>This test uses:
  * <ul>
  *   <li>{@code @LeakyHapiTest} - allows overriding network properties</li>
- *   <li>ED25519 keys only for consistency</li>
+ *   <li>ED25519 keys by default (plus a single SECP256K1 key for EthereumTransaction coverage)</li>
  *   <li>Fixed entity names with prefixes to avoid collisions between runs</li>
  * </ul>
  */
@@ -139,7 +168,8 @@ public class KitchenSinkFeeComparisonSuite {
      * which is required for switching between simple and legacy fees mid-test.
      */
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) throws IOException {
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) throws IOException, CertificateEncodingException {
+        gossipCertBytes = generateX509Certificates(1).getFirst().getEncoded();
         testLifecycle.overrideInClass(Map.of(
                 "fees.simpleFeesEnabled", "true",
                 "hooks.hooksEnabled", "true",
@@ -159,12 +189,15 @@ public class KitchenSinkFeeComparisonSuite {
     private static final String COMPLEX_KEY = "complexKey";
     private static final String SIG_KEY_1 = "sigKey1";
     private static final String SIG_KEY_2 = "sigKey2";
+    private static final String BATCH_OPERATOR = "batchOperator";
 
     // Payer names
     private static final String PAYER = "payer";
     private static final String PAYER_COMPLEX = "payerComplex";
     private static final String TREASURY = "treasury";
     private static final String RECEIVER = "receiver";
+
+    private static byte[] gossipCertBytes;
 
     // Memo variations (max memo length is 100 bytes)
     private static final String EMPTY_MEMO = "";
@@ -266,7 +299,9 @@ public class KitchenSinkFeeComparisonSuite {
                 newKeyNamed(THRESH_KEY_3_OF_5).shape(threshOf(3, 5)),
                 newKeyNamed(COMPLEX_KEY).shape(threshOf(2, listOf(2), KeyShape.SIMPLE, threshOf(1, 2))),
                 newKeyNamed(SIG_KEY_1).shape(ED25519),
-                newKeyNamed(SIG_KEY_2).shape(ED25519));
+                newKeyNamed(SIG_KEY_2).shape(ED25519),
+                newKeyNamed(BATCH_OPERATOR).shape(ED25519),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP256K1));
     }
 
     // ==================== BASE ACCOUNT CREATION ====================
@@ -276,7 +311,9 @@ public class KitchenSinkFeeComparisonSuite {
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SIMPLE_KEY),
                 cryptoCreate(PAYER_COMPLEX).balance(ONE_MILLION_HBARS).key(COMPLEX_KEY),
                 cryptoCreate(TREASURY).balance(ONE_MILLION_HBARS),
-                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS));
+                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS).key(SIMPLE_KEY),
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS).key(BATCH_OPERATOR));
     }
 
     // ==================== TRANSACTION SUITE ====================
@@ -291,8 +328,10 @@ public class KitchenSinkFeeComparisonSuite {
         ops.addAll(fileTransactions(prefix, feeMap));
         ops.addAll(scheduleTransactions(prefix, feeMap));
         ops.addAll(hookTransactions(prefix, feeMap));
-        // Contract transactions are commented out for now due to resource constraints
-        // ops.addAll(contractTransactions(prefix, feeMap));
+        ops.addAll(contractTransactions(prefix, feeMap));
+        ops.addAll(ethereumTransactions(prefix, feeMap));
+        ops.addAll(networkTransactions(prefix, feeMap));
+        ops.addAll(utilTransactions(prefix, feeMap));
 
         return ops.toArray(new SpecOperation[0]);
     }
@@ -517,6 +556,20 @@ public class KitchenSinkFeeComparisonSuite {
                         .signedBy(signers)
                         .fee(ONE_HUNDRED_HBARS));
 
+        // ===== CryptoTransfer with CREATED_ACCOUNTS extra =====
+        addWithSigVariants(
+                ops,
+                prefix + "HbarTransferAliasCreate",
+                "CREATED_ACCOUNTS=1 (included)",
+                feeMap,
+                new String[] {PAYER},
+                txnName -> newKeyNamed(txnName + "AliasKey").shape(ED25519),
+                (txnName, signers) -> cryptoTransfer(
+                                tinyBarsFromAccountToAlias(PAYER, txnName + "AliasKey", ONE_HBAR))
+                        .payingWith(PAYER)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
+
         // ===== CryptoApproveAllowance with varying ALLOWANCES extra =====
         addWithSigVariants(
                 ops,
@@ -707,6 +760,35 @@ public class KitchenSinkFeeComparisonSuite {
                         .signedBy(signers)
                         .fee(ONE_HUNDRED_HBARS));
 
+        // ===== CryptoTransfer with CREATED_AUTO_ASSOCIATIONS extra =====
+        final String autoAssocToken = prefix + "AutoAssocToken";
+        final String autoAssocAccount = prefix + "AutoAssocAcct";
+        ops.add(tokenCreate(autoAssocToken)
+                .tokenType(FUNGIBLE_COMMON)
+                .initialSupply(1_000_000L)
+                .treasury(TREASURY)
+                .blankMemo()
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+        ops.add(cryptoCreate(autoAssocAccount)
+                .key(SIMPLE_KEY)
+                .balance(ONE_HBAR)
+                .maxAutomaticTokenAssociations(1)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+        final String autoAssocTxn = prefix + "TokenTransferAutoAssoc";
+        ops.add(cryptoTransfer(moving(10, autoAssocToken).between(TREASURY, autoAssocAccount))
+                .payingWith(PAYER)
+                .signedBy(PAYER, TREASURY)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(autoAssocTxn));
+        ops.add(captureFee(
+                autoAssocTxn,
+                joinEmphasis(
+                        "CREATED_AUTO_ASSOCIATIONS=1 (included), FUNGIBLE_TOKENS=1 (included), TOKEN_TRANSFER_BASE=1",
+                        sigEmphasis(new String[] {PAYER, TREASURY})),
+                feeMap));
+
         // ===== CryptoTransfer with NON_FUNGIBLE_TOKENS extra =====
         ops.add(tokenCreate(prefix + "NFTForTransfer")
                 .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -894,6 +976,16 @@ public class KitchenSinkFeeComparisonSuite {
                 feeMap,
                 new String[] {PAYER},
                 (queryName, signers) -> getAccountRecords(PAYER)
+                        .payingWith(PAYER)
+                        .signedBy(signers));
+
+        addQueryWithSigVariants(
+                ops,
+                prefix + "CryptoGetAccountBalance",
+                "no extras",
+                feeMap,
+                new String[] {PAYER},
+                (queryName, signers) -> getAccountBalance(PAYER)
                         .payingWith(PAYER)
                         .signedBy(signers));
 
@@ -2390,6 +2482,307 @@ public class KitchenSinkFeeComparisonSuite {
                 .fee(ONE_HUNDRED_HBARS)
                 .via(prefix + "ContractDelete"));
         ops.add(captureFee(prefix + "ContractDelete", "no extras", feeMap));
+
+        // ===== ContractGetInfo (query) =====
+        addQueryWithSigVariants(
+                ops,
+                prefix + "ContractGetInfo",
+                "no extras",
+                feeMap,
+                new String[] {PAYER},
+                (queryName, signers) -> getContractInfo(prefix + "ContractG200k")
+                        .payingWith(PAYER)
+                        .signedBy(signers));
+
+        // ===== ContractCallLocal (query) =====
+        final var retrieveAbi = getABIFor(FUNCTION, "retrieve", STORAGE_CONTRACT);
+        addQueryWithSigVariants(
+                ops,
+                prefix + "ContractCallLocal",
+                "BYTES=32 (included)",
+                feeMap,
+                new String[] {PAYER},
+                (queryName, signers) -> contractCallLocalWithFunctionAbi(prefix + "ContractG200k", retrieveAbi)
+                        .payingWith(PAYER)
+                        .signedBy(signers));
+
+        // ===== ContractGetBytecode (query) =====
+        addQueryWithSigVariants(
+                ops,
+                prefix + "ContractGetBytecode",
+                "BYTES>0 (included)",
+                feeMap,
+                new String[] {PAYER},
+                (queryName, signers) -> getContractBytecode(prefix + "ContractG200k")
+                        .payingWith(PAYER)
+                        .signedBy(signers));
+
+        return ops;
+    }
+
+    // ==================== ETHEREUM TRANSACTIONS ====================
+
+    private static List<SpecOperation> ethereumTransactions(String prefix, Map<String, Long> feeMap) {
+        List<SpecOperation> ops = new ArrayList<>();
+
+        // Ensure alias account exists and funded for Ethereum transactions
+        ops.add(cryptoTransfer(tinyBarsFromAccountToAlias(PAYER, SECP_256K1_SOURCE_KEY, FIVE_HBARS))
+                .payingWith(PAYER)
+                .signedBy(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+
+        // ===== EthereumTransaction (value transfer, no calldata) =====
+        addWithSigVariants(
+                ops,
+                prefix + "EthereumCryptoTransfer",
+                "ETH_CALLDATA=0 (included)",
+                feeMap,
+                new String[] {RELAYER},
+                (txnName, signers) -> ethereumCryptoTransfer(RECEIVER, ONE_HBAR)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .maxGasAllowance(FIVE_HBARS)
+                        .gasLimit(2_000_000L)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
+
+        return ops;
+    }
+
+    // ==================== NETWORK TRANSACTIONS & QUERIES ====================
+
+    private static List<SpecOperation> networkTransactions(String prefix, Map<String, Long> feeMap) {
+        List<SpecOperation> ops = new ArrayList<>();
+
+        if (prefix.startsWith("simple")) {
+            ops.add(withOpContext((spec, opLog) -> LOG.warn(
+                    "Skipping SystemDelete/SystemUndelete for simple fees; simpleFeesSchedules.json lacks entries.")));
+        } else {
+            // ===== SystemDelete (file) =====
+            addWithSigVariants(
+                    ops,
+                    prefix + "SystemDelete",
+                    "no extras",
+                    feeMap,
+                    new String[] {SYSTEM_DELETE_ADMIN},
+                    txnName -> fileCreate(txnName + "SysFile")
+                            .contents("sys-delete")
+                            .payingWith(PAYER)
+                            .fee(ONE_HUNDRED_HBARS),
+                    (txnName, signers) -> systemFileDelete(txnName + "SysFile")
+                            .updatingExpiry(1L)
+                            .payingWith(SYSTEM_DELETE_ADMIN)
+                            .signedBy(signers)
+                            .fee(ONE_HUNDRED_HBARS));
+
+            // ===== SystemUndelete (file) =====
+            addWithSigVariants(
+                    ops,
+                    prefix + "SystemUndelete",
+                    "no extras",
+                    feeMap,
+                    new String[] {SYSTEM_UNDELETE_ADMIN},
+                    txnName -> blockingOrder(
+                            fileCreate(txnName + "SysFile")
+                                    .contents("sys-undelete")
+                                    .payingWith(PAYER)
+                                    .fee(ONE_HUNDRED_HBARS),
+                            systemFileDelete(txnName + "SysFile")
+                                    .updatingExpiry(Instant.now().getEpochSecond() + THREE_MONTHS_IN_SECONDS)
+                                    .payingWith(SYSTEM_DELETE_ADMIN)
+                                    .fee(ONE_HUNDRED_HBARS)),
+                    (txnName, signers) -> systemFileUndelete(txnName + "SysFile")
+                            .payingWith(SYSTEM_UNDELETE_ADMIN)
+                            .signedBy(signers)
+                            .fee(ONE_HUNDRED_HBARS));
+        }
+
+        // ===== Freeze (abort) =====
+        addWithSigVariants(
+                ops,
+                prefix + "FreezeAbort",
+                "FREEZE_ABORT",
+                feeMap,
+                new String[] {FREEZE_ADMIN},
+                (txnName, signers) -> freezeAbort()
+                        .payingWith(FREEZE_ADMIN)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
+
+        // ===== NodeCreate =====
+        addWithSigVariants(
+                ops,
+                prefix + "NodeCreate",
+                "no extras",
+                feeMap,
+                new String[] {GENESIS, PAYER},
+                txnName -> cryptoCreate(txnName + "NodeAccount")
+                        .balance(ONE_HBAR)
+                        .key(SIMPLE_KEY)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS),
+                (txnName, signers) -> nodeCreate(txnName + "Node", txnName + "NodeAccount")
+                        .adminKey(PAYER)
+                        .gossipCaCertificate(gossipCertBytes)
+                        .payingWith(GENESIS)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
+
+        // ===== NodeUpdate =====
+        addWithSigVariants(
+                ops,
+                prefix + "NodeUpdate",
+                "no extras",
+                feeMap,
+                new String[] {PAYER},
+                txnName -> blockingOrder(
+                        cryptoCreate(txnName + "NodeAccount")
+                                .balance(ONE_HBAR)
+                                .key(SIMPLE_KEY)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS),
+                        nodeCreate(txnName + "Node", txnName + "NodeAccount")
+                                .adminKey(PAYER)
+                                .gossipCaCertificate(gossipCertBytes)
+                                .payingWith(GENESIS)
+                                .signedBy(GENESIS, PAYER)
+                                .fee(ONE_HUNDRED_HBARS)),
+                (txnName, signers) -> nodeUpdate(txnName + "Node")
+                        .description("updated-" + txnName)
+                        .payingWith(PAYER)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
+
+        // ===== NodeDelete =====
+        addWithSigVariants(
+                ops,
+                prefix + "NodeDelete",
+                "no extras",
+                feeMap,
+                new String[] {PAYER},
+                txnName -> blockingOrder(
+                        cryptoCreate(txnName + "NodeAccount")
+                                .balance(ONE_HBAR)
+                                .key(SIMPLE_KEY)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS),
+                        nodeCreate(txnName + "Node", txnName + "NodeAccount")
+                                .adminKey(PAYER)
+                                .gossipCaCertificate(gossipCertBytes)
+                                .payingWith(GENESIS)
+                                .signedBy(GENESIS, PAYER)
+                                .fee(ONE_HUNDRED_HBARS)),
+                (txnName, signers) -> nodeDelete(txnName + "Node")
+                        .payingWith(PAYER)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
+
+        // ===== NetworkGetVersionInfo (query) =====
+        addQueryWithSigVariants(
+                ops,
+                prefix + "NetworkGetVersionInfo",
+                "no extras",
+                feeMap,
+                new String[] {PAYER},
+                (queryName, signers) -> getVersionInfo()
+                        .payingWith(PAYER)
+                        .signedBy(signers));
+
+        // ===== TransactionGetRecord (query) =====
+        addQueryWithSigVariants(
+                ops,
+                prefix + "TxnGetRecord",
+                "no extras",
+                feeMap,
+                new String[] {PAYER},
+                queryName -> cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 1L))
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via(queryName + "Txn"),
+                (queryName, signers) -> getTxnRecord(queryName + "Txn")
+                        .payingWith(PAYER)
+                        .signedBy(signers));
+
+        // ===== TransactionGetReceipt (query) =====
+        addQueryWithSigVariants(
+                ops,
+                prefix + "TxnGetReceipt",
+                "no extras",
+                feeMap,
+                new String[] {PAYER},
+                queryName -> cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 1L))
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via(queryName + "Txn"),
+                (queryName, signers) -> getReceipt(queryName + "Txn")
+                        .payingWith(PAYER)
+                        .signedBy(signers));
+
+        return ops;
+    }
+
+    // ==================== UTIL TRANSACTIONS ====================
+
+    private static List<SpecOperation> utilTransactions(String prefix, Map<String, Long> feeMap) {
+        List<SpecOperation> ops = new ArrayList<>();
+
+        // ===== UtilPrng with and without range =====
+        addWithSigVariants(
+                ops,
+                prefix + "PrngRange0",
+                "RANGE=0",
+                feeMap,
+                new String[] {PAYER},
+                (txnName, signers) -> hapiPrng()
+                        .payingWith(PAYER)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
+
+        addWithSigVariants(
+                ops,
+                prefix + "PrngRange100",
+                "RANGE=100 (+100 extra)",
+                feeMap,
+                new String[] {PAYER},
+                (txnName, signers) -> hapiPrng(100)
+                        .payingWith(PAYER)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
+
+        // ===== AtomicBatch with varying transaction count =====
+        addWithSigVariants(
+                ops,
+                prefix + "AtomicBatchT1",
+                "TRANSACTIONS=1 (included)",
+                feeMap,
+                new String[] {BATCH_OPERATOR},
+                (txnName, signers) -> atomicBatch(
+                                cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 1L))
+                                        .payingWith(BATCH_OPERATOR)
+                                        .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
+
+        addWithSigVariants(
+                ops,
+                prefix + "AtomicBatchT3",
+                "TRANSACTIONS=3 (+2 extra)",
+                feeMap,
+                new String[] {BATCH_OPERATOR},
+                (txnName, signers) -> atomicBatch(
+                                cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 1L))
+                                        .payingWith(BATCH_OPERATOR)
+                                        .batchKey(BATCH_OPERATOR),
+                                cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 2L))
+                                        .payingWith(BATCH_OPERATOR)
+                                        .batchKey(BATCH_OPERATOR),
+                                cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 3L))
+                                        .payingWith(BATCH_OPERATOR)
+                                        .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .signedBy(signers)
+                        .fee(ONE_HUNDRED_HBARS));
 
         return ops;
     }
