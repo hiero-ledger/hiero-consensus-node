@@ -824,7 +824,8 @@ public final class Hedera
                 platformConfig,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                trigger);
         this.initState = null;
         migrationStateChanges = new ArrayList<>(migrationChanges);
         immediateStateChangeListener.reset(null);

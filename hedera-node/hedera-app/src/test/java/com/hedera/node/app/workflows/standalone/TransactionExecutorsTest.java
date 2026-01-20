@@ -91,6 +91,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -410,7 +411,8 @@ public class TransactionExecutorsTest {
                 config,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                InitTrigger.GENESIS);
         // Create a node
         final var nodeWritableStates = state.getWritableStates(AddressBookService.NAME);
         final var nodes = nodeWritableStates.<EntityNumber, Node>get(NODES_STATE_ID);

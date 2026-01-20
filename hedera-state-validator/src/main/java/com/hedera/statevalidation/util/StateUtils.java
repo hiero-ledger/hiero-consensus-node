@@ -61,6 +61,7 @@ import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
@@ -259,7 +260,8 @@ public final class StateUtils {
                 configuration,
                 new FakeStartupNetworks(Network.newBuilder().build()),
                 new StoreMetricsServiceImpl(new NoOpMetrics()),
-                new ConfigProviderImpl());
+                new ConfigProviderImpl(),
+                InitTrigger.RESTART);
     }
 
     // Uses cached JSON codecs

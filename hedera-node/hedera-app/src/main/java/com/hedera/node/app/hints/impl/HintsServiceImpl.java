@@ -2,6 +2,7 @@
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
+import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
@@ -197,7 +198,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
-        registry.register(new V060HintsSchema(component.signingContext(), library));
+        registry.register(new V060HintsSchema(component.signingContext()));
     }
 
     @Override
@@ -211,7 +212,18 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         writableStates
                 .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
                 .put(HintsConstruction.DEFAULT);
-        writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID).put(CRSState.DEFAULT);
+        final var tssConfig = configuration.getConfigData(TssConfig.class);
+        final var crsState = writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID);
+        if (tssConfig.hintsEnabled()) {
+            final var initialCrs = library.newCrs(tssConfig.initialCrsParties());
+            crsState.put(CRSState.newBuilder()
+                    .stage(GATHERING_CONTRIBUTIONS)
+                    .nextContributingNodeId(0L)
+                    .crs(initialCrs)
+                    .build());
+        } else {
+            crsState.put(CRSState.DEFAULT);
+        }
         return true;
     }
 

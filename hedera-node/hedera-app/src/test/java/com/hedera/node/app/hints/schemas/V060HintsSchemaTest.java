@@ -57,7 +57,7 @@ class V060HintsSchemaTest {
 
     @BeforeEach
     void setUp() {
-        subject = new V060HintsSchema(signingContext, library);
+        subject = new V060HintsSchema(signingContext);
     }
 
     @Test
