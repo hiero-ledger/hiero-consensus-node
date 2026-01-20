@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
-import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.platform.cli.utils.HederaUtils.SWIRLD_NAME;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestState;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
-import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
-import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -21,7 +18,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
@@ -44,7 +40,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Scanner;
 import java.util.stream.Collectors;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
@@ -180,8 +175,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 Time.getCurrent(),
                 new NoOpMetrics(),
                 FileSystemManager.create(configuration),
-                new SimpleRecycleBin(),
-                MerkleCryptographyFactory.create(configuration));
+                new SimpleRecycleBin());
 
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
 
@@ -221,12 +215,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
 
     private StateInformation loadSourceState(final Configuration configuration) {
         setupConstructableRegistry();
-        try {
-            setupConstructableRegistryWithConfiguration(platformContext.getConfiguration());
-            registerVirtualMapConstructables(platformContext.getConfiguration());
-        } catch (final ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
 
         final SwirldMain<? extends MerkleNodeState> appMain = HederaUtils.createHederaAppMain(platformContext);
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
@@ -242,9 +230,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 savedStateFiles,
                 platformContext,
                 appMain.getStateLifecycleManager())) {
-            final Hash newHash = rehashTree(
-                    platformContext.getMerkleCryptography(),
-                    state.get().getState().getRoot());
+            final Hash newHash = state.get().getState().getHash();
 
             final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
             this.targetStateDir = new SignedStateFilePath(
