@@ -103,7 +103,7 @@ public final class EventUtils {
         final Set<EventImpl> eventsEncountered = new HashSet<>();
 
         for (final EventImpl event : events) {
-            if(event.getAllParents().stream().anyMatch(eventsEncountered::contains)){
+            if (event.getAllParents().stream().anyMatch(eventsEncountered::contains)) {
                 return false;
             }
             eventsEncountered.add(event);

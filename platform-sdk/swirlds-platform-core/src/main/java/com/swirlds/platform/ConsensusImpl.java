@@ -227,7 +227,10 @@ public class ConsensusImpl implements Consensus {
         this.roster = roster;
         this.rosterTotalWeight = RosterUtils.computeTotalWeight(roster);
         this.rosterIndicesMap = RosterUtils.toIndicesMap(roster);
-        final long maxWeight = roster.rosterEntries().stream().mapToLong(RosterEntry::weight).max().orElse(0);
+        final long maxWeight = roster.rosterEntries().stream()
+                .mapToLong(RosterEntry::weight)
+                .max()
+                .orElse(0);
         this.nodeHasSupermajorityWeight = Threshold.SUPER_MAJORITY.isSatisfiedBy(maxWeight, rosterTotalWeight);
 
         this.rounds = new ConsensusRounds(config, roster);
@@ -938,7 +941,6 @@ public class ConsensusImpl implements Consensus {
         return ancient(x.getSelfParent()) ? null : x.getSelfParent();
     }
 
-
     /**
      * @return all non-ancient parents of event x
      */
@@ -1032,7 +1034,6 @@ public class ConsensusImpl implements Consensus {
                 }
             }
             x.setLastSee(mm, latestEventSeen);
-
         }
         return x.getLastSee((int) m);
     }
@@ -1088,7 +1089,8 @@ public class ConsensusImpl implements Consensus {
         final long prx = parentRound(x); // parent round of x
 
         x.initStronglySeeP(numMembers);
-        perMemberLoop: for (int mm = 0; mm < numMembers; mm++) {
+        perMemberLoop:
+        for (int mm = 0; mm < numMembers; mm++) {
             for (final EventImpl parent : parents(x)) {
                 if (stronglySeeP(parent, mm) != null && parentRound(parent) == prx) {
                     // if x has the same parentRound as one of its parents, then it inherits their strongly see
