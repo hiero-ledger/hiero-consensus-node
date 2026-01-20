@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app {
     requires transitive com.hedera.cryptography.hints;
-    requires transitive com.hedera.cryptography.rpm;
     requires transitive com.hedera.cryptography.wraps;
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.app.service.addressbook.impl;
@@ -133,6 +132,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.records.schemas;
     exports com.hedera.node.app.hints.schemas;
     exports com.hedera.node.app.blocks.impl.streaming.config;
+    exports com.hedera.node.app.history.schemas;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.hedera.node.app.config.ServicesConfigExtension;

@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.statevalidation.report.SlackReportGenerator;
+import com.hedera.statevalidation.util.junit.DeserializedSignedStateResolver;
 import com.hedera.statevalidation.util.junit.HashInfo;
 import com.hedera.statevalidation.util.junit.HashInfoResolver;
-import com.hedera.statevalidation.util.junit.StateResolver;
 import com.swirlds.common.merkle.hash.FutureMerkleHash;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, SlackReportGenerator.class, HashInfoResolver.class})
+@ExtendWith({DeserializedSignedStateResolver.class, SlackReportGenerator.class, HashInfoResolver.class})
 @Tag("rehash")
 public class Rehash {
 
@@ -61,7 +61,7 @@ public class Rehash {
     /**
      * This test validates the Merkle tree structure of the state.
      *
-     * @param deserializedSignedState The deserialized signed state, propagated by the StateResolver.
+     * @param deserializedSignedState The deserialized signed state, propagated by the DeserializedSignedStateResolver.
      * @param hashInfo                The hash info object, propagated by the HashInfoResolver.
      */
     @Test

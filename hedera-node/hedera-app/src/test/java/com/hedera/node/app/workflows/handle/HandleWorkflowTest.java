@@ -58,7 +58,7 @@ import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.State;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -151,7 +151,7 @@ class HandleWorkflowTest {
     private ExchangeRateManager exchangeRateManager;
 
     @Mock
-    private State state;
+    private MerkleNodeState state;
 
     @Mock
     private Round round;
