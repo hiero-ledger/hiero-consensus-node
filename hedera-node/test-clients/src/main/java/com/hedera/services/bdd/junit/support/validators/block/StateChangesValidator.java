@@ -3,7 +3,6 @@ package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGER_ID;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PLATFORM_STATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
@@ -783,8 +782,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                     stateChangesSummary.countSingletonPut(serviceName, stateId);
                     if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
                         ledgerIdFromState = ((ProtoBytes) singleton).value();
-                    } else if (stateChange.stateId() == STATE_ID_PLATFORM_STATE.protoOrdinal()) {
-                        logger.info("Updating platform state: {}", singleton);
                     }
                 }
                 case MAP_UPDATE -> {
