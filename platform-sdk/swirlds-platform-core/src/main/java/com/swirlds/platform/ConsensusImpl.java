@@ -11,7 +11,6 @@ import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
@@ -27,6 +26,7 @@ import com.swirlds.platform.consensus.ConsensusUtils;
 import com.swirlds.platform.consensus.CountingVote;
 import com.swirlds.platform.consensus.DeGen;
 import com.swirlds.platform.consensus.InitJudges;
+import com.swirlds.platform.consensus.RosterLookup;
 import com.swirlds.platform.consensus.RoundElections;
 import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.internal.EventImpl;
@@ -40,7 +40,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -53,8 +52,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * All the code for calculating the consensus for events in a hashgraph. This calculates the
@@ -142,26 +139,14 @@ import org.hiero.consensus.roster.RosterUtils;
  * more than 2/3 of the total".
  */
 public class ConsensusImpl implements Consensus {
-
-    public static final String COIN_ROUND_MARKER_FILE = "consensus-coin-round";
-    public static final String NO_SUPER_MAJORITY_MARKER_FILE = "consensus-no-super-majority";
-    public static final String NO_JUDGES_MARKER_FILE = "consensus-no-judges";
-    public static final String CONSENSUS_EXCEPTION_MARKER_FILE = "consensus-exception";
-
     private static final Logger logger = LogManager.getLogger(ConsensusImpl.class);
 
     /** Consensus configuration */
     private final ConsensusConfig config;
     /** wall clock time */
     private final Time time;
-    /** the only roster currently, until roster changes are implemented */
-    private final Roster roster;
-    /** the total weight of all roster entries. */
-    private final long rosterTotalWeight;
-    /** true if at least one node has a supermajority of the weight. */
-    private final boolean nodeHasSupermajorityWeight;
-    /** roster indices map. */
-    private final Map<Long, Integer> rosterIndicesMap;
+    /** used to look up information from the roster */
+    private final RosterLookup rosterLookup;
     /** metrics related to consensus */
     private final ConsensusMetrics consensusMetrics;
     /** used for searching the hashgraph */
@@ -223,14 +208,7 @@ public class ConsensusImpl implements Consensus {
         this.consensusMetrics = consensusMetrics;
 
         // until we implement roster changes, we will just use the use this roster
-        this.roster = roster;
-        this.rosterTotalWeight = RosterUtils.computeTotalWeight(roster);
-        this.rosterIndicesMap = RosterUtils.toIndicesMap(roster);
-        final long maxWeight = roster.rosterEntries().stream()
-                .mapToLong(RosterEntry::weight)
-                .max()
-                .orElse(0);
-        this.nodeHasSupermajorityWeight = Threshold.SUPER_MAJORITY.isSatisfiedBy(maxWeight, rosterTotalWeight);
+        this.rosterLookup = new RosterLookup(roster);
 
         this.rounds = new ConsensusRounds(config, roster);
 
@@ -394,8 +372,6 @@ public class ConsensusImpl implements Consensus {
 
     @Nullable
     private ConsensusRound calculateAndVote(final EventImpl event) {
-        event.setRosterIndex(rosterIndicesMap.getOrDefault(event.getCreatorId().id(), -1));
-
         // before we calculate the round of an event, we need to calculate its DeGen value, since it might be needed
         // to determine an event's round
         DeGen.calculateDeGen(event);
@@ -615,15 +591,15 @@ public class ConsensusImpl implements Consensus {
         long yesWeight = 0; // total weight of all members voting yes
         long noWeight = 0; // total weight of all members voting yes
         for (final EventImpl w : stronglySeen) {
-            final long weight = getWeight(w.getCreatorId());
+            final long weight = rosterLookup.getWeight(w.getCreatorId());
             if (w.getVote(candidateWitness)) {
                 yesWeight += weight;
             } else {
                 noWeight += weight;
             }
         }
-        final boolean superMajority = Threshold.SUPER_MAJORITY.isSatisfiedBy(yesWeight, rosterTotalWeight)
-                || Threshold.SUPER_MAJORITY.isSatisfiedBy(noWeight, rosterTotalWeight);
+        final boolean superMajority = Threshold.SUPER_MAJORITY.isSatisfiedBy(yesWeight, rosterLookup.rosterTotalWeight())
+                || Threshold.SUPER_MAJORITY.isSatisfiedBy(noWeight, rosterLookup.rosterTotalWeight());
         final boolean countingVote = yesWeight >= noWeight;
 
         return CountingVote.get(countingVote, superMajority);
@@ -687,7 +663,7 @@ public class ConsensusImpl implements Consensus {
         // first round of an election. Vote TRUE for self-ancestors of those you firstSee. Don't
         // decide.
         EventImpl w =
-                firstSee(voting, rosterIndicesMap.get(votedOn.getCreatorId().id()));
+                firstSee(voting, rosterLookup.getRosterIndex(votedOn.getCreatorId()));
         while (w != null && w.getRoundCreated() > voting.getRoundCreated() - 1 && selfParent(w) != null) {
             w = firstSelfWitnessS(selfParent(w));
         }
@@ -703,9 +679,8 @@ public class ConsensusImpl implements Consensus {
      */
     @NonNull
     private List<EventImpl> getStronglySeenInPreviousRound(final EventImpl event) {
-        final int numMembers = roster.rosterEntries().size();
-        final ArrayList<EventImpl> stronglySeen = new ArrayList<>(numMembers);
-        for (long m = 0; m < numMembers; m++) {
+        final ArrayList<EventImpl> stronglySeen = new ArrayList<>(rosterLookup.numMembers());
+        for (long m = 0; m < rosterLookup.numMembers(); m++) {
             final EventImpl s = stronglySeeS1(event, m);
             if (s != null) {
                 stronglySeen.add(s);
@@ -770,7 +745,7 @@ public class ConsensusImpl implements Consensus {
                         event.getCreatorId().id(), event.getBaseHash().getBytes()))
                 .toList();
         return new ConsensusRound(
-                roster,
+                rosterLookup.getRoster(),
                 consensusEvents,
                 new EventWindow(
                         decidedRoundNumber,
@@ -796,19 +771,19 @@ public class ConsensusImpl implements Consensus {
      */
     private void checkJudges(@NonNull final List<EventImpl> judges, final long decidedRoundNumber) {
         final long judgeWeights = judges.stream()
-                .mapToLong(event -> getWeight(event.getCreatorId()))
+                .mapToLong(event -> rosterLookup.getWeight(event.getCreatorId()))
                 .sum();
         consensusMetrics.judgeWeights(judgeWeights);
         if (judges.isEmpty()) {
             noJudgeLogger.error(LogMarker.ERROR.getMarker(), "no judges in round = {}", decidedRoundNumber);
         } else {
-            if (!Threshold.SUPER_MAJORITY.isSatisfiedBy(judgeWeights, rosterTotalWeight)) {
+            if (!Threshold.SUPER_MAJORITY.isSatisfiedBy(judgeWeights, rosterLookup.rosterTotalWeight())) {
                 noSuperMajorityLogger.error(
                         LogMarker.ERROR.getMarker(),
                         "less than a super majority of weight on judges.  round = {}, judgesWeight = {}, percentage = {}",
                         decidedRoundNumber,
                         judgeWeights,
-                        (double) judgeWeights / rosterTotalWeight);
+                        (double) judgeWeights / rosterLookup.rosterTotalWeight());
             }
         }
     }
@@ -986,7 +961,6 @@ public class ConsensusImpl implements Consensus {
      * @return the last event created by m that is an ancestor of x, or null if none
      */
     private @Nullable EventImpl lastSee(@Nullable final EventImpl x, final long m) {
-        final int numMembers;
         if (x == null) {
             return null;
         }
@@ -997,11 +971,10 @@ public class ConsensusImpl implements Consensus {
             return x.getLastSee((int) m);
         }
         // memoize answers for all choices of m, then return answer for just this m
-        numMembers = roster.rosterEntries().size();
-        x.initLastSee(numMembers);
+        x.initLastSee(rosterLookup.numMembers());
 
-        for (int mm = 0; mm < numMembers; mm++) {
-            if (creatorIndexEquals(x, mm)) {
+        for (int mm = 0; mm < rosterLookup.numMembers(); mm++) {
+            if (rosterLookup.idEqualsIndex(x.getCreatorId(), mm)) {
                 // mm created x, so x is considered to see itself
                 x.setLastSee(mm, x);
                 continue;
@@ -1053,7 +1026,7 @@ public class ConsensusImpl implements Consensus {
         if (notRelevantForConsensus(x)) {
             return null;
         }
-        if (m == m2 && creatorIndexEquals(x, m2)) {
+        if (m == m2 && rosterLookup.idEqualsIndex(x.getCreatorId(), m2)) {
             return firstSelfWitnessS(selfParent(x));
         }
         return firstSee(lastSee(x, m2), m);
@@ -1084,12 +1057,11 @@ public class ConsensusImpl implements Consensus {
         }
         // calculate the answer, and remember it for next time
         // find and memoize answers for all choices of m, then return answer for just this m
-        final int numMembers = roster.rosterEntries().size(); // number of members
         final long prx = parentRound(x); // parent round of x
 
-        x.initStronglySeeP(numMembers);
+        x.initStronglySeeP(rosterLookup.numMembers());
         perMemberLoop:
-        for (int mm = 0; mm < numMembers; mm++) {
+        for (int mm = 0; mm < rosterLookup.numMembers(); mm++) {
             for (final EventImpl parent : x.getAllParents()) {
                 if (ancient(parent)) {
                     continue;
@@ -1108,13 +1080,13 @@ public class ConsensusImpl implements Consensus {
                 x.setStronglySeeP(mm, null);
             } else {
                 long weight = 0;
-                for (int m3 = 0; m3 < numMembers; m3++) {
+                for (int m3 = 0; m3 < rosterLookup.numMembers(); m3++) {
                     if (seeThru(x, mm, m3) == st) { // only count intermediates that see the canonical witness
-                        weight += getWeight(m3);
+                        weight += rosterLookup.getWeight(m3);
                     }
                 }
                 if (Threshold.SUPER_MAJORITY.isSatisfiedBy(
-                        weight, rosterTotalWeight)) { // strongly see supermajority of
+                        weight, rosterLookup.rosterTotalWeight())) { // strongly see supermajority of
                     // intermediates
                     x.setStronglySeeP(mm, st);
                 } else {
@@ -1201,7 +1173,7 @@ public class ConsensusImpl implements Consensus {
         // continue to the super majority check below. This edge case only occurs in testing, so
         // we do not optimize for it here.
         //
-        if (!allParentsHaveTheSameRound && !nodeHasSupermajorityWeight) {
+        if (!allParentsHaveTheSameRound && !rosterLookup.nodeHasSupermajorityWeight()) {
             x.setRoundCreated(greatestParentRound);
             return x.getRoundCreated();
         }
@@ -1215,7 +1187,7 @@ public class ConsensusImpl implements Consensus {
         }
 
         // number of members that are voting
-        final int numMembers = roster.rosterEntries().size();
+        final int numMembers = rosterLookup.numMembers();
 
         // parents have equal rounds (not -1) OR they are different and one has a super-majority,
         // so check if x can strongly see witnesses with a supermajority of weight.
@@ -1224,12 +1196,12 @@ public class ConsensusImpl implements Consensus {
         int numStronglySeen = 0;
         for (int m = 0; m < numMembers; m++) {
             if (timedStronglySeeP(x, m) != null) {
-                weight += getWeight(m);
+                weight += rosterLookup.getWeight(m);
                 numStronglySeen++;
             }
         }
         consensusMetrics.witnessesStronglySeen(numStronglySeen);
-        if (Threshold.SUPER_MAJORITY.isSatisfiedBy(weight, rosterTotalWeight)) {
+        if (Threshold.SUPER_MAJORITY.isSatisfiedBy(weight, rosterLookup.rosterTotalWeight())) {
             // it's a supermajority, so advance to the next round
             x.setRoundCreated(1 + parentRound(x));
             consensusMetrics.roundIncrementedByStronglySeen();
@@ -1328,37 +1300,6 @@ public class ConsensusImpl implements Consensus {
      */
     private @Nullable EventImpl firstSee(@Nullable final EventImpl x, final long m) {
         return firstSelfWitnessS(lastSee(x, m));
-    }
-
-    /**
-     * Get the weigh of a node by its ID
-     * @param nodeId the ID of the node
-     * @return the weight of the node, or 0 if the node is not in the address book
-     */
-    private long getWeight(@NonNull final NodeId nodeId) {
-        if (!rosterIndicesMap.containsKey(nodeId.id())) {
-            return 0;
-        }
-        return roster.rosterEntries().get(rosterIndicesMap.get(nodeId.id())).weight();
-    }
-
-    /**
-     * Get the weight of a node by its index
-     * @param nodeIndex the index of the node
-     * @return the weight of the node
-     */
-    private long getWeight(final int nodeIndex) {
-        return roster.rosterEntries().get(nodeIndex).weight();
-    }
-
-    /**
-     * Check the index in the address book of the creator of the event
-     * @param e the event whose creator to check
-     * @param index the index
-     * @return true if this creator is in the address book and has the given index
-     */
-    private boolean creatorIndexEquals(@NonNull final EventImpl e, final int index) {
-        return e.getRosterIndex() == index;
     }
 
     @Override
