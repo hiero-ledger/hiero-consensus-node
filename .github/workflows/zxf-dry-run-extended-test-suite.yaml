@@ -3,7 +3,7 @@ name: "ZXF: [CITR] XTS Dry Run"
 on:
   workflow_dispatch:
     inputs:
-      commit_sha:
+      ref:
         required: true
         description: "The commit sha, tag, or branch to check out"
       branch_name:
@@ -77,7 +77,7 @@ jobs:
           if [[ "${SOLO_GE_0440}" == "true" ]]; then
             HELM_NAME="mirror-1"
           fi
-          echo "Commit SHA: ${{ inputs.commit_sha }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Commit SHA: ${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Branch Name: ${{ inputs.branch_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Extended Test Suite: ${{ inputs.enable-extended-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Hedera Node JRS Panel: ${{ inputs.enable-hedera-node-jrs-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -97,7 +97,7 @@ jobs:
     if: ${{ inputs.execute-state-validator-build == true }}
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
-      ref: ${{ inputs.commit_sha }}
+      ref: ${{ inputs.ref }}
       dry-run-enabled: "true"
 
   xts-execution:
@@ -105,7 +105,7 @@ jobs:
     needs: parameters
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      commit_sha: ${{ inputs.commit_sha }}
+      ref: ${{ inputs.ref }}
       branch_name: ${{ inputs.branch_name }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
-import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
@@ -109,14 +108,7 @@ public final class StartupStateUtils {
                 false);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
-        // FUTURE WORK: To support MerkleStateRoot in the testing apps we still need to use `digestTreeAsync` instead of
-        // just calling `initialSignedState.getState().getRoot().getHash()`. The latter option doesn't work for
-        // `MerkleStateRoot` as it doesn't cause hash recalculation. Once we get rid of `MerkleStateRoot` entirely,
-        // the following statement can be replaced. (see
-        // https://github.com/hiero-ledger/hiero-consensus-node/issues/19307)
-        final Hash hash = platformContext
-                .getMerkleCryptography()
-                .digestTreeSync(initialSignedState.getState().getRoot());
+        final Hash hash = initialSignedState.getState().getHash();
         return new HashedReservedSignedState(signedStateCopy.reserve("Copied initial state"), hash);
     }
 
@@ -211,7 +203,7 @@ public final class StartupStateUtils {
                 deserializedSignedState.reservedSignedState().get().getState();
 
         final Hash oldHash = deserializedSignedState.originalHash();
-        final Hash newHash = rehashTree(platformContext.getMerkleCryptography(), state.getRoot());
+        final Hash newHash = state.getRoot().getHash();
 
         final SemanticVersion loadedVersion = creationSoftwareVersionOf(state);
 
