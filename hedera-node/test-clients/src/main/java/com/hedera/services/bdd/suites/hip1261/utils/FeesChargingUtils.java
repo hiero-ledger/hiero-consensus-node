@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
+import static com.hedera.services.bdd.suites.fees.FileServiceSimpleFeesTest.SINGLE_BYTE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_BASE_FEE_USD;
@@ -77,6 +78,21 @@ public class FeesChargingUtils {
     }
 
     /**
+     *  Simple fees calculation for CryptoCreate with node fee only
+     */
+    public static double expectedCryptoCreateNetworkFeeOnlyUsd(long sigs, int txnSize) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final var nodeBytesOverage = Math.max(0, txnSize - 1024);
+        final var nodeFeeFromBytes = nodeBytesOverage * SINGLE_BYTE_FEE;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytes;
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
      * SimpleFees formula for ConsensusCreateTopic:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
      * network = node * NETWORK_MULTIPLIER
@@ -106,6 +122,19 @@ public class FeesChargingUtils {
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
         final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    public static double expectedTopicCreateNetworkFeeOnlyUsd(long sigs, final int txnSize) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+
+        final var nodeBytesOverage = Math.max(0, txnSize - 1024);
+        final var nodeFeeFromBytes = nodeBytesOverage * SINGLE_BYTE_FEE;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytes;
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;

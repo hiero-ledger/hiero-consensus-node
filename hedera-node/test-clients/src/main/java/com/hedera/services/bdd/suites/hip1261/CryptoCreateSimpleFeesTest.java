@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -25,6 +26,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -59,10 +61,12 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
@@ -956,6 +960,7 @@ public class CryptoCreateSimpleFeesTest {
                 final AtomicLong afterBalance = new AtomicLong();
                 final AtomicLong initialNodeBalance = new AtomicLong();
                 final AtomicLong afterNodeBalance = new AtomicLong();
+                final AtomicInteger txnSize = new AtomicInteger();
 
                 final String INNER_ID = "crypto-create-txn-inner-id";
 
@@ -991,18 +996,25 @@ public class CryptoCreateSimpleFeesTest {
                         getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
                         getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
                         withOpContext((spec, log) -> {
+                            final var txnBytes = spec.registry().getBytes(INNER_ID);
+                            // Extract SignedTransaction bytes from the Transaction bytes
+                            // The node charges fees based on SignedTransaction size, not Transaction size
+                            final var transaction = Transaction.parseFrom(txnBytes);
+                            final var signedTxnBytes = serializedSignedTxFrom(transaction);
+                            txnSize.set(signedTxnBytes.length);
+
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
                             log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(1));
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        sourcing(() -> validateChargedFeeToUsd(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedCryptoCreateNetworkFeeOnlyUsd(1L),
-                                0.01));
+                                expectedCryptoCreateNetworkFeeOnlyUsd(1L, txnSize.get()),
+                                0.01)));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
