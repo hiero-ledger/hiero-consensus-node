@@ -206,7 +206,7 @@ public class TransferTokenTest {
         // ------------------------------ FT ------------------------------
         @HapiTest
         @DisplayName("'transferToken' function without explicit allowance")
-        public Stream<DynamicTest> transferUsingTransferToken() {
+        Stream<DynamicTest> transferUsingTransferToken() {
             return hapiTest(
                     // Transfer using transferToken function
                     tokenTransferContract
@@ -223,7 +223,7 @@ public class TransferTokenTest {
 
         @HapiTest
         @DisplayName("'transferTokens' function without explicit allowance")
-        public Stream<DynamicTest> transferUsingTransferTokens() {
+        Stream<DynamicTest> transferUsingTransferTokens() {
             return hapiTest(withOpContext((spec, opLog) -> allRunFor(
                     spec,
                     // Transfer using transferTokens function
@@ -254,10 +254,9 @@ public class TransferTokenTest {
                                     3L)))));
         }
 
-        // TODO
         @HapiTest
         @DisplayName("'transferTokens' function without explicit allowance and multiple senders")
-        public Stream<DynamicTest> transferUsingTransferTokensMultipleSenders(
+        Stream<DynamicTest> transferUsingTransferTokensMultipleSenders(
                 @NonNull @Account(name = "sender1") final SpecAccount sender1,
                 @NonNull @Account(name = "sender2") final SpecAccount sender2,
                 @NonNull @Account(name = "receiver1") final SpecAccount receiver1,
@@ -303,7 +302,7 @@ public class TransferTokenTest {
 
         @HapiTest
         @DisplayName("'transferFrom' function given allowance")
-        public Stream<DynamicTest> transferUsingTransferFromWithAllowance() {
+        Stream<DynamicTest> transferUsingTransferFromWithAllowance() {
             return hapiTest(
                     // Approve the transfer contract to spend 2 tokens
                     tokenTransferContract
@@ -330,7 +329,7 @@ public class TransferTokenTest {
         // ------------------------------ NFT ------------------------------
         @HapiTest
         @DisplayName("'transferNFT' function without explicit allowance")
-        public Stream<DynamicTest> transferUsingTransferNft() {
+        Stream<DynamicTest> transferUsingTransferNft() {
             return hapiTest(
                     // Transfer using transferToken function
                     tokenTransferContract
@@ -347,7 +346,7 @@ public class TransferTokenTest {
 
         @HapiTest
         @DisplayName("'transferNFTs' function without explicit allowance")
-        public Stream<DynamicTest> transferUsingTransferNfts() {
+        Stream<DynamicTest> transferUsingTransferNfts() {
             return hapiTest(withOpContext((spec, opLog) -> allRunFor(
                     spec,
                     // Transfer using transferTokens function
@@ -383,7 +382,7 @@ public class TransferTokenTest {
 
         @HapiTest
         @DisplayName("'transferFromNFT' function given allowance")
-        public Stream<DynamicTest> transferUsingTransferFromNFTWithAllowance() {
+        Stream<DynamicTest> transferUsingTransferFromNFTWithAllowance() {
             return hapiTest(
                     // Approve the 'TokenTransferContract' to spend 4th NFT token
                     // We cant approve from 'TokenTransferContract' because it is not an owner of the token.
