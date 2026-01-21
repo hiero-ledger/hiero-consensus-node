@@ -38,7 +38,7 @@ env:
 jobs:
   parameters:
     name: Determine Configurable Parameters
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     outputs:
       solo-ge-0440: ${{ steps.set-parameters.outputs.solo-ge-0440 }}
       helm-release-name: ${{ steps.set-parameters.outputs.helm-release-name }}
@@ -63,7 +63,7 @@ jobs:
 
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
@@ -420,7 +420,7 @@ jobs:
 
   tag-for-promotion:
     name: Tag as XTS-Passing
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - abbreviated-panel
       - fetch-xts-candidate
@@ -503,7 +503,7 @@ jobs:
 
   report-success:
     name: Report XTS execution success
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - abbreviated-panel
       - fetch-xts-candidate
@@ -671,7 +671,7 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - abbreviated-panel
       - fetch-xts-candidate

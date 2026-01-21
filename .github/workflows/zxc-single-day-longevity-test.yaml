@@ -85,14 +85,14 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.10.0
+  NLG_VERSION: 0.11.1
   BlockNode_version: 0.21.1
   NUM_OF_BLOCK_NODES: 7
 
 jobs:
   longevity-tests-start:
     name: Start
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     outputs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
@@ -1037,7 +1037,7 @@ jobs:
 
   longevity-tests-wait:
     name: Wait for Longevity test
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
@@ -1190,7 +1190,7 @@ jobs:
 
   longevity-tests-finish:
     name: Read results of Longevity test
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
@@ -1414,7 +1414,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
     name: Calculate Result
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-finish
@@ -1456,7 +1456,7 @@ jobs:
 
   longevity-report-failures:
     name: Report Failures
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     needs:
       - longevity-tests-start
       - longevity-tests-wait
@@ -1499,7 +1499,7 @@ jobs:
           echo "${{ steps.summary.outputs.summary }}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   longevity-report-to-Slack:
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     if: false
     needs:
       - longevity-tests-finish
