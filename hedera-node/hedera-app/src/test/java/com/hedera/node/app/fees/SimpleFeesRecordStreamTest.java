@@ -37,6 +37,7 @@ This example downloads a one-hour slice on November 10th 2025 from 8:00:00 to 8:
 gsutil -u hedera-regression cp "gs://hedera-preview-testnet-streams/recordstreams/record0.0.9/2025-11-10T08*" .
 try again with -m
 
+this will write the csv output file to hedera-app/simple-fees-historical-comparison.csv
 
 
  */
@@ -104,7 +105,7 @@ public class SimpleFeesRecordStreamTest {
     @BeforeAll
     static void beforeAll() throws IOException {
         csv = new CSVWriter(new FileWriter("simple-fees-historical-comparison.csv"));
-        csv.write("Service Name, Simple Fee, Old Fees, Comparison, Details");
+        csv.write("Service Name, Simple Fee, Old Fees, Comparison, SF Service, SF Node, SF Network, Timestamp, Details");
         csv.endLine();
     }
 
@@ -146,6 +147,7 @@ public class SimpleFeesRecordStreamTest {
                             process_item(item, calc);
                         } catch (Exception e) {
                             System.out.println("exception " + e);
+//                            System.out.println("on item" + item);
                             e.printStackTrace();
                         }
                     });
@@ -164,6 +166,7 @@ public class SimpleFeesRecordStreamTest {
         final var body = TransactionBody.PROTOBUF.parse(
                 Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
         final Transaction txn = Transaction.newBuilder().body(body).build();
+//        System.out.println(body.data().kind().name());
         final var result = calc.calculateIntrinsic(txn);
         final var record = item.getRecord();
         final var txnFee = record.getTransactionFee();
@@ -174,6 +177,10 @@ public class SimpleFeesRecordStreamTest {
         csv.field(result.totalTC());
         csv.field(txnFee * rate.getCurrentRate().getCentEquiv());
         csv.fieldPercentage(fract * 100);
+        csv.field(result.serviceTotalTC());
+        csv.field(result.nodeTotalTC());
+        csv.field(result.networkTotalTC());
+        csv.field(record.getConsensusTimestamp().getSeconds());
         csv.field(result.toString());
         csv.endLine();
     }

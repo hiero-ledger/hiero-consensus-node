@@ -113,11 +113,11 @@ public class FeeResult {
     @Override
     public String toString() {
         return "FeeResult{" + "fee=" + this.totalTC()
+                + ", serviceBase=" + serviceBase
+                + ", serviceExtras=" + serviceExtras
                 + ", nodeBase=" + nodeBase
                 + ", nodeExtras=" + nodeExtras
                 + ", networkMultiplier=" + networkMultiplier
-                + ", serviceBase=" + serviceBase
-                + ", serviceDetails=" + serviceExtras
                 + '}';
     }
 }
