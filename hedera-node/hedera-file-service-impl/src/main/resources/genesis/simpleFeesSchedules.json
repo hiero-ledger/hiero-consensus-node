@@ -41,55 +41,6 @@
   ],
   "services": [
     {
-      "name": "Contract",
-      "schedule": [
-        {
-          "name": "HookStore",
-          "baseFee": 49000000
-        },
-        {
-          "name": "ContractCreate",
-          "baseFee": 9999000000,
-          "extras": [
-            {
-              "name": "KEYS",
-              "includedCount": 1
-            }
-          ]
-        },
-        {
-          "name": "ContractCall",
-          "baseFee": 0,
-          "extras": []
-        },
-        {
-          "name": "ContractUpdate",
-          "baseFee": 259000000,
-          "extras": [
-            {
-              "name": "KEYS",
-              "includedCount": 1
-            }
-          ]
-        },
-        {
-          "name": "ContractDelete",
-          "baseFee": 69000000,
-          "extras": []
-        },
-        {
-          "name": "EthereumTransaction",
-          "baseFee": 0,
-          "extras": [
-            {
-              "name": "BYTES",
-              "includedCount": 6144
-            }
-          ]
-        }
-      ]
-    },
-    {
       "name": "Crypto",
       "schedule": [
         {
@@ -660,10 +611,41 @@
       "name": "Contract",
       "schedule": [
         {
-          "name": "ContractCreate",
-          "baseFee": 2000000000,
+          "name": "ContractCall",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "ContractUpdate",
+          "baseFee": 259000000,
           "extras": [
-            { "name": "GAS", "includedCount": 0 }
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "ContractDelete",
+          "baseFee": 69000000,
+          "extras": []
+        },
+        {
+          "name": "EthereumTransaction",
+          "baseFee": 0,
+          "extras": [
+            {
+              "name": "BYTES",
+              "includedCount": 6144
+            }
+          ]
+        },
+        {
+          "name": "ContractCreate",
+          "baseFee": 9999000000,
+          "extras": [
+            { "name": "GAS", "includedCount": 0 },
+            {"name": "KEYS", "includedCount": 1}
           ],
           "highVolumeRates": {
             "maxMultiplier": 80000,
@@ -685,8 +667,8 @@
           }
         },
         {
-          "name": "LambdaSStore",
-          "baseFee": 10000000,
+          "name": "HookStore",
+          "baseFee": 49000000,
           "extras": [],
           "highVolumeRates": {
             "maxMultiplier": 200000,
