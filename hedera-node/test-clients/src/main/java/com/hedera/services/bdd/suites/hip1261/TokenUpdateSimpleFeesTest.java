@@ -103,7 +103,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(2L, 0L), // 2 sigs, 0 new keys
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -129,7 +129,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(3L, 1L), // 3 sigs, 1 new key
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -157,7 +157,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(2L, 1L), // 2 sigs, 1 new key
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -191,7 +191,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(3L, 3L), // 3 sigs, 3 new keys
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -222,7 +222,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(3L, 0L), // 3 sigs (2 payer + 1 admin)
-                            50.0));
+                            1.0));
         }
     }
 

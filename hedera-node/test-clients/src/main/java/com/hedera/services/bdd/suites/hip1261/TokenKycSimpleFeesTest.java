@@ -105,7 +105,7 @@ public class TokenKycSimpleFeesTest {
                     validateChargedUsdWithin(
                             "grantKycTxn",
                             expectedTokenGrantKycFullFeeUsd(2L), // 2 sigs
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -137,7 +137,7 @@ public class TokenKycSimpleFeesTest {
                     validateChargedUsdWithin(
                             "grantKycTxn",
                             expectedTokenGrantKycFullFeeUsd(3L), // 3 sigs (2 payer + 1 kyc key)
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -169,7 +169,7 @@ public class TokenKycSimpleFeesTest {
                     validateChargedUsdWithin(
                             "grantKycTxn",
                             expectedTokenGrantKycFullFeeUsd(3L), // 3 sigs (1 payer + 2 kyc key)
-                            50.0));
+                            1.0));
         }
     }
 
@@ -204,7 +204,7 @@ public class TokenKycSimpleFeesTest {
                     validateChargedUsdWithin(
                             "revokeKycTxn",
                             expectedTokenRevokeKycFullFeeUsd(2L), // 2 sigs
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -241,7 +241,7 @@ public class TokenKycSimpleFeesTest {
                     validateChargedUsdWithin(
                             "revokeKycTxn",
                             expectedTokenRevokeKycFullFeeUsd(3L), // 3 sigs (2 payer + 1 kyc key)
-                            50.0));
+                            1.0));
         }
     }
 

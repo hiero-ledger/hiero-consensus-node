@@ -93,36 +93,36 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long TOKEN_CREATE_WITH_CUSTOM_FEE_USD = 1L;
     public static final double TOKEN_MINT_NFT_FEE_USD = 0.02;
 
-    public static final double TOKEN_CREATE_BASE_FEE_USD = 1.0009999000000;
+    public static final double TOKEN_CREATE_BASE_FEE_USD = 0.9999;
     public static final long TOKEN_CREATE_INCLUDED_KEYS = 1L;
 
     public static final double TOKEN_UPDATE_BASE_FEE_USD = 0.0009;
     public static final long TOKEN_UPDATE_INCLUDED_KEYS = 1L;
 
-    public static final double TOKEN_DELETE_BASE_FEE_USD = 0.00108;
+    public static final double TOKEN_DELETE_BASE_FEE_USD = 0.0009;
 
     public static final double TOKEN_MINT_BASE_FEE_USD = 0.0009;
     public static final long TOKEN_MINT_INCLUDED_NFT = 0L;
 
-    public static final double TOKEN_BURN_BASE_FEE_USD = 0.00108;
+    public static final double TOKEN_BURN_BASE_FEE_USD = 0.0009;
 
-    public static final double TOKEN_ASSOCIATE_BASE_FEE_USD = 0.049;
+    public static final double TOKEN_ASSOCIATE_BASE_FEE_USD = 0.0499;
 
-    public static final double TOKEN_DISSOCIATE_BASE_FEE_USD = 0.049;
+    public static final double TOKEN_DISSOCIATE_BASE_FEE_USD = 0.0499;
 
-    public static final double TOKEN_GRANT_KYC_BASE_FEE_USD = 0.00108;
+    public static final double TOKEN_GRANT_KYC_BASE_FEE_USD = 0.0009;
 
-    public static final double TOKEN_REVOKE_KYC_BASE_FEE_USD = 0.00108;
+    public static final double TOKEN_REVOKE_KYC_BASE_FEE_USD = 0.0009;
 
-    public static final double TOKEN_FREEZE_BASE_FEE_USD = 0.00108;
+    public static final double TOKEN_FREEZE_BASE_FEE_USD = 0.0009;
 
-    public static final double TOKEN_UNFREEZE_BASE_FEE_USD = 0.00108;
+    public static final double TOKEN_UNFREEZE_BASE_FEE_USD = 0.0009;
 
-    public static final double TOKEN_PAUSE_BASE_FEE_USD = 0.00108;
+    public static final double TOKEN_PAUSE_BASE_FEE_USD = 0.0009;
 
-    public static final double TOKEN_UNPAUSE_BASE_FEE_USD = 0.00108;
+    public static final double TOKEN_UNPAUSE_BASE_FEE_USD = 0.0009;
 
-    public static final double TOKEN_WIPE_BASE_FEE_USD = 0.00108;
+    public static final double TOKEN_WIPE_BASE_FEE_USD = 0.0009;
 
     /* ---------- Schedule service ---------- */
 

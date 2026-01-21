@@ -100,7 +100,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenAssociateTxn",
                             expectedTokenAssociateFullFeeUsd(1L, 1L), // 1 sig, 1 token
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -120,7 +120,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenAssociateTxn",
                             expectedTokenAssociateFullFeeUsd(1L, 3L), // 1 sig, 3 tokens
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -143,7 +143,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenAssociateTxn",
                             expectedTokenAssociateFullFeeUsd(2L, 1L), // 2 sigs, 1 token
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -165,7 +165,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenAssociateTxn",
                             expectedTokenAssociateFullFeeUsd(1L, 5L), // 1 sig, 5 tokens
-                            50.0));
+                            1.0));
         }
     }
 
@@ -189,7 +189,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenDissociateTxn",
                             expectedTokenDissociateFullFeeUsd(1L, 1L), // 1 sig, 1 token
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -210,7 +210,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenDissociateTxn",
                             expectedTokenDissociateFullFeeUsd(1L, 3L), // 1 sig, 3 tokens
-                            50.0));
+                            1.0));
         }
     }
 

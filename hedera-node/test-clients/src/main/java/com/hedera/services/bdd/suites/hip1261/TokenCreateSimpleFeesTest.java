@@ -106,7 +106,7 @@ public class TokenCreateSimpleFeesTest {
                             .signedBy(PAYER, TREASURY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("tokenCreateTxn"),
-                    validateChargedUsdWithin("tokenCreateTxn", expectedTokenCreateFungibleFullFeeUsd(2L, 0L), 50.0));
+                    validateChargedUsdWithin("tokenCreateTxn", expectedTokenCreateFungibleFullFeeUsd(2L, 0L), 1.0));
         }
 
         @HapiTest
@@ -128,7 +128,7 @@ public class TokenCreateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenCreateTxn",
                             expectedTokenCreateNftFullFeeUsd(2L, 1L), // 1 key = supply key
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -149,7 +149,7 @@ public class TokenCreateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenCreateTxn",
                             expectedTokenCreateFungibleFullFeeUsd(3L, 1L), // 3 sigs: payer + treasury + admin key
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -183,7 +183,7 @@ public class TokenCreateSimpleFeesTest {
                             "tokenCreateTxn",
                             expectedTokenCreateFungibleFullFeeUsd(
                                     3L, 7L), // 3 sigs: payer + treasury + admin key, 7 keys
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -217,7 +217,7 @@ public class TokenCreateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenCreateTxn",
                             expectedTokenCreateNftFullFeeUsd(3L, 7L), // 3 sigs: payer + treasury + admin key, 7 keys
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -236,7 +236,7 @@ public class TokenCreateSimpleFeesTest {
                             .fee(ONE_HUNDRED_HBARS)
                             .via("tokenCreateTxn"),
                     validateChargedUsdWithin(
-                            "tokenCreateTxn", expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(2L, 0L), 50.0));
+                            "tokenCreateTxn", expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(2L, 0L), 1.0));
         }
 
         @HapiTest
@@ -260,7 +260,7 @@ public class TokenCreateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenCreateTxn",
                             expectedTokenCreateNftWithCustomFeesFullFeeUsd(2L, 1L), // 1 key = supply key
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -285,7 +285,7 @@ public class TokenCreateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenCreateTxn",
                             expectedTokenCreateFungibleFullFeeUsd(3L, 0L), // 3 sigs: 2 payer + 1 treasury
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -313,7 +313,7 @@ public class TokenCreateSimpleFeesTest {
                             "tokenCreateTxn",
                             expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(
                                     3L, 3L), // 3 sigs: payer + treasury + admin key, 3 keys
-                            50.0));
+                            1.0));
         }
     }
 
@@ -322,13 +322,12 @@ public class TokenCreateSimpleFeesTest {
     class TokenCreateSimpleFeesNegativeTestCases {
 
         @Nested
-        @DisplayName("TokenCreate Failures on Ingest")
-        class TokenCreateFailuresOnIngest {
+        @DisplayName("TokenCreate Failures on Handle")
+        class TokenCreateFailuresOnHandle {
 
             @HapiTest
-            @DisplayName("TokenCreate - missing treasury signature fails at handle")
+            @DisplayName("TokenCreate - missing treasury signature fails at handle - full fee charged")
             final Stream<DynamicTest> tokenCreateMissingTreasurySignatureFailsAtHandle() {
-                // Note: Missing treasury signature is validated at handle stage, not precheck
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -338,8 +337,18 @@ public class TokenCreateSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing treasury signature
                                 .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(INVALID_SIGNATURE));
+                                .via("tokenCreateTxn")
+                                .hasKnownStatus(INVALID_SIGNATURE),
+                        validateChargedUsdWithin(
+                                "tokenCreateTxn",
+                                expectedTokenCreateFungibleFullFeeUsd(1L, 0L), // 1 sig (payer only)
+                                1.0));
             }
+        }
+
+        @Nested
+        @DisplayName("TokenCreate Failures on Ingest")
+        class TokenCreateFailuresOnIngest {
 
             @HapiTest
             @DisplayName("TokenCreate - insufficient tx fee fails on ingest - no fee charged")

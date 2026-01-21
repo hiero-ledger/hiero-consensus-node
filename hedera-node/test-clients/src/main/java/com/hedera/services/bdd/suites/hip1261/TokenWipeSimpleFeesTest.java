@@ -112,7 +112,7 @@ public class TokenWipeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "wipeTxn",
                             expectedTokenWipeFungibleFullFeeUsd(2L), // 2 sigs
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -150,7 +150,7 @@ public class TokenWipeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "wipeTxn",
                             expectedTokenWipeFungibleFullFeeUsd(3L), // 3 sigs (2 payer + 1 wipe key)
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -188,7 +188,7 @@ public class TokenWipeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "wipeTxn",
                             expectedTokenWipeFungibleFullFeeUsd(3L), // 3 sigs (1 payer + 2 wipe key)
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -220,7 +220,7 @@ public class TokenWipeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "wipeTxn",
                             expectedTokenWipeFungibleFullFeeUsd(2L), // 2 sigs
-                            50.0));
+                            1.0));
         }
     }
 

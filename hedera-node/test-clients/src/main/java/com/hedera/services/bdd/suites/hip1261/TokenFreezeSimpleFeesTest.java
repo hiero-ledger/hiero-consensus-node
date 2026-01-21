@@ -107,7 +107,7 @@ public class TokenFreezeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "freezeTxn",
                             expectedTokenFreezeFullFeeUsd(2L), // 2 sigs
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -140,7 +140,7 @@ public class TokenFreezeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "freezeTxn",
                             expectedTokenFreezeFullFeeUsd(3L), // 3 sigs (2 payer + 1 freeze key)
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -173,7 +173,7 @@ public class TokenFreezeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "freezeTxn",
                             expectedTokenFreezeFullFeeUsd(3L), // 3 sigs (1 payer + 2 freeze key)
-                            50.0));
+                            1.0));
         }
     }
 
@@ -206,7 +206,7 @@ public class TokenFreezeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "unfreezeTxn",
                             expectedTokenUnfreezeFullFeeUsd(2L), // 2 sigs
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -244,7 +244,7 @@ public class TokenFreezeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "unfreezeTxn",
                             expectedTokenUnfreezeFullFeeUsd(3L), // 3 sigs (2 payer + 1 freeze key)
-                            50.0));
+                            1.0));
         }
     }
 

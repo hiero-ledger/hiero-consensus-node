@@ -100,7 +100,7 @@ public class TokenPauseSimpleFeesTest {
                     validateChargedUsdWithin(
                             "pauseTxn",
                             expectedTokenPauseFullFeeUsd(2L), // 2 sigs
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -130,7 +130,7 @@ public class TokenPauseSimpleFeesTest {
                     validateChargedUsdWithin(
                             "pauseTxn",
                             expectedTokenPauseFullFeeUsd(3L), // 3 sigs (2 payer + 1 pause key)
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -160,7 +160,7 @@ public class TokenPauseSimpleFeesTest {
                     validateChargedUsdWithin(
                             "pauseTxn",
                             expectedTokenPauseFullFeeUsd(3L), // 3 sigs (1 payer + 2 pause key)
-                            50.0));
+                            1.0));
         }
     }
 
@@ -193,7 +193,7 @@ public class TokenPauseSimpleFeesTest {
                     validateChargedUsdWithin(
                             "unpauseTxn",
                             expectedTokenUnpauseFullFeeUsd(2L), // 2 sigs
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -228,7 +228,7 @@ public class TokenPauseSimpleFeesTest {
                     validateChargedUsdWithin(
                             "unpauseTxn",
                             expectedTokenUnpauseFullFeeUsd(3L), // 3 sigs (2 payer + 1 pause key)
-                            50.0));
+                            1.0));
         }
     }
 

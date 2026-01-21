@@ -100,7 +100,7 @@ public class TokenDeleteSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenDeleteTxn",
                             expectedTokenDeleteFullFeeUsd(2L), // 2 sigs
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -130,7 +130,7 @@ public class TokenDeleteSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenDeleteTxn",
                             expectedTokenDeleteFullFeeUsd(3L), // 3 sigs (2 payer + 1 admin)
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -160,7 +160,7 @@ public class TokenDeleteSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenDeleteTxn",
                             expectedTokenDeleteFullFeeUsd(3L), // 3 sigs (1 payer + 2 admin)
-                            50.0));
+                            1.0));
         }
     }
 

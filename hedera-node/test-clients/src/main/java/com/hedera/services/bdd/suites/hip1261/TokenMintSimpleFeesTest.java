@@ -106,7 +106,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintFungibleFullFeeUsd(2L), // 2 sigs
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -131,7 +131,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintFungibleFullFeeUsd(2L), // 2 sigs - amount doesn't affect fee
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -162,7 +162,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintFungibleFullFeeUsd(3L), // 3 sigs (2 payer + 1 supply)
-                            50.0));
+                            1.0));
         }
     }
 
@@ -192,7 +192,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintNftFullFeeUsd(2L, 1L), // 2 sigs, 1 serial
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -222,7 +222,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintNftFullFeeUsd(2L, 3L), // 2 sigs, 3 serials
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -254,7 +254,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintNftFullFeeUsd(2L, 5L), // 2 sigs, 5 serials
-                            50.0));
+                            1.0));
         }
 
         @HapiTest
@@ -287,7 +287,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintNftFullFeeUsd(3L, 2L), // 3 sigs, 2 serials
-                            50.0));
+                            1.0));
         }
     }
 
