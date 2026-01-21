@@ -18,6 +18,7 @@ public interface StreamingTreeHasher {
     byte[] LEAF_PREFIX = {0x0};
     byte[] SINGLE_CHILD_INTERNAL_NODE_PREFIX = {0x1};
     byte[] INTERNAL_NODE_PREFIX = {0x2};
+    Bytes INTERNAL_NODE_PREFIX_BYTES = Bytes.wrap(INTERNAL_NODE_PREFIX);
 
     /**
      * Describes the status of the tree hash computation.

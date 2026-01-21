@@ -29,7 +29,6 @@ module com.swirlds.common {
     exports com.swirlds.common.merkle.synchronization.utility;
     exports com.swirlds.common.merkle.synchronization.views;
     exports com.swirlds.common.merkle.utility;
-    exports com.swirlds.common.metrics.event;
     exports com.swirlds.common.notification;
     exports com.swirlds.common.platform;
     exports com.swirlds.common.stream;
