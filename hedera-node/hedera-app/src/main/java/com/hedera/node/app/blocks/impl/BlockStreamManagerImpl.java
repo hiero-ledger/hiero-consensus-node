@@ -317,7 +317,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.lastBlockHash = calculatedLastBlockHash;
         log.info("Initialized block stream from state with last block hash {}", calculatedLastBlockHash.toHex());
 
-        // Only add the last hash if it's not the zero block hash (which will be added later, if applicable)
+        // Only add the last hash if it's not the marker zero block hash
         if (!Objects.equals(calculatedLastBlockHash, ZERO_BLOCK_HASH)) {
             previousBlockHashes.addLeaf(calculatedLastBlockHash.toByteArray());
         }
