@@ -25,6 +25,7 @@ module com.hedera.node.app.service.token.impl {
     requires com.google.common;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
+    requires org.jetbrains.annotations;
     requires tuweni.bytes;
 
     exports com.hedera.node.app.service.token.impl.handlers;

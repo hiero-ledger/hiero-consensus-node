@@ -16,6 +16,7 @@ module com.hedera.node.app.service.schedule.impl {
     requires com.hedera.node.app.hapi.utils;
     requires com.google.common;
     requires org.apache.logging.log4j;
+    requires org.jetbrains.annotations;
     requires static transitive com.github.spotbugs.annotations;
 
     exports com.hedera.node.app.service.schedule.impl;
