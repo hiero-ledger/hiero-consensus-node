@@ -1,3 +1,6 @@
+set +e
+set +x
+
 node_id=$1
 isToClean=$2
 export MALLOC_ARENA_MAX=4
@@ -16,6 +19,7 @@ then
   rm -rf output/*
   rm -rf data/saved/com.hedera.services.ServicesMain/${node_id}/123/*
   cp .archive/config.txt .
+  mv data/config/.archive/genesis-network.json data/config/genesis-network.json
   rm -rf .archive
   #cd $APP_HOME/data/keys
   #bash generate.sh node1
@@ -34,6 +38,8 @@ then
   rm -rf data/saved/com.hedera.services.ServicesMain/${node_id}/123/*
   export PATH=/usr/local/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
   cp .archive/config.txt .
+  cp data/config/.archive/genesis-network.json data/config/genesis-network.json
+
   export EXTRA_COBERTURA_OPTS="--illegal-access=warn -Dnet.sourceforge.cobertura.datafile=/tmp/cobertura.ser -Dio.grpc.netty.shaded.io.netty.tryReflectionSetAccessible=true"
 fi
 
