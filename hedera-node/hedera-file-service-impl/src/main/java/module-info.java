@@ -20,6 +20,7 @@ module com.hedera.node.app.service.file.impl {
     requires com.google.protobuf;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
+    requires org.jetbrains.annotations;
     requires static transitive com.github.spotbugs.annotations;
 
     exports com.hedera.node.app.service.file.impl.handlers;

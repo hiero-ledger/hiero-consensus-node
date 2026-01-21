@@ -21,8 +21,8 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -61,11 +61,11 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
+            @NonNull SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
 
-        final ReadableTokenStore tokenStore = feeContext.readableStore(ReadableTokenStore.class);
+        final ReadableTokenStore tokenStore = simpleFeeContext.feeContext().readableStore(ReadableTokenStore.class);
         final var op = txnBody.cryptoTransferOrThrow();
         final long numAccounts = countUniqueAccounts(op);
         final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
@@ -79,7 +79,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
             addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
         }
         if (hookInfo.numHookInvocations() > 0) {
-            final var config = feeContext.configuration();
+            final var config = simpleFeeContext.feeContext().configuration();
             // Avoid overflow in by clamping effective limit. Since we validate each hook dispatch can't
             // exceed maxGasPerSec downstream, we need to allow to charge upto maxGasPerSec * numHookInvocations
             final long effectiveGasLimit = Math.max(
