@@ -996,8 +996,8 @@ public class Hip1195BasicTests {
                         .gas(5_000_000L)
                         .via("contractWithHookCreation")
                         .payingWith("payer"),
-                // One hook price 1 USD and contractCreate price 0.74 USD
-                validateChargedUsd("contractWithHookCreation", 1.74),
+                // One hook price 1 USD and contractCreate price 1 USD and 0.02 for keys and 0.001 for signature
+                validateChargedUsd("contractWithHookCreation", 2.021),
                 contractCreate("CreateTrivial")
                         .withHooks(
                                 accountAllowanceHook(400L, TRUE_ALLOWANCE_HOOK.name()),
@@ -1007,8 +1007,8 @@ public class Hip1195BasicTests {
                         .gas(5_000_000L)
                         .via("contractsWithHookCreation")
                         .payingWith("payer"),
-                // One hook price 1 USD and contractCreate price 0.74 USD
-                validateChargedUsd("contractsWithHookCreation", 4.74),
+                // One hook price 1 USD and contractCreate price 1 USD and 0.02 for keys and 0.001 for signature
+                validateChargedUsd("contractsWithHookCreation", 5.021),
                 contractUpdate("CreateTrivial")
                         .removingHook(400L)
                         .withHooks(
@@ -1018,8 +1018,8 @@ public class Hip1195BasicTests {
                         .blankMemo()
                         .via("hookUpdates")
                         .payingWith("payer"),
-                // hook creations and deletions are 1 USD each, and contractUpdate is 0.026 USD
-                validateChargedUsd("hookUpdates", 4.026));
+                // hook creations and deletions are 1 USD each, and contractUpdate is 0.026 USD and 0.001 for sig
+                validateChargedUsd("hookUpdates", 4.027));
     }
 
     @HapiTest

@@ -7,6 +7,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -23,6 +24,8 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.config.data.TokensConfig;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.Extra;
@@ -62,6 +65,11 @@ class TokenAirdropFeeCalculatorsTest {
     @Test
     @DisplayName("TokenAirdropFeeCalculator calculates correct fees")
     void tokenAirdropFeeCalculatorCalculatesCorrectFees() {
+        final var configMock = mock(Configuration.class);
+        final var tokenConfigMock = mock(TokensConfig.class);
+        when(tokenConfigMock.airdropsEnabled()).thenReturn(true);
+        when(configMock.getConfigData(TokensConfig.class)).thenReturn(tokenConfigMock);
+        when(feeContext.configuration()).thenReturn(configMock);
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
         final var token = Token.newBuilder()
                 .tokenId(TOKEN_ID)
@@ -121,6 +129,11 @@ class TokenAirdropFeeCalculatorsTest {
     @Test
     @DisplayName("TokenClaimAirdropFeeCalculator calculates correct fees")
     void tokenClaimAirdropFeeCalculatorCalculatesCorrectFees() {
+        final var configMock = mock(Configuration.class);
+        final var tokenConfigMock = mock(TokensConfig.class);
+        when(tokenConfigMock.airdropsClaimEnabled()).thenReturn(true);
+        when(configMock.getConfigData(TokensConfig.class)).thenReturn(tokenConfigMock);
+        when(feeContext.configuration()).thenReturn(configMock);
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
         lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
 
@@ -159,5 +172,14 @@ class TokenAirdropFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.FUNGIBLE_TOKENS, 1),
                                 makeExtraIncluded(Extra.NON_FUNGIBLE_TOKENS, 1))))
                 .build();
+    }
+
+    private void mockConfig() {
+        final var configMock = mock(Configuration.class);
+        final var tokenConfigMock = mock(TokensConfig.class);
+        when(tokenConfigMock.airdropsClaimEnabled()).thenReturn(true);
+        when(tokenConfigMock.airdropsEnabled()).thenReturn(true);
+        when(configMock.getConfigData(TokensConfig.class)).thenReturn(tokenConfigMock);
+        when(feeContext.configuration()).thenReturn(configMock);
     }
 }
