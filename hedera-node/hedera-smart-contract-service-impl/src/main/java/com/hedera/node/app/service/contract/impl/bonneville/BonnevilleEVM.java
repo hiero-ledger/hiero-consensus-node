@@ -436,7 +436,7 @@ class BEVM {
     // -----------------------------------------------------------
     // Execute bytecodes until done
     BEVM run() {
-        SB trace = new SB();
+        SB trace = null; // new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null )
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
@@ -576,9 +576,9 @@ class BEVM {
             default ->   ExceptionalHaltReason.INVALID_OPERATION;
             };
 
-            if( trace != null ) {
+            if( trace != null && !(op >= 0xF0 && op <= 0xFA && op != 0xF3) ) {
                 postTrace(trace);
-                if( halt!=null )
+                if( halt!=null && halt != ExceptionalHaltReason.NONE )
                     trace.p(" ").p(halt.toString());
                 System.out.println(trace);
                 trace.clear();
@@ -1435,6 +1435,9 @@ class BEVM {
 
     // Custom Delegate Call 6->1
     private ExceptionalHaltReason customDelegateCall(SB trace, String str) {
+        if( trace != null )
+            System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
+
         if( FrameUtils.isHookExecution(_frame) && isRedirectFromNativeEntity() )
             return ExceptionalHaltReason.INVALID_OPERATION;
 
@@ -1460,6 +1463,9 @@ class BEVM {
 
     // Custom Delegate Call 6->1
     private ExceptionalHaltReason customStaticCall(SB trace, String str) {
+        if( trace != null )
+            System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
+
         if( FrameUtils.isHookExecution(_frame) && isRedirectFromNativeEntity() )
             return ExceptionalHaltReason.INVALID_OPERATION;
 
@@ -2075,7 +2081,9 @@ class BEVM {
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-        return _abstractCall(trace,str, stipend, to,value,hasValue,srcOff,srcLen,dstOff,dstLen);
+        // yup, child frame sender is this frames' recipient
+        var sender = _frame.getRecipientAddress();
+        return _abstractCall(trace,str, stipend, to, to, sender, value,hasValue,srcOff,srcLen,dstOff,dstLen);
     }
 
 

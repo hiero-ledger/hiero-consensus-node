@@ -292,7 +292,7 @@ public class HederaEVM extends HEVM {
     private static String contractStr(int opcode) {
         return
             opcode==0xF0 ? "CREATE"  :
-            opcode==0xF1 ? "CALL"    :
+            opcode==0xF1 ? "CUSTCALL":
             opcode==0xF4 ? "DELEGATE":
             opcode==0xF5 ? "CREATE2" :
             opcode==0xFA ? "STATIC"  :
