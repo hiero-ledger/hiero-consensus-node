@@ -77,7 +77,8 @@ public class RecordStreamingUtils {
         }
     }
 
-    public static SidecarFile readSidecarFile(final @NonNull Path authorizedDir, final String fileLoc) throws IOException {
+    public static SidecarFile readSidecarFile(final @NonNull Path authorizedDir, final String fileLoc)
+            throws IOException {
         return SidecarFile.parseFrom(FileCompressionUtils.readUncompressedFileBytes(authorizedDir, fileLoc));
     }
 

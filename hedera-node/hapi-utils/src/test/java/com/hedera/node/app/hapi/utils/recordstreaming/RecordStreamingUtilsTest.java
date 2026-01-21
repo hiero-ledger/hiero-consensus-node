@@ -100,7 +100,8 @@ class RecordStreamingUtilsTest {
     void parsingV6SidecarRecordFilesSucceeds() throws IOException {
         final var sidecarFilePath = Path.of(PATH_TO_FILES, V6_SIDECAR_FILE);
 
-        final var sidecarFile = RecordStreamingUtils.readSidecarFile(sidecarFilePath.getParent(), sidecarFilePath.toString());
+        final var sidecarFile =
+                RecordStreamingUtils.readSidecarFile(sidecarFilePath.getParent(), sidecarFilePath.toString());
 
         assertNotNull(sidecarFile);
     }
@@ -145,7 +146,8 @@ class RecordStreamingUtilsTest {
 
         assertThrows(
                 IOException.class,
-                () -> RecordStreamingUtils.readSidecarFile(notSidecarFilePath.getParent(), notSidecarFilePath.toString()));
+                () -> RecordStreamingUtils.readSidecarFile(
+                        notSidecarFilePath.getParent(), notSidecarFilePath.toString()));
     }
 
     @Test

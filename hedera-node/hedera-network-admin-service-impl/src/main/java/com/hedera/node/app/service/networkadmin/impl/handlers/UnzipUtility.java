@@ -44,9 +44,11 @@ public final class UnzipUtility {
         requireNonNull(dstDir);
 
         try (final var zipIn = new ZipInputStream(new ByteArrayInputStream(bytes))) {
-            final String dstCanonical = dstDir.toFile().getCanonicalPath();
-            final String dstCanonicalPrefix =
-                    dstCanonical.endsWith(File.separator) ? dstCanonical : dstCanonical + File.separator;
+            // Normalize the destination directory to avoid inconsistencies in containment checks.
+            final Path resolvedDstDir = dstDir.toAbsolutePath().normalize();
+            // Canonicalize once for defense-in-depth against symlink-based escapes.
+            final Path canonicalDstDir =
+                    resolvedDstDir.toFile().getCanonicalFile().toPath();
 
             ZipEntry entry = zipIn.getNextEntry();
             if (entry == null) {
@@ -70,11 +72,16 @@ public final class UnzipUtility {
                             + "): " + entryName);
                 }
 
-                Path filePath = dstDir.resolve(entryName).normalize();
+                final Path filePath = resolvedDstDir.resolve(entryName).normalize();
+                if (!filePath.startsWith(resolvedDstDir)) {
+                    // Prevent Zip Slip attacks (normalized absolute-path containment check)
+                    throw new IOException("Zip file entry is outside of the destination directory: " + filePath);
+                }
+
                 final File fileOrDir = filePath.toFile();
-                final String canonicalPath = fileOrDir.getCanonicalPath();
-                if (!(canonicalPath.equals(dstCanonical) || canonicalPath.startsWith(dstCanonicalPrefix))) {
-                    // prevent Zip Slip attack
+                final Path canonicalFilePath = fileOrDir.getCanonicalFile().toPath();
+                if (!canonicalFilePath.startsWith(canonicalDstDir)) {
+                    // Defense-in-depth against symlink tricks where normalized paths still appear contained.
                     throw new IOException("Zip file entry is outside of the destination directory: " + filePath);
                 }
                 final File directory = fileOrDir.getParentFile();

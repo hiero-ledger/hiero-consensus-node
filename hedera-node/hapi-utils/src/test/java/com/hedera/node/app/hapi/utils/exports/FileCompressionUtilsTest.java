@@ -64,7 +64,8 @@ class FileCompressionUtilsTest {
         final var root = tempDir.resolve("root");
         Files.createDirectories(root);
 
-        assertThrows(IOException.class, () -> FileCompressionUtils.readUncompressedFileBytes(root, "does-not-exist.gz"));
+        assertThrows(
+                IOException.class, () -> FileCompressionUtils.readUncompressedFileBytes(root, "does-not-exist.gz"));
     }
 
     @Test
@@ -76,8 +77,8 @@ class FileCompressionUtilsTest {
             out.write("nope".getBytes());
         }
 
-        final var supportsPosix =
-                Files.getFileStore(gz).supportsFileAttributeView("posix") && Files.getFileStore(root).supportsFileAttributeView("posix");
+        final var supportsPosix = Files.getFileStore(gz).supportsFileAttributeView("posix")
+                && Files.getFileStore(root).supportsFileAttributeView("posix");
         Assumptions.assumeTrue(supportsPosix, "POSIX permissions not supported on this filesystem");
 
         Files.setPosixFilePermissions(gz, PosixFilePermissions.fromString("---------"));
@@ -86,4 +87,3 @@ class FileCompressionUtilsTest {
         assertThrows(IOException.class, () -> FileCompressionUtils.readUncompressedFileBytes(root, gz.toString()));
     }
 }
-

@@ -80,8 +80,8 @@ public class FileCompressionUtils {
             rootReal = root.toRealPath();
             fileReal = resolved.toRealPath();
         } catch (final IOException e) {
-            throw new IOException("Failed to resolve real paths for authorized root '" + root + "' and file '" + resolved
-                    + "'", e);
+            throw new IOException(
+                    "Failed to resolve real paths for authorized root '" + root + "' and file '" + resolved + "'", e);
         }
 
         if (!fileReal.startsWith(rootReal)) {
