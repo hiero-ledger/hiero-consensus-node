@@ -9,7 +9,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.Utilities;
+import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.network.topology.DynamicConnectionManagers;
 import com.swirlds.platform.network.topology.NetworkTopology;
 import com.swirlds.platform.network.topology.StaticTopology;

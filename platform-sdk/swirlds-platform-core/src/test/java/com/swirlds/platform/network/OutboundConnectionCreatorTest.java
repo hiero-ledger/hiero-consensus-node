@@ -15,7 +15,7 @@ import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.Utilities;
+import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
 import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
 import com.swirlds.platform.network.connectivity.SocketFactory;
