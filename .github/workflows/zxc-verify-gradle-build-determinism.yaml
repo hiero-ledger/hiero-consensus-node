@@ -95,12 +95,7 @@ jobs:
           BASELINE_FILE="${BASELINE_PATH}/${BASELINE_NAME}"
           BASELINE_EXISTS="false"
 
-          set +x
-          response=$(gsutil ls "${BASELINE_FILE}" 2>&1)
-          echo "${response}"
-          set -x
-
-          if [[ ${response} -eq 0 ]]; then
+          if gsutil ls "${BASELINE_FILE}" 2>&1; then
              BASELINE_EXISTS="true"
           fi
 
