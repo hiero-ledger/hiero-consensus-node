@@ -1438,11 +1438,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             // Ensure a valid node account is used for transactions when the network uses non-default node IDs.
             overrides.put(
                     "default.node",
-                    defaultNodeAccount.shardNum()
-                            + "."
-                            + defaultNodeAccount.realmNum()
-                            + "."
-                            + defaultNodeAccount.accountNumOrThrow());
+                    HapiPropertySource.asEntityString(
+                            defaultNodeAccount.shardNum(),
+                            defaultNodeAccount.realmNum(),
+                            defaultNodeAccount.accountNumOrThrow()));
         }
 
         // We only need to set shard/realm if they aren't the default values (zero)

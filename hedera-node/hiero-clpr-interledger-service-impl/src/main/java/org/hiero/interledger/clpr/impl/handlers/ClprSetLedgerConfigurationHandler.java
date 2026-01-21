@@ -112,7 +112,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             return; // In all cases it is safe to update the existing ledger configuration.
         }
 
-        // there is not exiting configuration for this ledger id.
+        // there is no existing configuration for this ledger id.
         final boolean devModeEnabled = stateProofManager.isDevModeEnabled();
         if (devModeEnabled) {
             // DevMode always sets the ledger configuration if it does not already exist.

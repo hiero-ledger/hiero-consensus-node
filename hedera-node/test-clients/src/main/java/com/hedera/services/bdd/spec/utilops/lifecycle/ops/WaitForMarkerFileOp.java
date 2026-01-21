@@ -14,10 +14,15 @@ import com.hedera.services.bdd.junit.hedera.MarkerFile;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.lifecycle.AbstractLifecycleOp;
+import com.hedera.services.bdd.spec.utilops.streams.EventualAssertionResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import org.apache.commons.io.monitor.FileAlterationListenerAdaptor;
+import org.apache.commons.io.monitor.FileAlterationMonitor;
+import org.apache.commons.io.monitor.FileAlterationObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -28,6 +33,7 @@ import org.apache.logging.log4j.Logger;
 public class WaitForMarkerFileOp extends AbstractLifecycleOp {
     private static final Logger log = LogManager.getLogger(WaitForMarkerFileOp.class);
     private static final Duration CANDIDATE_ROSTER_TIMEOUT = Duration.ofMinutes(1);
+    private static final int FILE_MONITOR_INTERVAL_MS = 250;
 
     private final Duration timeout;
     private final MarkerFile markerFile;
@@ -73,24 +79,54 @@ public class WaitForMarkerFileOp extends AbstractLifecycleOp {
         if (Files.exists(candidateRosterPath)) {
             return true;
         }
-        final long deadlineMillis = System.currentTimeMillis() + timeout.toMillis();
-        long backoffMillis = 1000L;
-        while (System.currentTimeMillis() < deadlineMillis) {
-            try {
-                final long remainingMillis = deadlineMillis - System.currentTimeMillis();
-                if (remainingMillis <= 0) {
-                    break;
+        final var expectedPath = candidateRosterPath.toAbsolutePath().normalize();
+        final var parentDir = requireNonNull(expectedPath.getParent());
+        final var result = new EventualAssertionResult(false, timeout);
+        final var observer = new FileAlterationObserver(parentDir.toFile());
+        final var listener = new FileAlterationListenerAdaptor() {
+            @Override
+            public void onFileCreate(final File file) {
+                maybePass(file);
+            }
+
+            @Override
+            public void onFileChange(final File file) {
+                maybePass(file);
+            }
+
+            private void maybePass(final File file) {
+                if (expectedPath.equals(file.toPath().toAbsolutePath().normalize())) {
+                    result.pass();
                 }
-                Thread.sleep(Math.min(backoffMillis, remainingMillis));
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
             }
-            if (Files.exists(candidateRosterPath)) {
-                return true;
+        };
+        observer.addListener(listener);
+        final var monitor = new FileAlterationMonitor(FILE_MONITOR_INTERVAL_MS);
+        monitor.addObserver(observer);
+        try {
+            monitor.start();
+            if (Files.exists(expectedPath)) {
+                result.pass();
             }
-            backoffMillis = Math.min(backoffMillis * 2, timeout.toMillis());
+            final var assertionResult = result.get();
+            if (!assertionResult.passed()) {
+                log.warn(
+                        "Timed out waiting for candidate roster at {} ({})",
+                        expectedPath,
+                        assertionResult.getErrorDetails());
+            }
+            return assertionResult.passed();
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (final Exception e) {
+            log.warn("Failed watching for candidate roster at {}", expectedPath, e);
+            return Files.exists(expectedPath);
+        } finally {
+            try {
+                monitor.stop();
+            } catch (final Exception ignore) {
+            }
         }
-        return Files.exists(candidateRosterPath);
     }
 }

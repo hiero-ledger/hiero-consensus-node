@@ -426,17 +426,25 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public void clearOverrideNetworks() {
         nodes.forEach(node -> {
             final var dataConfigDir = node.getExternalPath(DATA_CONFIG_DIR);
-            deleteOverrideIfExists(dataConfigDir.resolve(OVERRIDE_NETWORK_JSON));
-            try (var dirs = Files.list(dataConfigDir)) {
-                dirs.filter(Files::isDirectory)
-                        .filter(dir -> NUMBER_DIR_PATTERN
-                                .matcher(dir.getFileName().toString())
-                                .matches())
-                        .forEach(dir -> deleteOverrideIfExists(dir.resolve(OVERRIDE_NETWORK_JSON)));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            clearOverrideNetworkIn(dataConfigDir);
+            clearOverrideNetworkIn(dataConfigDir.resolve(ARCHIVE));
         });
+    }
+
+    private void clearOverrideNetworkIn(@NonNull final Path rootDir) {
+        deleteOverrideIfExists(rootDir.resolve(OVERRIDE_NETWORK_JSON));
+        if (!Files.exists(rootDir)) {
+            return;
+        }
+        try (var dirs = Files.list(rootDir)) {
+            dirs.filter(Files::isDirectory)
+                    .filter(dir -> NUMBER_DIR_PATTERN
+                            .matcher(dir.getFileName().toString())
+                            .matches())
+                    .forEach(dir -> deleteOverrideIfExists(dir.resolve(OVERRIDE_NETWORK_JSON)));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

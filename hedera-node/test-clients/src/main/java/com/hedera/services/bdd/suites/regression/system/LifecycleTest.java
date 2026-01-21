@@ -338,6 +338,7 @@ public interface LifecycleTest {
                     final var subProcessNetwork = spec.subProcessNetworkOrThrow();
                     setCurrentConfigVersion(spec, subProcessNetwork.currentConfigVersion(sourceNodeId));
                     baselineSignedStateRound.set(subProcessNetwork.latestSignedStateRound(sourceNodeId));
+                    subProcessNetwork.clearOverrideNetworks();
                     subProcessNetwork.assertNoOverrideNetworks();
                 }),
                 beginUpgradeToNextConfigVersion(preRestartOps),
@@ -584,6 +585,7 @@ public interface LifecycleTest {
         return blockingOrder(
                 doingContextual(spec -> {
                     if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                        subProcessNetwork.clearOverrideNetworks();
                         subProcessNetwork.assertNoOverrideNetworks();
                     }
                 }),
