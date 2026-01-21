@@ -612,7 +612,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                         .build());
         doThrow(new PreCheckException(INSUFFICIENT_TX_FEE))
                 .when(queryChecker)
-                .validateCryptoTransfer(any(), eq(transactionInfo), any(), ingestChecker);
+                .validateCryptoTransfer(any(), eq(transactionInfo), any());
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -847,7 +847,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
         doThrow(new PreCheckException(INSUFFICIENT_TX_FEE))
                 .when(queryChecker)
-                .validateCryptoTransfer(any(), eq(transactionInfo), any(), ingestChecker);
+                .validateCryptoTransfer(any(), eq(transactionInfo), any());
         final var responseBuffer = newEmptyBuffer();
 
         // when

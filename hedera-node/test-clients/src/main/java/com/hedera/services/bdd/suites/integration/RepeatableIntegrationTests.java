@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeat
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
@@ -91,7 +92,7 @@ public class RepeatableIntegrationTests {
                         .logged(),
                 handleAnyRepeatableQueryPayment(),
                 getAccountBalance(SENDER).hasTinyBars(SENDER_BALANCE),
-                getAccountBalance("3").hasTinyBars(initialNodeBalance.get())
+                sourcing(() ->getAccountBalance("3").hasTinyBars(initialNodeBalance.get()))
         );
     }
 

@@ -95,15 +95,13 @@ public class QueryChecker {
      * @param accountStore the {@link ReadableAccountStore} used to access accounts
      * @param transactionInfo the {@link TransactionInfo} that contains all data about the transaction
      * @param configuration the {@link Configuration} for accessing config data
-     * @param ingestChecker the {@link IngestChecker} used to check the transaction
      * @throws PreCheckException if validation fails
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     public void validateCryptoTransfer(
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final TransactionInfo transactionInfo,
-            @NonNull final Configuration configuration,
-            @NonNull final IngestChecker ingestChecker)
+            @NonNull final Configuration configuration)
             throws PreCheckException {
         requireNonNull(accountStore);
         requireNonNull(transactionInfo);
