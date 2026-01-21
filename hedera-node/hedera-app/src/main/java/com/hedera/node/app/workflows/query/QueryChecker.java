@@ -38,6 +38,7 @@ import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.time.Instant;
 import java.util.Objects;
 import javax.inject.Inject;
@@ -262,47 +263,5 @@ public class QueryChecker {
             return fees.totalFee();
         }
         return cryptoTransferHandler.calculateFees(feeContext).totalFee();
-    }
-
-    /**
-     * Validates that all sender accounts in the crypto transfer have valid signatures.
-     * This checks that accounts sending funds (negative amounts) have signed the transaction.
-     *
-     * @param accountStore the {@link ReadableAccountStore} used to access accounts
-     * @param txInfo the {@link TransactionInfo} of the {@link HederaFunctionality#CRYPTO_TRANSFER}
-     * @param configuration the current {@link Configuration}
-     * @throws PreCheckException if signature validation fails
-     * @throws NullPointerException if one of the arguments is {@code null}
-     */
-    public void validateSenderSignatures(
-            @NonNull final ReadableAccountStore accountStore,
-            @NonNull final TransactionInfo txInfo,
-            @NonNull final Configuration configuration)
-            throws PreCheckException {
-        requireNonNull(accountStore);
-        requireNonNull(txInfo);
-        requireNonNull(configuration);
-
-        final var txBody = txInfo.txBody();
-        final var transfers = txBody.cryptoTransferOrThrow().transfersOrThrow().accountAmounts();
-        final var payerID = txInfo.payerID();
-
-        // Check each transfer to see if sender accounts have valid signatures
-        for (final var accountAmount : transfers) {
-            final var accountID = accountAmount.accountIDOrElse(AccountID.DEFAULT);
-            final var amount = accountAmount.amount();
-
-            // Only check sender accounts (negative amounts = sending funds)
-            // Skip the payer account as it's already validated by IngestChecker
-            if (amount < 0 && !Objects.equals(accountID, payerID)) {
-                final var account = accountStore.getAliasedAccountById(accountID);
-                if (account == null) {
-                    throw new PreCheckException(INVALID_ACCOUNT_ID);
-                }
-
-                // Reuse IngestChecker's signature verification logic
-                ingestChecker.verifyAccountSignature(txInfo, account, configuration);
-            }
-        }
     }
 }
