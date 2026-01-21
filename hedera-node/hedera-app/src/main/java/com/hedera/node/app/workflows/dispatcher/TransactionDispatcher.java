@@ -138,7 +138,7 @@ public class TransactionDispatcher {
             final var handler = getHandler(feeContext.body());
             if (shouldUseSimpleFees(feeContext)) {
                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                        .calculateTxFee(feeContext.body(), SimpleFeeContextUtil.fromFeeContext(feeContext));
+                        .calculateTxFee(feeContext.body(), com.hedera.node.app.spi.fees.SimpleFeeContextUtil.fromFeeContext(feeContext));
                 return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
             }
             return handler.calculateFees(feeContext);

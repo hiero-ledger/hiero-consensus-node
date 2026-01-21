@@ -10,11 +10,14 @@ import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.state.State;
 import org.hiero.base.exceptions.NotImplementedException;
 import org.hiero.hapi.fees.FeeResult;
+
+import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 
 public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
@@ -35,6 +38,7 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
         // return the calculator
         this.calc = executor.feeManager().getSimpleFeeCalculator();
+        System.out.println("got the simple fee calculator " + this.calc);
     }
 
     @Override
