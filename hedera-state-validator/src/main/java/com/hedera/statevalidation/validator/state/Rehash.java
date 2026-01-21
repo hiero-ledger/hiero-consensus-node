@@ -7,10 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.statevalidation.report.SlackReportGenerator;
+import com.hedera.statevalidation.util.FutureMerkleHash;
 import com.hedera.statevalidation.util.junit.DeserializedSignedStateResolver;
 import com.hedera.statevalidation.util.junit.HashInfo;
 import com.hedera.statevalidation.util.junit.HashInfoResolver;
-import com.swirlds.common.merkle.hash.FutureMerkleHash;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;

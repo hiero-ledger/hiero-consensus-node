@@ -1040,6 +1040,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public Hash getHash() {
         if (hash.get() == null) {
