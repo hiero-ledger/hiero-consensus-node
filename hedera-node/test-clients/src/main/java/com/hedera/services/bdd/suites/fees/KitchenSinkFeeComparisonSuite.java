@@ -2972,9 +2972,14 @@ public class KitchenSinkFeeComparisonSuite {
     private static SpecOperation writeFeeComparisonToCsv(
             Map<String, Long> legacyFees, Map<String, Long> simpleFees, String filename) {
         return withOpContext((spec, opLog) -> {
+            final var ratesProvider = spec.ratesProvider();
+            final boolean hasRates = ratesProvider.hasRateSet();
+            if (!hasRates) {
+                LOG.warn("No exchange rates available; USD columns will be empty in {}", filename);
+            }
             try (FileWriter writer = new FileWriter(filename)) {
                 // Write CSV header
-                writer.append("Transaction,Extras,Legacy Fee (tinybars),Simple Fee (tinybars),Difference (tinybars),% Change\n");
+                writer.append("Transaction,Extras,Legacy Fee (tinybars),Legacy Fee (USD),Simple Fee (tinybars),Simple Fee (USD),Difference (tinybars),Difference (USD),% Change\n");
 
                 // Write data rows
                 for (String txnKey : legacyFees.keySet()) {
@@ -2994,17 +2999,29 @@ public class KitchenSinkFeeComparisonSuite {
                         long diff = simpleFee - legacyFee;
                         double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
 
+                        String legacyUsd = "";
+                        String simpleUsd = "";
+                        String diffUsd = "";
+                        if (hasRates) {
+                            legacyUsd = String.format("%.5f", ratesProvider.toUsdWithActiveRates(legacyFee));
+                            simpleUsd = String.format("%.5f", ratesProvider.toUsdWithActiveRates(simpleFee));
+                            diffUsd = String.format("%.5f", ratesProvider.toUsdWithActiveRates(diff));
+                        }
+
                         // Escape commas in transaction name and emphasis
                         String escapedBaseName = baseName.replace(",", ";");
                         String escapedEmphasis = emphasis.replace(",", ";");
 
                         writer.append(String.format(
-                                "%s,%s,%d,%d,%d,%.2f\n",
+                                "%s,%s,%d,%s,%d,%s,%d,%s,%.2f\n",
                                 escapedBaseName,
                                 escapedEmphasis,
                                 legacyFee,
+                                legacyUsd,
                                 simpleFee,
+                                simpleUsd,
                                 diff,
+                                diffUsd,
                                 pctChange));
                     }
                 }
@@ -3015,11 +3032,23 @@ public class KitchenSinkFeeComparisonSuite {
                 long totalDiff = totalSimple - totalLegacy;
                 double totalPctChange = totalLegacy > 0 ? (totalDiff * 100.0 / totalLegacy) : 0;
 
+                String totalLegacyUsd = "";
+                String totalSimpleUsd = "";
+                String totalDiffUsd = "";
+                if (hasRates) {
+                    totalLegacyUsd = String.format("%.5f", ratesProvider.toUsdWithActiveRates(totalLegacy));
+                    totalSimpleUsd = String.format("%.5f", ratesProvider.toUsdWithActiveRates(totalSimple));
+                    totalDiffUsd = String.format("%.5f", ratesProvider.toUsdWithActiveRates(totalDiff));
+                }
+
                 writer.append(String.format(
-                        "TOTAL,,%d,%d,%d,%.2f\n",
+                        "TOTAL,,%d,%s,%d,%s,%d,%s,%.2f\n",
                         totalLegacy,
+                        totalLegacyUsd,
                         totalSimple,
+                        totalSimpleUsd,
                         totalDiff,
+                        totalDiffUsd,
                         totalPctChange));
 
                 LOG.info("Fee comparison results written to: {}", filename);
