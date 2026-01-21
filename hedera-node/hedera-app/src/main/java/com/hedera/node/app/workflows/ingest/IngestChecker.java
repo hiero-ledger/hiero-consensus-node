@@ -325,7 +325,7 @@ public final class IngestChecker {
         }
 
         // 6. Verify payer's signatures
-        verifyPayerSignature(txInfo, payer, configuration);
+        verifyAccountSignature(txInfo, payer, configuration);
 
         // 7. Check payer solvency
         final var numSigs = txInfo.signatureMap().sigPair().size();
@@ -526,27 +526,27 @@ public final class IngestChecker {
         }
     }
 
-    private void verifyPayerSignature(
+    public void verifyAccountSignature(
             @NonNull final TransactionInfo txInfo,
-            @NonNull final Account payer,
+            @NonNull final Account account,
             @NonNull final Configuration configuration)
             throws PreCheckException {
-        final var payerKey = payer.key();
+        final var payerKey = account.key();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var sigPairs = txInfo.signatureMap().sigPair();
 
         // Expand the signatures
         final var expandedSigs = new HashSet<ExpandedSignaturePair>();
         signatureExpander.expand(sigPairs, expandedSigs);
-        if (!isHollow(payer)) {
+        if (!isHollow(account)) {
             signatureExpander.expand(payerKey, sigPairs, expandedSigs);
         } else {
-            // If the payer is hollow, then we need to expand the signature for the payer
+            // If the account is hollow, then we need to expand the signature for the account
             final var originals = txInfo.signatureMap().sigPair().stream()
                     .filter(SignaturePair::hasEcdsaSecp256k1)
                     .filter(pair -> Bytes.wrap(EthSigsUtils.recoverAddressFromPubKey(
                                     pair.pubKeyPrefix().toByteArray()))
-                            .equals(payer.alias()))
+                            .equals(account.alias()))
                     .findFirst();
             validateTruePreCheck(originals.isPresent(), INVALID_SIGNATURE);
             signatureExpander.expand(List.of(originals.get()), expandedSigs);
@@ -556,12 +556,12 @@ public final class IngestChecker {
         final var results = signatureVerifier.verify(txInfo.signedBytes(), expandedSigs);
         final var verifier = new DefaultKeyVerifier(hederaConfig, results);
         final SignatureVerification payerKeyVerification;
-        if (!isHollow(payer)) {
+        if (!isHollow(account)) {
             payerKeyVerification = verifier.verificationFor(payerKey);
         } else {
-            payerKeyVerification = verifier.verificationFor(payer.alias());
+            payerKeyVerification = verifier.verificationFor(account.alias());
         }
-        // This can happen if the signature map was missing a signature for the payer account.
+        // This can happen if the signature map was missing a signature for the account account.
         if (payerKeyVerification.failed()) {
             throw new PreCheckException(INVALID_SIGNATURE);
         }

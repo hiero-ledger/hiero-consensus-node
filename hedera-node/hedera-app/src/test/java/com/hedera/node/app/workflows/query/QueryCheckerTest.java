@@ -96,10 +96,7 @@ class QueryCheckerTest extends AppTestBase {
     private Configuration configuration;
 
     @Mock
-    private com.hedera.node.app.signature.SignatureVerifier signatureVerifier;
-
-    @Mock
-    private com.hedera.node.app.signature.SignatureExpander signatureExpander;
+    private com.hedera.node.app.workflows.ingest.IngestChecker ingestChecker;
 
     private QueryChecker checker;
 
@@ -113,8 +110,7 @@ class QueryCheckerTest extends AppTestBase {
                 feeManager,
                 dispatcher,
                 transactionChecker,
-                signatureVerifier,
-                signatureExpander);
+                ingestChecker);
     }
 
     @AfterEach
@@ -135,8 +131,7 @@ class QueryCheckerTest extends AppTestBase {
                         feeManager,
                         dispatcher,
                         transactionChecker,
-                        signatureVerifier,
-                        signatureExpander))
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -146,8 +141,7 @@ class QueryCheckerTest extends AppTestBase {
                         feeManager,
                         dispatcher,
                         transactionChecker,
-                        signatureVerifier,
-                        signatureExpander))
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -157,8 +151,7 @@ class QueryCheckerTest extends AppTestBase {
                         feeManager,
                         dispatcher,
                         transactionChecker,
-                        signatureVerifier,
-                        signatureExpander))
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -168,8 +161,7 @@ class QueryCheckerTest extends AppTestBase {
                         feeManager,
                         dispatcher,
                         transactionChecker,
-                        signatureVerifier,
-                        signatureExpander))
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -179,8 +171,7 @@ class QueryCheckerTest extends AppTestBase {
                         null,
                         dispatcher,
                         transactionChecker,
-                        signatureVerifier,
-                        signatureExpander))
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -190,18 +181,6 @@ class QueryCheckerTest extends AppTestBase {
                         feeManager,
                         dispatcher,
                         transactionChecker,
-                        null,
-                        signatureExpander))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new QueryChecker(
-                        authorizer,
-                        cryptoTransferHandler,
-                        solvencyPreCheck,
-                        expiryValidation,
-                        feeManager,
-                        dispatcher,
-                        transactionChecker,
-                        signatureVerifier,
                         null))
                 .isInstanceOf(NullPointerException.class);
     }
@@ -225,11 +204,11 @@ class QueryCheckerTest extends AppTestBase {
         void testValidateCryptoTransferWithIllegalArguments() {
             final var txInfo = createPaymentInfo(ALICE.accountID());
 
-            assertThatThrownBy(() -> checker.validateCryptoTransfer(null, txInfo, configuration))
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(null, txInfo, configuration, ingestChecker))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, null, configuration))
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, null, configuration, ingestChecker))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, txInfo, null))
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, txInfo, null, ingestChecker))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -246,7 +225,7 @@ class QueryCheckerTest extends AppTestBase {
                     SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CRYPTO_TRANSFER, null);
 
             // when
-            assertThatCode(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+            assertThatCode(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration, ingestChecker))
                     .doesNotThrowAnyException();
         }
 
@@ -263,7 +242,8 @@ class QueryCheckerTest extends AppTestBase {
                     SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CONSENSUS_CREATE_TOPIC, null);
 
             // then
-            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+            assertThatThrownBy(
+                            () -> checker.validateCryptoTransfer(store, transactionInfo, configuration, ingestChecker))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INSUFFICIENT_TX_FEE));
         }
@@ -284,7 +264,8 @@ class QueryCheckerTest extends AppTestBase {
                     .pureChecks(any());
 
             // then
-            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+            assertThatThrownBy(
+                            () -> checker.validateCryptoTransfer(store, transactionInfo, configuration, ingestChecker))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
         }

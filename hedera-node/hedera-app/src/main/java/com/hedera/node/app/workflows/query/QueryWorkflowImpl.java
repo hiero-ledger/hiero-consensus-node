@@ -224,7 +224,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                             // 3.ii Validate CryptoTransfer (including sender signatures)
                             queryChecker.validateCryptoTransfer(
-                                    accountStore, checkerResult.txnInfoOrThrow(), configuration);
+                                    accountStore, checkerResult.txnInfoOrThrow(), configuration, ingestChecker);
 
                             // 3.iii Check permissions
                             queryChecker.checkPermissions(payerID, function);
