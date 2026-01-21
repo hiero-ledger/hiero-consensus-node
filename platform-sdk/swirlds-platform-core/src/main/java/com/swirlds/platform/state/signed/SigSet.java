@@ -205,7 +205,7 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
         }
     }
 
-    private static int calculateSignatureMsgSize(NodeId nodeId, Signature signature) {
+    private static int calculateSignatureMsgSize(@NonNull final NodeId nodeId, @NonNull Signature signature) {
         int msgSize = 0;
         msgSize += ProtoWriterTools.sizeOfTag(FIELD_NODE_ID, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
         msgSize += ProtoWriterTools.sizeOfVarInt64(nodeId.id());
@@ -230,7 +230,7 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
             final int tag;
             try {
                 tag = in.readVarInt(false);
-            } catch (EOFException e) {
+            } catch (final EOFException e) {
                 // no more data, exit loop
                 break;
             }
@@ -247,7 +247,7 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
                     final int innerTag;
                     try {
                         innerTag = in.readVarInt(false);
-                    } catch (EOFException e) {
+                    } catch (final EOFException e) {
                         break;
                     }
                     final int innerFieldNum = innerTag >> TAG_FIELD_OFFSET;
