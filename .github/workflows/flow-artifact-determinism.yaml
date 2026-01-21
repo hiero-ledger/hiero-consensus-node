@@ -18,12 +18,6 @@ on:
         type: string
         required: false
         default: "21.0.6"
-  push:
-    branches:
-      - main
-      - "release/**"
-    tags:
-      - "v*.*.*"
 
 defaults:
   run:
@@ -45,7 +39,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # v1.0.4
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-ref: "${{ inputs.ref || github.sha }}"
           checkout-fetch-depth: "1"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
