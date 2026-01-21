@@ -783,14 +783,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     final var stateProof = BlockStateProofGenerator.generateStateProof(
                             currentPendingBlock,
                             blockNumber,
-                            blockSignature,
+                            effectiveSignature,
                             signedBlock.blockTimestamp(),
                             // Pass the remaining pending blocks, but don't remove them from the queue
                             pendingBlocks.stream());
                     proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
 
                     if (log.isDebugEnabled()) {
-                        logStateProof(blockSignature, currentPendingBlock, blockNumber, stateProof);
+                        logStateProof(effectiveSignature, currentPendingBlock, blockNumber, stateProof);
                     }
                 } else {
                     // (FUTURE) Once state proofs are enabled, this placeholder proof can be removed
