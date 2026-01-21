@@ -19,7 +19,7 @@ public class FileGetContentsFeeCalculator implements QueryFeeCalculator {
     @Override
     public void accumulateNodePayment(
             @NonNull Query query,
-            @Nullable SimpleFeeContext simpleFeeContext,
+            @NonNull SimpleFeeContext simpleFeeContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         final var fileStore = simpleFeeContext.queryContext().createStore(ReadableFileStore.class);

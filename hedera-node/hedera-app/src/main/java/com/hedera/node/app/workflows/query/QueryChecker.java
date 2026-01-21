@@ -31,6 +31,7 @@ import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.FeesConfig;
@@ -222,7 +223,7 @@ public class QueryChecker {
                 dispatcher);
         if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                    .calculateTxFee(transactionInfo.txBody(), feeContext);
+                    .calculateTxFee(transactionInfo.txBody(), SimpleFeeContextUtil.fromFeeContext(feeContext));
             final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
             return fees.totalFee();
         }

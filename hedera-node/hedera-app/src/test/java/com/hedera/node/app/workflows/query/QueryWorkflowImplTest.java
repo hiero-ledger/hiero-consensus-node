@@ -69,6 +69,7 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.ingest.SubmissionManager;
 import com.hedera.node.config.ConfigProvider;
@@ -91,6 +92,8 @@ import java.time.InstantSource;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
+
+import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -1149,7 +1152,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                     .runAllChecks(any(), any(), any(), any());
 
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateQueryFee(query, queryContext)).willReturn(100000L);
+            final var result = new FeeResult(0,100000L,0);
+            given(simpleFeeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromQueryContext(queryContext))).willReturn(result);
 
             mockTopicGetInfoHandler(query, queryHeader, payment);
 

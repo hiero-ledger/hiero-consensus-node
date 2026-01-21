@@ -41,6 +41,7 @@ import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.ingest.SubmissionManager;
 import com.hedera.node.config.ConfigProvider;
@@ -237,9 +238,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             long queryFees = 0;
                             if (shouldUseSimpleFees(context)) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(context.query(), context);
+                                        .calculateQueryFee(context.query(), SimpleFeeContextUtil.fromQueryContext(context));
                                 queryFees = tinycentsToTinybars(
-                                        queryFeeTinyCents,
+                                        queryFeeTinyCents.totalTinyCents(),
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                             } else {
                                 queryFees = handler.computeFees(context).totalFee();
@@ -297,9 +298,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     long queryFees = 0;
                     if (shouldUseSimpleFees(context)) {
                         final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                .calculateQueryFee(context.query(), context);
+                                .calculateQueryFee(context.query(), SimpleFeeContextUtil.fromQueryContext(context));
                         queryFees = tinycentsToTinybars(
-                                queryFeeTinyCents,
+                                queryFeeTinyCents.totalTinyCents(),
                                 fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                     } else {
                         queryFees = handler.computeFees(context).totalFee();

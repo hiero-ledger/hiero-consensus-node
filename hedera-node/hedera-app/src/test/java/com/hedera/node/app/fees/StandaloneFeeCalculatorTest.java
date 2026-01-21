@@ -60,7 +60,7 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         final FeeResult result = calc.calculateIntrinsic(txn);
-        assertThat(result.serviceTotalTC()).isEqualTo(9999000000L);
+        assertThat(result.getServiceTotalTinyCents()).isEqualTo(9999000000L);
         //        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
@@ -143,31 +143,31 @@ public class StandaloneFeeCalculatorTest {
         json.openKeyObject("node");
         json.keyValue("baseFee", result.getNodeBaseFeeTinyCents());
         json.openKeyArray("extras");
-        for (FeeResult.FeeDetail extra : result.getNodeExtras()) {
+        for (FeeResult.FeeDetail extra : result.getNodeExtraDetails()) {
             outputExtra(json, extra);
         }
         json.closeKeyArray();
-        json.keyValue("subtotal", result.nodeTotalTC());
+        json.keyValue("subtotal", result.getNodeTotalTinyCents());
         json.closeKeyObject();
 
         json.openKeyObject("network");
         json.keyValue("multiplier", result.getNetworkMultiplier());
-        json.keyValue("subtotal", result.networkTotalTC());
+        json.keyValue("subtotal", result.getNetworkTotalTinyCents());
         json.closeKeyObject();
 
         json.openKeyObject("service");
-        json.keyValue("baseFee", result.getServiceBase());
+        json.keyValue("baseFee", result.getServiceBaseFeeTinyCents());
         json.openKeyArray("extras");
-        for (FeeResult.FeeDetail extra : result.getServiceExtras()) {
+        for (FeeResult.FeeDetail extra : result.getServiceExtraDetails()) {
             outputExtra(json, extra);
         }
         json.closeKeyArray();
-        json.keyValue("subtotal", result.serviceTotalTC());
+        json.keyValue("subtotal", result.getServiceTotalTinyCents());
         json.closeKeyObject();
 
         json.openKeyArray("notes");
         json.closeKeyArray();
-        json.keyValue("total", result.totalTC());
+        json.keyValue("total", result.totalTinyCents());
         json.closeObject();
         return json.toString();
     }
@@ -176,7 +176,7 @@ public class StandaloneFeeCalculatorTest {
         // name
         json.keyValue("name", detail.name());
         // fee_per_unit, cost per unit for this extra
-        json.keyValue("fee_per_unit", detail.per_unit());
+        json.keyValue("fee_per_unit", detail.perUnit());
         // count, how many were used
         json.keyValue("count", detail.used());
         // included, how many were included for free
@@ -184,7 +184,7 @@ public class StandaloneFeeCalculatorTest {
         // charged, how many were actually charged for
         json.keyValue("charged", detail.charged());
         // subtotal for extra
-        json.keyValue("subtotal", detail.per_unit() * detail.charged());
+        json.keyValue("subtotal", detail.perUnit() * detail.charged());
     }
 
     private StandaloneFeeCalculator setupCalculator() {
@@ -226,7 +226,7 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         final FeeResult result = calc.calculateIntrinsic(txn);
-        assertThat(result.serviceTotalTC()).isEqualTo(0L);
+        assertThat(result.getServiceTotalTinyCents()).isEqualTo(0L);
         System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
@@ -242,7 +242,7 @@ public class StandaloneFeeCalculatorTest {
         // 0.01000
         final FeeResult result = calc.calculateIntrinsic(txn);
         final var TINY_CENTS = 100_000_000L;
-        assertThat(result.totalTC()).isEqualTo(1 * TINY_CENTS); // 0.01 USD
+        assertThat(result.totalTinyCents()).isEqualTo(1 * TINY_CENTS); // 0.01 USD
         System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
@@ -264,7 +264,7 @@ public class StandaloneFeeCalculatorTest {
         // 0.01000
         final FeeResult result = calc.calculateIntrinsic(txn);
         final var TINY_CENTS = 100_000_000L;
-        assertThat(result.totalTC()).isEqualTo(200 * TINY_CENTS); // 2.00 USD
+        assertThat(result.totalTinyCents()).isEqualTo(200 * TINY_CENTS); // 2.00 USD
         System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
@@ -282,8 +282,8 @@ public class StandaloneFeeCalculatorTest {
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
         final FeeResult result = calc.calculateIntrinsic(txn);
-        assertThat(result.serviceTotalTC()).isEqualTo(0L);
-        assertThat(result.totalTC()).isEqualTo(1_000_000L); // add in the node + network fee
+        assertThat(result.getServiceTotalTinyCents()).isEqualTo(0L);
+        assertThat(result.totalTinyCents()).isEqualTo(1_000_000L); // add in the node + network fee
     }
 
     @Test
@@ -315,7 +315,7 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         final FeeResult result = calc.calculateIntrinsic(txn);
-        assertThat(result.serviceTotalTC()).isEqualTo(0L);
+        assertThat(result.getServiceTotalTinyCents()).isEqualTo(0L);
         //        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 }
