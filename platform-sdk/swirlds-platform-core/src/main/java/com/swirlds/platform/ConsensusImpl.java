@@ -394,6 +394,8 @@ public class ConsensusImpl implements Consensus {
 
     @Nullable
     private ConsensusRound calculateAndVote(final EventImpl event) {
+        event.setRosterIndex(rosterIndicesMap.getOrDefault(event.getCreatorId().id(), -1));
+
         // before we calculate the round of an event, we need to calculate its DeGen value, since it might be needed
         // to determine an event's round
         DeGen.calculateDeGen(event);
@@ -510,7 +512,7 @@ public class ConsensusImpl implements Consensus {
      * @param event the event to calculate metadata for
      */
     private void calculateMetadata(@NonNull final EventImpl event) {
-        event.setRosterIndex(rosterIndicesMap.getOrDefault(event.getCreatorId().id(), -1));
+
 
         if (notRelevantForConsensus(event) || rounds.isLastDecidedJudge(event)) {
             return;
