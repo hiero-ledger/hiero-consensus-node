@@ -48,9 +48,9 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
-import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -90,13 +90,10 @@ class QueryCheckerTest extends AppTestBase {
     private TransactionDispatcher dispatcher;
 
     @Mock
-    private TransactionChecker transactionChecker;
-
-    @Mock
     private Configuration configuration;
 
     @Mock
-    private com.hedera.node.app.workflows.ingest.IngestChecker ingestChecker;
+    private IngestChecker ingestChecker;
 
     private QueryChecker checker;
 
@@ -109,7 +106,6 @@ class QueryCheckerTest extends AppTestBase {
                 expiryValidation,
                 feeManager,
                 dispatcher,
-                transactionChecker,
                 ingestChecker);
     }
 
@@ -130,7 +126,6 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
-                        transactionChecker,
                         ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
@@ -140,7 +135,6 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
-                        transactionChecker,
                         ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
@@ -150,7 +144,6 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
-                        transactionChecker,
                         ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
@@ -160,7 +153,6 @@ class QueryCheckerTest extends AppTestBase {
                         null,
                         feeManager,
                         dispatcher,
-                        transactionChecker,
                         ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
@@ -170,7 +162,15 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         null,
                         dispatcher,
-                        transactionChecker,
+                        ingestChecker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        null,
                         ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
@@ -180,7 +180,6 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
-                        transactionChecker,
                         null))
                 .isInstanceOf(NullPointerException.class);
     }

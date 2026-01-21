@@ -223,8 +223,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
 
                             // 3.ii Validate CryptoTransfer (including sender signatures)
-                            queryChecker.validateCryptoTransfer(
-                                    accountStore, checkerResult.txnInfoOrThrow(), configuration);
+                            queryChecker.validateCryptoTransfer(accountStore, checkerResult.txnInfoOrThrow(), configuration);
 
                             // 3.iii Check permissions
                             queryChecker.checkPermissions(payerID, function);

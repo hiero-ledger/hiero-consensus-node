@@ -77,8 +77,7 @@ public class QueryChecker {
             @NonNull final SolvencyPreCheck solvencyPreCheck,
             @NonNull final ExpiryValidation expiryValidation,
             @NonNull final FeeManager feeManager,
-            final TransactionDispatcher dispatcher,
-            @NonNull final TransactionChecker transactionChecker,
+            @NonNull final TransactionDispatcher dispatcher,
             @NonNull final IngestChecker ingestChecker) {
         this.authorizer = requireNonNull(authorizer);
         this.cryptoTransferHandler = requireNonNull(cryptoTransferHandler);
