@@ -23,7 +23,6 @@ import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.SocketException;
@@ -67,7 +66,6 @@ public class ReconnectStateTeacher {
 
     private final ThreadManager threadManager;
     private final Time time;
-    private final PlatformContext platformContext;
 
     /**
      * @param platformContext        the platform context
@@ -77,6 +75,7 @@ public class ReconnectStateTeacher {
      * @param selfId                 this node's ID
      * @param otherId                the learner's ID
      * @param lastRoundReceived      the round of the state
+     * @param signedState            the state used for teaching; must be a signed VirtualMapState
      * @param statistics             reconnect metrics
      */
     public ReconnectStateTeacher(
@@ -91,7 +90,6 @@ public class ReconnectStateTeacher {
             @NonNull final SignedState signedState,
             @NonNull final ReconnectMetrics statistics) {
 
-        this.platformContext = Objects.requireNonNull(platformContext);
         this.time = Objects.requireNonNull(time);
         this.threadManager = Objects.requireNonNull(threadManager);
         this.connection = Objects.requireNonNull(connection);
@@ -112,7 +110,7 @@ public class ReconnectStateTeacher {
         }
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         // The teacher view will be closed by TeacherSynchronizer in reconnect() below
-        teacherView = ((VirtualMap) virtualMapState.getRoot()).buildTeacherView(reconnectConfig);
+        teacherView = virtualMapState.getRoot().buildTeacherView(reconnectConfig);
 
         logReconnectStart(signedState);
     }
@@ -198,11 +196,9 @@ public class ReconnectStateTeacher {
                         lastRoundReceived));
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         logger.info(
-                RECONNECT.getMarker(),
-                """
+                RECONNECT.getMarker(), """
                         The following state will be sent to the learner:
-                        {}""",
-                () -> getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
+                        {}""", () -> getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
     }
 
     private void logReconnectFinish() {
@@ -237,7 +233,6 @@ public class ReconnectStateTeacher {
                 teacherView,
                 connection::disconnect,
                 reconnectConfig);
-
         synchronizer.synchronize();
         connection.getDos().flush();
 

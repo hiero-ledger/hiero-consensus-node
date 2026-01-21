@@ -15,9 +15,7 @@ module com.swirlds.common {
     exports com.swirlds.common.io.utility;
     exports com.swirlds.common.merkle;
     exports com.swirlds.common.merkle.copy;
-    exports com.swirlds.common.merkle.crypto;
     exports com.swirlds.common.merkle.exceptions;
-    exports com.swirlds.common.merkle.hash;
     exports com.swirlds.common.merkle.impl;
     exports com.swirlds.common.merkle.impl.destroyable;
     exports com.swirlds.common.merkle.impl.internal;
@@ -31,7 +29,6 @@ module com.swirlds.common {
     exports com.swirlds.common.merkle.synchronization.utility;
     exports com.swirlds.common.merkle.synchronization.views;
     exports com.swirlds.common.merkle.utility;
-    exports com.swirlds.common.metrics.event;
     exports com.swirlds.common.notification;
     exports com.swirlds.common.platform;
     exports com.swirlds.common.stream;
@@ -62,8 +59,6 @@ module com.swirlds.common {
     opens com.swirlds.common.io.utility to
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.stream.internal to
-            com.fasterxml.jackson.databind;
-    opens com.swirlds.common.merkle.crypto to
             com.fasterxml.jackson.databind;
 
     requires transitive com.swirlds.base;

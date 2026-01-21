@@ -5,7 +5,6 @@ import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 import static com.swirlds.virtualmap.internal.Path.getLeftChildPath;
 import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TreeView;
 import com.swirlds.virtualmap.VirtualMap;
@@ -55,19 +54,6 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
         this.map = Objects.requireNonNull(map);
         this.originalState = Objects.requireNonNull(originalState);
         this.reconnectState = Objects.requireNonNull(reconnectState);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public MerkleNode getMerkleRoot(final Long node) {
-        // NOTE: It is not clear what this "node" is. Original path? New path? It seems to be both depending on the
-        // call site. Luckily, it doesn't really matter in my case.
-        if (node == null || node == ROOT_PATH) {
-            return map;
-        }
-        throw new UnsupportedOperationException("Nested virtual maps not supported " + node);
     }
 
     /**

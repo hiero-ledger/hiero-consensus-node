@@ -103,13 +103,6 @@ public final class VirtualNodeCache implements FastCopyable {
 
     private static final Logger logger = LogManager.getLogger(VirtualNodeCache.class);
 
-    public static final long CLASS_ID = 0x493743f0ace96d2cL;
-
-    private static final class ClassVersion {
-        public static final int ORIGINAL = 1;
-        public static final int NO_LEAF_HASHES = 2;
-    }
-
     /**
      * A special {@link VirtualLeafBytes} that represents a deleted leaf. At times, the {@link VirtualMap}
      * will ask the cache for a leaf either by key or path. At such times, if we determine by looking at

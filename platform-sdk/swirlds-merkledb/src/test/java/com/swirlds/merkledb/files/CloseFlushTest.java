@@ -123,11 +123,6 @@ public class CloseFlushTest {
             this.exceptionSink = sink;
         }
 
-        @Override
-        public long getClassId() {
-            return super.getClassId() + 1;
-        }
-
         @NonNull
         @Override
         public VirtualDataSource build(
