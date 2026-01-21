@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.fees;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
@@ -29,8 +30,12 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
@@ -40,8 +45,11 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.SpecOperation;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -53,6 +61,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(MATS)
 @HapiTestLifecycle
 public class TokenServiceSimpleFeesSuite {
+    private static final double TOKEN_ASSOCIATE_FEE = 0.05;
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String NFT_TOKEN = "nonFungibleToken";
     private static final String METADATA_KEY = "metadata-key";
@@ -63,7 +72,6 @@ public class TokenServiceSimpleFeesSuite {
     private static final String PAUSE_KEY = "pauseKey";
     private static final String FREEZE_KEY = "freezeKey";
     private static final String PAYER = "payer";
-    private static final String TREASURY = "treasury";
     private static final String ADMIN = "admin";
     private static final String OTHER = "other";
     private static final String HBAR_COLLECTOR = "hbarCollector";
@@ -859,5 +867,28 @@ public class TokenServiceSimpleFeesSuite {
                 1,
                 0.0001,
                 1);
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> associateOneFtTokenWithoutCustomFees() {
+        return associateBulkTokensAndValidateFees(List.of("token1"));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> associateBulkFtTokensWithoutCustomFees() {
+        return associateBulkTokensAndValidateFees(List.of("token1", "token2", "token3", "token4"));
+    }
+
+    private Stream<DynamicTest> associateBulkTokensAndValidateFees(final List<String> tokens) {
+        return hapiTest(
+                withOpContext((spec, ctxLog) -> {
+                    List<SpecOperation> ops = new ArrayList<>();
+                    tokens.forEach(token -> ops.add(tokenCreate(token)));
+                    allRunFor(spec, ops);
+                }),
+                cryptoCreate("account").balance(ONE_HUNDRED_HBARS),
+                sourcing(() ->
+                        tokenAssociate("account", tokens).payingWith("account").via("associateTxn")),
+                validateChargedUsd("associateTxn", TOKEN_ASSOCIATE_FEE * tokens.size()));
     }
 }

@@ -17,8 +17,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.IOException;
@@ -29,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
@@ -49,10 +46,6 @@ class VirtualMapSerializationTests {
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.common");
         registry.registerConstructables("org.hiero");
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(new ClassConstructorPair(
-                VirtualNodeCache.class,
-                () -> new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
     }
 
     /**
