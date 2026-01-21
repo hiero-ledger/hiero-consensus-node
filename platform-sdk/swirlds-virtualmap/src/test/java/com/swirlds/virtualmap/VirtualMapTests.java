@@ -27,7 +27,6 @@ import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
@@ -513,7 +512,7 @@ class VirtualMapTests extends VirtualTestBase {
 
         final VirtualMap completed = fcm;
         fcm = fcm.copy();
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(completed);
+        completed.getHash(); // calculate hash
 
         final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
         while (breadthItr.hasNext()) {
@@ -536,7 +535,7 @@ class VirtualMapTests extends VirtualTestBase {
         fcm = fcm.copy();
 
         try {
-            final Hash firstHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(completed);
+            final Hash firstHash = completed.getHash();
             final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
             while (breadthItr.hasNext()) {
                 assertNotNull(breadthItr.next().getHash(), "Expected a value");
@@ -551,7 +550,7 @@ class VirtualMapTests extends VirtualTestBase {
 
             final VirtualMap second = fcm;
             fcm = copyAndRelease(fcm);
-            final Hash secondHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(second);
+            final Hash secondHash = second.getHash();
             assertNotSame(firstHash, secondHash, "Wrong value");
         } finally {
             fcm.release();

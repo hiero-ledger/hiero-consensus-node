@@ -98,7 +98,6 @@ open module com.hedera.node.test.clients {
     requires com.hedera.pbj.grpc.helidon;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.base;
-    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.merkledb;

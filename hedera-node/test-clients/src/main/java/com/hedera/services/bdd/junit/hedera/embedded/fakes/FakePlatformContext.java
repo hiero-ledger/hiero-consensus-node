@@ -9,8 +9,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -81,11 +79,5 @@ public class FakePlatformContext implements PlatformContext {
     @Override
     public RecycleBin getRecycleBin() {
         throw new UnsupportedOperationException("Not used by Hedera");
-    }
-
-    @NonNull
-    @Override
-    public MerkleCryptography getMerkleCryptography() {
-        return MerkleCryptographyFactory.create(PLATFORM_CONFIG);
     }
 }
