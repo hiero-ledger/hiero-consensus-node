@@ -2,7 +2,6 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
-import static com.swirlds.common.io.utility.FileUtils.writeAndFlush;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.writeSettingsUsed;
@@ -17,6 +16,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
@@ -28,6 +28,7 @@ import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -115,7 +116,11 @@ public final class SignedStateFileWriter {
      */
     public static void writeSignatureSetFile(final @NonNull Path directory, final @NonNull SignedState signedState)
             throws IOException {
-        writeAndFlush(directory.resolve(SIGNATURE_SET_FILE_NAME), out -> writeSignatureSetToStream(out, signedState));
+        final Path sigSetFile = directory.resolve(SIGNATURE_SET_FILE_NAME);
+        try (final FileOutputStream fos = new FileOutputStream(sigSetFile.toFile());
+                final WritableStreamingData out = new WritableStreamingData(fos)) {
+            signedState.getSigSet().serialize(out);
+        }
     }
 
     /**
