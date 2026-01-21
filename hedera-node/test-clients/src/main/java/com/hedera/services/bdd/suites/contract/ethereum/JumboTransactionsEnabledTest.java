@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.ethereum;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -123,6 +124,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @HapiTest
     @DisplayName("Jumbo transaction should pass")
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> jumboTransactionShouldPass() {
         final var jumboPayload = new byte[10 * 1024];
         final var halfJumboPayload = new byte[5 * 1024];
@@ -178,6 +180,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should pass for valid sizes and expected gas used")
+        @Tag(ONLY_SUBPROCESS)
         public Stream<DynamicTest> jumboTxnWithEthereumDataLessThanAllowedKbShouldPass() {
             return positiveBoundariesTestCases.flatMap(test -> {
                 var payload = new byte[test.txnSize];
@@ -301,6 +304,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         @HapiTest
         @DisplayName("Jumbo transaction send to the wrong gRPC endpoint")
         // JUMBO_N_03, JUMBO_N_04, JUMBO_N_05, JUMBO_N_06
+        @Tag(ONLY_SUBPROCESS)
         public Stream<DynamicTest> sendToTheWrongGRPCEndpoint() {
             final var sixKbPayload = new byte[6 * 1024];
             final var moreThenSixKbPayload = new byte[6 * 1024 + 1];
@@ -348,6 +352,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should fail for above max size data with TRANSACTION_OVERSIZE")
         // JUMBO_N_01
+        @Tag(ONLY_SUBPROCESS)
         public Stream<DynamicTest> jumboTxnWithAboveMaxDataShouldFail() {
             return aboveMaxCases.flatMap(test -> {
                 var payload = new byte[test.txnSize];
@@ -405,6 +410,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should fail with corrupted payload")
         // JUMBO_N_17
+        @Tag(ONLY_SUBPROCESS)
         public Stream<DynamicTest> jumboTxnWithCorruptedPayloadShouldFail() {
             var balance = new AtomicLong(0L);
             var corruptedTypes = Stream.of(
@@ -518,6 +524,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         @DisplayName("Jumbo transaction gets bytes throttled at ingest")
         @LeakyHapiTest(overrides = {"jumboTransactions.maxBytesPerSec"})
         @Tag(MATS)
+        @Tag(ONLY_SUBPROCESS)
         public Stream<DynamicTest> jumboTransactionGetsThrottledAtIngest() {
             final var payloadSize = 127 * 1024;
             final var bytesPerSec = 130 * 1024;

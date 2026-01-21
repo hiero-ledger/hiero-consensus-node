@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -377,6 +378,7 @@ public class TransferTokenTest {
     class FailedTransferTokenTest {
         @HapiTest
         @DisplayName("'transferFrom' function without allowance")
+        @Tag(ONLY_SUBPROCESS)
         public Stream<DynamicTest> transferUsingTransferFromWithoutAllowance() {
             return hapiTest(
                     // Transfer using transferFrom function without allowance should fail
@@ -393,6 +395,7 @@ public class TransferTokenTest {
 
         @HapiTest
         @DisplayName("'transferToken' function from receiver contract")
+        @Tag(ONLY_SUBPROCESS)
         public Stream<DynamicTest> transferUsingTransferFromReceiver() {
             return hapiTest(
                     // Transfer using receiver contract transfer function should fail

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
@@ -77,6 +78,7 @@ class AtomicBatchPrecompileSCTest {
      */
     @HapiTest
     @DisplayName("Atomic FT redirect proxy approve(address,uint256)")
+    @Tag(ONLY_SUBPROCESS)
     Stream<DynamicTest> atomicFailToApproveViaProxyFungibleToken(
             @Contract(contract = "NumericContract", creationGas = 8_000_000L) final SpecContract numericContract,
             @FungibleToken(
@@ -116,6 +118,7 @@ class AtomicBatchPrecompileSCTest {
     @HapiTest
     @DisplayName("atomic use updateMetadataForNFTs to correctly update metadata for 1 NFT")
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     Stream<DynamicTest> atomicUsingUpdateMetadataForNFTsWorksForSingleNFT(
             @NonFungibleToken(
                             numPreMints = 10,
@@ -141,6 +144,7 @@ class AtomicBatchPrecompileSCTest {
      */
     @HapiTest
     @DisplayName("cannot transfer value to HTS")
+    @Tag(ONLY_SUBPROCESS)
     Stream<DynamicTest> atomicCannotTransferValueToHts(
             @Contract(contract = "InternalCall", creationGas = 1_000_000L) final SpecContract internalCall,
             @FungibleToken(name = "fungibleToken") final SpecFungibleToken fungibleToken) {
@@ -153,6 +157,7 @@ class AtomicBatchPrecompileSCTest {
 
     @HapiTest
     @DisplayName("atomic get token type")
+    @Tag(ONLY_SUBPROCESS)
     Stream<DynamicTest> atomicCannotUpdateMissingToken(
             @Contract(contract = "TokenAndTypeCheck", creationGas = 4_000_000L, variant = VARIANT_16C)
                     final SpecContract tokenTypeCheckContract,
@@ -169,6 +174,7 @@ class AtomicBatchPrecompileSCTest {
      */
     @HapiTest
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> atomicCallScheduleServiceWithUnknownSelector(
             @Account(tinybarBalance = ONE_HUNDRED_HBARS) final SpecAccount account,
             @Account() final SpecAccount receiver,

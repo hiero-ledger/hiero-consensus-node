@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.validation;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -46,6 +47,7 @@ public class EvmValidationTest {
 
         @HapiTest
         @DisplayName("succeeds on non-existent contract")
+        @Tag(ONLY_SUBPROCESS)
         public Stream<DynamicTest> canCallBalanceOperationNonExtantContract() {
             final var INVALID_ADDRESS = "0x0000000000000000000000000000000000123456";
             return hapiTest(balanceChecker46Version
@@ -137,6 +139,7 @@ public class EvmValidationTest {
         @HapiTest
         @DisplayName("should fail to deploy")
         @Tag(MATS)
+        @Tag(ONLY_SUBPROCESS)
         public Stream<DynamicTest> canCallBalanceOperationNonExtantContract() {
             return hapiTest(
                     uploadInitCode(emptyContract),

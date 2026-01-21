@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.keyTupleFor;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -54,6 +55,7 @@ public class GetTokenKeyPrecompileTest {
     @HapiTest
     @DisplayName("can get a token's supply key via static call")
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> canGetSupplyKeyViaStaticCall() {
         return hapiTest(
                 nonFungibleToken.doWith(token -> getTokenKeyContract
@@ -73,6 +75,7 @@ public class GetTokenKeyPrecompileTest {
     @HapiTest
     @DisplayName("can't get a token's metadata key via static call for HTS 0x167 but can for 0x16c")
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> canGetMetadataKeyViaStaticCall() {
         return hapiTest(
                 nonFungibleToken.doWith(token -> getTokenKeyContract
@@ -88,6 +91,7 @@ public class GetTokenKeyPrecompileTest {
 
     @HapiTest
     @DisplayName("cannot get a nonsense key type")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> cannotGetNonsenseKeyType() {
         return hapiTest(
                 getTokenKeyContract
@@ -100,6 +104,7 @@ public class GetTokenKeyPrecompileTest {
 
     @HapiTest
     @DisplayName("cannot get a key from a missing token")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> cannotGetMissingTokenKey() {
         return hapiTest(
                 getTokenKeyContract
@@ -112,6 +117,7 @@ public class GetTokenKeyPrecompileTest {
 
     @HapiTest
     @DisplayName("cannot get a key not set on the token")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> cannotGetUnsetTokenKey() {
         return hapiTest(
                 getTokenKeyContract

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.opsduration;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.*;
@@ -63,6 +64,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(1)
     @DisplayName("ops duration throttle can overfill but does not exceed a reasonable threshold")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> overfillOpsDuration() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -91,6 +93,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(2)
     @DisplayName("call function to not exceed ops duration throttle")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> doNotExceedOpsDuration() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -112,6 +115,7 @@ public class OpsDurationThrottleTest {
     @Order(3)
     @DisplayName("call system contract to exceed ops duration throttle")
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> doExceedDurationThrottleWithSystemContract() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -162,6 +166,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(4)
     @DisplayName("call system contract that won't exceed ops duration throttle")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> doNotExceedDurationThrottleWithSystemContract() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -209,6 +214,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(5)
     @DisplayName("call create opcode to exceed ops duration throttle")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> doExceedThrottleWithOpCode() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -237,6 +243,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(6)
     @DisplayName("call create opcode fewer times to not exceed ops duration throttle")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> doNotExceedThrottleWithOpCode() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -262,6 +269,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(7)
     @DisplayName("call create opcode with expected revert to exceed ops duration throttle")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> doExceedThrottleWithOpCodeReverts() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -290,6 +298,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(8)
     @DisplayName("call create opcode fewer times to not exceed ops duration throttle")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> doNotExceedThrottleWithOpCodeReverts() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -316,6 +325,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(9)
     @DisplayName("call create opcode with expected halt to exceed ops duration throttle")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> doExceedThrottleWithOpCodeHalts() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -344,6 +354,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(10)
     @DisplayName("call create opcode fewer times to not exceed ops duration throttle")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> doNotExceedThrottleWithOpCodeHalts() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -400,6 +411,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(11)
     @DisplayName("account creation consumes ops duration")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> accountCreationConsumesOpsDuration() {
         final var payer = "payer";
         return hapiTest(

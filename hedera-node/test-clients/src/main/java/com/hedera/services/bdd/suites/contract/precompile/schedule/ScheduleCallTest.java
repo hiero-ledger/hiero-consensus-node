@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -77,6 +78,7 @@ public class ScheduleCallTest {
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) success")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> scheduledCallTest() {
         // contract is a default sender/payer for scheduleCall
         return hapiTest(UtilVerbs.withOpContext(scheduledCallTest(
@@ -88,6 +90,7 @@ public class ScheduleCallTest {
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) fail by 0 expiry")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> scheduledCall0ExpiryTest() {
         // contract is a default sender/payer for scheduleCall
         return hapiTest(scheduledCall(
@@ -103,6 +106,7 @@ public class ScheduleCallTest {
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) fail by huge expiry")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> scheduledCallHugeExpiryTest() {
         // contract is a default sender/payer for scheduleCall
         return hapiTest(scheduledCall(
@@ -118,6 +122,7 @@ public class ScheduleCallTest {
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) fail by huge gasLimit")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> scheduledCallHugeGasLimitTest() {
         final BigInteger expirySecond =
                 BigInteger.valueOf((System.currentTimeMillis() / 1000) + EXPIRY_SHIFT.getAndIncrement());
@@ -141,6 +146,7 @@ public class ScheduleCallTest {
             fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCallWithPayer(address,address,uint256,uint256,uint64,bytes) success")
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> scheduleCallWithPayerTest() {
         return hapiTest(UtilVerbs.withOpContext(scheduledCallWithSignTest(
                 false,
@@ -161,6 +167,7 @@ public class ScheduleCallTest {
             fees = "scheduled-contract-fees.json")
     @DisplayName("call executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes) success")
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> executeCallOnPayerSignatureTest() {
         return hapiTest(UtilVerbs.withOpContext(scheduledCallWithSignTest(
                 true,

@@ -2,7 +2,9 @@
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -17,6 +19,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import java.math.BigInteger;
 import java.time.Duration;
@@ -30,6 +33,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@TargetEmbeddedMode(CONCURRENT)
 public class ContractStateSuite {
     private static final String CONTRACT = "StateContract";
     private static final SplittableRandom RANDOM = new SplittableRandom(1_234_567L);
@@ -37,6 +41,7 @@ public class ContractStateSuite {
     @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
     @DisplayName("inserting new slots after a net-zero usage change doesn't cause IterableStorageManager ERROR logs")
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> netZeroSlotUsageUpdateLogsNoErrors() {
         final var contract = "ThreeSlots";
         return hapiTest(

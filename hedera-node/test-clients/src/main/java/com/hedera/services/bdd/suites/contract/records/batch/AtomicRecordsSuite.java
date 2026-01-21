@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.records.batch;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -79,6 +80,7 @@ class AtomicRecordsSuite {
     }
 
     @HapiTest
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> bigCall() {
         final var contract = "BigBig";
         final var txName = "BigCall";
@@ -99,6 +101,7 @@ class AtomicRecordsSuite {
 
     @HapiTest
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> txRecordsContainValidTransfers() {
         final var contract = "ParentChildTransfer";
 
@@ -144,6 +147,7 @@ class AtomicRecordsSuite {
 
     @SuppressWarnings("java:S5960")
     @HapiTest
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> blck003ReturnsTimestampOfTheBlock() {
         final var contract = "EmitBlockTimestamp";
         final var firstCall = "firstCall";
@@ -217,6 +221,7 @@ class AtomicRecordsSuite {
     }
 
     @HapiTest
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> blck001And002And003And004ReturnsCorrectBlockProperties() {
         final var contract = "EmitBlockTimestamp";
         final var firstBlock = "firstBlock";
@@ -307,6 +312,7 @@ class AtomicRecordsSuite {
     @DisplayName("Block Hash Returns The Hash Of The Latest 256 Blocks")
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> blockHashReturnsTheHashOfTheLatest256Blocks() {
         final var contract = "EmitBlockTimestamp";
         return hapiTest(

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecKey.Type.SECP_256K1;
@@ -74,6 +75,7 @@ public class UpdateTokenPrecompileTest {
 
     @HapiTest
     @DisplayName("cannot update a missing token")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> cannotUpdateMissingToken() {
         return hapiTest(updateTokenContract
                 .call("tokenUpdateKeys", ZERO_ADDRESS, ed25519Key, secp256k1Key, updateTokenContract)
@@ -82,6 +84,7 @@ public class UpdateTokenPrecompileTest {
 
     @HapiTest
     @DisplayName("cannot update an immutable token")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> cannotUpdateImmutableToken(@Account final SpecAccount newTreasury) {
         return hapiTest(
                 newTreasury.authorizeContract(updateTokenContract),
@@ -95,6 +98,7 @@ public class UpdateTokenPrecompileTest {
 
     @HapiTest
     @DisplayName("can only update a mutable token treasury if authorized")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> canUpdateMutableTokenTreasuryOnceAuthorized(
             @Account final SpecAccount newTreasury,
             @NonFungibleToken(

@@ -368,6 +368,7 @@ val embeddedBaseTags =
     mapOf(
         "hapiEmbeddedMisc" to "EMBEDDED&!(SIMPLE_FEES)",
         "hapiEmbeddedSimpleFees" to "EMBEDDED&SIMPLE_FEES",
+        "hapiEmbeddedSmartContract" to "SMART_CONTRACT",
     )
 
 val prEmbeddedCheckTags =
@@ -406,7 +407,8 @@ tasks.register<Test>("testEmbedded") {
         includeTags(
             if (ciTagExpression.isBlank())
                 "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
+            else
+                "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|REPEATABLE|ONLY_SUBPROCESS|ISS)"
         )
     }
 
