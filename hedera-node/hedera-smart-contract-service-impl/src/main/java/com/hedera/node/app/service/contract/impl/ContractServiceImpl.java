@@ -20,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
+import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
 import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
@@ -103,6 +104,7 @@ public class ContractServiceImpl implements ContractService {
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
         return Set.of(
                 new HookStoreHandler.FeeCalculator(),
+                new HookDispatchHandler.FeeCalculator(),
                 new ContractCreateFeeCalculator(),
                 new ContractCallFeeCalculator(),
                 new ContractDeleteFeeCalculator(),
