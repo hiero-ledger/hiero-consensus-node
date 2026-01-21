@@ -44,14 +44,14 @@ public class BlockNodeSuite {
             networkSize = 1,
             blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
-                    @SubProcessNodeConfig(
-                            nodeId = 0,
-                            blockNodeIds = {0},
-                            blockNodePriorities = {0},
-                            applicationPropertiesOverrides = {
-                                    "blockStream.streamMode", "BOTH",
-                                    "blockStream.writerMode", "FILE_AND_GRPC"
-                            })
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingHappyPath() {
@@ -62,20 +62,20 @@ public class BlockNodeSuite {
     @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {
-                    @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                    @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                    @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                    @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
             },
             subProcessNodeConfigs = {
-                    @SubProcessNodeConfig(
-                            nodeId = 0,
-                            blockNodeIds = {0, 1, 2, 3},
-                            blockNodePriorities = {0, 1, 2, 3},
-                            applicationPropertiesOverrides = {
-                                    "blockStream.streamMode", "BOTH",
-                                    "blockStream.writerMode", "FILE_AND_GRPC"
-                            })
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1, 2, 3},
+                        blockNodePriorities = {0, 1, 2, 3},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
             })
     @Order(2)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
@@ -177,26 +177,26 @@ public class BlockNodeSuite {
     @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {
-                    @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                    @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR)
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR)
             },
             subProcessNodeConfigs = {
-                    @SubProcessNodeConfig(
-                            nodeId = 0,
-                            blockNodeIds = {0, 1},
-                            blockNodePriorities = {0, 1},
-                            applicationPropertiesOverrides = {
-                                    "blockStream.buffer.maxBlocks",
-                                    "30",
-                                    "blockStream.blockPeriod",
-                                    BLOCK_PERIOD_SECONDS + "s",
-                                    "blockStream.streamMode",
-                                    "BLOCKS",
-                                    "blockStream.writerMode",
-                                    "FILE_AND_GRPC",
-                                    "blockNode.forcedSwitchRescheduleDelay",
-                                    "30s"
-                            })
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1},
+                        blockNodePriorities = {0, 1},
+                        applicationPropertiesOverrides = {
+                            "blockStream.buffer.maxBlocks",
+                            "30",
+                            "blockStream.blockPeriod",
+                            BLOCK_PERIOD_SECONDS + "s",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
+                            "blockNode.forcedSwitchRescheduleDelay",
+                            "30s"
+                        })
             })
     @Order(3)
     final Stream<DynamicTest> testProactiveBlockBufferAction() {
@@ -243,18 +243,18 @@ public class BlockNodeSuite {
             networkSize = 1,
             blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
             subProcessNodeConfigs = {
-                    @SubProcessNodeConfig(
-                            nodeId = 0,
-                            blockNodeIds = {0},
-                            blockNodePriorities = {0},
-                            applicationPropertiesOverrides = {
-                                    "blockStream.streamMode", "BLOCKS",
-                                    "blockStream.writerMode", "FILE_AND_GRPC",
-                                    "blockStream.buffer.maxBlocks", "60",
-                                    "blockStream.buffer.isBufferPersistenceEnabled", "true",
-                                    "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
-                                    "blockNode.streamResetPeriod", "20s",
-                            })
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.buffer.maxBlocks", "60",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "true",
+                            "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
+                            "blockNode.streamResetPeriod", "20s",
+                        })
             })
     @Order(4)
     final Stream<DynamicTest> testBlockBufferDurability() {
@@ -316,20 +316,20 @@ public class BlockNodeSuite {
     @HapiTest
     @HapiBlockNode(
             blockNodeConfigs = {
-                    @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
-                    @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
-                    @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
-                    @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL),
             },
             subProcessNodeConfigs = {
-                    @SubProcessNodeConfig(
-                            nodeId = 0,
-                            blockNodeIds = {0, 1, 2, 3},
-                            blockNodePriorities = {0, 0, 0, 0},
-                            applicationPropertiesOverrides = {
-                                    "blockStream.streamMode", "BOTH",
-                                    "blockStream.writerMode", "FILE_AND_GRPC"
-                            })
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1, 2, 3},
+                        blockNodePriorities = {0, 0, 0, 0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
             })
     @Order(5)
     final Stream<DynamicTest> allP0NodesStreamingHappyPath() {
