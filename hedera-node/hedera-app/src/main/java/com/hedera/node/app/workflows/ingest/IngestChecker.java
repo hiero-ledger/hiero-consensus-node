@@ -76,7 +76,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -86,7 +85,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -400,18 +398,20 @@ public final class IngestChecker {
             if (!hooksConfig.hooksEnabled()) {
                 switch (function) {
                     case HOOK_STORE -> throw new PreCheckException(HOOKS_NOT_ENABLED);
-                    case CRYPTO_CREATE -> validateTruePreCheck(
-                            txInfo.txBody()
-                                    .cryptoCreateAccountOrThrow()
-                                    .hookCreationDetails()
-                                    .isEmpty(),
-                            HOOKS_NOT_ENABLED);
-                    case CONTRACT_CREATE -> validateTruePreCheck(
-                            txInfo.txBody()
-                                    .contractCreateInstanceOrThrow()
-                                    .hookCreationDetails()
-                                    .isEmpty(),
-                            HOOKS_NOT_ENABLED);
+                    case CRYPTO_CREATE ->
+                        validateTruePreCheck(
+                                txInfo.txBody()
+                                        .cryptoCreateAccountOrThrow()
+                                        .hookCreationDetails()
+                                        .isEmpty(),
+                                HOOKS_NOT_ENABLED);
+                    case CONTRACT_CREATE ->
+                        validateTruePreCheck(
+                                txInfo.txBody()
+                                        .contractCreateInstanceOrThrow()
+                                        .hookCreationDetails()
+                                        .isEmpty(),
+                                HOOKS_NOT_ENABLED);
                     case CRYPTO_UPDATE -> {
                         final var op = txInfo.txBody().cryptoUpdateAccountOrThrow();
                         validateTruePreCheck(
@@ -449,24 +449,24 @@ public final class IngestChecker {
                             } else if (scheduledBody.hasCryptoUpdateAccount()) {
                                 validateTruePreCheck(
                                         scheduledBody
-                                                .cryptoUpdateAccountOrThrow()
-                                                .hookIdsToDelete()
-                                                .isEmpty()
+                                                        .cryptoUpdateAccountOrThrow()
+                                                        .hookIdsToDelete()
+                                                        .isEmpty()
                                                 && scheduledBody
-                                                .cryptoUpdateAccountOrThrow()
-                                                .hookCreationDetails()
-                                                .isEmpty(),
+                                                        .cryptoUpdateAccountOrThrow()
+                                                        .hookCreationDetails()
+                                                        .isEmpty(),
                                         HOOKS_NOT_ENABLED);
                             } else if (scheduledBody.hasContractUpdateInstance()) {
                                 validateTruePreCheck(
                                         scheduledBody
-                                                .contractUpdateInstanceOrThrow()
-                                                .hookIdsToDelete()
-                                                .isEmpty()
+                                                        .contractUpdateInstanceOrThrow()
+                                                        .hookIdsToDelete()
+                                                        .isEmpty()
                                                 && scheduledBody
-                                                .contractUpdateInstanceOrThrow()
-                                                .hookCreationDetails()
-                                                .isEmpty(),
+                                                        .contractUpdateInstanceOrThrow()
+                                                        .hookCreationDetails()
+                                                        .isEmpty(),
                                         HOOKS_NOT_ENABLED);
                             } else if (scheduledBody.hasCryptoTransfer()) {
                                 validateNoHooks(scheduledBody.cryptoTransferOrThrow());
