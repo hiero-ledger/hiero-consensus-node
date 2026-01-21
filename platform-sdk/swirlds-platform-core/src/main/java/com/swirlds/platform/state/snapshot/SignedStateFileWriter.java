@@ -18,7 +18,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
@@ -35,6 +34,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -63,12 +63,9 @@ public final class SignedStateFileWriter {
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
         final String platformInfo = getInfoString(state, stateConfig.debugHashDepth());
 
-        logger.info(
-                STATE_TO_DISK.getMarker(),
-                """
+        logger.info(STATE_TO_DISK.getMarker(), """
                         Information for state written to disk:
-                        {}""",
-                platformInfo);
+                        {}""", platformInfo);
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
 
@@ -104,7 +101,7 @@ public final class SignedStateFileWriter {
      * @param out         the stream to write to
      * @param signedState the signed state to write
      */
-    private static void writeSignatureSetToStream(final MerkleDataOutputStream out, final SignedState signedState)
+    private static void writeSignatureSetToStream(final SerializableDataOutputStream out, final SignedState signedState)
             throws IOException {
         out.writeInt(INIT_SIG_SET_FILE_VERSION);
         out.writeProtocolVersion();
