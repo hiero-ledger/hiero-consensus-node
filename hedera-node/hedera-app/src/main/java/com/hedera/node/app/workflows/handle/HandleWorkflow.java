@@ -35,6 +35,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -151,6 +152,7 @@ public class HandleWorkflow {
     private final HintsService hintsService;
     private final HistoryService historyService;
     private final ConfigProvider configProvider;
+    private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final ImmediateStateChangeListener immediateStateChangeListener;
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
@@ -203,6 +205,7 @@ public class HandleWorkflow {
             @NonNull final StakePeriodManager stakePeriodManager,
             @NonNull final List<StateChanges.Builder> migrationStateChanges,
             @NonNull final ParentTxnFactory parentTxnFactory,
+            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final ScheduleService scheduleService,
             @NonNull final HintsService hintsService,
@@ -234,6 +237,7 @@ public class HandleWorkflow {
         this.migrationStateChanges = new ArrayList<>(migrationStateChanges);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
         this.configProvider = requireNonNull(configProvider);
+        this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.scheduleService = requireNonNull(scheduleService);
         this.congestionMetrics = requireNonNull(congestionMetrics);
@@ -292,7 +296,7 @@ public class HandleWorkflow {
         if (isGenesis) {
             final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
             logger.info("Doing genesis setup before {}", genesisEventTime);
-            systemTransactions.doGenesisSetup(genesisEventTime, state, this::doStreamingKVChanges);
+            systemTransactions.doGenesisSetup(genesisEventTime, state, this::doStreamingAllChanges);
             transactionsDispatched = true;
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();
@@ -562,7 +566,7 @@ public class HandleWorkflow {
             // just took effect; it would be nice to unify the FAB and stake metadata in the future.
             final var writableTokenStates = state.getWritableStates(TokenService.NAME);
             final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
-            doStreamingKVChanges(
+            doStreamingOnlyKvChanges(
                     writableTokenStates,
                     writableEntityIdStates,
                     () -> stakeInfoHelper.adjustPostUpgradeStakes(
@@ -740,7 +744,7 @@ public class HandleWorkflow {
                     }
                 }
                 executionEnd = executableTxn.nbf();
-                doStreamingKVChanges(writableStates, entityIdWritableStates, iter::remove);
+                doStreamingOnlyKvChanges(writableStates, entityIdWritableStates, iter::remove);
                 lastTime = streamMode == RECORDS
                         ? blockRecordManager.lastUsedConsensusTime()
                         : blockStreamManager.lastUsedConsensusTime();
@@ -750,7 +754,7 @@ public class HandleWorkflow {
             // The purgeUntilNext() iterator extension purges any schedules with wait_until_expiry=false
             // that expire after the last schedule returned from next(), until either the next executable
             // schedule or the iterator boundary is reached
-            doStreamingKVChanges(writableStates, entityIdWritableStates, iter::purgeUntilNext);
+            doStreamingOnlyKvChanges(writableStates, entityIdWritableStates, iter::purgeUntilNext);
             // If the iterator is not exhausted, we can only mark the second _before_ the last-executed NBF time
             // as complete; if it is exhausted, we mark the rightmost second of the interval as complete
             if (iter.hasNext()) {
@@ -884,19 +888,52 @@ public class HandleWorkflow {
     }
 
     /**
+     * Commits an action with side effects while capturing all state changes and writing them to the
+     * block stream.
+     * @param writableStates the writable states to commit the action to
+     * @param entityIdWritableStates if not null, the writable states for the entity ID service
+     * @param action the action to commit
+     */
+    private void doStreamingAllChanges(
+            @NonNull final WritableStates writableStates,
+            @Nullable final WritableStates entityIdWritableStates,
+            @NonNull final Runnable action) {
+        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, true);
+    }
+
+    /**
+     * Commits an action with side effects while capturing only its key/value state changes and writing them to the
+     * block stream.
+     * @param writableStates the writable states to commit the action to
+     * @param entityIdWritableStates if not null, the writable states for the entity ID service
+     * @param action the action to commit
+     */
+    private void doStreamingOnlyKvChanges(
+            @NonNull final WritableStates writableStates,
+            @Nullable final WritableStates entityIdWritableStates,
+            @NonNull final Runnable action) {
+        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, false);
+    }
+
+    /**
      * Commits an action with side effects while capturing its key/value state changes and writing them to the
      * block stream.
      *
      * @param writableStates the writable states to commit the action to
      * @param entityIdWritableStates if not null, the writable states for the entity ID service
      * @param action the action to commit
+     * @param includeSingletons whether to include singleton changes
      */
-    private void doStreamingKVChanges(
+    private void doStreamingChangesInternal(
             @NonNull final WritableStates writableStates,
             @Nullable final WritableStates entityIdWritableStates,
-            @NonNull final Runnable action) {
+            @NonNull final Runnable action,
+            final boolean includeSingletons) {
         if (streamMode != RECORDS) {
             immediateStateChangeListener.resetKvStateChanges(null);
+            if (includeSingletons) {
+                boundaryStateChangeListener.reset();
+            }
         }
         action.run();
         if (writableStates instanceof CommittableWritableStates committableWritableStates) {
@@ -906,12 +943,19 @@ public class HandleWorkflow {
             ((CommittableWritableStates) entityIdWritableStates).commit();
         }
         if (streamMode != RECORDS) {
-            final var changes = immediateStateChangeListener.getKvStateChanges();
-            logger.info("Changes: {}", changes);
-            if (!changes.isEmpty()) {
+            final var kvStateChanges = immediateStateChangeListener.getKvStateChanges();
+            if (!kvStateChanges.isEmpty()) {
                 blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(now, new ArrayList<>(changes)))
+                        .stateChanges(new StateChanges(now, new ArrayList<>(kvStateChanges)))
                         .build());
+            }
+            if (includeSingletons) {
+                final var singletonChanges = boundaryStateChangeListener.allStateChanges();
+                if (!singletonChanges.isEmpty()) {
+                    blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
+                            .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
+                            .build());
+                }
             }
         }
     }
@@ -1041,13 +1085,13 @@ public class HandleWorkflow {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
                 final var workTime =
                         blockHashSigner.isReady() ? blockStreamManager.lastUsedConsensusTime() : roundTimestamp;
-                doStreamingKVChanges(
+                doStreamingOnlyKvChanges(
                         crsWritableStates,
                         null,
                         () -> hintsService.executeCrsWork(
                                 new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
-                doStreamingKVChanges(
+                doStreamingOnlyKvChanges(
                         hintsWritableStates,
                         null,
                         () -> hintsService.reconcile(
@@ -1077,7 +1121,7 @@ public class HandleWorkflow {
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
                             .orElse(null);
-                    doStreamingKVChanges(
+                    doStreamingOnlyKvChanges(
                             historyWritableStates,
                             null,
                             () -> historyService.reconcile(

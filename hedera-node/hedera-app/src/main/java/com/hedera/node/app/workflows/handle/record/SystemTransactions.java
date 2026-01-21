@@ -96,10 +96,10 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -120,8 +120,6 @@ import java.util.function.Function;
 import java.util.stream.LongStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -232,7 +230,10 @@ public class SystemTransactions {
      * @param state the state to set up
      * @param kvStateChangeStreaming the callback to stream KV state changes
      */
-    public void doGenesisSetup(@NonNull final Instant now, @NonNull final State state, @NonNull final KvStateChangeStreaming kvStateChangeStreaming) {
+    public void doGenesisSetup(
+            @NonNull final Instant now,
+            @NonNull final State state,
+            @NonNull final KvStateChangeStreaming kvStateChangeStreaming) {
         requireNonNull(now);
         requireNonNull(state);
         // Ensure all singletons exist (will be externalized in state changes at end of genesis block if appropriate)
@@ -242,7 +243,8 @@ public class SystemTransactions {
             final var service = r.service();
             // Maybe EmptyWritableStates if the service's schemas register no state definitions at all
             final var writableStates = state.getWritableStates(service.getServiceName());
-            kvStateChangeStreaming.doStreamingKVChanges(writableStates, null, () -> service.doGenesisSetup(writableStates, config));
+            kvStateChangeStreaming.doStreamingKVChanges(
+                    writableStates, null, () -> service.doGenesisSetup(writableStates, config));
         }
         log.info("==== END ====");
 

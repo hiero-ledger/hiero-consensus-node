@@ -662,6 +662,7 @@ public final class Hedera
                 if (initState != null) {
                     // Disabling start up mode, so since now singletons will be commited only on block close
                     if (initState instanceof VirtualMapState virtualMapState) {
+                        logger.info("DISABLING STARTUP MODE!!");
                         virtualMapState.disableStartupMode();
                     }
                 }
