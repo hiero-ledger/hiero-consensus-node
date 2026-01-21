@@ -90,8 +90,7 @@ public class RepeatableIntegrationTests {
                         .logged(),
                 handleAnyRepeatableQueryPayment(),
                 getAccountBalance(SENDER).hasTinyBars(SENDER_BALANCE),
-                sourcing(() ->getAccountBalance("3").hasTinyBars(initialNodeBalance.get()))
-        );
+                sourcing(() -> getAccountBalance("3").hasTinyBars(initialNodeBalance.get())));
     }
 
     @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})

@@ -129,13 +129,7 @@ class QueryCheckerTest extends AppTestBase {
                         ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                        authorizer,
-                        null,
-                        solvencyPreCheck,
-                        expiryValidation,
-                        feeManager,
-                        dispatcher,
-                        ingestChecker))
+                        authorizer, null, solvencyPreCheck, expiryValidation, feeManager, dispatcher, ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -244,8 +238,7 @@ class QueryCheckerTest extends AppTestBase {
                     SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CONSENSUS_CREATE_TOPIC, null);
 
             // then
-            assertThatThrownBy(
-                            () -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INSUFFICIENT_TX_FEE));
         }
@@ -266,8 +259,7 @@ class QueryCheckerTest extends AppTestBase {
                     .pureChecks(any());
 
             // then
-            assertThatThrownBy(
-                            () -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
         }
