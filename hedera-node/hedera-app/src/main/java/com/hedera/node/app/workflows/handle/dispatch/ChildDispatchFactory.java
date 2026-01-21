@@ -355,7 +355,7 @@ public class ChildDispatchFactory {
             @NonNull final ReadableStoreFactory readableStoreFactory,
             @NonNull final NodeInfo creatorInfo) {
         try {
-            final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher, config);
+            final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
                     readableStoreFactory,

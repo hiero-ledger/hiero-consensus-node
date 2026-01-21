@@ -50,7 +50,6 @@ import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
-import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -99,13 +98,7 @@ class QueryCheckerTest extends AppTestBase {
     @BeforeEach
     void setup() {
         checker = new QueryChecker(
-                authorizer,
-                cryptoTransferHandler,
-                solvencyPreCheck,
-                expiryValidation,
-                feeManager,
-                dispatcher,
-                configProvider);
+                authorizer, cryptoTransferHandler, solvencyPreCheck, expiryValidation, feeManager, dispatcher);
     }
 
     @AfterEach
@@ -119,43 +112,19 @@ class QueryCheckerTest extends AppTestBase {
     @Test
     void testConstructorWithIllegalArguments() {
         assertThatThrownBy(() -> new QueryChecker(
-                        null,
-                        cryptoTransferHandler,
-                        solvencyPreCheck,
-                        expiryValidation,
-                        feeManager,
-                        dispatcher,
-                        configProvider))
+                        null, cryptoTransferHandler, solvencyPreCheck, expiryValidation, feeManager, dispatcher))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() ->
+                        new QueryChecker(authorizer, null, solvencyPreCheck, expiryValidation, feeManager, dispatcher))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                        authorizer, null, solvencyPreCheck, expiryValidation, feeManager, dispatcher, configProvider))
+                        authorizer, cryptoTransferHandler, null, expiryValidation, feeManager, dispatcher))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                        authorizer,
-                        cryptoTransferHandler,
-                        null,
-                        expiryValidation,
-                        feeManager,
-                        dispatcher,
-                        configProvider))
+                        authorizer, cryptoTransferHandler, solvencyPreCheck, null, feeManager, dispatcher))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                        authorizer,
-                        cryptoTransferHandler,
-                        solvencyPreCheck,
-                        null,
-                        feeManager,
-                        dispatcher,
-                        configProvider))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new QueryChecker(
-                        authorizer,
-                        cryptoTransferHandler,
-                        solvencyPreCheck,
-                        expiryValidation,
-                        null,
-                        dispatcher,
-                        configProvider))
+                        authorizer, cryptoTransferHandler, solvencyPreCheck, expiryValidation, null, dispatcher))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -168,7 +137,6 @@ class QueryCheckerTest extends AppTestBase {
     @Test
     void testValidateCryptoTransferSucceeds() {
         // given
-        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(configuration, 1));
         final var txBody = TransactionBody.newBuilder()
                 .transactionID(
                         TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
@@ -201,7 +169,6 @@ class QueryCheckerTest extends AppTestBase {
     @Test
     void testValidateCryptoTransferWithFailingValidation() throws PreCheckException {
         // given
-        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(configuration, 1));
         final var txBody = TransactionBody.newBuilder()
                 .transactionID(
                         TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())

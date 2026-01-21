@@ -164,13 +164,6 @@ public interface FacilityInitModule {
     @Provides
     @ElementsIntoSet
     @Singleton
-    static Set<ServiceFeeCalculator> provideContractServiceFeeCalculators(ContractServiceImpl contractService) {
-        return contractService.serviceFeeCalculators();
-    }
-
-    @Provides
-    @ElementsIntoSet
-    @Singleton
     static Set<ServiceFeeCalculator> provideAddressBookFeeCalculators(AddressBookServiceImpl addressBookService) {
         return addressBookService.serviceFeeCalculators();
     }

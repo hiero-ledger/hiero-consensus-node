@@ -18,7 +18,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
-import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -50,7 +49,6 @@ public class QueryChecker {
     private final ExpiryValidation expiryValidation;
     private final FeeManager feeManager;
     private final TransactionDispatcher dispatcher;
-    private final ConfigProviderImpl configProvider;
 
     /**
      * Constructor of {@code QueryChecker}
@@ -71,15 +69,13 @@ public class QueryChecker {
             @NonNull final SolvencyPreCheck solvencyPreCheck,
             @NonNull final ExpiryValidation expiryValidation,
             @NonNull final FeeManager feeManager,
-            final TransactionDispatcher dispatcher,
-            @NonNull final ConfigProviderImpl configProvider) {
+            final TransactionDispatcher dispatcher) {
         this.authorizer = requireNonNull(authorizer);
         this.cryptoTransferHandler = requireNonNull(cryptoTransferHandler);
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck);
         this.expiryValidation = requireNonNull(expiryValidation);
         this.feeManager = requireNonNull(feeManager);
         this.dispatcher = requireNonNull(dispatcher);
-        this.configProvider = requireNonNull(configProvider);
     }
 
     /**
@@ -95,7 +91,7 @@ public class QueryChecker {
             throw new PreCheckException(INSUFFICIENT_TX_FEE);
         }
         final var txBody = transactionInfo.txBody();
-        final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher, configProvider.getConfiguration());
+        final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
         cryptoTransferHandler.pureChecks(pureChecksContext);
     }
 

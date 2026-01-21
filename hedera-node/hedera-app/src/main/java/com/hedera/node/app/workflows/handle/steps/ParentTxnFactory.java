@@ -459,7 +459,7 @@ public class ParentTxnFactory {
                     0);
         }
         try {
-            final var pureChecksContext = new PureChecksContextImpl(body, dispatcher, config);
+            final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
                     readableStoreFactory, body, payerId, config, dispatcher, transactionChecker, creatorInfo);
