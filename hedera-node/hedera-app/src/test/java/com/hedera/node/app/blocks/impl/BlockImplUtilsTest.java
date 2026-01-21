@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -54,8 +55,14 @@ class BlockImplUtilsTest {
 
     @SuppressWarnings("DataFlowIssue")
     @Test
-    void hashLeafWithNullParamsThrows() {
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(null));
+    void hashLeafByteArrayWithNullParamsThrows() {
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf((byte[]) null));
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashLeafBytesWithNullParamsThrows() {
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf((Bytes) null));
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(sha384DigestOrThrow(), null));
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(null, Bytes.EMPTY));
     }
@@ -68,10 +75,16 @@ class BlockImplUtilsTest {
         final Bytes data = Bytes.fromHex("2a120816120c08d9d5d2c90610ffa8bba5033a00");
         digest.update(StreamingTreeHasher.LEAF_PREFIX);
         final Bytes computed = Bytes.wrap(digest.digest(data.toByteArray()));
+        // Precondition: verify expected matches computed value
         assertEquals(expected, computed);
 
+        // Test the Bytes overload
         final Bytes actual = BlockImplUtils.hashLeaf(data);
         assertEquals(expected, actual);
+
+        // Test the byte array overload
+        final byte[] actualArray = BlockImplUtils.hashLeaf(data.toByteArray());
+        assertArrayEquals(expected.toByteArray(), actualArray);
     }
 
     @SuppressWarnings("DataFlowIssue")
@@ -82,7 +95,7 @@ class BlockImplUtilsTest {
 
     @Test
     void hashInternalNodeSingleChildAppendsSingleNodePrefix() {
-        Bytes expected = Bytes.fromHex(
+        final Bytes expected = Bytes.fromHex(
                 "25eeda015d2d5506ca98944d615c7502baede45e5d03725184b9516c923485738c0bba382a6ef4840a02c6bb3c27c452");
 
         final MessageDigest digest = sha384DigestOrThrow();
@@ -90,6 +103,7 @@ class BlockImplUtilsTest {
                 "877a7ee7919309a359ee656d07e42504a2ab42c16089c235de87719c5ace1f00203c07a679d653d8d20458bf6c0ed143");
         digest.update(StreamingTreeHasher.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
         final Bytes computed = Bytes.wrap(digest.digest(data.toByteArray()));
+        // Precondition: verify expected matches computed value
         assertEquals(expected, computed);
 
         final Bytes actual = BlockImplUtils.hashInternalNodeSingleChild(data);
@@ -100,14 +114,30 @@ class BlockImplUtilsTest {
     @Test
     void hashInternalNodeBytesWithNullParamsThrows() {
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(null, Bytes.EMPTY));
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(Bytes.EMPTY, null));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(Bytes.EMPTY, (Bytes) null));
     }
 
     @SuppressWarnings("DataFlowIssue")
     @Test
     void hashInternalNodeByteArrayWithNullParamsThrows() {
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(null, new byte[0]));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode((byte[]) null, new byte[0]));
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(new byte[0], null));
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashInternalNodeMixedWithNullParamsThrows() {
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode((Bytes) null, new byte[0]));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(Bytes.EMPTY, (byte[]) null));
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashInternalNodeWithDigestWithNullParamsThrows() {
+        final var digest = sha384DigestOrThrow();
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(null, new byte[0], new byte[0]));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, null, new byte[0]));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, new byte[0], null));
     }
 
     @Test
@@ -119,13 +149,27 @@ class BlockImplUtilsTest {
         final Bytes data1 = Bytes.fromBase64("z0BYGz7pzcJU2tAAD6jliPT9RKkH/tRTrGl0FfG7WgF8brmYMvQHoIUD4Fp148MC");
         final Bytes data2 = Bytes.fromHex(
                 "877a7ee7919309a359ee656d07e42504a2ab42c16089c235de87719c5ace1f00203c07a679d653d8d20458bf6c0ed143");
-        digest.update(StreamingTreeHasher.INTERNAL_NODE_PREFIX);
-        digest.update(data1.toByteArray());
-        final Bytes computed = Bytes.wrap(digest.digest(data2.toByteArray()));
+        StreamingTreeHasher.INTERNAL_NODE_PREFIX_BYTES.writeTo(digest);
+        data1.writeTo(digest);
+        data2.writeTo(digest);
+        final Bytes computed = Bytes.wrap(digest.digest());
+        // Precondition: verify expected matches computed value
         assertEquals(expected, computed);
 
-        final Bytes actual = BlockImplUtils.hashInternalNode(data1, data2);
-        assertEquals(expected, actual);
+        // Test the Bytes overload
+        final Bytes actualFromBytes = BlockImplUtils.hashInternalNode(data1, data2);
+        assertEquals(expected, actualFromBytes);
+
+        // Test the byte arrays overload
+        final byte[] data1Array = data1.toByteArray();
+        final byte[] data2Array = data2.toByteArray();
+        final byte[] actualFromArrays = BlockImplUtils.hashInternalNode(data1Array, data2Array);
+        assertArrayEquals(expected.toByteArray(), actualFromArrays);
+
+        // Test the explicit digest overload
+        digest.reset(); // Not necessary, but specifies intent
+        final byte[] actual = BlockImplUtils.hashInternalNode(digest, data1Array, data2Array);
+        assertArrayEquals(expected.toByteArray(), actual);
     }
 
     @Test
@@ -160,5 +204,10 @@ class BlockImplUtilsTest {
         final var actualInternalNodePrefix = BlockImplUtils.hashInternalNode(data, data);
         assertEquals(computedInternalNodePrefix, actualInternalNodePrefix);
         assertNotEquals(computedNoPrefix, actualInternalNodePrefix);
+
+        // Test the mixed param types variant
+        final var actualInternalMixedPrefix = BlockImplUtils.hashInternalNode(data, data.toByteArray());
+        // Only equality check needed, as previous checks already guarantee the no prefix case is different
+        assertEquals(computedInternalNodePrefix, actualInternalMixedPrefix);
     }
 }
