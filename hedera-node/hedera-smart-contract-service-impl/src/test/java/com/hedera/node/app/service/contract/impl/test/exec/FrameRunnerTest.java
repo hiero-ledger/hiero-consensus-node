@@ -320,10 +320,11 @@ class FrameRunnerTest {
     void happyPathWithCodeDelegationRefund() {
         final var codeDelegationRefund = 50_000L;
         final var remainingGas = GAS_LIMIT / 2;
-        final var gasRefund = GAS_LIMIT / 8;
-        final var nominalGasUsed = GAS_LIMIT - remainingGas - codeDelegationRefund;
+        final var frameGasRefund = GAS_LIMIT / 8;
+        final var nominalGasUsed = GAS_LIMIT - remainingGas;
+        final var nominalRefund = frameGasRefund + codeDelegationRefund;
         final var maxGasRefunded = nominalGasUsed / BESU_MAX_REFUND_QUOTIENT;
-        final var actualRefund = Math.min(maxGasRefunded, gasRefund);
+        final var actualRefund = Math.min(maxGasRefunded, nominalRefund);
         final var expectedGasUsed = nominalGasUsed - actualRefund;
 
         givenBaseSuccessWith(NON_SYSTEM_LONG_ZERO_ADDRESS);

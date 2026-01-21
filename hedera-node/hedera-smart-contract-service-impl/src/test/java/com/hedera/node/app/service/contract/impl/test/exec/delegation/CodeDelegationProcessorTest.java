@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.delegation;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -248,7 +248,7 @@ class CodeDelegationProcessorTest {
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null, acct);
         when(proxyWorldUpdater.lazyCreationCostInGas(authAddr)).thenReturn(25000L);
-        when(proxyWorldUpdater.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CONTRACT_CREATE))
+        when(proxyWorldUpdater.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE))
                 .thenReturn(cryptoCreateStreamBuilder);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
@@ -260,7 +260,7 @@ class CodeDelegationProcessorTest {
 
             assertNotNull(result);
             verify(proxyWorldUpdater).getAccount(authAddr);
-            verify(proxyWorldUpdater).createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CONTRACT_CREATE);
+            verify(proxyWorldUpdater).createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE);
             verify(proxyWorldUpdater).commit();
             // Gas should not be reduced since there was insufficient gas for lazy creation
             assertEquals(20000L, result.getAvailableGas());
