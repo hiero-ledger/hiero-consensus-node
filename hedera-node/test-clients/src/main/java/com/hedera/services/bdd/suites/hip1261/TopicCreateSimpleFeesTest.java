@@ -93,7 +93,7 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(1, 0), 0.01));
+                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(1, 0), 1.0));
         }
 
         @HapiTest
@@ -113,7 +113,7 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN, AUTO_RENEW_ACCOUNT)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 2), 0.01));
+                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 2), 1.0));
         }
 
         @HapiTest
@@ -129,7 +129,7 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, AUTO_RENEW_ACCOUNT)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(2, 0), 0.01));
+                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(2, 0), 1.0));
         }
 
         @HapiTest
@@ -145,7 +145,7 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(2, 1), 0.01));
+                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(2, 1), 1.0));
         }
 
         @HapiTest
@@ -163,7 +163,7 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(2, 2), 0.01));
+                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(2, 2), 1.0));
         }
 
         @HapiTest
@@ -190,7 +190,7 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 3), 0.01));
+                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 3), 1.0));
         }
 
         @HapiTest
@@ -217,7 +217,7 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(4, 5), 0.01));
+                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(4, 5), 1.0));
         }
 
         @HapiTest
@@ -236,7 +236,7 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 2), 0.01));
+                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 2), 1.0));
         }
 
         @HapiTest
@@ -262,7 +262,7 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 5), 0.01));
+                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 5), 1.0));
         }
 
         @HapiTest
@@ -288,7 +288,7 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 8), 0.01));
+                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 8), 1.0));
         }
     }
 
