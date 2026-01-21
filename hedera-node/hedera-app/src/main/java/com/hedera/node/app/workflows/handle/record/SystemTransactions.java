@@ -238,7 +238,6 @@ public class SystemTransactions {
         requireNonNull(state);
         // Ensure all singletons exist (will be externalized in state changes at end of genesis block if appropriate)
         final var config = configProvider.getConfiguration();
-        log.info("==== START ====");
         for (final var r : servicesRegistry.registrations()) {
             final var service = r.service();
             // Maybe EmptyWritableStates if the service's schemas register no state definitions at all
@@ -246,7 +245,6 @@ public class SystemTransactions {
             kvStateChangeStreaming.doStreamingKVChanges(
                     writableStates, null, () -> service.doGenesisSetup(writableStates, config));
         }
-        log.info("==== END ====");
 
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
         final var systemContext = newSystemContext(
@@ -851,8 +849,6 @@ public class SystemTransactions {
                         .toList();
                 if (!SUCCESSES.containsAll(statuses)) {
                     log.warn("Failed to dispatch system transaction {} - {}", body, statuses);
-                } else {
-                    log.info("Successfully dispatched admin transaction {}", body);
                 }
             }
 

@@ -120,7 +120,7 @@ public class StateChangesValidator implements BlockStreamValidator {
      * The probability that the validator will verify an intermediate block proof; we always verify the first and
      * the last one that has an available block proof. (The blocks immediately preceding a freeze will not have proofs.)
      */
-    private static final double PROOF_VERIFICATION_PROB = 0.0;
+    private static final double PROOF_VERIFICATION_PROB = 0.05;
 
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
 
@@ -667,12 +667,10 @@ public class StateChangesValidator implements BlockStreamValidator {
             @NonNull final Timestamp blockTimestamp,
             @NonNull final MerkleSiblingHash[] expectedSiblingHashes) {
         assertEquals(blockNumber, proof.block());
-        if (false) {
-            assertEquals(
-                    footer.startOfBlockStateRootHash(),
-                    startOfStateHash,
-                    "Wrong start of block state hash for block #" + blockNumber);
-        }
+        assertEquals(
+                footer.startOfBlockStateRootHash(),
+                startOfStateHash,
+                "Wrong start of block state hash for block #" + blockNumber);
 
         logger.info("Validating block proof for block #{}", blockNumber);
         // Our proof method will be different depending on whether this is a direct or indirect proof.
