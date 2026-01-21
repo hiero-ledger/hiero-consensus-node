@@ -2,7 +2,9 @@
 package com.hedera.services.bdd.suites.hip1261.utils;
 
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
@@ -20,10 +22,15 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntToDoubleFunction;
 
 public class FeesChargingUtils {
+    private static final int NODE_INCLUDED_BYTES = 1024;
 
     /** tinycents -> USD */
     public static double tinycentsToUsd(long tinycents) {
@@ -40,10 +47,14 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, long hooks) {
+        return expectedCryptoCreateFullFeeUsd(sigs, keys, hooks, 0);
+    }
+
+    public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, long hooks, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
@@ -61,32 +72,25 @@ public class FeesChargingUtils {
      * Overload when there are no hooks extras.
      */
     public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys) {
-        return expectedCryptoCreateFullFeeUsd(sigs, keys, 0L);
+        return expectedCryptoCreateFullFeeUsd(sigs, keys, 0L, 0);
+    }
+
+    public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, int txnSize) {
+        return expectedCryptoCreateFullFeeUsd(sigs, keys, 0L, txnSize);
     }
 
     /**
      *  Simple fees calculation for CryptoCreate with node fee only
      */
     public static double expectedCryptoCreateNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
+        return expectedCryptoCreateNetworkFeeOnlyUsd(sigs, 0);
     }
 
-    /**
-     *  Simple fees calculation for CryptoCreate with node fee only
-     */
     public static double expectedCryptoCreateNetworkFeeOnlyUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final var nodeBytesOverage = Math.max(0, txnSize - 1024);
-        final var nodeFeeFromBytes = nodeBytesOverage * SINGLE_BYTE_FEE;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytes;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
@@ -101,10 +105,14 @@ public class FeesChargingUtils {
      * total   = node + network + service
      */
     public static double expectedTopicCreateFullFeeUsd(long sigs, long keys) {
+        return expectedTopicCreateFullFeeUsd(sigs, keys, 0);
+    }
+
+    public static double expectedTopicCreateFullFeeUsd(long sigs, long keys, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
@@ -118,26 +126,53 @@ public class FeesChargingUtils {
     }
 
     public static double expectedTopicCreateNetworkFeeOnlyUsd(long sigs) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        return nodeFee * NETWORK_MULTIPLIER;
+        return expectedTopicCreateNetworkFeeOnlyUsd(sigs, 0);
     }
 
     public static double expectedTopicCreateNetworkFeeOnlyUsd(long sigs, final int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-
-        final var nodeBytesOverage = Math.max(0, txnSize - 1024);
-        final var nodeFeeFromBytes = nodeBytesOverage * SINGLE_BYTE_FEE;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytes;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    public static HapiSpecOperation validateChargedUsdWithinWithTxnSize(
+            String txnId, IntToDoubleFunction expectedFeeUsd, double allowedPercentDifference) {
+        return withOpContext((spec, log) -> {
+            final int signedTxnSize = signedTxnSizeFor(spec, txnId);
+            final double expected = expectedFeeUsd.applyAsDouble(signedTxnSize);
+            allRunFor(spec, validateChargedUsdWithin(txnId, expected, allowedPercentDifference));
+        });
+    }
+
+    public static HapiSpecOperation validateChargedFeeToUsdWithTxnSize(
+            String txnId,
+            AtomicLong initialBalance,
+            AtomicLong afterBalance,
+            IntToDoubleFunction expectedFeeUsd,
+            double allowedPercentDifference) {
+        return withOpContext((spec, log) -> {
+            final int signedTxnSize = signedTxnSizeFor(spec, txnId);
+            final double expected = expectedFeeUsd.applyAsDouble(signedTxnSize);
+            allRunFor(
+                    spec,
+                    validateChargedFeeToUsd(txnId, initialBalance, afterBalance, expected, allowedPercentDifference));
+        });
+    }
+
+    public static int signedTxnSizeFor(final HapiSpec spec, final String txnId) throws InvalidProtocolBufferException {
+        final var txnBytes = spec.registry().getBytes(txnId);
+        final var transaction = Transaction.parseFrom(txnBytes);
+        final var signedTxnBytes = serializedSignedTxFrom(transaction);
+        return signedTxnBytes.length;
+    }
+
+    public static double nodeFeeFromBytesUsd(final int txnSize) {
+        final var nodeBytesOverage = Math.max(0, txnSize - NODE_INCLUDED_BYTES);
+        return nodeBytesOverage * SINGLE_BYTE_FEE;
     }
 
     public static HapiSpecOperation validateChargedFeeToUsd(
