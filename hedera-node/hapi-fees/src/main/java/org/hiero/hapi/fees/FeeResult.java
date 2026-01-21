@@ -161,7 +161,7 @@ public class FeeResult {
                 this.getServiceTotalTinyCents());
     }
 
-    public record FeeDetail(String name, long per_unit, long used, long included, long charged) {}
+    public record FeeDetail(String name, long perUnit, long used, long included, long charged) {}
 
     @Override
     public String toString() {
