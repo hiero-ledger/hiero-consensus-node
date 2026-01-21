@@ -107,11 +107,14 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** The PBJ gRPC client for the container control service */
     private final PbjGrpcClient containerControlGrpcClient;
 
-    /** The PBJ gRPC client for the node communication service */
-    private final PbjGrpcClient nodeCommGrpcClient;
+    /** The PBJ gRPC client for the node communication service (created lazily after Init) */
+    private PbjGrpcClient nodeCommGrpcClient;
 
     /** Request options for gRPC calls */
     private final RequestOptions requestOptions;
+
+    /** Configuration for creating PBJ gRPC clients */
+    private final PbjGrpcClientConfig grpcClientConfig;
 
     /** The gRPC service client used to initialize and stop the consensus node */
     private final ContainerControlServiceInterface.ContainerControlServiceClient containerControlClient;
@@ -172,24 +175,22 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.requestOptions = new RequestOptionsImpl(
                 java.util.Optional.empty(), ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO);
 
-        // Create PBJ gRPC clients
-        final PbjGrpcClientConfig config = new PbjGrpcClientConfig(
+        // Create PBJ gRPC client config (shared between both clients)
+        this.grpcClientConfig = new PbjGrpcClientConfig(
                 java.time.Duration.ofSeconds(60),
                 Tls.builder().enabled(false).build(),
                 java.util.Optional.empty(),
                 ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO);
 
+        // Create ContainerControl client immediately (server is already running)
         final WebClient containerControlWebClient = WebClient.builder()
                 .baseUri("http://" + container.getHost() + ":" + container.getMappedPort(CONTAINER_CONTROL_PORT))
                 .build();
-        this.containerControlGrpcClient = new PbjGrpcClient(containerControlWebClient, config);
+        this.containerControlGrpcClient = new PbjGrpcClient(containerControlWebClient, grpcClientConfig);
         this.containerControlClient = new ContainerControlServiceInterface.ContainerControlServiceClient(
                 containerControlGrpcClient, requestOptions);
 
-        final WebClient nodeCommWebClient = WebClient.builder()
-                .baseUri("http://" + container.getHost() + ":" + container.getMappedPort(NODE_COMMUNICATION_PORT))
-                .build();
-        this.nodeCommGrpcClient = new PbjGrpcClient(nodeCommWebClient, config);
+        // Note: nodeCommGrpcClient is created lazily in doStart() after Init() starts the server
 
         profiler = new ContainerProfiler(selfId, container, localOutputDirectory);
     }
@@ -230,6 +231,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 .selfId(ProtobufConverter.toPbjNodeId(selfId))
                 .build();
         containerControlClient.Init(initRequest);
+
+        // Create NodeComm gRPC client AFTER Init() - the server is now running on port 8081
+        final WebClient nodeCommWebClient = WebClient.builder()
+                .baseUri("http://" + container.getHost() + ":" + container.getMappedPort(NODE_COMMUNICATION_PORT))
+                .build();
+        this.nodeCommGrpcClient = new PbjGrpcClient(nodeCommWebClient, grpcClientConfig);
 
         final StartRequest startRequest = StartRequest.newBuilder()
                 .roster(roster())
@@ -522,7 +529,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         log.info("Destroying container of node {}...", selfId);
         containerControlGrpcClient.close();
-        nodeCommGrpcClient.close();
+        if (nodeCommGrpcClient != null) {
+            nodeCommGrpcClient.close();
+        }
         if (container.isRunning()) {
             container.stop();
         }
