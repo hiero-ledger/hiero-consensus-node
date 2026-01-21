@@ -15,7 +15,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -43,14 +42,12 @@ import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -234,12 +231,12 @@ public class TransferTokenTest {
                             .call(
                                     TRANSFER_TOKENS,
                                     fungibleToken,
-                                    new Address[]{
-                                            tokenTransferContract.addressOn(spec.targetNetworkOrThrow()),
-                                            tokenReceiverContract.addressOn(spec.targetNetworkOrThrow()),
-                                            tokenReceiverAccount.addressOn(spec.targetNetworkOrThrow())
+                                    new Address[] {
+                                        tokenTransferContract.addressOn(spec.targetNetworkOrThrow()),
+                                        tokenReceiverContract.addressOn(spec.targetNetworkOrThrow()),
+                                        tokenReceiverAccount.addressOn(spec.targetNetworkOrThrow())
                                     },
-                                    new long[]{-5L, 2L, 3L})
+                                    new long[] {-5L, 2L, 3L})
                             .gas(1_000_000L)
                             .via(TXN_NAME),
                     validateErcEvent(
@@ -257,55 +254,51 @@ public class TransferTokenTest {
                                     3L)))));
         }
 
-        //TODO
+        // TODO
         @HapiTest
         @DisplayName("'transferTokens' function without explicit allowance and multiple senders")
         public Stream<DynamicTest> transferUsingTransferTokensMultipleSenders(
                 @NonNull @Account(name = "sender1") final SpecAccount sender1,
                 @NonNull @Account(name = "sender2") final SpecAccount sender2,
                 @NonNull @Account(name = "receiver1") final SpecAccount receiver1,
-                @NonNull @Account(name = "receiver2") final SpecAccount receiver2
-        ) {
+                @NonNull @Account(name = "receiver2") final SpecAccount receiver2) {
             return hapiTest(withOpContext((spec, opLog) -> {
-                        allRunFor(
-                                spec,
-                                sender1.associateTokens(fungibleToken),
-                                sender2.associateTokens(fungibleToken),
-                                receiver1.associateTokens(fungibleToken),
-                                receiver2.associateTokens(fungibleToken),
-                                fungibleToken.treasury().transferUnitsTo(sender1, 10, fungibleToken),
-                                fungibleToken.treasury().transferUnitsTo(sender2, 10, fungibleToken),
-                                sender1.authorizeContract(tokenTransferContract),
-                                sender2.authorizeContract(tokenTransferContract)
-                        );
-                        final var tokenId = spec.registry().getTokenID(fungibleToken.name());
-                        final var sender1Id = spec.registry().getAccountID(sender1.name());
-                        final var sender2Id = spec.registry().getAccountID(sender2.name());
-                        final var receiver1Id = spec.registry().getAccountID(receiver1.name());
-                        final var receiver2Id = spec.registry().getAccountID(receiver2.name());
-                        allRunFor(
-                                spec,
-                                // Transfer using transferTokens function
-                                tokenTransferContract
-                                        .call(
-                                                TRANSFER_TOKENS,
-                                                fungibleToken,
-                                                new Address[]{
-                                                        HapiParserUtil.asHeadlongAddress(Utils.asAddress(receiver1Id)),
-                                                        HapiParserUtil.asHeadlongAddress(Utils.asAddress(sender2Id)),
-                                                        HapiParserUtil.asHeadlongAddress(Utils.asAddress(receiver2Id)),
-                                                        HapiParserUtil.asHeadlongAddress(Utils.asAddress(sender1Id)),
-                                                },
-                                                new long[]{4L, -3L, 3L, -4L})
-                                        .gas(1_000_000L)
-                                        .via(TXN_NAME),
-                                // order of 'input transfers' are sorted by HTS, and we got correct ERC20 events in result
-                                validateErcEvent(
-                                        ErcEventRecord.of(tokenId, false, sender1Id, receiver1Id, 4L),
-                                        ErcEventRecord.of(tokenId, false, sender2Id, receiver2Id, 3L)
-                                ));
-                    }
-            ));
+                allRunFor(
+                        spec,
+                        sender1.associateTokens(fungibleToken),
+                        sender2.associateTokens(fungibleToken),
+                        receiver1.associateTokens(fungibleToken),
+                        receiver2.associateTokens(fungibleToken),
+                        fungibleToken.treasury().transferUnitsTo(sender1, 10, fungibleToken),
+                        fungibleToken.treasury().transferUnitsTo(sender2, 10, fungibleToken),
+                        sender1.authorizeContract(tokenTransferContract),
+                        sender2.authorizeContract(tokenTransferContract));
+                final var tokenId = spec.registry().getTokenID(fungibleToken.name());
+                final var sender1Id = spec.registry().getAccountID(sender1.name());
+                final var sender2Id = spec.registry().getAccountID(sender2.name());
+                final var receiver1Id = spec.registry().getAccountID(receiver1.name());
+                final var receiver2Id = spec.registry().getAccountID(receiver2.name());
+                allRunFor(
+                        spec,
+                        // Transfer using transferTokens function
+                        tokenTransferContract
+                                .call(
+                                        TRANSFER_TOKENS,
+                                        fungibleToken,
+                                        new Address[] {
+                                            HapiParserUtil.asHeadlongAddress(Utils.asAddress(receiver1Id)),
+                                            HapiParserUtil.asHeadlongAddress(Utils.asAddress(sender2Id)),
+                                            HapiParserUtil.asHeadlongAddress(Utils.asAddress(receiver2Id)),
+                                            HapiParserUtil.asHeadlongAddress(Utils.asAddress(sender1Id)),
+                                        },
+                                        new long[] {4L, -3L, 3L, -4L})
+                                .gas(1_000_000L)
+                                .via(TXN_NAME),
+                        // order of 'input transfers' are sorted by HTS, and we got correct ERC20 events in result
+                        validateErcEvent(
+                                ErcEventRecord.of(tokenId, false, sender1Id, receiver1Id, 4L),
+                                ErcEventRecord.of(tokenId, false, sender2Id, receiver2Id, 3L)));
+            }));
         }
 
         @HapiTest
@@ -362,15 +355,15 @@ public class TransferTokenTest {
                             .call(
                                     TRANSFER_NFTS,
                                     nonFungibleToken,
-                                    new Address[]{
-                                            tokenTransferContract.addressOn(spec.targetNetworkOrThrow()),
-                                            tokenTransferContract.addressOn(spec.targetNetworkOrThrow())
+                                    new Address[] {
+                                        tokenTransferContract.addressOn(spec.targetNetworkOrThrow()),
+                                        tokenTransferContract.addressOn(spec.targetNetworkOrThrow())
                                     },
-                                    new Address[]{
-                                            tokenReceiverContract.addressOn(spec.targetNetworkOrThrow()),
-                                            tokenReceiverAccount.addressOn(spec.targetNetworkOrThrow())
+                                    new Address[] {
+                                        tokenReceiverContract.addressOn(spec.targetNetworkOrThrow()),
+                                        tokenReceiverAccount.addressOn(spec.targetNetworkOrThrow())
                                     },
-                                    new long[]{2L, 3L})
+                                    new long[] {2L, 3L})
                             .gas(1_000_000L)
                             .via(TXN_NAME),
                     validateErcEvent(
