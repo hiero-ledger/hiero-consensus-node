@@ -69,6 +69,7 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * @param maxThreadsPerFileChannel
  *    Maximum number of threads per file channel.
  */
+// spotless:off
 @ConfigData("merkleDb")
 public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "1000000000") long initialCapacity,
@@ -93,6 +94,8 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "1048576") int leafRecordCacheSize,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxFileChannelsPerFileReader,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxThreadsPerFileChannel) {
+
+    // spotless:on
 
     static double UNIT_FRACTION_PERCENT = 100.0;
 
