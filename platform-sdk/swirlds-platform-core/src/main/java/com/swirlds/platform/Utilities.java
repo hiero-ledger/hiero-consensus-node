@@ -25,7 +25,7 @@ public final class Utilities {
 
     private Utilities() {}
 
-    /////////////////////////////////////////////////////////////
+    // ----------------------------------------------------------
     // read from DataInputStream and
     // write to DataOutputStream
 

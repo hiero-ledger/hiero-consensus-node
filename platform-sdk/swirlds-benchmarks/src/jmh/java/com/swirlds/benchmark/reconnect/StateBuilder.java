@@ -14,9 +14,9 @@ import java.util.stream.LongStream;
  * A utility class to help build random states.
  */
 public record StateBuilder(
-        /** Build a key for index 1..size. */
+        // Build a key for index 1..size.
         Function<Long, Bytes> keyBuilder,
-        /** Build a value for key index 1..size. */
+        // Build a value for key index 1..size.
         Function<Long, BenchmarkValue> valueBuilder) {
 
     /** Return {@code true} with the given probability. */
