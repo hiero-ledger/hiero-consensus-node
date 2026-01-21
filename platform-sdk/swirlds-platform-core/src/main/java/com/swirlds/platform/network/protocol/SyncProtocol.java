@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.protocol;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
@@ -112,11 +111,13 @@ public class SyncProtocol extends AbstractSyncProtocol<ShadowgraphSynchronizer> 
     }
 
     /**
-     * Used by legacy testing to check available permits. Package-private to avoid polluting public space
+     * Returns the permit provider used by this protocol.
+     * <br/>
+     * **NOTE** <br/> It is used only for unit testing, should never be called from production code.
+     * </p>
      *
-     * @return internal permit provider
+     * @return the permit provider
      */
-    @VisibleForTesting
     SyncPermitProvider getPermitProvider() {
         return permitProvider;
     }

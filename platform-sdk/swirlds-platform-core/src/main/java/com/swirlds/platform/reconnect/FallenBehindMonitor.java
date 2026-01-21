@@ -4,7 +4,6 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static java.util.Objects.requireNonNull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.config.api.Configuration;
@@ -70,7 +69,6 @@ public class FallenBehindMonitor {
                 .withUnit("count"));
     }
 
-    @VisibleForTesting
     public FallenBehindMonitor(final int peersSize, final double fallenBehindThreshold) {
         this.peersSize = peersSize;
         this.fallenBehindThreshold = fallenBehindThreshold;
