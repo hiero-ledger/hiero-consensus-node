@@ -39,6 +39,61 @@
   ],
   "services": [
     {
+      "name": "Contract",
+      "schedule": [
+        {
+          "name": "HookStore",
+          "baseFee": 49000000,
+          "extras": [
+            {
+              "name": "HOOK_SLOT_UPDATE",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "ContractCreate",
+          "baseFee": 9999000000,
+          "extras": [
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "ContractCall",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "ContractUpdate",
+          "baseFee": 259000000,
+          "extras": [
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "ContractDelete",
+          "baseFee": 69000000,
+          "extras": []
+        },
+        {
+          "name": "EthereumTransaction",
+          "baseFee": 0,
+          "extras": [
+            {
+              "name": "BYTES",
+              "includedCount": 6144
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Crypto",
       "schedule": [
         {
@@ -384,8 +439,8 @@
         },
         {
           "name": "TokenAssociateToAccount",
-          "baseFee": 499000000,
-          "extras": [ {"name": "TOKEN_ASSOCIATE", "includedCount": 1 }],
+          "baseFee": 500000000,
+          "extras": [],
           "highVolumeRates": {
             "maxMultiplier": 100000,
             "pricingCurve": {
@@ -454,6 +509,13 @@
           "name": "TokenCancelAirdrop",
           "baseFee": 9000000,
           "extras": []
+        },
+        {
+          "name": "TokenAssociateToAccount",
+          "baseFee": 499000000,
+          "extras": [
+            {"name": "TOKEN_ASSOCIATE", "includedCount": 1 }
+          ]
         },
         {
           "name": "TokenDissociateFromAccount",
@@ -609,41 +671,10 @@
       "name": "Contract",
       "schedule": [
         {
-          "name": "ContractCall",
-          "baseFee": 0,
-          "extras": []
-        },
-        {
-          "name": "ContractUpdate",
-          "baseFee": 259000000,
-          "extras": [
-            {
-              "name": "KEYS",
-              "includedCount": 1
-            }
-          ]
-        },
-        {
-          "name": "ContractDelete",
-          "baseFee": 69000000,
-          "extras": []
-        },
-        {
-          "name": "EthereumTransaction",
-          "baseFee": 0,
-          "extras": [
-            {
-              "name": "BYTES",
-              "includedCount": 6144
-            }
-          ]
-        },
-        {
           "name": "ContractCreate",
-          "baseFee": 9999000000,
+          "baseFee": 2000000000,
           "extras": [
-            { "name": "GAS", "includedCount": 0 },
-            {"name": "KEYS", "includedCount": 1}
+            { "name": "GAS", "includedCount": 0 }
           ],
           "highVolumeRates": {
             "maxMultiplier": 80000,
@@ -665,14 +696,9 @@
           }
         },
         {
-          "name": "HookStore",
-          "baseFee": 49000000,
-          "extras": [
-            {
-              "name": "HOOK_SLOT_UPDATE",
-              "includedCount": 1
-            }
-          ],
+          "name": "LambdaSStore",
+          "baseFee": 10000000,
+          "extras": [],
           "highVolumeRates": {
             "maxMultiplier": 200000,
             "pricingCurve": {
