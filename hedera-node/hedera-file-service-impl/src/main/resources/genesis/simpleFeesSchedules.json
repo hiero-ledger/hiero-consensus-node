@@ -435,8 +435,8 @@
         },
         {
           "name": "TokenAssociateToAccount",
-          "baseFee": 500000000,
-          "extras": [],
+          "baseFee": 499000000,
+          "extras": [ {"name": "TOKEN_ASSOCIATE", "includedCount": 1 }],
           "highVolumeRates": {
             "maxMultiplier": 100000,
             "pricingCurve": {
@@ -505,13 +505,6 @@
           "name": "TokenCancelAirdrop",
           "baseFee": 9000000,
           "extras": []
-        },
-        {
-          "name": "TokenAssociateToAccount",
-          "baseFee": 499000000,
-          "extras": [
-            {"name": "TOKEN_ASSOCIATE", "includedCount": 1 }
-          ]
         },
         {
           "name": "TokenDissociateFromAccount",
