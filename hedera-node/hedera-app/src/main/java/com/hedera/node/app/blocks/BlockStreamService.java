@@ -20,8 +20,6 @@ import org.apache.logging.log4j.Logger;
 public class BlockStreamService implements Service {
     private static final Logger log = LogManager.getLogger(BlockStreamService.class);
 
-    public static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
-
     public static final String NAME = "BlockStreamService";
 
     @Nullable

@@ -12,6 +12,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOfAll;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusCreateTopic;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusDeleteTopic;
@@ -566,6 +567,39 @@ class CommonUtilsTest {
                 final var resultAsArr = CommonUtils.sha384HashOfAll(arrOfArrays);
                 digest.update(arrOfArrays[0]);
                 assertEquals(Bytes.wrap(digest.digest(arrOfArrays[1])), resultAsArr);
+            }
+        }
+
+        @Nested
+        class MixedVariant {
+            @SuppressWarnings("DataFlowIssue")
+            @Test
+            void sha384HashOfThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> sha384HashOf(null, Bytes.EMPTY, new byte[0]));
+                assertThrows(NullPointerException.class, () -> sha384HashOf(Bytes.EMPTY, null, new byte[0]));
+                assertThrows(NullPointerException.class, () -> sha384HashOf(Bytes.EMPTY, Bytes.EMPTY, null));
+            }
+
+            @Test
+            void sha384HashOfWorksWithEmpty() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = sha384HashOf(Bytes.EMPTY, Bytes.EMPTY, new byte[0]);
+                Bytes.EMPTY.writeTo(digest);
+                Bytes.EMPTY.writeTo(digest);
+                digest.update(new byte[0]);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void sha384HashOfWorksWithNonEmpty() {
+                final var digest = sha384DigestOrThrow();
+
+                BYTE_ARRAY_1_OBJ.writeTo(digest);
+                BYTE_ARRAY_2_OBJ.writeTo(digest);
+                digest.update(BYTE_ARRAY_1);
+                final var actual = sha384HashOf(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ, BYTE_ARRAY_1);
+                assertEquals(Bytes.wrap(digest.digest()), actual);
             }
         }
 
