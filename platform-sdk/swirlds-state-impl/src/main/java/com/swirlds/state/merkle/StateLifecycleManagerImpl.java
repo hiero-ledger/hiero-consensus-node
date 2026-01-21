@@ -9,7 +9,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -244,14 +243,9 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     @Override
     public MerkleNodeState loadSnapshot(@NonNull final Path targetPath) throws IOException {
         final VirtualMap virtualMap;
-        if (VirtualMap.isOldFormat(targetPath)) {
-            log.info(STARTUP.getMarker(), "Loading pre-0.70 snapshot from disk {}", targetPath);
-            virtualMap = (VirtualMap) MerkleTreeSnapshotReader.readStateFileData(targetPath);
-        } else {
-            log.info(STARTUP.getMarker(), "Loading snapshot from disk {}", targetPath);
-            virtualMap = VirtualMap.loadFromDirectory(
-                    targetPath, configuration, () -> new MerkleDbDataSourceBuilder(configuration));
-        }
+        log.info(STARTUP.getMarker(), "Loading snapshot from disk {}", targetPath);
+        virtualMap = VirtualMap.loadFromDirectory(
+                targetPath, configuration, () -> new MerkleDbDataSourceBuilder(configuration));
 
         final VirtualMap mutableCopy = virtualMap.copy();
         mutableCopy.registerMetrics(metrics);
