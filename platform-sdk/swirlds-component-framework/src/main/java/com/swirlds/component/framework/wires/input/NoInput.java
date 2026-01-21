@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.wiring;
+package com.swirlds.component.framework.wires.input;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
