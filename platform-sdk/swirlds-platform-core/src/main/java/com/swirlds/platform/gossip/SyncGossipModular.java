@@ -12,7 +12,6 @@ import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
-import com.swirlds.platform.Utilities;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.metrics.SyncMetrics;
