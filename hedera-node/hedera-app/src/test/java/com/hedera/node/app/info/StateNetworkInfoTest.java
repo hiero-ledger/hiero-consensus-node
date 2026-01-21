@@ -66,10 +66,6 @@ public class StateNetworkInfoTest {
         when(configProvider.getConfiguration())
                 .thenReturn(new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1));
         when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
-        when(readableStates.<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID))
-                .thenReturn(entityCountsState);
-        when(entityCountsState.get())
-                .thenReturn(EntityCounts.newBuilder().numNodes(1L).build());
         when(state.getReadableStates(AddressBookService.NAME)).thenReturn(readableStates);
         when(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).thenReturn(nodeState);
         when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);

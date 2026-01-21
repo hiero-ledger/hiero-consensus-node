@@ -99,7 +99,6 @@ public final class TestingAppStateInitializer {
                 });
         final var mockMigrationContext = mock(MigrationContext.class);
         final var writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
-        given(mockMigrationContext.newStates()).willReturn(writableStates);
         schema.migrate(mockMigrationContext);
         ((CommittableWritableStates) writableStates).commit();
         return Collections.emptyList();

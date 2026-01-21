@@ -66,18 +66,6 @@ public class V0560BlockStreamSchemaTest {
     }
 
     @Test
-    void createsDefaultInfoAtGenesis() {
-        given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
-                .willReturn(state);
-        given(migrationContext.isGenesis()).willReturn(true);
-
-        subject.restart(migrationContext);
-
-        verify(state).put(BlockStreamInfo.newBuilder().blockNumber(-1).build());
-    }
-
-    @Test
     void assumesMigrationIfNotGenesisAndStateIsNull() {
         final var blockInfo = new BlockInfo(
                 666L,

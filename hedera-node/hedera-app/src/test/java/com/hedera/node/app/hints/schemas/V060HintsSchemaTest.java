@@ -78,15 +78,10 @@ class V060HintsSchemaTest {
         given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(activeConstructionState);
         given(activeConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID))
-                .willReturn(nextConstructionState);
-        given(writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID)).willReturn(crsState);
         final var construction = HintsConstruction.newBuilder()
                 .hintsScheme(new HintsScheme(PreprocessedKeys.DEFAULT, List.of()))
                 .build();
         given(activeConstructionState.get()).willReturn(construction);
-        given(crsState.get()).willReturn(CRSState.DEFAULT);
-        given(nextConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
 
         subject.restart(migrationContext);
 
@@ -96,13 +91,6 @@ class V060HintsSchemaTest {
     @Test
     void restartDoesNotSetUnfinishedConstructionInContext() {
         given(migrationContext.appConfig()).willReturn(DEFAULT_CONFIG);
-        given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
-                .willReturn(activeConstructionState);
-        given(activeConstructionState.get()).willReturn(HintsConstruction.DEFAULT);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID))
-                .willReturn(nextConstructionState);
-        given(writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID)).willReturn(crsState);
 
         subject.restart(migrationContext);
 

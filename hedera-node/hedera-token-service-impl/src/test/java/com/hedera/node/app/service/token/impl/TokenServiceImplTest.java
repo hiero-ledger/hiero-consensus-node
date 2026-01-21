@@ -29,14 +29,10 @@ class TokenServiceImplTest {
     @Mock
     private AppContext appContext;
 
-    @Mock
-    private EntityIdFactory idFactory;
-
     private TokenServiceImpl subject;
 
     @BeforeEach
     void setUp() {
-        given(appContext.idFactory()).willReturn(idFactory);
         subject = new TokenServiceImpl(appContext);
     }
 

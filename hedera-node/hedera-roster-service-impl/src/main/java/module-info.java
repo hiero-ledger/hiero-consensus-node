@@ -5,9 +5,9 @@ module com.hedera.node.app.service.roster.impl {
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.consensus.roster;
-    requires com.hedera.node.app.spi;
+    requires transitive com.hedera.node.app.spi;
+    requires transitive com.swirlds.config.api;
     requires com.hedera.node.config;
-    requires com.swirlds.config.api;
     requires com.swirlds.platform.core;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
