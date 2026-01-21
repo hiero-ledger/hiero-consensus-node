@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -264,10 +265,12 @@ public class TransferTokenTest {
             return hapiTest(withOpContext((spec, opLog) -> {
                 allRunFor(
                         spec,
+                        // we are using exactly this 'association order'
+                        // to exclude possibility of accountNum sorting for transfers
+                        receiver2.associateTokens(fungibleToken),
+                        receiver1.associateTokens(fungibleToken),
                         sender1.associateTokens(fungibleToken),
                         sender2.associateTokens(fungibleToken),
-                        receiver1.associateTokens(fungibleToken),
-                        receiver2.associateTokens(fungibleToken),
                         fungibleToken.treasury().transferUnitsTo(sender1, 10, fungibleToken),
                         fungibleToken.treasury().transferUnitsTo(sender2, 10, fungibleToken),
                         sender1.authorizeContract(tokenTransferContract),
@@ -277,6 +280,10 @@ public class TransferTokenTest {
                 final var sender2Id = spec.registry().getAccountID(sender2.name());
                 final var receiver1Id = spec.registry().getAccountID(receiver1.name());
                 final var receiver2Id = spec.registry().getAccountID(receiver2.name());
+                // assert accountNum order to exclude possibility of accountNum sorting for transfers
+                Assertions.assertTrue(receiver2Id.getAccountNum() < receiver1Id.getAccountNum());
+                Assertions.assertTrue(receiver1Id.getAccountNum() < sender1Id.getAccountNum());
+                Assertions.assertTrue(sender1Id.getAccountNum() < sender2Id.getAccountNum());
                 allRunFor(
                         spec,
                         // Transfer using transferTokens function
@@ -295,8 +302,8 @@ public class TransferTokenTest {
                                 .via(TXN_NAME),
                         // order of 'input transfers' are sorted by HTS, and we got correct ERC20 events in result
                         validateErcEvent(
-                                ErcEventRecord.of(tokenId, false, sender1Id, receiver1Id, 4L),
-                                ErcEventRecord.of(tokenId, false, sender2Id, receiver2Id, 3L)));
+                                ErcEventRecord.of(tokenId, false, sender2Id, receiver2Id, 3L),
+                                ErcEventRecord.of(tokenId, false, sender1Id, receiver1Id, 4L)));
             }));
         }
 

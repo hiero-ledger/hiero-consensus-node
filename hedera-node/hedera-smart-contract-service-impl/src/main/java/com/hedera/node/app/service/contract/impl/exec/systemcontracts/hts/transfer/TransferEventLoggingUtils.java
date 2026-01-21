@@ -16,6 +16,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -125,6 +126,10 @@ public class TransferEventLoggingUtils {
                 receivers.add(new AccountChange(account.accountIDOrThrow(), account.amount()));
             }
         }
+        // 2. Sort both senders and receivers by "amount" in ASC order to prevent "random ordering" of resulted ERC
+        // events
+        senders.sort(Comparator.comparingLong(e -> e.amount));
+        receivers.sort(Comparator.comparingLong(e -> e.amount));
 
         // 2. Convert senders/receivers to transfer events
         int sIdx = 0;
