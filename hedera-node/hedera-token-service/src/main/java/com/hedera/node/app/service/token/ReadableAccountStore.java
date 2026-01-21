@@ -106,8 +106,7 @@ public interface ReadableAccountStore {
             builder.accountNum(contractID.contractNumOrElse(0L));
         }
 
-        final var account = getAliasedAccountById(builder.build());
-        return account == null || !account.smartContract() ? null : account;
+        return getAliasedAccountById(builder.build());
     }
 
     /**

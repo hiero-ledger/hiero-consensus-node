@@ -28,6 +28,8 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileCreate;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.bdd.utils.Signing;
+import com.hederahashgraph.api.proto.java.ContractFunctionResult;
+import com.hederahashgraph.api.proto.java.ContractLoginfo;
 import com.hederahashgraph.api.proto.java.EthereumTransactionBody;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -68,7 +70,8 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private Optional<Long> maxGasAllowance = Optional.of(FIVE_HBARS);
     private Optional<BigInteger> valueSent = Optional.of(BigInteger.ZERO); // weibar
     private Consumer<Object[]> resultObserver = null;
-    private Consumer<ByteString> eventDataObserver = null;
+    private Consumer<ContractFunctionResult> rawResultObserver = null;
+    private Consumer<ContractLoginfo> eventDataObserver = null;
     private Optional<FileID> ethFileID = Optional.empty();
     private boolean createCallDataFile;
     private boolean isTokenFlow;
@@ -198,7 +201,12 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         return this;
     }
 
-    public HapiEthereumCall exposingEventDataTo(final Consumer<ByteString> observer) {
+    public HapiEthereumCall exposingRawResultTo(final Consumer<ContractFunctionResult> observer) {
+        rawResultObserver = observer;
+        return this;
+    }
+
+    public HapiEthereumCall exposingEventDataTo(final Consumer<ContractLoginfo> observer) {
         eventDataObserver = observer;
         return this;
     }
@@ -414,12 +422,16 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 resultObserver.accept(result.toArray());
             });
         }
+        if (rawResultObserver != null) {
+            doObservedLookup(spec, txnSubmitted, rcd -> {
+                rawResultObserver.accept(rcd.getContractCallResult());
+            });
+        }
         if (eventDataObserver != null) {
             doObservedLookup(
                     spec,
                     txnSubmitted,
-                    rcd -> eventDataObserver.accept(
-                            rcd.getContractCallResult().getLogInfo(0).getData()));
+                    rcd -> eventDataObserver.accept(rcd.getContractCallResult().getLogInfo(0)));
         }
     }
 
