@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.output.StateChanges.Builder;

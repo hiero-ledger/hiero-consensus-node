@@ -19,7 +19,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.entityid.EntityIdService;
-import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;

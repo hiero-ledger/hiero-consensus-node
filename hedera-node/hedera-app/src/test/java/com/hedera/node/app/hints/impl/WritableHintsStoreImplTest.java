@@ -463,20 +463,13 @@ class WritableHintsStoreImplTest {
     private State emptyState() {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
-        final var hintsServiceImpl =
-                new HintsServiceImpl(
-                        NO_OP_METRICS,
-                        ForkJoinPool.commonPool(),
-                        appContext,
-                        library,
-                        DEFAULT_CONFIG
-                                .getConfigData(BlockStreamConfig.class)
-                                .blockPeriod());
-        Set.of(
-                        new EntityIdServiceImpl(),
-                        hintsServiceImpl
-                )
-                .forEach(servicesRegistry::register);
+        final var hintsServiceImpl = new HintsServiceImpl(
+                NO_OP_METRICS,
+                ForkJoinPool.commonPool(),
+                appContext,
+                library,
+                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
+        Set.of(new EntityIdServiceImpl(), hintsServiceImpl).forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         migrator.doMigrations(

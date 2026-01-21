@@ -373,11 +373,9 @@ class WritableHistoryStoreImplTest {
     private State emptyState() {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
-        final var historyService = new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library);
-        Set.of(
-                        new EntityIdServiceImpl(),
-                        historyService)
-                .forEach(servicesRegistry::register);
+        final var historyService =
+                new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library);
+        Set.of(new EntityIdServiceImpl(), historyService).forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         migrator.doMigrations(

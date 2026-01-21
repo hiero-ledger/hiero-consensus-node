@@ -3,7 +3,6 @@ package com.hedera.node.app.hints.schemas;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
