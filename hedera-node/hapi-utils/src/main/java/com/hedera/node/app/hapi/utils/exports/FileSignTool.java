@@ -312,8 +312,10 @@ public class FileSignTool {
                 final SerializableDataOutputStream dos = new SerializableDataOutputStream(
                         new BufferedOutputStream(new HashingOutputStream(streamDigest)))) {
             // parse record file
+            final var recordPath = java.nio.file.Path.of(recordFile).toAbsolutePath().normalize();
+            final var authorizedDir = recordPath.getParent() == null ? java.nio.file.Path.of("").toAbsolutePath() : recordPath.getParent();
             final Pair<Integer, Optional<RecordStreamFile>> recordResult =
-                    readMaybeCompressedRecordStreamFile(recordFile);
+                    readMaybeCompressedRecordStreamFile(authorizedDir, recordFile);
 
             if (recordResult == null || recordResult.getValue().isEmpty()) {
                 throw new RuntimeException("Record result is empty");

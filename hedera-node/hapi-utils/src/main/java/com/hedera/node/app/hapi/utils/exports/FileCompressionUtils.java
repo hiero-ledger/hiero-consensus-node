@@ -3,8 +3,10 @@ package com.hedera.node.app.hapi.utils.exports;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -26,11 +28,70 @@ public class FileCompressionUtils {
 
     private FileCompressionUtils() {}
 
-    public static byte[] readUncompressedFileBytes(final String fileLoc) throws IOException {
-        try (final var fis = new FileInputStream(fileLoc);
-                final var buffered = new BufferedInputStream(fis);
+    /**
+     * Reads and inflates a GZIP file into memory, after validating the file path is within the given
+     * authorized directory.
+     *
+     * <p>This method defends against path traversal by normalizing and resolving the input path
+     * against an authorized root, and by validating the resulting real path is within that root.
+     * It also checks the file exists and is readable before attempting to open it.
+     *
+     * @param authorizedDir the authorized root directory the file must reside within
+     * @param fileLoc the (relative or absolute) location of the gzip file to read
+     * @return the uncompressed bytes from the gzip file
+     * @throws IOException if the path is invalid, outside the authorized directory, missing,
+     *     unreadable, or if decompression fails
+     */
+    public static byte[] readUncompressedFileBytes(final Path authorizedDir, final String fileLoc) throws IOException {
+        Objects.requireNonNull(authorizedDir, "authorizedDir must not be null");
+        Objects.requireNonNull(fileLoc, "fileLoc must not be null");
+
+        final var root = authorizedDir.toAbsolutePath().normalize();
+        final var candidate = Path.of(fileLoc);
+
+        // Interpret relative paths carefully:
+        // - Some callers pass a filename relative to authorizedDir (e.g. "foo.rcd.gz")
+        // - Others pass a path already rooted under authorizedDir (e.g. "streams/foo.rcd.gz")
+        // We accept either, as long as the resulting real path is within authorizedDir.
+        final Path resolved;
+        if (candidate.isAbsolute()) {
+            resolved = candidate.toAbsolutePath().normalize();
+        } else {
+            final var fromCwd = candidate.toAbsolutePath().normalize();
+            final var underRoot = root.resolve(candidate).normalize();
+            resolved = fromCwd.startsWith(root) ? fromCwd : underRoot;
+        }
+
+        if (!Files.exists(resolved)) {
+            throw new IOException("File does not exist: " + resolved);
+        }
+        if (!Files.isRegularFile(resolved)) {
+            throw new IOException("Path is not a regular file: " + resolved);
+        }
+        if (!Files.isReadable(resolved)) {
+            throw new IOException("File is not readable: " + resolved);
+        }
+
+        // Validate that the real file path is within the real authorized directory to prevent
+        // traversal and symlink-escape attacks.
+        final Path rootReal;
+        final Path fileReal;
+        try {
+            rootReal = root.toRealPath();
+            fileReal = resolved.toRealPath();
+        } catch (final IOException e) {
+            throw new IOException("Failed to resolve real paths for authorized root '" + root + "' and file '" + resolved
+                    + "'", e);
+        }
+
+        if (!fileReal.startsWith(rootReal)) {
+            throw new IOException("File path '" + fileReal + "' is outside authorized directory '" + rootReal + "'");
+        }
+
+        try (final var in = Files.newInputStream(fileReal);
+                final var buffered = new BufferedInputStream(in);
                 final var byteArrayOutputStream = new ByteArrayOutputStream()) {
-            validateGzipHeader(buffered, fileLoc);
+            validateGzipHeader(buffered, fileReal.toString());
             try (final var fin = new GZIPInputStream(buffered)) {
                 final var buffer = new byte[8192];
                 int len;
@@ -39,7 +100,7 @@ public class FileCompressionUtils {
                     // Prevent unbounded in-memory expansion (a.k.a. "zip bomb" / decompression bomb).
                     if (total + len > MAX_IN_MEMORY_BYTES) {
                         throw new IOException("Decompressed data exceeds max allowed size (" + MAX_IN_MEMORY_BYTES
-                                + " bytes) for file " + fileLoc);
+                                + " bytes) for file " + fileReal);
                     }
                     byteArrayOutputStream.write(buffer, 0, len);
                     total += len;
@@ -47,7 +108,7 @@ public class FileCompressionUtils {
             }
             return byteArrayOutputStream.toByteArray();
         } catch (IOException e) {
-            throw new IOException("Error reading file " + fileLoc, e);
+            throw new IOException("Error reading file " + resolved, e);
         }
     }
 
