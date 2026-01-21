@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -8,7 +9,7 @@ import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
-public class RosterLookup{
+public class RosterLookup {
     /** the only roster currently, until roster changes are implemented */
     private final Roster roster;
     /** the total weight of all roster entries. */
@@ -46,7 +47,7 @@ public class RosterLookup{
     }
 
     public boolean idEqualsIndex(@NonNull final NodeId nodeId, final int index) {
-        if(index < 0 || index >= roster.rosterEntries().size()) {
+        if (index < 0 || index >= roster.rosterEntries().size()) {
             return false;
         }
         return roster.rosterEntries().get(index).nodeId() == nodeId.id();
@@ -75,6 +76,6 @@ public class RosterLookup{
     }
 
     public int getRosterIndex(@NonNull final NodeId nodeId) {
-        return rosterIndicesMap.get(nodeId.id());//TODO handle null
+        return rosterIndicesMap.get(nodeId.id()); // TODO handle null
     }
 }

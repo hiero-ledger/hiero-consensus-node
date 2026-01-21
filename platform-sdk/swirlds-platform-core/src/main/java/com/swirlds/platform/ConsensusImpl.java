@@ -489,7 +489,6 @@ public class ConsensusImpl implements Consensus {
      */
     private void calculateMetadata(@NonNull final EventImpl event) {
 
-
         if (notRelevantForConsensus(event) || rounds.isLastDecidedJudge(event)) {
             return;
         }
@@ -598,8 +597,9 @@ public class ConsensusImpl implements Consensus {
                 noWeight += weight;
             }
         }
-        final boolean superMajority = Threshold.SUPER_MAJORITY.isSatisfiedBy(yesWeight, rosterLookup.rosterTotalWeight())
-                || Threshold.SUPER_MAJORITY.isSatisfiedBy(noWeight, rosterLookup.rosterTotalWeight());
+        final boolean superMajority =
+                Threshold.SUPER_MAJORITY.isSatisfiedBy(yesWeight, rosterLookup.rosterTotalWeight())
+                        || Threshold.SUPER_MAJORITY.isSatisfiedBy(noWeight, rosterLookup.rosterTotalWeight());
         final boolean countingVote = yesWeight >= noWeight;
 
         return CountingVote.get(countingVote, superMajority);
@@ -662,8 +662,7 @@ public class ConsensusImpl implements Consensus {
     private boolean firstVote(@NonNull final EventImpl voting, @NonNull final EventImpl votedOn) {
         // first round of an election. Vote TRUE for self-ancestors of those you firstSee. Don't
         // decide.
-        EventImpl w =
-                firstSee(voting, rosterLookup.getRosterIndex(votedOn.getCreatorId()));
+        EventImpl w = firstSee(voting, rosterLookup.getRosterIndex(votedOn.getCreatorId()));
         while (w != null && w.getRoundCreated() > voting.getRoundCreated() - 1 && selfParent(w) != null) {
             w = firstSelfWitnessS(selfParent(w));
         }
