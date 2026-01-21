@@ -15,7 +15,6 @@ import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.config.GossipConfig;
@@ -47,11 +46,13 @@ public class MerkleBenchmarkUtils {
         System.out.println("starting: " + startingTree);
         System.out.println("desired: " + desiredTree);
 
-        if (startingTree != null && startingTree.getHash() == null) {
-            TestMerkleCryptoFactory.getInstance().digestTreeSync(startingTree);
+        if (startingTree != null) {
+            // calculate hash
+            startingTree.getHash();
         }
-        if (desiredTree != null && desiredTree.getHash() == null) {
-            TestMerkleCryptoFactory.getInstance().digestTreeSync(desiredTree);
+        if (desiredTree != null) {
+            // calculate hash
+            desiredTree.getHash();
         }
         return testSynchronization(
                 startingTree,
@@ -109,7 +110,6 @@ public class MerkleBenchmarkUtils {
                                 e.printStackTrace();
                             }
                         },
-                        TestMerkleCryptoFactory.getInstance(),
                         reconnectConfig);
                 teacher = new TeachingSynchronizer(
                         Time.getCurrent(),

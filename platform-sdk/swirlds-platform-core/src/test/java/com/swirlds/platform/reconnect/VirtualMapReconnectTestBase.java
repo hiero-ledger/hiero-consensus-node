@@ -62,7 +62,6 @@ public abstract class VirtualMapReconnectTestBase {
         registry.registerConstructables("org.hiero");
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
     }
 
     protected MerkleInternal createTreeForMap(VirtualMap map) {
