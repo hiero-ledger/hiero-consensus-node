@@ -14,6 +14,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedT
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
 import static com.swirlds.platform.state.service.PlatformStateUtils.creationSemanticVersionOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.lastFrozenTimeOf;
@@ -662,7 +663,6 @@ public final class Hedera
                 if (initState != null) {
                     // Disabling start up mode, so since now singletons will be commited only on block close
                     if (initState instanceof VirtualMapState virtualMapState) {
-                        logger.info("DISABLING STARTUP MODE!!");
                         virtualMapState.disableStartupMode();
                     }
                 }
@@ -1263,8 +1263,8 @@ public final class Hedera
         }
         // For other triggers the initial state hash must have been set already
         requireNonNull(initialStateHashFuture);
-        final var roundNum = trigger == GENESIS
-                ? 0
+        final long roundNum = trigger == GENESIS
+                ? GENESIS_ROUND
                 : requireNonNull(state.getReadableStates(PlatformStateService.NAME)
                                 .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
                                 .get())

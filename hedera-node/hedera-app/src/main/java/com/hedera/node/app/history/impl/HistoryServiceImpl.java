@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
-import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -16,8 +16,7 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
-import com.hedera.node.app.history.schemas.V059HistorySchema;
-import com.hedera.node.app.history.schemas.V069HistorySchema;
+import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
@@ -36,9 +35,6 @@ import java.util.concurrent.Executor;
  * Default implementation of the {@link HistoryService}.
  */
 public class HistoryServiceImpl implements HistoryService {
-    @Deprecated
-    private final Configuration bootstrapConfig;
-
     private final HistoryServiceComponent component;
 
     /**
@@ -54,17 +50,13 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final Metrics metrics,
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
-            @NonNull final HistoryLibrary library,
-            @NonNull final Configuration bootstrapConfig) {
-        this.bootstrapConfig = requireNonNull(bootstrapConfig);
+            @NonNull final HistoryLibrary library) {
         this.component = DaggerHistoryServiceComponent.factory().create(library, appContext, executor, metrics, this);
     }
 
     @VisibleForTesting
-    public HistoryServiceImpl(
-            @NonNull final HistoryServiceComponent component, @NonNull final Configuration bootstrapConfig) {
+    public HistoryServiceImpl(@NonNull final HistoryServiceComponent component) {
         this.component = requireNonNull(component);
-        this.bootstrapConfig = requireNonNull(bootstrapConfig);
     }
 
     @Override
@@ -156,8 +148,7 @@ public class HistoryServiceImpl implements HistoryService {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        registry.register(new V059HistorySchema());
-        registry.register(new V069HistorySchema(this));
+        registry.register(new V071HistorySchema(this));
     }
 
     @Override
