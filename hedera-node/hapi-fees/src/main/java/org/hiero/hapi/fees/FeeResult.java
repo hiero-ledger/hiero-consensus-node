@@ -146,10 +146,13 @@ public class FeeResult {
 
     public void clearFees() {
         this.serviceExtrasDetails.clear();
+        this.serviceBase = 0;
         this.serviceTotal = 0;
         this.nodeExtrasDetails.clear();
+        this.nodeBase = 0;
         this.nodeTotal = 0;
         this.networkMultiplier = 0;
+        this.congestionMultiplier = 0;
     }
 
     /**
