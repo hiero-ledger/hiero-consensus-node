@@ -95,7 +95,7 @@ jobs:
           BASELINE_FILE="${BASELINE_PATH}/${BASELINE_NAME}"
           BASELINE_EXISTS="false"
 
-          if gsutil ls "${BASELINE_FILE}" >/dev/null 2>&1; then
+          if gsutil ls "${BASELINE_FILE}" 2>&1; then
              BASELINE_EXISTS="true"
           fi
 

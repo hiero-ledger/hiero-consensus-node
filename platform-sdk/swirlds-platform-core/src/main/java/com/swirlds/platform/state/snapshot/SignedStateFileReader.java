@@ -2,12 +2,14 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
+import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_BIN_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SUPPORTED_SIGSET_VERSIONS;
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.config.api.Configuration;
@@ -26,7 +28,6 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
@@ -63,12 +64,24 @@ public final class SignedStateFileReader {
         final MerkleNodeState merkleNodeState;
         merkleNodeState = stateLifecycleManager.loadSnapshot(stateDir);
 
-        final File sigSetFile = stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
-        final SigSet sigSet = deserializeAndDebugOnFailure(
-                () -> new BufferedInputStream(new FileInputStream(sigSetFile)), (final MerkleDataInputStream in) -> {
-                    readAndCheckSigSetFileVersion(in);
-                    return in.readSerializable();
-                });
+        final SigSet sigSet;
+        final File pbjFile = stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
+        if (pbjFile.exists()) {
+            sigSet = new SigSet();
+            try (final ReadableStreamingData in = new ReadableStreamingData(new FileInputStream(pbjFile))) {
+                in.limit(pbjFile.length());
+                sigSet.deserialize(in);
+            }
+        } else {
+            final File sigSetFile =
+                    stateDir.resolve(SIGNATURE_SET_BIN_FILE_NAME).toFile();
+            sigSet = deserializeAndDebugOnFailure(
+                    () -> new BufferedInputStream(new FileInputStream(sigSetFile)),
+                    (final MerkleDataInputStream in) -> {
+                        readAndCheckSigSetFileVersion(in);
+                        return in.readSerializable();
+                    });
+        }
 
         final SignedState newSignedState = new SignedState(
                 conf,
@@ -93,15 +106,13 @@ public final class SignedStateFileReader {
      * Check the path of a signed state file
      *
      * @param stateDirectory the path to check
-     * @throws IOException if the path is not valid
      */
     private static void checkSignedStateFilePath(@NonNull final Path stateDirectory) throws IOException {
-        final Path signedStateFilePath = stateDirectory.resolve(SIGNATURE_SET_FILE_NAME);
-        if (!exists(signedStateFilePath)) {
-            throw new IOException("Directory " + signedStateFilePath.toAbsolutePath() + " does not exist!");
-        }
-        if (!Files.isRegularFile(signedStateFilePath)) {
-            throw new IOException("File " + signedStateFilePath.toAbsolutePath() + " is not a file!");
+        final Path signedStatePbjPath = stateDirectory.resolve(SIGNATURE_SET_FILE_NAME);
+        final Path signedStateBinPath = stateDirectory.resolve(SIGNATURE_SET_BIN_FILE_NAME);
+        if (!exists(signedStatePbjPath) && !exists(signedStateBinPath)) {
+            throw new IOException(
+                    "Directory " + stateDirectory.toAbsolutePath() + " does not contain a signature set!");
         }
     }
 
