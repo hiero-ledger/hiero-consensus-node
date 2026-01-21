@@ -189,7 +189,13 @@ public class TransactionDispatcher {
                     TOKEN_UPDATE_NFTS,
                     TOKEN_WIPE -> true;
             case NODE_CREATE, NODE_UPDATE, NODE_DELETE -> true;
-            case HOOK_STORE, HOOK_DISPATCH -> true;
+            case CONTRACT_CREATE_INSTANCE,
+                    CONTRACT_DELETE_INSTANCE,
+                    CONTRACT_CALL,
+                    CONTRACT_UPDATE_INSTANCE,
+                    ETHEREUM_TRANSACTION,
+                    HOOK_STORE,
+                    HOOK_DISPATCH -> true;
             default -> false;
         };
     }

@@ -4,6 +4,11 @@ package com.hedera.node.app.service.contract.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.contract.ContractService;
+import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractDeleteFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractUpdateFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.EthereumFeeCalculator;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.DefaultVerificationStrategies;
@@ -93,7 +98,14 @@ public class ContractServiceImpl implements ContractService {
 
     @Override
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
-        return Set.of(new HookStoreHandler.FeeCalculator(), new HookDispatchHandler.FeeCalculator());
+        return Set.of(
+                new HookStoreHandler.FeeCalculator(),
+                new HookDispatchHandler.FeeCalculator(),
+                new ContractCreateFeeCalculator(),
+                new ContractCallFeeCalculator(),
+                new ContractDeleteFeeCalculator(),
+                new ContractUpdateFeeCalculator(),
+                new EthereumFeeCalculator());
     }
 
     public void createMetrics() {
