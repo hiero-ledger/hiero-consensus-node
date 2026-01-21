@@ -1179,6 +1179,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * as a leaf node (prefixed with {@link StreamingTreeHasher#LEAF_PREFIX}) or as an internal node (prefixed
      * with {@link StreamingTreeHasher#INTERNAL_NODE_PREFIX}). Therefore, they should <b>not</b> be hashed
      * again until combined with another hash.
+     * <p>
+     * While {@code prevBlockHash} could programmatically be null, in practice it never should be. Even
+     * in the case of the genesis block, this value should be {@link BlockStreamManager#ZERO_BLOCK_HASH}. For
+     * all other blocks, it should be the actual previous block's root hash.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
      * leaf level, depth six) to top (the root, depth one)
      */
@@ -1192,6 +1196,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Bytes stateChangesHash,
             @NonNull final Bytes traceDataHash,
             @NonNull final Timestamp firstConsensusTimeOfCurrentBlock) {
+        requireNonNull(prevBlockHash);
+
         // Compute depth five hashes
         final var depth5Node1 = BlockImplUtils.hashInternalNode(prevBlockHash, prevBlockRootsHash);
         final var depth5Node2 = BlockImplUtils.hashInternalNode(startingStateHash, consensusHeaderHash);
