@@ -252,8 +252,8 @@ public class SystemFileExportsTest {
     @GenesisHapiTest
     final Stream<DynamicTest> syntheticSimpleFeesSchedulesUpdateHappensAtUpgradeBoundary() throws ParseException {
         final var simpleFeesJson = resourceAsString("testSystemFiles/test-simple-fees.json");
-        final var upgradeSimpleFees = FeeSchedule.PROTOBUF.parse(
-                Bytes.wrap(SYS_FILE_SERDES.get(113L).toRawFile(simpleFeesJson, null)));
+        final var upgradeSimpleFees =
+                FeeSchedule.PROTOBUF.parse(Bytes.wrap(SYS_FILE_SERDES.get(113L).toRawFile(simpleFeesJson, null)));
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
@@ -460,8 +460,7 @@ public class SystemFileExportsTest {
         return CurrentAndNextFeeSchedule.parseFrom(bytes);
     }
 
-    private static FeeSchedule parseSimpleFeeSchedule(final byte[] bytes)
-            throws ParseException {
+    private static FeeSchedule parseSimpleFeeSchedule(final byte[] bytes) throws ParseException {
         return FeeSchedule.PROTOBUF.parse(Bytes.wrap(bytes));
     }
 
