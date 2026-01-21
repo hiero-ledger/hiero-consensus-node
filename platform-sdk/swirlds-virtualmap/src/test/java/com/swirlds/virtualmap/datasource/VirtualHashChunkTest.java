@@ -375,71 +375,6 @@ public class VirtualHashChunkTest {
         assertThrows(IllegalArgumentException.class, () -> chunk.setHashAtPath(chunk.getPath(chunkSize), new Hash()));
     }
 
-    @Test
-    void calcHashTest36() {
-        final VirtualHashChunk chunk = new VirtualHashChunk(0, 2);
-        final Hash hash3 =
-                new Hash("345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8));
-        final Hash hash4 =
-                new Hash("456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8));
-        final Hash hash5 =
-                new Hash("567890123456789012345678901234567890123456789012".getBytes(StandardCharsets.UTF_8));
-        final Hash hash6 =
-                new Hash("678901234567890123456789012345678901234567890123".getBytes(StandardCharsets.UTF_8));
-        chunk.setHashAtPath(3, hash3);
-        chunk.setHashAtPath(4, hash4);
-        chunk.setHashAtPath(5, hash5);
-        chunk.setHashAtPath(6, hash6);
-        assertEquals(hash3, chunk.calcHash(3, 3, 6));
-        assertEquals(hash4, chunk.calcHash(4, 3, 6));
-        assertEquals(hash5, chunk.calcHash(5, 3, 6));
-        assertEquals(hash6, chunk.calcHash(6, 3, 6));
-        final Hash hash1 = VirtualHasher.hashInternal(hash3, hash4);
-        final Hash hash2 = VirtualHasher.hashInternal(hash5, hash6);
-        assertEquals(hash1, chunk.calcHash(1, 3, 6));
-        assertEquals(hash2, chunk.calcHash(2, 3, 6));
-        final Hash rootHash = VirtualHasher.hashInternal(hash1, hash2);
-        assertEquals(rootHash, chunk.calcHash(0, 3, 6));
-        assertEquals(rootHash, chunk.chunkRootHash(3, 6));
-        assertEquals(rootHash, chunk.chunkRootHash(10, 20));
-    }
-
-    @Test
-    void calcHashTest24() {
-        final VirtualHashChunk chunk = new VirtualHashChunk(0, 2);
-        final Hash hash2 =
-                new Hash("234567890123456789012345678901234567890123456789".getBytes(StandardCharsets.UTF_8));
-        final Hash hash3 =
-                new Hash("345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8));
-        final Hash hash4 =
-                new Hash("456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8));
-        chunk.setHashAtPath(2, hash2);
-        chunk.setHashAtPath(3, hash3);
-        chunk.setHashAtPath(4, hash4);
-        assertEquals(hash2, chunk.calcHash(2, 2, 4));
-        assertEquals(hash3, chunk.calcHash(3, 2, 4));
-        assertEquals(hash4, chunk.calcHash(4, 2, 4));
-        final Hash hash1 = VirtualHasher.hashInternal(hash3, hash4);
-        assertEquals(hash1, chunk.calcHash(1, 2, 4));
-        assertEquals(hash2, chunk.calcHash(2, 2, 4));
-        final Hash rootHash = VirtualHasher.hashInternal(hash1, hash2);
-        assertEquals(rootHash, chunk.calcHash(0, 2, 4));
-        assertEquals(rootHash, chunk.chunkRootHash(2, 4));
-    }
-
-    @Test
-    void calcHashTest11() {
-        final VirtualHashChunk chunk = new VirtualHashChunk(0, 1);
-        final Hash hash1 =
-                new Hash("123456789012345678901234567890123456789012345678".getBytes(StandardCharsets.UTF_8));
-        chunk.setHashAtPath(1, hash1);
-        assertEquals(hash1, chunk.calcHash(1, 1, 1));
-        final Hash hash2 = new Hash();
-        final Hash rootHash = VirtualHasher.hashInternal(hash1, hash2);
-        assertEquals(rootHash, chunk.calcHash(0, 1, 1));
-        assertEquals(rootHash, chunk.chunkRootHash(1, 1));
-    }
-
     // Copy tests
 
     @ParameterizedTest
@@ -811,11 +746,63 @@ public class VirtualHashChunkTest {
     // Calc hashes
 
     @Test
+    void calcHashTest36() {
+        final VirtualHashChunk chunk = new VirtualHashChunk(0, 2);
+        final Hash hash3 =
+                new Hash("345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8));
+        final Hash hash4 =
+                new Hash("456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8));
+        final Hash hash5 =
+                new Hash("567890123456789012345678901234567890123456789012".getBytes(StandardCharsets.UTF_8));
+        final Hash hash6 =
+                new Hash("678901234567890123456789012345678901234567890123".getBytes(StandardCharsets.UTF_8));
+        chunk.setHashAtPath(3, hash3);
+        chunk.setHashAtPath(4, hash4);
+        chunk.setHashAtPath(5, hash5);
+        chunk.setHashAtPath(6, hash6);
+        assertEquals(hash3, chunk.calcHash(3, 3, 6));
+        assertEquals(hash4, chunk.calcHash(4, 3, 6));
+        assertEquals(hash5, chunk.calcHash(5, 3, 6));
+        assertEquals(hash6, chunk.calcHash(6, 3, 6));
+        final Hash hash1 = VirtualHasher.hashInternal(hash3, hash4);
+        final Hash hash2 = VirtualHasher.hashInternal(hash5, hash6);
+        assertEquals(hash1, chunk.calcHash(1, 3, 6));
+        assertEquals(hash2, chunk.calcHash(2, 3, 6));
+        final Hash rootHash = VirtualHasher.hashInternal(hash1, hash2);
+        assertEquals(rootHash, chunk.calcHash(0, 3, 6));
+        assertEquals(rootHash, chunk.chunkRootHash(3, 6));
+        assertEquals(rootHash, chunk.chunkRootHash(10, 20));
+    }
+
+    @Test
+    void calcHashTest24() {
+        final VirtualHashChunk chunk = new VirtualHashChunk(0, 2);
+        final Hash hash2 =
+                new Hash("234567890123456789012345678901234567890123456789".getBytes(StandardCharsets.UTF_8));
+        final Hash hash3 =
+                new Hash("345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8));
+        final Hash hash4 =
+                new Hash("456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8));
+        chunk.setHashAtPath(2, hash2);
+        chunk.setHashAtPath(3, hash3);
+        chunk.setHashAtPath(4, hash4);
+        assertEquals(hash2, chunk.calcHash(2, 2, 4));
+        assertEquals(hash3, chunk.calcHash(3, 2, 4));
+        assertEquals(hash4, chunk.calcHash(4, 2, 4));
+        final Hash hash1 = VirtualHasher.hashInternal(hash3, hash4);
+        assertEquals(hash1, chunk.calcHash(1, 2, 4));
+        assertEquals(hash2, chunk.calcHash(2, 2, 4));
+        final Hash rootHash = VirtualHasher.hashInternal(hash1, hash2);
+        assertEquals(rootHash, chunk.calcHash(0, 2, 4));
+        assertEquals(rootHash, chunk.chunkRootHash(2, 4));
+    }
+
+    @Test
     void calcHashPath2BeyondLastLeafTest() {
         // Test the special case where path 2 is beyond lastLeafPath
         final VirtualHashChunk chunk = new VirtualHashChunk(0, 1);
 
-        // Set hash for path 1 only (firstLeafPath = lastLeafPath = 1)
+        // Set hash for path 1 only (firstLeafPath and lastLeafPath are 1)
         final Hash hash1 =
                 new Hash("111111111111111111111111111111111111111111111111".getBytes(StandardCharsets.UTF_8));
         chunk.setHashAtPath(1, hash1);

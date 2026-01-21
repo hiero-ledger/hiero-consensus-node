@@ -10,6 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -405,9 +408,17 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Verify methods on the listener are called at the right frequency")
     void listenerCallCounts() throws Exception {
+        // This test relies on hash chunk height to be 5
+        final int hashChunkHeight = 5;
+        final Configuration config = ConfigurationBuilder.create()
+                .withConfigDataType(VirtualMapConfig.class)
+                .withValue("virtualMap.virtualHasherChunkHeight", "" + hashChunkHeight)
+                .build();
+        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
+
         final long firstLeafPath = 52L;
         final long lastLeafPath = firstLeafPath * 2;
-        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, CHUNK_HEIGHT);
+        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, hashChunkHeight);
         final HashingListener listener = new HashingListener();
         final VirtualHasher hasher = new VirtualHasher();
         hashTree(ds);
@@ -415,7 +426,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                 53L, 56L, 59L, 63L, 66L, 72L, 76L, 77L, 80L, 81L, 82L, 83L, 85L, 87L, 88L, 94L, 96L, 100L, 104L);
 
         final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
-        hasher.hash(ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+        hasher.hash(ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, virtualMapConfig);
 
         // Check the different callbacks were called the correct number of times
         assertEquals(1, listener.onHashingStartedCallCount, "Unexpected count");

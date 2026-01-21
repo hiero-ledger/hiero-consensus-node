@@ -447,25 +447,24 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
     public Hash calcHash(final long path, final long firstLeafPath, final long lastLeafPath) {
         final int pathRank = Path.getRank(path);
         final int chunkRank = Path.getRank(this.path);
-        assert chunkRank <= pathRank;
+        assert pathRank >= chunkRank;
         assert pathRank <= chunkRank + height;
         return calcHash(chunkRank + height - pathRank, path, firstLeafPath, lastLeafPath);
     }
 
     private Hash calcHash(final long h, final long path, final long firstLeafPath, final long lastLeafPath) {
-        if ((h == 0) || ((path >= firstLeafPath) && (path <= lastLeafPath))) {
-            return getHashAtPath(path);
-        }
         if (path > lastLeafPath) {
             assert path == 2;
             return VirtualHasher.NO_PATH2_HASH;
-        } else {
-            assert h > 0;
-            final long leftPath = Path.getLeftChildPath(path);
-            final Hash leftHash = calcHash(h - 1, leftPath, firstLeafPath, lastLeafPath);
-            final long rightPath = Path.getRightChildPath(path);
-            final Hash rightHash = calcHash(h - 1, rightPath, firstLeafPath, lastLeafPath);
-            return VirtualHasher.hashInternal(leftHash, rightHash);
         }
+        if ((h == 0) || ((path >= firstLeafPath) && (path <= lastLeafPath))) {
+            return getHashAtPath(path);
+        }
+        assert h > 0;
+        final long leftPath = Path.getLeftChildPath(path);
+        final Hash leftHash = calcHash(h - 1, leftPath, firstLeafPath, lastLeafPath);
+        final long rightPath = Path.getRightChildPath(path);
+        final Hash rightHash = calcHash(h - 1, rightPath, firstLeafPath, lastLeafPath);
+        return VirtualHasher.hashInternal(leftHash, rightHash);
     }
 }
