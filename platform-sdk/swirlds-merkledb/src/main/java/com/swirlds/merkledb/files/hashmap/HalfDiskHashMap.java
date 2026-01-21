@@ -80,8 +80,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     private final int goodAverageBucketEntryCount;
 
     /**
-     * When average number of keys per bucket exceeds PERCENT_START_RESIZE percent,
-     * HDHM will be resized to double the number of buckets.
+     * When average number of keys per bucket exceeds PERCENT_START_RESIZE percent of
+     * goodAverageBucketEntryCount, HDHM will be resized to double the number of buckets.
      */
     static final int PERCENT_START_RESIZE = 70;
 
