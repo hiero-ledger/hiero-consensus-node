@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.Utilities;
+import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.GossipConfig_;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
