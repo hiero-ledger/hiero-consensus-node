@@ -11,6 +11,8 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.NonFungibleTransfers.changingNFTBalances;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
@@ -18,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
@@ -27,7 +30,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNex
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -35,11 +42,13 @@ import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.throttle.CongestionThrottleService;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -61,6 +70,29 @@ public class RepeatableIntegrationTests {
                         .hasPriority(recordWith()
                                 .tokenTransfers(changingNFTBalances()
                                         .including(nft.name(), nft.treasury().name(), "0.0.0", 1L))));
+    }
+
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> senderSignatureValidatedInQueries() {
+        final var PAYER = "payer";
+        final var SENDER = "sender";
+        final var SENDER_BALANCE = ONE_MILLION_HBARS;
+        final AtomicLong initialNodeBalance = new AtomicLong();
+        final var badPayment = cryptoTransfer(tinyBarsFromTo(SENDER, "3", ONE_HUNDRED_HBARS))
+                .payingWith(PAYER)
+                .signedBy(PAYER);
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
+                cryptoCreate(SENDER).balance(SENDER_BALANCE),
+                getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
+                getAccountInfo(SENDER)
+                        .withPayment(badPayment)
+                        .hasAnswerOnlyPrecheck(INVALID_SIGNATURE)
+                        .logged(),
+                handleAnyRepeatableQueryPayment(),
+                getAccountBalance(SENDER).hasTinyBars(SENDER_BALANCE),
+                getAccountBalance("3").hasTinyBars(initialNodeBalance.get())
+        );
     }
 
     @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})

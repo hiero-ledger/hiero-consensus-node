@@ -6,8 +6,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXI
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
+import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.NOT_INGEST;
@@ -22,6 +25,10 @@ import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
+import com.hedera.node.app.signature.DefaultKeyVerifier;
+import com.hedera.node.app.signature.ExpandedSignaturePair;
+import com.hedera.node.app.signature.SignatureExpander;
+import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -34,9 +41,11 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.FeesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -51,6 +60,8 @@ public class QueryChecker {
     private final ExpiryValidation expiryValidation;
     private final FeeManager feeManager;
     private final TransactionDispatcher dispatcher;
+    private final SignatureVerifier signatureVerifier;
+    private final SignatureExpander signatureExpander;
 
     /**
      * Constructor of {@code QueryChecker}
@@ -62,6 +73,8 @@ public class QueryChecker {
      * @param expiryValidation      the {@link ExpiryValidation} that checks if an account is expired
      * @param feeManager            the {@link FeeManager} that calculates the fees
      * @param dispatcher            the {@link TransactionDispatcher} the transaction dispatcher
+     * @param signatureVerifier     the {@link SignatureVerifier} that verifies signatures
+     * @param signatureExpander     the {@link SignatureExpander} that expands signatures
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @Inject
@@ -72,30 +85,46 @@ public class QueryChecker {
             @NonNull final ExpiryValidation expiryValidation,
             @NonNull final FeeManager feeManager,
             final TransactionDispatcher dispatcher,
-            @NonNull final TransactionChecker transactionChecker) {
+            @NonNull final TransactionChecker transactionChecker,
+            @NonNull final SignatureVerifier signatureVerifier,
+            @NonNull final SignatureExpander signatureExpander) {
         this.authorizer = requireNonNull(authorizer);
         this.cryptoTransferHandler = requireNonNull(cryptoTransferHandler);
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck);
         this.expiryValidation = requireNonNull(expiryValidation);
         this.feeManager = requireNonNull(feeManager);
         this.dispatcher = requireNonNull(dispatcher);
+        this.signatureVerifier = requireNonNull(signatureVerifier);
+        this.signatureExpander = requireNonNull(signatureExpander);
     }
 
     /**
      * Validates the {@link HederaFunctionality#CRYPTO_TRANSFER} that is contained in a query
      *
+     * @param accountStore the {@link ReadableAccountStore} used to access accounts
      * @param transactionInfo the {@link TransactionInfo} that contains all data about the transaction
+     * @param configuration the {@link Configuration} for accessing config data
      * @throws PreCheckException if validation fails
      * @throws NullPointerException if one of the arguments is {@code null}
      */
-    public void validateCryptoTransfer(@NonNull final TransactionInfo transactionInfo) throws PreCheckException {
+    public void validateCryptoTransfer(
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final TransactionInfo transactionInfo,
+            @NonNull final Configuration configuration)
+            throws PreCheckException {
+        requireNonNull(accountStore);
         requireNonNull(transactionInfo);
+        requireNonNull(configuration);
+
         if (transactionInfo.functionality() != CRYPTO_TRANSFER) {
             throw new PreCheckException(INSUFFICIENT_TX_FEE);
         }
         final var txBody = transactionInfo.txBody();
         final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
         cryptoTransferHandler.pureChecks(pureChecksContext);
+
+        // Validate sender signatures
+        validateSenderSignatures(accountStore, transactionInfo, configuration);
     }
 
     /**
@@ -227,5 +256,92 @@ public class QueryChecker {
             return fees.totalFee();
         }
         return cryptoTransferHandler.calculateFees(feeContext).totalFee();
+    }
+
+    /**
+     * Validates that all sender accounts in the crypto transfer have valid signatures.
+     * This checks that accounts sending funds (negative amounts) have signed the transaction.
+     *
+     * @param accountStore the {@link ReadableAccountStore} used to access accounts
+     * @param txInfo the {@link TransactionInfo} of the {@link HederaFunctionality#CRYPTO_TRANSFER}
+     * @param configuration the current {@link Configuration}
+     * @throws PreCheckException if signature validation fails
+     * @throws NullPointerException if one of the arguments is {@code null}
+     */
+    public void validateSenderSignatures(
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final TransactionInfo txInfo,
+            @NonNull final Configuration configuration)
+            throws PreCheckException {
+        requireNonNull(accountStore);
+        requireNonNull(txInfo);
+        requireNonNull(configuration);
+
+        final var txBody = txInfo.txBody();
+        final var transfers = txBody.cryptoTransferOrThrow().transfersOrThrow().accountAmounts();
+        final var payerID = txInfo.payerID();
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+
+        // Expand the signatures from the signature map
+        final var expandedSigs = new HashSet<ExpandedSignaturePair>();
+        signatureExpander.expand(txInfo.signatureMap().sigPair(), expandedSigs);
+
+        // Verify the signatures
+        final var verificationResults = signatureVerifier.verify(txInfo.signedBytes(), expandedSigs);
+        final var verifier = new DefaultKeyVerifier(hederaConfig, verificationResults);
+
+        // Check each transfer to see if sender accounts have valid signatures
+        for (final var accountAmount : transfers) {
+            final var accountID = accountAmount.accountIDOrElse(AccountID.DEFAULT);
+            final var amount = accountAmount.amount();
+
+            // Only check sender accounts (negative amounts = sending funds)
+            // Skip the payer account as it's already validated by IngestChecker
+            if (amount < 0 && !Objects.equals(accountID, payerID)) {
+                final var account = accountStore.getAliasedAccountById(accountID);
+                if (account == null) {
+                    throw new PreCheckException(INVALID_ACCOUNT_ID);
+                }
+
+                // Check if the account has a key
+                final var key = account.key();
+                if (key == null || !isValid(key)) {
+                    if (isHollow(account)) {
+                        // For hollow accounts, verify the signature using the alias
+                        final var verification = verifier.verificationFor(account.alias());
+                        if (verification.failed()) {
+                            throw new PreCheckException(INVALID_SIGNATURE);
+                        }
+                    } else {
+                        // If the sender account has no key, then fail
+                        throw new PreCheckException(INVALID_ACCOUNT_ID);
+                    }
+                } else {
+                    // Expand signatures for this specific key
+                    signatureExpander.expand(key, txInfo.signatureMap().sigPair(), expandedSigs);
+
+                    // Verify the signature for this key
+                    final var verification = verifier.verificationFor(key);
+                    if (verification.failed()) {
+                        throw new PreCheckException(INVALID_SIGNATURE);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks if a key is valid (not empty).
+     *
+     * @param key the key to check
+     * @return true if the key is valid, false otherwise
+     */
+    private static boolean isValid(@NonNull final Key key) {
+        return key.hasEd25519()
+                || key.hasEcdsaSecp256k1()
+                || key.hasKeyList()
+                || key.hasThresholdKey()
+                || key.hasContractID()
+                || key.hasDelegatableContractId();
     }
 }
