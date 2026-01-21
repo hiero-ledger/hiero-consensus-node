@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.delegation;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl.INTRINSIC_DELEGATION_GAS_COST;
 import static org.hyperledger.besu.evm.account.Account.MAX_NONCE;
@@ -130,7 +130,7 @@ public record CodeDelegationProcessor(long chainId) {
             } else {
                 // Create failed record due to insufficient gas for lazy creation
                 final var failedRecord =
-                        proxyWorldUpdater.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CONTRACT_CREATE);
+                        proxyWorldUpdater.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE);
                 failedRecord.status(INSUFFICIENT_GAS);
                 return;
             }

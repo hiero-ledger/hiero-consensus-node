@@ -170,7 +170,7 @@ public record HederaEvmTransaction(
                 this.exception,
                 this.hookDispatch,
                 Math.max(0L, this.gasLimit() - codeDelegationResult.getAvailableGas()),
-                codeDelegationResult.getGetRefund());
+                codeDelegationResult.getRefund());
     }
 
     /**

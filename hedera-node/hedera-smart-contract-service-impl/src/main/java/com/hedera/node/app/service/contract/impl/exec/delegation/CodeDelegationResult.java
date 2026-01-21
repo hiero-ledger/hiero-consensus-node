@@ -43,7 +43,7 @@ public class CodeDelegationResult {
         return availableGas;
     }
 
-    public long getGetRefund() {
+    public long getRefund() {
         return alreadyExistingDelegators * PER_AUTH_BASE_COST;
     }
 }

@@ -167,10 +167,10 @@ public class FrameRunner {
             @NonNull final MessageFrame frame,
             @NonNull final GasCharges gasCharges,
             final long codeDelegationRefund) {
-        final var nominalGasUsed = gasLimit - frame.getRemainingGas() - codeDelegationRefund;
+        final var nominalGasUsed = gasLimit - frame.getRemainingGas();
 
         // A gas refund limit as defined in EIP-3529
-        final var nominalRefund = frame.getGasRefund();
+        final var nominalRefund = frame.getGasRefund() + codeDelegationRefund;
         final var maxGasRefunded = nominalGasUsed / gasCalculator.getMaxRefundQuotient();
         final var actualGasToRefund = Math.min(maxGasRefunded, nominalRefund);
         var gasUsedAfterRefund = nominalGasUsed - actualGasToRefund;

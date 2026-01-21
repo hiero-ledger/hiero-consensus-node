@@ -56,7 +56,7 @@ class HederaEvmTransactionTest {
         final var refund = 5_000L;
 
         given(codeDelegationResult.getAvailableGas()).willReturn(availableGas);
-        given(codeDelegationResult.getGetRefund()).willReturn(refund);
+        given(codeDelegationResult.getRefund()).willReturn(refund);
 
         final var result = subject.fromCodeDelegationResult(codeDelegationResult);
 

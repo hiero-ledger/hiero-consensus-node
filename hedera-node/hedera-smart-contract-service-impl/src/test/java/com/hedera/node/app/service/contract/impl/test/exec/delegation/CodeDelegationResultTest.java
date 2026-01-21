@@ -22,7 +22,7 @@ class CodeDelegationResultTest {
 
         subject.incrementAlreadyExistingDelegators();
         assertEquals(1L, subject.alreadyExistingDelegators());
-        assertEquals(PER_AUTH_BASE_COST, subject.getGetRefund());
+        assertEquals(PER_AUTH_BASE_COST, subject.getRefund());
 
         assertEquals(100000L, subject.getAvailableGas());
         subject.deductGas(30000L);
