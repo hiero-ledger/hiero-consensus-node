@@ -506,7 +506,7 @@ public class TokenCreateSimpleFeesTest {
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
-            @DisplayName("TokenCreate - invalid treasury fails on pre-handle - full fee charged")
+            @DisplayName("TokenCreate - invalid treasury fails on handle - full fee charged")
             final Stream<DynamicTest> tokenCreateInvalidTreasuryFailsOnPreHandle() {
                 final String INNER_ID = "token-create-txn-inner-id";
 
@@ -521,7 +521,11 @@ public class TokenCreateSimpleFeesTest {
                                 .setNode("0.0.4")
                                 .via(INNER_ID)
                                 .hasKnownStatus(INVALID_ACCOUNT_ID),
-                        getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged());
+                        getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
+                        validateChargedUsdWithin(
+                                INNER_ID,
+                                expectedTokenCreateFungibleFullFeeUsd(1L, 0L), // 1 sig (payer only), 0 keys
+                                1.0));
             }
         }
     }

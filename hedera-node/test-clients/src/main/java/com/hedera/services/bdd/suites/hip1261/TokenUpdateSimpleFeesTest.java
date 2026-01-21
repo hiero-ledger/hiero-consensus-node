@@ -15,8 +15,10 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
@@ -32,6 +34,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
+import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -71,6 +74,11 @@ public class TokenUpdateSimpleFeesTest {
     private static final String FREEZE_KEY = "freezeKey";
     private static final String PAYER_KEY = "payerKey";
     private static final String TOKEN = "fungibleToken";
+    private static final String NFT_TOKEN = "nftToken";
+    private static final String NEW_TREASURY = "newTreasury";
+    private static final String FEE_SCHEDULE_KEY = "feeScheduleKey";
+    private static final String NEW_FEE_SCHEDULE_KEY = "newFeeScheduleKey";
+    private static final String HBAR_COLLECTOR = "hbarCollector";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -224,6 +232,117 @@ public class TokenUpdateSimpleFeesTest {
                             expectedTokenUpdateFullFeeUsd(3L, 0L), // 3 sigs (2 payer + 1 admin)
                             1.0));
         }
+
+        @HapiTest
+        @DisplayName("TokenUpdate - with new treasury - extra signatures")
+        final Stream<DynamicTest> tokenUpdateWithNewTreasury() {
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    cryptoCreate(NEW_TREASURY).balance(0L),
+                    newKeyNamed(ADMIN_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .adminKey(ADMIN_KEY)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .fee(ONE_HUNDRED_HBARS),
+                    tokenAssociate(NEW_TREASURY, TOKEN),
+                    tokenUpdate(TOKEN)
+                            .treasury(NEW_TREASURY)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, ADMIN_KEY, NEW_TREASURY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via("tokenUpdateTxn"),
+                    validateChargedUsdWithin(
+                            "tokenUpdateTxn",
+                            expectedTokenUpdateFullFeeUsd(3L, 0L), // 3 sigs (payer + admin + new treasury)
+                            1.0));
+        }
+
+        @HapiTest
+        @DisplayName("TokenUpdate - token with custom fees - base fee update")
+        final Stream<DynamicTest> tokenUpdateWithCustomFees() {
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    cryptoCreate(HBAR_COLLECTOR).balance(0L),
+                    newKeyNamed(ADMIN_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .adminKey(ADMIN_KEY)
+                            .treasury(TREASURY)
+                            .withCustom(fixedHbarFee(100L, HBAR_COLLECTOR))
+                            .payingWith(PAYER)
+                            .fee(ONE_HUNDRED_HBARS),
+                    tokenUpdate(TOKEN)
+                            .memo("Updated memo on token with custom fees")
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, ADMIN_KEY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via("tokenUpdateTxn"),
+                    validateChargedUsdWithin(
+                            "tokenUpdateTxn",
+                            expectedTokenUpdateFullFeeUsd(2L, 0L), // 2 sigs, 0 new keys
+                            1.0));
+        }
+
+        @HapiTest
+        @DisplayName("TokenUpdate - with new fee schedule key - extra key")
+        final Stream<DynamicTest> tokenUpdateFeeScheduleKey() {
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    newKeyNamed(ADMIN_KEY),
+                    newKeyNamed(FEE_SCHEDULE_KEY),
+                    newKeyNamed(NEW_FEE_SCHEDULE_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .adminKey(ADMIN_KEY)
+                            .feeScheduleKey(FEE_SCHEDULE_KEY)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .fee(ONE_HUNDRED_HBARS),
+                    tokenUpdate(TOKEN)
+                            .feeScheduleKey(NEW_FEE_SCHEDULE_KEY)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, ADMIN_KEY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via("tokenUpdateTxn"),
+                    validateChargedUsdWithin(
+                            "tokenUpdateTxn",
+                            expectedTokenUpdateFullFeeUsd(2L, 1L), // 2 sigs, 1 new key
+                            1.0));
+        }
+
+        @HapiTest
+        @DisplayName("TokenUpdate - NFT token update - base fee")
+        final Stream<DynamicTest> tokenUpdateNft() {
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    newKeyNamed(ADMIN_KEY),
+                    newKeyNamed(SUPPLY_KEY),
+                    tokenCreate(NFT_TOKEN)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0L)
+                            .adminKey(ADMIN_KEY)
+                            .supplyKey(SUPPLY_KEY)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .fee(ONE_HUNDRED_HBARS),
+                    tokenUpdate(NFT_TOKEN)
+                            .name("Updated NFT Name")
+                            .symbol("UNFT")
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, ADMIN_KEY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via("tokenUpdateTxn"),
+                    validateChargedUsdWithin(
+                            "tokenUpdateTxn",
+                            expectedTokenUpdateFullFeeUsd(2L, 0L), // 2 sigs, 0 new keys
+                            1.0));
+        }
     }
 
     @Nested
@@ -266,7 +385,7 @@ public class TokenUpdateSimpleFeesTest {
             }
 
             @HapiTest
-            @DisplayName("TokenUpdate - invalid token fails")
+            @DisplayName("TokenUpdate - invalid token fails on handle - full fee charged")
             final Stream<DynamicTest> tokenUpdateInvalidTokenFails() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -275,7 +394,12 @@ public class TokenUpdateSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(INVALID_TOKEN_ID));
+                                .via("tokenUpdateTxn")
+                                .hasKnownStatus(INVALID_TOKEN_ID),
+                        validateChargedUsdWithin(
+                                "tokenUpdateTxn",
+                                expectedTokenUpdateFullFeeUsd(1L, 0L), // 1 sig, 0 new keys
+                                1.0));
             }
         }
 

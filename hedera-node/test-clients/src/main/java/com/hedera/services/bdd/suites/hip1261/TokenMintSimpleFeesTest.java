@@ -300,7 +300,7 @@ public class TokenMintSimpleFeesTest {
         class TokenMintFailuresOnIngest {
 
             @HapiTest
-            @DisplayName("TokenMint - missing supply key signature fails at handle")
+            @DisplayName("TokenMint - missing supply key signature fails at handle - full fee charged")
             final Stream<DynamicTest> tokenMintMissingSupplyKeySignatureFailsAtHandle() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -317,7 +317,12 @@ public class TokenMintSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing supply key signature
                                 .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(INVALID_SIGNATURE));
+                                .via("tokenMintTxn")
+                                .hasKnownStatus(INVALID_SIGNATURE),
+                        validateChargedUsdWithin(
+                                "tokenMintTxn",
+                                expectedTokenMintFungibleFullFeeUsd(1L), // 1 sig (payer only)
+                                1.0));
             }
 
             @HapiTest
@@ -352,7 +357,7 @@ public class TokenMintSimpleFeesTest {
             }
 
             @HapiTest
-            @DisplayName("TokenMint - no supply key fails")
+            @DisplayName("TokenMint - no supply key fails on handle - full fee charged")
             final Stream<DynamicTest> tokenMintNoSupplyKeyFails() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -369,7 +374,11 @@ public class TokenMintSimpleFeesTest {
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("tokenMintTxn")
-                                .hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY));
+                                .hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY),
+                        validateChargedUsdWithin(
+                                "tokenMintTxn",
+                                expectedTokenMintFungibleFullFeeUsd(1L), // 1 sig (payer only)
+                                1.0));
             }
         }
 

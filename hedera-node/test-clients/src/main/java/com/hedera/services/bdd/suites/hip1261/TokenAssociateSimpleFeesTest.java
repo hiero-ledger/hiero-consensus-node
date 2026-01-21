@@ -278,7 +278,7 @@ public class TokenAssociateSimpleFeesTest {
             }
 
             @HapiTest
-            @DisplayName("TokenAssociate - invalid token fails")
+            @DisplayName("TokenAssociate - invalid token fails on handle - full fee charged")
             final Stream<DynamicTest> tokenAssociateInvalidTokenFails() {
                 return hapiTest(
                         cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
@@ -287,11 +287,15 @@ public class TokenAssociateSimpleFeesTest {
                                 .signedBy(ACCOUNT)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("tokenAssociateTxn")
-                                .hasKnownStatus(INVALID_TOKEN_ID));
+                                .hasKnownStatus(INVALID_TOKEN_ID),
+                        validateChargedUsdWithin(
+                                "tokenAssociateTxn",
+                                expectedTokenAssociateFullFeeUsd(1L, 1L), // 1 sig, 1 token
+                                1.0));
             }
 
             @HapiTest
-            @DisplayName("TokenAssociate - already associated fails")
+            @DisplayName("TokenAssociate - already associated fails on handle - full fee charged")
             final Stream<DynamicTest> tokenAssociateAlreadyAssociatedFails() {
                 return hapiTest(
                         cryptoCreate(TREASURY),
@@ -303,7 +307,11 @@ public class TokenAssociateSimpleFeesTest {
                                 .signedBy(ACCOUNT)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("tokenAssociateTxn")
-                                .hasKnownStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT));
+                                .hasKnownStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT),
+                        validateChargedUsdWithin(
+                                "tokenAssociateTxn",
+                                expectedTokenAssociateFullFeeUsd(1L, 1L), // 1 sig, 1 token
+                                1.0));
             }
         }
 
