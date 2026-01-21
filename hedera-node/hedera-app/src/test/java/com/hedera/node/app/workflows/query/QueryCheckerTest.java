@@ -237,8 +237,9 @@ class QueryCheckerTest extends AppTestBase {
         void testValidateCryptoTransferSucceeds() {
             // given
             final var txBody = TransactionBody.newBuilder()
-                    .transactionID(
-                            TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.DEFAULT)
+                            .build())
                     .build();
             final var signatureMap = SignatureMap.newBuilder().build();
             final var transactionInfo = new TransactionInfo(
@@ -253,8 +254,9 @@ class QueryCheckerTest extends AppTestBase {
         void testValidateCryptoTransferWithWrongTransactionType() {
             // given
             final var txBody = TransactionBody.newBuilder()
-                    .transactionID(
-                            TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.DEFAULT)
+                            .build())
                     .build();
             final var signatureMap = SignatureMap.newBuilder().build();
             final var transactionInfo = new TransactionInfo(
@@ -270,8 +272,9 @@ class QueryCheckerTest extends AppTestBase {
         void testValidateCryptoTransferWithFailingValidation() throws PreCheckException {
             // given
             final var txBody = TransactionBody.newBuilder()
-                    .transactionID(
-                            TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.DEFAULT)
+                            .build())
                     .build();
             final var signatureMap = SignatureMap.newBuilder().build();
             final var transactionInfo = new TransactionInfo(
