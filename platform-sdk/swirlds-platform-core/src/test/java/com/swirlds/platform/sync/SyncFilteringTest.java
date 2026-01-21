@@ -143,7 +143,7 @@ class SyncFilteringTest {
         // returned as they age.
         while (time.now().isBefore(endTime)) {
             final List<PlatformEvent> filteredEvents = SyncUtils.filterLikelyDuplicates(
-                    selfId, nonAncestorSendThreshold, Duration.ZERO, time.now(), events);
+                    selfId, nonAncestorSendThreshold, Duration.ZERO, Duration.ZERO, time.now(), events);
 
             // Gather a list of events we expect to see.
             final List<PlatformEvent> expectedEvents = new ArrayList<>();

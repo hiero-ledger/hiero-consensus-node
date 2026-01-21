@@ -108,12 +108,10 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      */
     private int incomingEventsCounter = 0;
 
-
     /**
      * Last time we have finished receiving events
      */
     private long lastReceiveEventFinished;
-
 
     private final SyncGuard syncGuard;
 
@@ -274,9 +272,14 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
 
         // be careful - this is unsynchronized access to non-volatile variables; given it is only a hint, we don't
         // really care if it is immediately visible with updates
-        if (!state.peerIsBehind && state.lastSyncFinishedTime != Instant.MIN && disabledBroadcastDueToLag < 0) {
+        if (isBroadcastRunning()) {
             sender.sendBroadcastEvent(gossipEvent);
         }
+    }
+
+    private boolean isBroadcastRunning() {
+        // TODO: Additionally check broadcast flag from configuration
+        return !state.peerIsBehind && state.lastSyncFinishedTime != Instant.MIN && disabledBroadcastDueToLag < 0;
     }
 
     // HANDLE INCOMING MESSAGES - all done on dispatch thread
@@ -328,7 +331,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
                     state.eventsTheyHave,
                     state.mySyncData.eventWindow(),
                     state.remoteSyncData.eventWindow(),
-                    true); // FIXME
+                    isBroadcastRunning());
             sender.sendEvents(
                     sendList.stream().map(PlatformEvent::getGossipEvent).collect(Collectors.toList()));
             outgoingEventsCounter += sendList.size();

@@ -22,11 +22,12 @@ import java.time.Duration;
  *                                           not a self event and is not an ancestor of a self event, we must know about
  *                                           the event for at least this amount of time before the event is eligible to
  *                                           be sent
- * @param ancestorAndSelfFilterThreshold     ignored if {@link #filterLikelyDuplicates} or {@link #broadcast} is false.
+ * @param ancestorFilterThreshold     ignored if {@link #filterLikelyDuplicates} or {@link #broadcast} is false.
  *                                           For each event that is a self event and is an ancestor of a self event, we
  *                                           must know about the event for at least this amount of time before the event
  *                                           is eligible to be sent. This is to help to reduce duplicate rate in when
  *                                           broadcast is enabled
+ * @param selfFilterThreshold
  * @param syncKeepalivePeriod                send a keepalive message every this many milliseconds when reading events
  *                                           during a sync
  * @param maxSyncTime                        the maximum amount of time to spend syncing with a peer, syncs that take
@@ -80,7 +81,8 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "true") boolean waitForEventsInIntake,
         @ConfigProperty(defaultValue = "true") boolean filterLikelyDuplicates,
         @ConfigProperty(defaultValue = "3s") Duration nonAncestorFilterThreshold,
-        @ConfigProperty(defaultValue = "1s") Duration ancestorAndSelfFilterThreshold,
+        @ConfigProperty(defaultValue = "0s") Duration ancestorFilterThreshold,
+        @ConfigProperty(defaultValue = "2s") Duration selfFilterThreshold,
         @ConfigProperty(defaultValue = "500ms") Duration syncKeepalivePeriod,
         @ConfigProperty(defaultValue = "1m") Duration maxSyncTime,
         @ConfigProperty(defaultValue = "5000") int maxSyncEventCount,

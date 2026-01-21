@@ -88,7 +88,9 @@ public class AbstractShadowgraphSynchronizer {
      * of time before it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce
      * the duplicate ration when using broadcast. Not active if broadcast is disabled.
      */
-    private final Duration ancestorAndSelfFilterThreshold;
+    private final Duration ancestorFilterThreshold;
+
+    private final Duration selfFilterThreshold;
 
     /**
      * The maximum number of events to send in a single sync, or 0 if there is no limit.
@@ -131,7 +133,8 @@ public class AbstractShadowgraphSynchronizer {
 
         final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
         this.nonAncestorFilterThreshold = syncConfig.nonAncestorFilterThreshold();
-        this.ancestorAndSelfFilterThreshold = syncConfig.ancestorAndSelfFilterThreshold();
+        this.ancestorFilterThreshold = syncConfig.ancestorFilterThreshold();
+        this.selfFilterThreshold = syncConfig.selfFilterThreshold();
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
@@ -210,7 +213,8 @@ public class AbstractShadowgraphSynchronizer {
             sendList = filterLikelyDuplicates(
                     selfId,
                     nonAncestorFilterThreshold,
-                    broadcastRunning ? ancestorAndSelfFilterThreshold : Duration.ZERO,
+                    broadcastRunning ? ancestorFilterThreshold : Duration.ZERO,
+                    broadcastRunning ? selfFilterThreshold : Duration.ZERO,
                     time.now(),
                     eventsTheyMayNeed);
             final long endFilterTime = time.nanoTime();
