@@ -31,8 +31,6 @@ public class BlockStreamService implements Service {
     public static final BlockStreamInfo GENESIS_BLOCK_STREAM_INFO =
             BlockStreamInfo.newBuilder().blockNumber(-1).build();
 
-    public static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
-
     public static final String NAME = "BlockStreamService";
 
     @Nullable
