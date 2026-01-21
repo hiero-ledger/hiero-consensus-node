@@ -11,7 +11,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
@@ -30,6 +29,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.roster.RosterStateId;
 
@@ -77,7 +79,7 @@ public final class SignedStateFileReader {
                     stateDir.resolve(SIGNATURE_SET_BIN_FILE_NAME).toFile();
             sigSet = deserializeAndDebugOnFailure(
                     () -> new BufferedInputStream(new FileInputStream(sigSetFile)),
-                    (final MerkleDataInputStream in) -> {
+                    (final SerializableDataInputStream in) -> {
                         readAndCheckSigSetFileVersion(in);
                         return in.readSerializable();
                     });
@@ -122,7 +124,8 @@ public final class SignedStateFileReader {
      * @param in the stream to read from
      * @throws IOException if the version is invalid
      */
-    private static void readAndCheckSigSetFileVersion(@NonNull final MerkleDataInputStream in) throws IOException {
+    private static void readAndCheckSigSetFileVersion(@NonNull final SerializableDataInputStream in)
+            throws IOException {
         final int fileVersion = in.readInt();
         if (!SUPPORTED_SIGSET_VERSIONS.contains(fileVersion)) {
             throw new IOException("Unsupported file version: " + fileVersion);
