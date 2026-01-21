@@ -18,8 +18,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class KeyComparatorTest {
 
-    private static final String CASE_FAIL_MESSAGE =
-            """
+    private static final String CASE_FAIL_MESSAGE = """
             Case %s failed.
             Expected value is %d, not %5$d.
             compare(%s, %s) returned %d.
@@ -74,7 +73,6 @@ class KeyComparatorTest {
         Assertions.assertThatThrownBy(() -> subject.compare(lValue, rValue))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
-
 
     // ----------------------------------------------------------------------------------------------------
     //                              Parameterized test method sources
