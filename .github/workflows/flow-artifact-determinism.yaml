@@ -47,7 +47,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || github.ref }}"
           checkout-fetch-depth: "1"
-          checkout-token: "${{ secrets.access-token }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Get Commit Info
         id: commit-info
@@ -58,7 +58,7 @@ jobs:
   check-gradle:
     name: Gradle
     needs:
-    - commit-info
+      - commit-info
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
