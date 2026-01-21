@@ -2087,7 +2087,7 @@ class AtomicBatchTokenServiceEndToEndTests {
                                         tokenTransferOwner)
                                 .payingWith(BATCH_OPERATOR)
                                 .via("batchTxn")
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                                .hasKnownStatus(TOKEN_WAS_DELETED),
                         validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                         // validate account balances and token info

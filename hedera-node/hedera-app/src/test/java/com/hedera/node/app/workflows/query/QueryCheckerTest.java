@@ -34,7 +34,6 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
@@ -86,9 +85,6 @@ class QueryCheckerTest extends AppTestBase {
 
     @Mock
     private TransactionDispatcher dispatcher;
-
-    @Mock
-    private ConfigProviderImpl configProvider;
 
     @Mock
     private Configuration configuration;
