@@ -53,7 +53,7 @@ public class SimpleSmartContractServiceFeesTest {
     static final double ETHEREUM_CALL_BASE_FEE = 0.0001;
     static final double HOOK_STORE_BASE_FEE = 0.005;
     // EXTRAS
-    static final double EXTRA_HOOK_CREATE_FEE = 0.0049;
+    static final double EXTRA_HOOK_SLOT_UPDATE_FEE = 0.0050;
     static final double SINGLE_SIGNATURE_COST = 0.001;
     static final double SINGLE_BYTE_FEE = 0.000011;
     static final double EXPECTED_GAS_USED = 0.00184;
@@ -184,7 +184,7 @@ public class SimpleSmartContractServiceFeesTest {
                         .payingWith("ownerAccount")
                         .signedBy("ownerAccount")
                         .via("hookStoreTxn"),
-                validateChargedUsd("hookStoreTxn", HOOK_STORE_BASE_FEE + 2 * EXTRA_HOOK_CREATE_FEE));
+                validateChargedUsd("hookStoreTxn", HOOK_STORE_BASE_FEE + 2 * EXTRA_HOOK_SLOT_UPDATE_FEE));
     }
 
     @LeakyHapiTest(overrides = "hooks.hooksEnabled")
