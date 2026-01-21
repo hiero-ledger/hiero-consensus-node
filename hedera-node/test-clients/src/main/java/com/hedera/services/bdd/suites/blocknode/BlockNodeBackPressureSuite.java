@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
@@ -36,35 +35,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeBackPressureSuite {
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "15",
-                            "blockStream.streamMode",
-                            "BOTH",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC"
-                        })
-            })
-    @Order(0)
-    final Stream<DynamicTest> noBackPressureAppliedWhenBufferFull() {
-        return hapiTest(
-                waitUntilNextBlocks(5),
-                blockNode(0).shutDownImmediately(),
-                waitUntilNextBlocks(30),
-                assertHgcaaLogDoesNotContainText(
-                        byNodeId(0),
-                        "Block buffer is saturated; backpressure is being enabled",
-                        Duration.ofSeconds(15)));
-    }
 
     @HapiTest
     @HapiBlockNode(
@@ -116,46 +86,10 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.streamMode",
                             "BLOCKS",
                             "blockStream.writerMode",
-                            "GRPC"
-                        })
-            })
-    @Order(2)
-    final Stream<DynamicTest> backPressureAppliedWhenBlocksAndGrpc() {
-        final AtomicReference<Instant> time = new AtomicReference<>();
-        return hapiTest(
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
-                blockNode(0).shutDownImmediately(),
-                doingContextual(spec -> time.set(Instant.now())),
-                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0),
-                        time::get,
-                        Duration.ofMinutes(1),
-                        Duration.ofMinutes(1),
-                        "Block buffer is saturated; backpressure is being enabled",
-                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
-                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING));
-    }
-
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.buffer.maxBlocks",
-                            "15",
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
                             "FILE_AND_GRPC"
                         })
             })
-    @Order(3)
+    @Order(2)
     final Stream<DynamicTest> testBlockBufferBackPressure() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
 

@@ -2,7 +2,6 @@
 open module com.swirlds.state.impl.test.fixtures {
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
-    requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.state.api.test.fixtures;
     requires transitive com.swirlds.state.api;
@@ -10,7 +9,7 @@ open module com.swirlds.state.impl.test.fixtures {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.utility;
     requires transitive org.junit.jupiter.params;
-    requires com.swirlds.common.test.fixtures;
+    requires com.swirlds.common;
     requires com.swirlds.config.extensions;
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.merkledb;
