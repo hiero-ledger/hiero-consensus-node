@@ -30,6 +30,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -41,7 +42,6 @@ import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.ingest.SubmissionManager;
 import com.hedera.node.config.ConfigProvider;
@@ -241,7 +241,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             long queryFees = 0;
                             if (shouldUseSimpleFees(context)) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(context.query(), SimpleFeeContextUtil.fromQueryContext(context));
+                                        .calculateQueryFee(
+                                                context.query(), SimpleFeeContextUtil.fromQueryContext(context));
                                 queryFees = tinycentsToTinybars(
                                         queryFeeTinyCents.totalTinyCents(),
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
