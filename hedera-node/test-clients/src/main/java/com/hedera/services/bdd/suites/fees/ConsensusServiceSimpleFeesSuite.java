@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -33,8 +34,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class ConsensusServiceSimpleFeesSuite {
     private static final double EXPECTED_CRYPTO_TRANSFER_FEE = 0.0001;
-    private static final String PAYER = "payer";
-    private static final String ADMIN = "admin";
+    private static final double EXPECTED_SUBMIT_MESSAGE_FEE = 0.0008;
 
     @Nested
     class TopicFeesComparison {
@@ -304,5 +304,18 @@ public class ConsensusServiceSimpleFeesSuite {
                     0.005,
                     5);
         }
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> submitMessageBaseFee() {
+        return hapiTest(
+                cryptoCreate("payer"),
+                createTopic("topic1"),
+                submitMessageTo("topic1")
+                        .message("asdf")
+                        .payingWith("payer")
+                        .fee(ONE_HBAR)
+                        .via("submitTxn"),
+                validateChargedUsd("submitTxn", EXPECTED_SUBMIT_MESSAGE_FEE));
     }
 }
