@@ -34,7 +34,7 @@ public class ConsensusUpdateTopicFeeCalculator implements ServiceFeeCalculator {
         }
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_UPDATE_TOPIC);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, Extra.KEYS, feeSchedule, keys);
     }
 

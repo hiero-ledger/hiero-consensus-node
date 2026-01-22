@@ -53,8 +53,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      *
      * @param result the fee result to accumulate fees into
      * @param extras the list of extra fee references from the fee schedule
-     * @param signatures the number of signatures (payer signatures for node fee)
-     * @param bytes the transaction size in bytes
+     * @param signatures the number of signatures
      */
     private void addNodeExtras(
             @NonNull final FeeResult result,
@@ -68,12 +67,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                         case BYTES -> bytes;
                         default -> 0;
                     };
-            if (used > ref.includedCount()) {
-                final long overage = used - ref.includedCount();
-                final long unitFee = getExtraFee(ref.name());
-
-                result.addNodeFee(overage, unitFee);
-            }
+            final long unitFee = getExtraFee(ref.name());
+            result.addNodeExtraFeeTinyCents(ref.name().name(), unitFee, used, ref.includedCount());
         }
     }
 
@@ -96,11 +91,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
 
         // Add node base and extras (bytes and payer signatures)
-        result.addNodeFee(1, feeSchedule.node().baseFee());
+        result.setNodeBaseFeeTinyCents(feeSchedule.node().baseFee());
         addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
-        result.addNetworkFee(result.node * multiplier);
+        result.setNetworkMultiplier(multiplier);
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
@@ -152,6 +147,6 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
         queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
-        return result.total();
+        return result.totalTinyCents();
     }
 }

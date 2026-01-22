@@ -21,7 +21,7 @@ public class ContractCallLocalFeeCalculator implements QueryFeeCalculator {
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         final var serviceDef = requireNonNull(lookupServiceFee(feeSchedule, HederaFunctionality.CONTRACT_CALL_LOCAL));
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
     }
 
     @Override

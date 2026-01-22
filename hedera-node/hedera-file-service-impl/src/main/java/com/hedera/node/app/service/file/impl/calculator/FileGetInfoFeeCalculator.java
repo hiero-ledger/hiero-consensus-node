@@ -21,7 +21,7 @@ public class FileGetInfoFeeCalculator implements QueryFeeCalculator {
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_GET_INFO);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
     }
 
     @Override

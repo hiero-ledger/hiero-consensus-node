@@ -28,7 +28,7 @@ public class ContractGetByteCodeFeeCalculator implements QueryFeeCalculator {
 
         final var serviceDef = requireNonNull(lookupServiceFee(feeSchedule, HederaFunctionality.CONTRACT_GET_BYTECODE));
         final var bytecode = contractStore.getBytecode(op.contractIDOrThrow());
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
         addExtraFee(
                 feeResult, serviceDef, Extra.BYTES, feeSchedule, bytecode.code().length());
     }

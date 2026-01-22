@@ -25,7 +25,7 @@ public class TokenRevokeKycFeeCalculator implements ServiceFeeCalculator {
         // Add service base + extras
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_REVOKE_KYC_FROM_ACCOUNT);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

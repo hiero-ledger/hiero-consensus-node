@@ -25,7 +25,8 @@ public class TokenAssociateFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.tokenAssociateOrThrow();
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
+
         addExtraFee(
                 feeResult,
                 serviceDef,

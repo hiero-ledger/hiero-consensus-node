@@ -23,7 +23,7 @@ public class EthereumFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeSchedule feeSchedule) {
         final var op = txnBody.ethereumTransactionOrThrow();
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.ETHEREUM_TRANSACTION);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
         addExtraFee(
                 feeResult,
                 serviceDef,
