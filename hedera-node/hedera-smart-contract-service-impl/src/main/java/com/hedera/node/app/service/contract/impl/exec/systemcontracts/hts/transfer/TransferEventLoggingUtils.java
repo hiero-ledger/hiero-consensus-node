@@ -14,10 +14,12 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBui
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Collections;
 import java.util.List;
+
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -60,7 +62,7 @@ public class TransferEventLoggingUtils {
         }
     }
 
-    private static class AccountChange {
+    private static class AccountChange implements Comparable<AccountChange> {
 
         public final AccountID accountId;
         public long amount; // using not final var because it will be changed during the conversion algorithm
@@ -68,6 +70,25 @@ public class TransferEventLoggingUtils {
         public AccountChange(final AccountID accountId, long amount) {
             this.accountId = accountId;
             this.amount = amount;
+        }
+
+        @Override
+        public int compareTo(@NonNull TransferEventLoggingUtils.AccountChange other) {
+            int res = Long.compare(other.amount, this.amount); // DESC amount
+            if (res != 0) {
+                return res;
+            } else {
+                StringBuilder accountPrefix = new StringBuilder();
+                accountPrefix.append(this.accountId.shardNum());
+                accountPrefix.append(".");
+                accountPrefix.append(this.accountId.realmNum());
+                accountPrefix.append(".");
+                String thisAccount = accountPrefix + (this.accountId.hasAccountNum() ? this.accountId.accountNum().toString() : (this.accountId.hasAlias() ? this.accountId.alias()
+                        .toHex() : ""));
+                String otherAccount = accountPrefix + (other.accountId.hasAccountNum() ? other.accountId.accountNum().toString() : (other.accountId.hasAlias() ? other.accountId.alias()
+                        .toHex() : ""));
+                return thisAccount.compareTo(otherAccount); // ASC shard.realm.accountNum or shard.realm.alias or shard.realm.""
+            }
         }
     }
 
@@ -126,12 +147,12 @@ public class TransferEventLoggingUtils {
                 receivers.add(new AccountChange(account.accountIDOrThrow(), account.amount()));
             }
         }
-        // 2. Sort both senders and receivers by "amount" in ASC order to prevent "random ordering" of resulted ERC
-        // events
-        senders.sort(Comparator.comparingLong(e -> e.amount));
-        receivers.sort(Comparator.comparingLong(e -> e.amount));
+        // 2. Sort both senders and receivers to prevent "random ordering" of resulted ERC events.
+        // For sort order see AccountChange.compareTo
+        Collections.sort(senders);
+        Collections.sort(receivers);
 
-        // 2. Convert senders/receivers to transfer events
+        // 3. Convert senders/receivers to transfer events
         int sIdx = 0;
         int rIdx = 0;
         while (sIdx < senders.size() && rIdx < receivers.size()) {
@@ -168,10 +189,10 @@ public class TransferEventLoggingUtils {
         requireNonNull(nftTransfer);
         requireNonNull(accountStore);
         frame.addLog(builderFor(
-                        tokenId,
-                        nftTransfer.senderAccountIDOrThrow(),
-                        nftTransfer.receiverAccountIDOrThrow(),
-                        accountStore)
+                tokenId,
+                nftTransfer.senderAccountIDOrThrow(),
+                nftTransfer.receiverAccountIDOrThrow(),
+                accountStore)
                 .forIndexedArgument(BigInteger.valueOf(nftTransfer.serialNumber()))
                 .build());
     }

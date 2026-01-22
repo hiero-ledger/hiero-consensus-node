@@ -302,8 +302,9 @@ public class TransferTokenTest {
                                 .via(TXN_NAME),
                         // order of 'input transfers' are sorted by HTS, and we got correct ERC20 events in result
                         validateErcEvent(
-                                ErcEventRecord.of(tokenId, false, sender2Id, receiver2Id, 3L),
-                                ErcEventRecord.of(tokenId, false, sender1Id, receiver1Id, 4L)));
+                                ErcEventRecord.of(tokenId, false, sender1Id, receiver1Id, 4L),
+                                ErcEventRecord.of(tokenId, false, sender2Id, receiver2Id, 3L)
+                        ));
             }));
         }
 
