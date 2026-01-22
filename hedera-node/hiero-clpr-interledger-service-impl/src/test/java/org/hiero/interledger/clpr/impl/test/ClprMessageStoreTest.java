@@ -27,7 +27,7 @@ class ClprMessageStoreTest {
         final var backing = new HashMap<ClprMessageKey, ClprMessageValue>();
         final Map<Integer, Object> mapOfStates = new HashMap<>();
         final var state = new MapWritableKVState<>(CLPR_MESSAGES_STATE_ID, CLPR_MESSAGES_STATE_LABEL, backing);
-        mapOfStates.put(StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGESS.protoOrdinal(), state);
+        mapOfStates.put(StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGES.protoOrdinal(), state);
 
         final var writableStore = new WritableClprMessageStoreImpl(new MapWritableStates(mapOfStates));
         final var readableStore = new ReadableClprMessageStoreImpl(new MapReadableStates(mapOfStates));
