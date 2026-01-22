@@ -27,7 +27,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double FUNGIBLE_TOKENS_FEE_USD = 0.0001;
     public static final double NON_FUNGIBLE_TOKENS_FEE_USD = 0.0001;
 
-    public static final double GAS_FEE_USD = 0.0000000001;
+    public static final double GAS_FEE_USD = 0.0000000852;
     public static final double ALLOWANCES_FEE_USD = 0.05;
 
     public static final double TOKEN_CREATE_WITH_CUSTOM_FEES_FEE_USD = 1.0;
@@ -35,7 +35,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double AIRDROPS_FEE_USD = 0.05;
     public static final double HOOK_UPDATES_FEE_USD = 1.0;
-    public static final double HOOK_EXECUTION_FEE_USD = 1.0;
+    public static final double HOOK_EXECUTION_FEE_USD = 0.005;
 
     public static final double TOKEN_TRANSFER_BASE_FEE_USD = 0.0009;
     public static final double TOKEN_TRANSFER_BASE_CUSTOM_FEES_USD = 0.0019;
@@ -58,6 +58,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double CRYPTO_TRANSFER_BASE_FEE_USD = 0;
     public static final long CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION = 0L;
+    public static final long CRYPTO_TRANSFER_INCLUDED_GAS = 0L;
     public static final long CRYPTO_TRANSFER_INCLUDED_ACCOUNTS = 2L;
     public static final long CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS = 1L;
     public static final long CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS = 1L;
