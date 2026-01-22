@@ -16,8 +16,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
-import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -26,13 +24,18 @@ import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.MessageSupplier;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -40,6 +43,7 @@ public class HashLoggerTest {
     private Logger mockLogger;
     private HashLogger hashLogger;
     private List<String> logged;
+    private Set<MerkleNode> stateRoots = new HashSet<>();
 
     /**
      * Get a regex that will match a log message containing the given round number
@@ -134,11 +138,11 @@ public class HashLoggerTest {
     }
 
     private ReservedSignedState createSignedState(final long round) {
-        final MerkleNode merkleNode = MerkleTestUtils.buildLessSimpleTree();
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(merkleNode);
         final SignedState signedState = mock(SignedState.class);
         final MerkleNodeState state = mock(MerkleNodeState.class);
-        final MerkleNode stateRoot = mock(MerkleNode.class);
+        final MerkleNode stateRoot = VirtualMapUtils.createVirtualMap();
+        stateRoot.getHash();
+        stateRoots.add(stateRoot);
         final ReadableStates readableStates = mock(ReadableStates.class);
         final PlatformStateAccessor platformState = mock(PlatformStateAccessor.class);
         final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
@@ -152,8 +156,7 @@ public class HashLoggerTest {
                 .thenReturn(singletonState);
         when(platformState.getRound()).thenReturn(round);
         when(state.getRoot()).thenReturn(stateRoot);
-        when(stateRoot.getRoute()).thenReturn(merkleNode.getRoute());
-        when(state.getHash()).thenReturn(merkleNode.getHash());
+        when(state.getHash()).thenReturn(stateRoot.getHash());
         when(state.getInfoJson()).thenReturn("testInfoJson");
 
         when(signedState.getState()).thenReturn(state);
@@ -164,5 +167,14 @@ public class HashLoggerTest {
         when(signedState.reserve(anyString())).thenReturn(reservedSignedState);
 
         return signedState.reserve("hash logger test");
+    }
+
+    @AfterEach
+    void tearDown() {
+        for (MerkleNode stateRoot : stateRoots) {
+            stateRoot.release();
+        }
+        stateRoots.clear();
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
     }
 }

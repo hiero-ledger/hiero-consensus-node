@@ -9,7 +9,6 @@ import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.virtualmap.VirtualMap;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -41,15 +40,8 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
             final double delayNetworkFuzzRangePercent,
             final Runnable breakConnection,
             final ReconnectConfig reconnectConfig) {
-        super(
-                getStaticThreadManager(),
-                in,
-                out,
-                newRoot,
-                view,
-                breakConnection,
-                TestMerkleCryptoFactory.getInstance(),
-                reconnectConfig);
+
+        super(getStaticThreadManager(), in, out, newRoot, view, breakConnection, reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;

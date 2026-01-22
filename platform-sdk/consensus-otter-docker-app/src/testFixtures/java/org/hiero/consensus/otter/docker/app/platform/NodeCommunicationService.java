@@ -128,8 +128,7 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
         final SemanticVersion version = request.version();
         final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.keysAndCerts());
 
-        consensusNodeManager = new ConsensusNodeManager(
-                selfId, platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
+        consensusNodeManager = new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
 
         // Sets up all the streaming event dispatchers for the platform.
         consensusNodeManager.registerPlatformStatusChangeListener(
