@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.dispatcher;
 
+import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFeesWithMultiplier;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -139,11 +141,29 @@ public class TransactionDispatcher {
             if (shouldUseSimpleFees(feeContext)) {
                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                         .calculateTxFee(feeContext.body(), feeContext);
-                return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
+
+                // Apply congestion multiplier
+                final long multiplier = getCongestionMultiplier(feeContext);
+                return feeResultToFeesWithMultiplier(feeResult, fromPbj(feeContext.activeRate()), multiplier);
             }
             return handler.calculateFees(feeContext);
         } catch (UnsupportedOperationException ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
+        }
+    }
+
+    /**
+     * Gets the congestion multiplier for the given fee context.
+     *
+     * @param feeContext the fee context
+     * @return the congestion multiplier, or 1 if not applicable
+     */
+    private long getCongestionMultiplier(@NonNull final FeeContext feeContext) {
+        try {
+            final var functionality = functionOf(feeContext.body());
+            return feeManager.congestionMultiplierFor(feeContext.body(), functionality, feeContext);
+        } catch (UnknownHederaFunctionality e) {
+            return 1L;
         }
     }
 

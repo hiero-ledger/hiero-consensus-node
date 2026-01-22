@@ -8,8 +8,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
+import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFeesWithMultiplier;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.NOT_INGEST;
 import static java.util.Objects.requireNonNull;
 
@@ -18,8 +19,10 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -223,9 +226,27 @@ public class QueryChecker {
         if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                     .calculateTxFee(transactionInfo.txBody(), feeContext);
-            final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
+            // Apply congestion multiplier
+            final long multiplier = getCongestionMultiplier(feeContext);
+            final var fees =
+                    feeResultToFeesWithMultiplier(transferFeeResult, fromPbj(feeContext.activeRate()), multiplier);
             return fees.totalFee();
         }
         return cryptoTransferHandler.calculateFees(feeContext).totalFee();
+    }
+
+    /**
+     * Gets the congestion multiplier for the given fee context.
+     *
+     * @param feeContext the fee context
+     * @return the congestion multiplier, or 1 if not applicable
+     */
+    private long getCongestionMultiplier(@NonNull final FeeContext feeContext) {
+        try {
+            final var functionality = functionOf(feeContext.body());
+            return feeManager.congestionMultiplierFor(feeContext.body(), functionality, feeContext);
+        } catch (UnknownHederaFunctionality e) {
+            return 1L;
+        }
     }
 }

@@ -26,6 +26,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
@@ -41,6 +42,7 @@ import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -560,7 +562,7 @@ class QueryCheckerTest extends AppTestBase {
         transferFeeResult.addNetworkFee(500);
         transferFeeResult.addNodeFee(2, 200);
         transferFeeResult.addServiceFee(1, 100);
-        // hbar equivalent should be 120
+        // hbar equivalent should be 120 (with multiplier of 1)
         final var expectedFee = 120;
 
         // Mock config to enable simple fees
@@ -572,6 +574,10 @@ class QueryCheckerTest extends AppTestBase {
         when(feeManager.getExchangeRateManager()).thenReturn(exchangeRateManager);
         when(exchangeRateManager.activeRate(any())).thenReturn(activeRate);
         when(simpleFeeCalculator.calculateTxFee(any(), any())).thenReturn(transferFeeResult);
+        // Return multiplier of 1 (no congestion) - use specific FeeContext matcher to avoid ambiguity
+        when(feeManager.congestionMultiplierFor(
+                        any(TransactionBody.class), any(HederaFunctionality.class), any(FeeContext.class)))
+                .thenReturn(1L);
 
         // Spy QueryChecker to mock feeResultToFees
         QueryChecker spyChecker = org.mockito.Mockito.spy(checker);
@@ -584,6 +590,51 @@ class QueryCheckerTest extends AppTestBase {
         assertThat(result).isEqualTo(expectedFee);
         verify(feeManager).getSimpleFeeCalculator();
         verify(simpleFeeCalculator).calculateTxFee(any(), any());
+    }
+
+    @Test
+    void testEstimateTxFeesAppliesCongestionMultiplier(@Mock final ReadableStoreFactory storeFactory) {
+        final var txInfo = createPaymentInfo(ALICE.accountID());
+        final var feesConfig = mock(FeesConfig.class);
+        final var exchangeRateManager = mock(ExchangeRateManager.class);
+        final var activeRate =
+                ExchangeRate.newBuilder().hbarEquiv(120).centEquiv(1000).build();
+        final var simpleFeeCalculator = mock(SimpleFeeCalculator.class);
+        final var transferFeeResult = new FeeResult();
+        // create object with total fee 1000 tinycents
+        transferFeeResult.addNetworkFee(500);
+        transferFeeResult.addNodeFee(2, 200);
+        transferFeeResult.addServiceFee(1, 100);
+        // With 7x multiplier, expected fee should be 120 * 7 = 840
+        final var expectedFee = 840;
+
+        // Mock config to enable simple fees
+        when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
+        when(feesConfig.simpleFeesEnabled()).thenReturn(true);
+
+        // Mock feeManager and calculator
+        when(feeManager.getSimpleFeeCalculator()).thenReturn(simpleFeeCalculator);
+        when(feeManager.getExchangeRateManager()).thenReturn(exchangeRateManager);
+        when(exchangeRateManager.activeRate(any())).thenReturn(activeRate);
+        when(simpleFeeCalculator.calculateTxFee(any(), any())).thenReturn(transferFeeResult);
+        // Return multiplier of 7 (congestion) - use specific FeeContext matcher to avoid ambiguity
+        when(feeManager.congestionMultiplierFor(
+                        any(TransactionBody.class), any(HederaFunctionality.class), any(FeeContext.class)))
+                .thenReturn(7L);
+
+        // Spy QueryChecker to mock feeResultToFees
+        QueryChecker spyChecker = org.mockito.Mockito.spy(checker);
+
+        // Act
+        long result = spyChecker.estimateTxFees(
+                storeFactory, Instant.now(), txInfo, ALICE.account().keyOrThrow(), configuration);
+
+        // Assert
+        assertThat(result).isEqualTo(expectedFee);
+        verify(feeManager).getSimpleFeeCalculator();
+        verify(simpleFeeCalculator).calculateTxFee(any(), any());
+        verify(feeManager).congestionMultiplierFor(
+                any(TransactionBody.class), any(HederaFunctionality.class), any(FeeContext.class));
     }
 
     private TransactionInfo createPaymentInfo(final AccountID payerID, final AccountAmount... transfers) {

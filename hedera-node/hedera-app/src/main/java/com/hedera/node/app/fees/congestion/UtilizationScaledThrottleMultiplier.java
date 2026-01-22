@@ -17,6 +17,7 @@ import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.token.*;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.annotations.CryptoTransferThrottleMultiplier;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -68,6 +69,29 @@ public class UtilizationScaledThrottleMultiplier {
             @NonNull final TransactionBody body,
             @NonNull final HederaFunctionality functionality,
             @NonNull final ReadableStoreFactory storeFactory) {
+        return currentMultiplier(body, functionality, storeFactory::getStore);
+    }
+
+    /**
+     * Returns the current congestion multiplier applying additional scaling factor based on
+     * the number of entities saved in state.
+     *
+     * @param body the transaction body
+     * @param functionality the transaction functionality
+     * @param feeContext the fee context providing store access
+     * @return the current congestion multiplier
+     */
+    public long currentMultiplier(
+            @NonNull final TransactionBody body,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final FeeContext feeContext) {
+        return currentMultiplier(body, functionality, feeContext::readableStore);
+    }
+
+    private long currentMultiplier(
+            @NonNull final TransactionBody body,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var throttleMultiplier = delegate.currentMultiplier();
         final var configuration = configProvider.getConfiguration();
         final var entityScaleFactors =
@@ -75,124 +99,134 @@ public class UtilizationScaledThrottleMultiplier {
 
         return switch (functionality) {
             case CRYPTO_CREATE -> entityScaleFactors
-                    .scaleForNew(ACCOUNT, roundedAccountPercentUtil(storeFactory))
+                    .scaleForNew(ACCOUNT, roundedAccountPercentUtil(storeAccessor))
                     .scaling((int) throttleMultiplier);
             case CONTRACT_CREATE -> entityScaleFactors
-                    .scaleForNew(CONTRACT_BYTECODE, roundedContractPercentUtil(storeFactory))
+                    .scaleForNew(CONTRACT_BYTECODE, roundedContractPercentUtil(storeAccessor))
                     .scaling((int) throttleMultiplier);
             case FILE_CREATE -> entityScaleFactors
-                    .scaleForNew(FILE, roundedFilePercentUtil(storeFactory))
+                    .scaleForNew(FILE, roundedFilePercentUtil(storeAccessor))
                     .scaling((int) throttleMultiplier);
             case TOKEN_MINT -> {
                 final var mintsWithMetadata =
                         !body.tokenMintOrThrow().metadata().isEmpty();
                 yield mintsWithMetadata
                         ? entityScaleFactors
-                                .scaleForNew(NFT, roundedNftPercentUtil(storeFactory))
+                                .scaleForNew(NFT, roundedNftPercentUtil(storeAccessor))
                                 .scaling((int) throttleMultiplier)
                         : throttleMultiplier;
             }
             case TOKEN_CREATE -> entityScaleFactors
-                    .scaleForNew(TOKEN, roundedTokenPercentUtil(storeFactory))
+                    .scaleForNew(TOKEN, roundedTokenPercentUtil(storeAccessor))
                     .scaling((int) throttleMultiplier);
             case TOKEN_ASSOCIATE_TO_ACCOUNT -> entityScaleFactors
-                    .scaleForNew(TOKEN_ASSOCIATION, roundedTokenRelPercentUtil(storeFactory))
+                    .scaleForNew(TOKEN_ASSOCIATION, roundedTokenRelPercentUtil(storeAccessor))
                     .scaling((int) throttleMultiplier);
             case CONSENSUS_CREATE_TOPIC -> entityScaleFactors
-                    .scaleForNew(TOPIC, roundedTopicPercentUtil(storeFactory))
+                    .scaleForNew(TOPIC, roundedTopicPercentUtil(storeAccessor))
                     .scaling((int) throttleMultiplier);
             case TOKEN_AIRDROP -> entityScaleFactors
-                    .scaleForNew(AIRDROP, roundedAirdropPercentUtil(storeFactory))
+                    .scaleForNew(AIRDROP, roundedAirdropPercentUtil(storeAccessor))
                     .scaling((int) throttleMultiplier);
             default -> throttleMultiplier;
         };
     }
 
-    private int roundedAccountPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
+    @SuppressWarnings("unchecked")
+    private <T> T getStore(
+            @NonNull final java.util.function.Function<Class<?>, Object> storeAccessor,
+            @NonNull final Class<T> storeClass) {
+        return (T) storeAccessor.apply(storeClass);
+    }
+
+    private int roundedAccountPercentUtil(
+            @NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfAccounts =
                 configuration.getConfigData(AccountsConfig.class).maxNumber();
 
-        final var accountsStore = storeFactory.getStore(ReadableAccountStore.class);
+        final var accountsStore = getStore(storeAccessor, ReadableAccountStore.class);
         final var numAccountsAndContracts = accountsStore.sizeOfAccountState();
 
-        final var contractsStore = storeFactory.getStore(ContractStateStore.class);
+        final var contractsStore = getStore(storeAccessor, ContractStateStore.class);
         final var numContracts = contractsStore.getNumBytecodes();
         final var numAccounts = numAccountsAndContracts - numContracts;
 
         return maxNumOfAccounts == 0 ? 100 : (int) ((100 * numAccounts) / maxNumOfAccounts);
     }
 
-    private int roundedContractPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
+    private int roundedContractPercentUtil(
+            @NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfContracts =
                 configuration.getConfigData(ContractsConfig.class).maxNumber();
 
-        final var contractsStore = storeFactory.getStore(ContractStateStore.class);
+        final var contractsStore = getStore(storeAccessor, ContractStateStore.class);
         final var numContracts = contractsStore.getNumBytecodes();
 
         return maxNumOfContracts == 0 ? 100 : (int) ((100 * numContracts) / maxNumOfContracts);
     }
 
-    private int roundedFilePercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
+    private int roundedFilePercentUtil(@NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfFiles = configuration.getConfigData(FilesConfig.class).maxNumber();
 
-        final var fileStore = storeFactory.getStore(ReadableFileStore.class);
+        final var fileStore = getStore(storeAccessor, ReadableFileStore.class);
         final var numOfFiles = fileStore.sizeOfState();
 
         return maxNumOfFiles == 0 ? 100 : (int) ((100 * numOfFiles) / maxNumOfFiles);
     }
 
-    private int roundedNftPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
+    private int roundedNftPercentUtil(@NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfNfts = configuration.getConfigData(TokensConfig.class).nftsMaxAllowedMints();
 
-        final var nftStore = storeFactory.getStore(ReadableNftStore.class);
+        final var nftStore = getStore(storeAccessor, ReadableNftStore.class);
         final var numOfNfts = nftStore.sizeOfState();
 
         return maxNumOfNfts == 0 ? 100 : (int) ((100 * numOfNfts) / maxNumOfNfts);
     }
 
-    private int roundedTokenPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
+    private int roundedTokenPercentUtil(@NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfTokens =
                 configuration.getConfigData(TokensConfig.class).maxNumber();
 
-        final var tokenStore = storeFactory.getStore(ReadableTokenStore.class);
+        final var tokenStore = getStore(storeAccessor, ReadableTokenStore.class);
         final var numOfTokens = tokenStore.sizeOfState();
 
         return maxNumOfTokens == 0 ? 100 : (int) ((100 * numOfTokens) / maxNumOfTokens);
     }
 
-    private int roundedTokenRelPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
+    private int roundedTokenRelPercentUtil(
+            @NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfTokenRels =
                 configuration.getConfigData(TokensConfig.class).maxAggregateRels();
 
-        final var tokenRelStore = storeFactory.getStore(ReadableTokenRelationStore.class);
+        final var tokenRelStore = getStore(storeAccessor, ReadableTokenRelationStore.class);
         final var numOfTokensRels = tokenRelStore.sizeOfState();
 
         return maxNumOfTokenRels == 0 ? 100 : (int) ((100 * numOfTokensRels) / maxNumOfTokenRels);
     }
 
-    private int roundedTopicPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
+    private int roundedTopicPercentUtil(@NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumberOfTopics =
                 configuration.getConfigData(TopicsConfig.class).maxNumber();
 
-        final var topicStore = storeFactory.getStore(ReadableTopicStore.class);
+        final var topicStore = getStore(storeAccessor, ReadableTopicStore.class);
         final var numOfTopics = topicStore.sizeOfState();
 
         return maxNumberOfTopics == 0 ? 100 : (int) ((100 * numOfTopics) / maxNumberOfTopics);
     }
 
-    private int roundedAirdropPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
+    private int roundedAirdropPercentUtil(@NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumAirdrops =
                 configuration.getConfigData(TokensConfig.class).maxAllowedPendingAirdrops();
 
-        final var airdropStore = storeFactory.getStore(ReadableAirdropStore.class);
+        final var airdropStore = getStore(storeAccessor, ReadableAirdropStore.class);
         final var numPendingAirdrops = airdropStore.sizeOfState();
 
         return maxNumAirdrops == 0 ? 100 : (int) ((100 * numPendingAirdrops) / maxNumAirdrops);

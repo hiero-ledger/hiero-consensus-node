@@ -26,6 +26,7 @@ import com.hedera.hapi.node.base.TransactionFeeSchedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
@@ -249,6 +250,22 @@ public final class FeeManager {
             @NonNull final ReadableStoreFactory storeFactory) {
 
         return congestionMultipliers.maxCurrentMultiplier(body, functionality, storeFactory);
+    }
+
+    /**
+     * Returns the congestion multiplier for the given transaction using the fee context for store access.
+     *
+     * @param body the transaction body
+     * @param functionality the transaction functionality
+     * @param feeContext the fee context providing store access
+     * @return the congestion multiplier
+     */
+    public long congestionMultiplierFor(
+            @NonNull final TransactionBody body,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final FeeContext feeContext) {
+
+        return congestionMultipliers.maxCurrentMultiplier(body, functionality, feeContext);
     }
 
     @NonNull
