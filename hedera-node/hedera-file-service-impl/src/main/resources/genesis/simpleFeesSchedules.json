@@ -680,7 +680,12 @@
         {
           "name": "HookStore",
           "baseFee": 49000000,
-          "extras": [],
+          "extras": [
+            {
+              "name": "HOOK_SLOT_UPDATE",
+              "includedCount": 1
+            }
+          ],
           "highVolumeRates": {
             "maxMultiplier": 200000,
             "pricingCurve": {
