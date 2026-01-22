@@ -56,10 +56,17 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKING_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
@@ -68,21 +75,29 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
+import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.ThresholdKey;
+import com.hederahashgraph.api.proto.java.Transaction;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
@@ -1036,5 +1051,104 @@ public class CryptoCreateSuite {
                         .balance(1L)
                         .realmId(RealmID.newBuilder().setRealmNum(4).build())
                         .hasKnownStatus(INVALID_ACCOUNT_ID));
+    }
+
+    /**
+     * Tests for transaction corner cases that validate transaction body properties.
+     * These tests verify proper error handling for malformed transactions.
+     */
+    @Nested
+    @DisplayName("Transaction corner cases")
+    class TransactionCornerCases {
+
+        private static final String NEW_PAYEE = "newPayee";
+        private static final long BALANCE = 10000L;
+
+        private static Transaction removeTransactionBody(Transaction txn) {
+            return txn.toBuilder()
+                    .setBodyBytes(Transaction.getDefaultInstance().getBodyBytes())
+                    .build();
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> invalidTransactionBody() {
+            return hapiTest(cryptoCreate(NEW_PAYEE)
+                    .balance(BALANCE)
+                    .withProtoStructure(HapiSpecSetup.TxnProtoStructure.OLD)
+                    .withTxnTransform(TransactionCornerCases::removeTransactionBody)
+                    .hasPrecheckFrom(INVALID_TRANSACTION_BODY, INVALID_TRANSACTION));
+        }
+
+        private static Transaction replaceTxnNodeAccount(Transaction txn) {
+            AccountID badNodeAccount = AccountID.newBuilder()
+                    .setAccountNum(2000)
+                    .setRealmNum(0)
+                    .setShardNum(0)
+                    .build();
+            return TxnUtils.replaceTxnNodeAccount(txn, badNodeAccount);
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> invalidNodeAccount() {
+            return hapiTest(cryptoCreate(NEW_PAYEE)
+                    .balance(BALANCE)
+                    .withTxnTransform(TransactionCornerCases::replaceTxnNodeAccount)
+                    .hasPrecheckFrom(INVALID_NODE_ACCOUNT, INVALID_TRANSACTION));
+        }
+
+        private static Transaction replaceTxnDuration(Transaction txn) {
+            return TxnUtils.replaceTxnDuration(txn, -1L);
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> invalidTransactionDuration() {
+            return hapiTest(cryptoCreate(NEW_PAYEE)
+                    .balance(BALANCE)
+                    .withTxnTransform(TransactionCornerCases::replaceTxnDuration)
+                    .hasPrecheckFrom(INVALID_TRANSACTION_DURATION, INVALID_TRANSACTION));
+        }
+
+        private static Transaction replaceTxnMemo(Transaction txn) {
+            String newMemo = RandomStringUtils.randomAlphanumeric(120);
+            return TxnUtils.replaceTxnMemo(txn, newMemo);
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> invalidTransactionMemoTooLong() {
+            return hapiTest(cryptoCreate(NEW_PAYEE)
+                    .balance(BALANCE)
+                    .withTxnTransform(TransactionCornerCases::replaceTxnMemo)
+                    .hasPrecheckFrom(MEMO_TOO_LONG, INVALID_TRANSACTION));
+        }
+
+        private static Transaction replaceTxnPayerAccount(Transaction txn) {
+            AccountID badPayerAccount = AccountID.newBuilder()
+                    .setShardNum(0)
+                    .setRealmNum(0)
+                    .setAccountNum(999999)
+                    .build();
+            return TxnUtils.replaceTxnPayerAccount(txn, badPayerAccount);
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> invalidTransactionPayerAccountNotFound() {
+            return hapiTest(cryptoCreate(NEW_PAYEE)
+                    .balance(BALANCE)
+                    .withTxnTransform(TransactionCornerCases::replaceTxnPayerAccount)
+                    .hasPrecheckFrom(PAYER_ACCOUNT_NOT_FOUND, INVALID_TRANSACTION));
+        }
+
+        private static Transaction replaceTxnStartTime(Transaction txn) {
+            long newStartTimeSecs = Instant.now(Clock.systemUTC()).getEpochSecond() + 100L;
+            return TxnUtils.replaceTxnStartTime(txn, newStartTimeSecs, 0);
+        }
+
+        @HapiTest
+        final Stream<DynamicTest> invalidTransactionStartTime() {
+            return hapiTest(cryptoCreate(NEW_PAYEE)
+                    .balance(BALANCE)
+                    .withTxnTransform(TransactionCornerCases::replaceTxnStartTime)
+                    .hasPrecheckFrom(INVALID_TRANSACTION_START, INVALID_TRANSACTION));
+        }
     }
 }

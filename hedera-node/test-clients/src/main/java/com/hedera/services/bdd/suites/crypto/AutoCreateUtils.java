@@ -13,10 +13,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.CRYPTO_TRANSFER_RECEIVER;
-import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_CREATE_SPONSOR;
-import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
-import static com.hedera.services.bdd.suites.crypto.AutoAccountUpdateSuite.INITIAL_BALANCE;
+import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.INITIAL_BALANCE;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.TRANSFER_TXN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.hyperledger.besu.datatypes.Address.contractAddress;
@@ -37,6 +34,12 @@ import org.hyperledger.besu.datatypes.Address;
 public class AutoCreateUtils {
 
     private static final String TRANSFER_TXN_FOR_CREATE_1 = "transferTxnForCreate1";
+    public static final String CRYPTO_TRANSFER_RECEIVER = "cryptoTransferReceiver";
+    public static final String LAZY_CREATE_SPONSOR = "lazyCreateSponsor";
+    public static final String VALID_ALIAS = "validAlias";
+    public static final String LAZY_MEMO = "";
+    public static final String A_TOKEN = "tokenA";
+    public static final String TOKEN_A_CREATE = "tokenACreateTxn";
 
     public static ByteString randomValidEd25519Alias() {
         final var alias = RandomStringUtils.random(128, true, true);

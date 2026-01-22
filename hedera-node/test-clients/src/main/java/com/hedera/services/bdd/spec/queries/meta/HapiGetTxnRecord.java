@@ -13,7 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.isEndOfStakingP
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate.correspondingScheduledTxnId;
 import static com.hedera.services.bdd.suites.HapiSuite.HBAR_TOKEN_SENTINEL;
-import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
+import static com.hedera.services.bdd.suites.contract.Utils.sdec;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseType.COST_ANSWER;
