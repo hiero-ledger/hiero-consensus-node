@@ -34,7 +34,7 @@ public class ConsensusUpdateTopicFeeCalculator implements ServiceFeeCalculator {
             keys += countKeys(op.submitKey());
         }
         if (op.hasFeeExemptKeyList()) {
-            for(var key : op.feeExemptKeyList().keys()) {
+            for (var key : op.feeExemptKeyList().keys()) {
                 keys += countKeys(key);
             }
         }

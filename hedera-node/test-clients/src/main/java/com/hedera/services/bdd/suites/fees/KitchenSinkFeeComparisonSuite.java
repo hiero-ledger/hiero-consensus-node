@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocalWithFunctionAbi;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -21,9 +20,11 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
@@ -38,6 +39,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDeleteAll
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
@@ -73,14 +75,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdateNfts
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
-import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
+import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
@@ -119,7 +118,6 @@ import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCancelAirdrop;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.io.FileWriter;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -244,8 +242,7 @@ public class KitchenSinkFeeComparisonSuite {
                 logFeeComparison(legacyFees, simpleFees),
                 // === WRITE RESULTS TO CSV ===
                 writeFeeComparisonToCsv(legacyFees, simpleFees, "fee-comparison-crypto.csv"),
-                writeFeeComparisonToJson(legacyFees, simpleFees, "fee-comparison-crypto.json")
-        );
+                writeFeeComparisonToJson(legacyFees, simpleFees, "fee-comparison-crypto.json"));
     }
 
     /**
@@ -286,8 +283,7 @@ public class KitchenSinkFeeComparisonSuite {
                 logFeeComparison(legacyFees, simpleFees),
                 // === WRITE RESULTS TO CSV ===
                 writeFeeComparisonToCsv(legacyFees, simpleFees, "fee-comparison-full.csv"),
-                writeFeeComparisonToJson(legacyFees, simpleFees, "fee-comparison-full.json")
-        );
+                writeFeeComparisonToJson(legacyFees, simpleFees, "fee-comparison-full.json"));
     }
 
     // ==================== KEY CREATION ====================
@@ -393,9 +389,8 @@ public class KitchenSinkFeeComparisonSuite {
         final int[] hookCounts = {0, 1, 2};
         for (final var keyVariant : createKeyVariants) {
             for (final int hookCount : hookCounts) {
-                final String hookLabel = hookCount == 0
-                        ? "HOOK_UPDATES=0"
-                        : "HOOK_UPDATES=" + hookCount + " (+" + hookCount + " extra)";
+                final String hookLabel =
+                        hookCount == 0 ? "HOOK_UPDATES=0" : "HOOK_UPDATES=" + hookCount + " (+" + hookCount + " extra)";
                 final String txnBase = prefix + "CryptoCreate" + keyVariant.suffix() + "H" + hookCount;
                 addWithSigVariants(
                         ops,
@@ -447,9 +442,7 @@ public class KitchenSinkFeeComparisonSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .via(txnName));
                 ops.add(captureFee(
-                        txnName,
-                        joinEmphasis(keyVariant.label(), "HOOK_UPDATES=0", sigEmphasis(signers)),
-                        feeMap));
+                        txnName, joinEmphasis(keyVariant.label(), "HOOK_UPDATES=0", sigEmphasis(signers)), feeMap));
             }
         }
 
@@ -491,8 +484,7 @@ public class KitchenSinkFeeComparisonSuite {
 
         for (final var keyVariant : updateKeyVariants) {
             for (final SigVariant sigVariant : SIG_VARIANTS) {
-                final String txnName =
-                        prefix + "CryptoUpdate" + keyVariant.suffix() + "H1" + sigVariant.suffix();
+                final String txnName = prefix + "CryptoUpdate" + keyVariant.suffix() + "H1" + sigVariant.suffix();
                 final String account = txnName + "Acct";
                 ops.add(cryptoCreate(account)
                         .key(SIMPLE_KEY)
@@ -568,8 +560,7 @@ public class KitchenSinkFeeComparisonSuite {
                 feeMap,
                 new String[] {PAYER},
                 txnName -> newKeyNamed(txnName + "AliasKey").shape(ED25519),
-                (txnName, signers) -> cryptoTransfer(
-                                tinyBarsFromAccountToAlias(PAYER, txnName + "AliasKey", ONE_HBAR))
+                (txnName, signers) -> cryptoTransfer(tinyBarsFromAccountToAlias(PAYER, txnName + "AliasKey", ONE_HBAR))
                         .payingWith(PAYER)
                         .signedBy(signers)
                         .fee(ONE_HUNDRED_HBARS));
@@ -622,16 +613,18 @@ public class KitchenSinkFeeComparisonSuite {
                 .supplyKey(SIMPLE_KEY)
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS));
-        ops.add(mintToken(prefix + "NFTForAllowance", List.of(
-                        ByteString.copyFromUtf8("NFT_A1"),
-                        ByteString.copyFromUtf8("NFT_A2"),
-                        ByteString.copyFromUtf8("NFT_A3"),
-                        ByteString.copyFromUtf8("NFT_A4"),
-                        ByteString.copyFromUtf8("NFT_A5"),
-                        ByteString.copyFromUtf8("NFT_A6"),
-                        ByteString.copyFromUtf8("NFT_A7"),
-                        ByteString.copyFromUtf8("NFT_A8"),
-                        ByteString.copyFromUtf8("NFT_A9")))
+        ops.add(mintToken(
+                        prefix + "NFTForAllowance",
+                        List.of(
+                                ByteString.copyFromUtf8("NFT_A1"),
+                                ByteString.copyFromUtf8("NFT_A2"),
+                                ByteString.copyFromUtf8("NFT_A3"),
+                                ByteString.copyFromUtf8("NFT_A4"),
+                                ByteString.copyFromUtf8("NFT_A5"),
+                                ByteString.copyFromUtf8("NFT_A6"),
+                                ByteString.copyFromUtf8("NFT_A7"),
+                                ByteString.copyFromUtf8("NFT_A8"),
+                                ByteString.copyFromUtf8("NFT_A9")))
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS));
@@ -654,10 +647,7 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(delA1));
-            ops.add(captureFee(
-                    delA1,
-                    joinEmphasis("ALLOWANCES=1 (included)", sigEmphasis(signers)),
-                    feeMap));
+            ops.add(captureFee(delA1, joinEmphasis("ALLOWANCES=1 (included)", sigEmphasis(signers)), feeMap));
 
             // ALLOWANCES=2
             ops.add(cryptoApproveAllowance()
@@ -674,10 +664,7 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(delA2));
-            ops.add(captureFee(
-                    delA2,
-                    joinEmphasis("ALLOWANCES=2 (+1 extra)", sigEmphasis(signers)),
-                    feeMap));
+            ops.add(captureFee(delA2, joinEmphasis("ALLOWANCES=2 (+1 extra)", sigEmphasis(signers)), feeMap));
 
             // ALLOWANCES=3
             ops.add(cryptoApproveAllowance()
@@ -696,20 +683,14 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(delA3));
-            ops.add(captureFee(
-                    delA3,
-                    joinEmphasis("ALLOWANCES=3 (+2 extra)", sigEmphasis(signers)),
-                    feeMap));
+            ops.add(captureFee(delA3, joinEmphasis("ALLOWANCES=3 (+2 extra)", sigEmphasis(signers)), feeMap));
         }
 
         // ===== CryptoDelete =====
         for (final SigVariant sigVariant : SIG_VARIANTS) {
             final String txnName = prefix + "CryptoDelete" + sigVariant.suffix();
             final String account = txnName + "Acct";
-            ops.add(cryptoCreate(account)
-                    .balance(0L)
-                    .payingWith(PAYER)
-                    .fee(ONE_HUNDRED_HBARS));
+            ops.add(cryptoCreate(account).balance(0L).payingWith(PAYER).fee(ONE_HUNDRED_HBARS));
             final String[] signers = sigVariant.withRequired(PAYER, account);
             ops.add(cryptoDelete(account)
                     .transfer(PAYER)
@@ -802,23 +783,25 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS));
 
-        ops.add(mintToken(prefix + "NFTForTransfer", List.of(
-                        ByteString.copyFromUtf8("NFT1"),
-                        ByteString.copyFromUtf8("NFT2"),
-                        ByteString.copyFromUtf8("NFT3"),
-                        ByteString.copyFromUtf8("NFT4"),
-                        ByteString.copyFromUtf8("NFT5"),
-                        ByteString.copyFromUtf8("NFT6"),
-                        ByteString.copyFromUtf8("NFT7"),
-                        ByteString.copyFromUtf8("NFT8"),
-                        ByteString.copyFromUtf8("NFT9"),
-                        ByteString.copyFromUtf8("NFT10")))
+        ops.add(mintToken(
+                        prefix + "NFTForTransfer",
+                        List.of(
+                                ByteString.copyFromUtf8("NFT1"),
+                                ByteString.copyFromUtf8("NFT2"),
+                                ByteString.copyFromUtf8("NFT3"),
+                                ByteString.copyFromUtf8("NFT4"),
+                                ByteString.copyFromUtf8("NFT5"),
+                                ByteString.copyFromUtf8("NFT6"),
+                                ByteString.copyFromUtf8("NFT7"),
+                                ByteString.copyFromUtf8("NFT8"),
+                                ByteString.copyFromUtf8("NFT9"),
+                                ByteString.copyFromUtf8("NFT10")))
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS));
-        ops.add(mintToken(prefix + "NFTForTransfer", List.of(
-                        ByteString.copyFromUtf8("NFT11"),
-                        ByteString.copyFromUtf8("NFT12")))
+        ops.add(mintToken(
+                        prefix + "NFTForTransfer",
+                        List.of(ByteString.copyFromUtf8("NFT11"), ByteString.copyFromUtf8("NFT12")))
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS));
@@ -846,9 +829,9 @@ public class KitchenSinkFeeComparisonSuite {
         }
 
         final long[][] nftPairSerials = {
-                {4L, 5L},
-                {6L, 7L},
-                {8L, 9L}
+            {4L, 5L},
+            {6L, 7L},
+            {8L, 9L}
         };
         int nftPairIdx = 0;
         for (final SigVariant sigVariant : SIG_VARIANTS) {
@@ -875,16 +858,18 @@ public class KitchenSinkFeeComparisonSuite {
                 .supplyKey(SIMPLE_KEY)
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS));
-        ops.add(mintToken(prefix + "NFTForSerials", List.of(
-                        ByteString.copyFromUtf8("NS1"),
-                        ByteString.copyFromUtf8("NS2"),
-                        ByteString.copyFromUtf8("NS3"),
-                        ByteString.copyFromUtf8("NS4"),
-                        ByteString.copyFromUtf8("NS5"),
-                        ByteString.copyFromUtf8("NS6"),
-                        ByteString.copyFromUtf8("NS7"),
-                        ByteString.copyFromUtf8("NS8"),
-                        ByteString.copyFromUtf8("NS9")))
+        ops.add(mintToken(
+                        prefix + "NFTForSerials",
+                        List.of(
+                                ByteString.copyFromUtf8("NS1"),
+                                ByteString.copyFromUtf8("NS2"),
+                                ByteString.copyFromUtf8("NS3"),
+                                ByteString.copyFromUtf8("NS4"),
+                                ByteString.copyFromUtf8("NS5"),
+                                ByteString.copyFromUtf8("NS6"),
+                                ByteString.copyFromUtf8("NS7"),
+                                ByteString.copyFromUtf8("NS8"),
+                                ByteString.copyFromUtf8("NS9")))
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS));
@@ -892,9 +877,9 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS));
         final long[][] nftSerialTriples = {
-                {1L, 2L, 3L},
-                {4L, 5L, 6L},
-                {7L, 8L, 9L}
+            {1L, 2L, 3L},
+            {4L, 5L, 6L},
+            {7L, 8L, 9L}
         };
         int nftTripleIdx = 0;
         for (final SigVariant sigVariant : SIG_VARIANTS) {
@@ -969,9 +954,7 @@ public class KitchenSinkFeeComparisonSuite {
                 "no extras",
                 feeMap,
                 new String[] {PAYER},
-                (queryName, signers) -> getAccountInfo(PAYER)
-                        .payingWith(PAYER)
-                        .signedBy(signers));
+                (queryName, signers) -> getAccountInfo(PAYER).payingWith(PAYER).signedBy(signers));
 
         addQueryWithSigVariants(
                 ops,
@@ -979,9 +962,8 @@ public class KitchenSinkFeeComparisonSuite {
                 "no extras",
                 feeMap,
                 new String[] {PAYER},
-                (queryName, signers) -> getAccountRecords(PAYER)
-                        .payingWith(PAYER)
-                        .signedBy(signers));
+                (queryName, signers) ->
+                        getAccountRecords(PAYER).payingWith(PAYER).signedBy(signers));
 
         addQueryWithSigVariants(
                 ops,
@@ -989,14 +971,11 @@ public class KitchenSinkFeeComparisonSuite {
                 "no extras",
                 feeMap,
                 new String[] {PAYER},
-                (queryName, signers) -> getAccountBalance(PAYER)
-                        .payingWith(PAYER)
-                        .signedBy(signers));
+                (queryName, signers) ->
+                        getAccountBalance(PAYER).payingWith(PAYER).signedBy(signers));
 
         return ops;
     }
-
-
 
     // ==================== TOKEN TRANSACTIONS ====================
 
@@ -1090,10 +1069,12 @@ public class KitchenSinkFeeComparisonSuite {
                 .blankMemo()
                 .payingWith(PAYER)
                 .fee(ONE_HUNDRED_HBARS));
-        ops.add(mintToken(prefix + "NFTMeta", List.of(
-                        ByteString.copyFromUtf8("META1"),
-                        ByteString.copyFromUtf8("META2"),
-                        ByteString.copyFromUtf8("META3")))
+        ops.add(mintToken(
+                        prefix + "NFTMeta",
+                        List.of(
+                                ByteString.copyFromUtf8("META1"),
+                                ByteString.copyFromUtf8("META2"),
+                                ByteString.copyFromUtf8("META3")))
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS));
@@ -1115,20 +1096,12 @@ public class KitchenSinkFeeComparisonSuite {
                 final String keyLabel = keyCount == 0
                         ? "KEYS=0 (no keys)"
                         : keyCount == 1 ? "KEYS=1 (included)" : "KEYS=" + keyCount + " (+" + (keyCount - 1) + " extra)";
-                final String cfLabel =
-                        customFee ? "TOKEN_CREATE_WITH_CUSTOM_FEE=1" : "TOKEN_CREATE_WITH_CUSTOM_FEE=0";
-                final String txnBase =
-                        prefix + "TokenCreateK" + keyCount + (customFee ? "CF1" : "CF0");
-                final String[] requiredSigners = keyCount >= 1
-                        ? new String[] {PAYER, TREASURY, SIMPLE_KEY}
-                        : new String[] {PAYER, TREASURY};
+                final String cfLabel = customFee ? "TOKEN_CREATE_WITH_CUSTOM_FEE=1" : "TOKEN_CREATE_WITH_CUSTOM_FEE=0";
+                final String txnBase = prefix + "TokenCreateK" + keyCount + (customFee ? "CF1" : "CF0");
+                final String[] requiredSigners =
+                        keyCount >= 1 ? new String[] {PAYER, TREASURY, SIMPLE_KEY} : new String[] {PAYER, TREASURY};
                 addWithSigVariants(
-                        ops,
-                        txnBase,
-                        joinEmphasis(keyLabel, cfLabel),
-                        feeMap,
-                        requiredSigners,
-                        (txnName, signers) -> {
+                        ops, txnBase, joinEmphasis(keyLabel, cfLabel), feeMap, requiredSigners, (txnName, signers) -> {
                             final var op = tokenCreate(txnName + "Token")
                                     .tokenType(FUNGIBLE_COMMON)
                                     .initialSupply(1_000_000L)
@@ -1252,7 +1225,8 @@ public class KitchenSinkFeeComparisonSuite {
                 ops.add(captureFee(
                         txnName,
                         joinEmphasis(
-                                "KEYS=" + keyCount + (keyCount == 1 ? " (included)" : " (+" + (keyCount - 1) + " extra)"),
+                                "KEYS=" + keyCount
+                                        + (keyCount == 1 ? " (included)" : " (+" + (keyCount - 1) + " extra)"),
                                 sigEmphasis(signers)),
                         feeMap));
             }
@@ -1573,9 +1547,8 @@ public class KitchenSinkFeeComparisonSuite {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, TREASURY)
                                 .fee(ONE_HUNDRED_HBARS)),
-                (txnName, signers) -> tokenClaimAirdrop(
-                                HapiTokenClaimAirdrop.pendingAirdrop(
-                                        TREASURY, txnName + "Receiver", prefix + "FungibleAirdrop"))
+                (txnName, signers) -> tokenClaimAirdrop(HapiTokenClaimAirdrop.pendingAirdrop(
+                                TREASURY, txnName + "Receiver", prefix + "FungibleAirdrop"))
                         .payingWith(PAYER)
                         .signedBy(signers)
                         .fee(ONE_HUNDRED_HBARS));
@@ -1598,9 +1571,8 @@ public class KitchenSinkFeeComparisonSuite {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, TREASURY)
                                 .fee(ONE_HUNDRED_HBARS)),
-                (txnName, signers) -> tokenCancelAirdrop(
-                                HapiTokenCancelAirdrop.pendingAirdrop(
-                                        TREASURY, txnName + "Receiver", prefix + "FungibleAirdrop"))
+                (txnName, signers) -> tokenCancelAirdrop(HapiTokenCancelAirdrop.pendingAirdrop(
+                                TREASURY, txnName + "Receiver", prefix + "FungibleAirdrop"))
                         .payingWith(PAYER)
                         .signedBy(signers)
                         .fee(ONE_HUNDRED_HBARS));
@@ -1612,9 +1584,8 @@ public class KitchenSinkFeeComparisonSuite {
                 "no extras",
                 feeMap,
                 new String[] {PAYER},
-                (queryName, signers) -> getTokenInfo(prefix + "FungibleK0")
-                        .payingWith(PAYER)
-                        .signedBy(signers));
+                (queryName, signers) ->
+                        getTokenInfo(prefix + "FungibleK0").payingWith(PAYER).signedBy(signers));
 
         addQueryWithSigVariants(
                 ops,
@@ -1635,10 +1606,7 @@ public class KitchenSinkFeeComparisonSuite {
         List<SpecOperation> ops = new ArrayList<>();
 
         // ===== SETUP: Base topics for submit/update =====
-        ops.add(createTopic(prefix + "TopicBase")
-                .blankMemo()
-                .payingWith(PAYER)
-                .fee(ONE_HUNDRED_HBARS));
+        ops.add(createTopic(prefix + "TopicBase").blankMemo().payingWith(PAYER).fee(ONE_HUNDRED_HBARS));
         ops.add(createTopic(prefix + "TopicCustomFee")
                 .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, TREASURY))
                 .blankMemo()
@@ -1665,14 +1633,12 @@ public class KitchenSinkFeeComparisonSuite {
         final int[] createKeyCounts = {0, 1, 2};
         for (final int keyCount : createKeyCounts) {
             for (final boolean customFee : new boolean[] {false, true}) {
-                final String keyLabel = keyCount == 0
-                        ? "KEYS=0 (included)"
-                        : "KEYS=" + keyCount + " (+" + keyCount + " extra)";
+                final String keyLabel =
+                        keyCount == 0 ? "KEYS=0 (included)" : "KEYS=" + keyCount + " (+" + keyCount + " extra)";
                 final String cfLabel = customFee
                         ? "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE=1"
                         : "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE=0";
-                final String txnBase =
-                        prefix + "TopicCreateK" + keyCount + (customFee ? "CF1" : "CF0");
+                final String txnBase = prefix + "TopicCreateK" + keyCount + (customFee ? "CF1" : "CF0");
                 addWithSigVariants(
                         ops,
                         txnBase,
@@ -1702,9 +1668,8 @@ public class KitchenSinkFeeComparisonSuite {
         // ===== ConsensusSubmitMessage with BYTES + CUSTOM_FEE =====
         final int[] msgSizes = {50, 100, 500};
         for (final int size : msgSizes) {
-            final String bytesLabel = size <= 100
-                    ? "BYTES=" + size + " (included)"
-                    : "BYTES=" + size + " (+" + (size - 100) + " extra)";
+            final String bytesLabel =
+                    size <= 100 ? "BYTES=" + size + " (included)" : "BYTES=" + size + " (+" + (size - 100) + " extra)";
             addWithSigVariants(
                     ops,
                     prefix + "SubmitMsgB" + size,
@@ -1797,9 +1762,8 @@ public class KitchenSinkFeeComparisonSuite {
                 "no extras",
                 feeMap,
                 new String[] {PAYER},
-                (queryName, signers) -> getTopicInfo(prefix + "TopicBase")
-                        .payingWith(PAYER)
-                        .signedBy(signers));
+                (queryName, signers) ->
+                        getTopicInfo(prefix + "TopicBase").payingWith(PAYER).signedBy(signers));
 
         return ops;
     }
@@ -1861,9 +1825,7 @@ public class KitchenSinkFeeComparisonSuite {
                     }
                     ops.add(op.via(txnName));
                     ops.add(captureFee(
-                            txnName,
-                            joinEmphasis(keyVariant.label(), bytesLabel, sigEmphasis(signers)),
-                            feeMap));
+                            txnName, joinEmphasis(keyVariant.label(), bytesLabel, sigEmphasis(signers)), feeMap));
                 }
             }
         }
@@ -1972,9 +1934,8 @@ public class KitchenSinkFeeComparisonSuite {
                 "no extras",
                 feeMap,
                 new String[] {PAYER},
-                (queryName, signers) -> getFileInfo(prefix + "FileBase100")
-                        .payingWith(PAYER)
-                        .signedBy(signers));
+                (queryName, signers) ->
+                        getFileInfo(prefix + "FileBase100").payingWith(PAYER).signedBy(signers));
 
         return ops;
     }
@@ -2013,7 +1974,8 @@ public class KitchenSinkFeeComparisonSuite {
                 new String[] {PAYER},
                 (txnName, signers) -> scheduleCreate(
                                 txnName + "Schedule",
-                                cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount)).memo(txnName))
+                                cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount))
+                                        .memo(txnName))
                         .payingWith(PAYER)
                         .signedBy(signers)
                         .fee(ONE_HUNDRED_HBARS));
@@ -2026,7 +1988,8 @@ public class KitchenSinkFeeComparisonSuite {
                 new String[] {PAYER, SIMPLE_KEY},
                 (txnName, signers) -> scheduleCreate(
                                 txnName + "Schedule",
-                                cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount)).memo(txnName))
+                                cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount))
+                                        .memo(txnName))
                         .adminKey(SIMPLE_KEY)
                         .payingWith(PAYER)
                         .signedBy(signers)
@@ -2040,7 +2003,8 @@ public class KitchenSinkFeeComparisonSuite {
                 new String[] {PAYER},
                 (txnName, signers) -> scheduleCreate(
                                 txnName + "Schedule",
-                                contractCallWithFunctionAbi(prefix + "ScheduleContract", storeAbi, BigInteger.valueOf(1))
+                                contractCallWithFunctionAbi(
+                                                prefix + "ScheduleContract", storeAbi, BigInteger.valueOf(1))
                                         .gas(50_000L)
                                         .memo(txnName))
                         .payingWith(PAYER)
@@ -2055,7 +2019,8 @@ public class KitchenSinkFeeComparisonSuite {
                 new String[] {PAYER, SIMPLE_KEY},
                 (txnName, signers) -> scheduleCreate(
                                 txnName + "Schedule",
-                                contractCallWithFunctionAbi(prefix + "ScheduleContract", storeAbi, BigInteger.valueOf(2))
+                                contractCallWithFunctionAbi(
+                                                prefix + "ScheduleContract", storeAbi, BigInteger.valueOf(2))
                                         .gas(50_000L)
                                         .memo(txnName))
                         .adminKey(SIMPLE_KEY)
@@ -2072,7 +2037,8 @@ public class KitchenSinkFeeComparisonSuite {
                 new String[] {PAYER, RECEIVER},
                 txnName -> scheduleCreate(
                                 txnName + "Schedule",
-                                cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount)).memo(txnName))
+                                cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount))
+                                        .memo(txnName))
                         .adminKey(SIMPLE_KEY)
                         .payingWith(PAYER)
                         .fee(ONE_HUNDRED_HBARS),
@@ -2090,7 +2056,8 @@ public class KitchenSinkFeeComparisonSuite {
                 new String[] {PAYER, SIMPLE_KEY},
                 txnName -> scheduleCreate(
                                 txnName + "Schedule",
-                                cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount)).memo(txnName))
+                                cryptoTransfer(tinyBarsFromTo(RECEIVER, PAYER, amount))
+                                        .memo(txnName))
                         .adminKey(SIMPLE_KEY)
                         .payingWith(PAYER)
                         .fee(ONE_HUNDRED_HBARS),
@@ -2265,32 +2232,44 @@ public class KitchenSinkFeeComparisonSuite {
                 .payingWith(PAYER)
                 .signedBy(PAYER, prefix + "HookSender", SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS));
-        ops.add(mintToken(prefix + "HookNFT", List.of(
-                        ByteString.copyFromUtf8("HNFT1"),
-                        ByteString.copyFromUtf8("HNFT2"),
-                        ByteString.copyFromUtf8("HNFT3"),
-                        ByteString.copyFromUtf8("HNFT4"),
-                        ByteString.copyFromUtf8("HNFT5"),
-                        ByteString.copyFromUtf8("HNFT6"),
-                        ByteString.copyFromUtf8("HNFT7"),
-                        ByteString.copyFromUtf8("HNFT8"),
-                        ByteString.copyFromUtf8("HNFT9"),
-                        ByteString.copyFromUtf8("HNFT10")))
+        ops.add(mintToken(
+                        prefix + "HookNFT",
+                        List.of(
+                                ByteString.copyFromUtf8("HNFT1"),
+                                ByteString.copyFromUtf8("HNFT2"),
+                                ByteString.copyFromUtf8("HNFT3"),
+                                ByteString.copyFromUtf8("HNFT4"),
+                                ByteString.copyFromUtf8("HNFT5"),
+                                ByteString.copyFromUtf8("HNFT6"),
+                                ByteString.copyFromUtf8("HNFT7"),
+                                ByteString.copyFromUtf8("HNFT8"),
+                                ByteString.copyFromUtf8("HNFT9"),
+                                ByteString.copyFromUtf8("HNFT10")))
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS));
-        ops.add(mintToken(prefix + "HookNFT", List.of(
-                        ByteString.copyFromUtf8("HNFT11"),
-                        ByteString.copyFromUtf8("HNFT12")))
+        ops.add(mintToken(
+                        prefix + "HookNFT",
+                        List.of(ByteString.copyFromUtf8("HNFT11"), ByteString.copyFromUtf8("HNFT12")))
                 .payingWith(PAYER)
                 .signedBy(PAYER, SIMPLE_KEY)
                 .fee(ONE_HUNDRED_HBARS));
 
-        ops.add(tokenAssociate(prefix + "HookReceiver", prefix + "HookFT", prefix + "HookFTCF", prefix + "HookFTCF2", prefix + "HookNFT")
+        ops.add(tokenAssociate(
+                        prefix + "HookReceiver",
+                        prefix + "HookFT",
+                        prefix + "HookFTCF",
+                        prefix + "HookFTCF2",
+                        prefix + "HookNFT")
                 .payingWith(PAYER)
                 .signedBy(PAYER, prefix + "HookReceiver")
                 .fee(ONE_HUNDRED_HBARS));
-        ops.add(tokenAssociate(prefix + "HookReceiver2", prefix + "HookFT", prefix + "HookFTCF", prefix + "HookFTCF2", prefix + "HookNFT")
+        ops.add(tokenAssociate(
+                        prefix + "HookReceiver2",
+                        prefix + "HookFT",
+                        prefix + "HookFTCF",
+                        prefix + "HookFTCF2",
+                        prefix + "HookNFT")
                 .payingWith(PAYER)
                 .signedBy(PAYER, prefix + "HookReceiver2")
                 .fee(ONE_HUNDRED_HBARS));
@@ -2354,9 +2333,9 @@ public class KitchenSinkFeeComparisonSuite {
         }
 
         final long[][] hookComboSerialTriples = {
-                {4L, 5L, 6L},
-                {7L, 8L, 9L},
-                {10L, 11L, 12L}
+            {4L, 5L, 6L},
+            {7L, 8L, 9L},
+            {10L, 11L, 12L}
         };
         int hookComboTripleIdx = 0;
         for (final SigVariant sigVariant : SIG_VARIANTS) {
@@ -2608,10 +2587,8 @@ public class KitchenSinkFeeComparisonSuite {
                 "FREEZE_ABORT",
                 feeMap,
                 new String[] {FREEZE_ADMIN},
-                (txnName, signers) -> freezeAbort()
-                        .payingWith(FREEZE_ADMIN)
-                        .signedBy(signers)
-                        .fee(ONE_HUNDRED_HBARS));
+                (txnName, signers) ->
+                        freezeAbort().payingWith(FREEZE_ADMIN).signedBy(signers).fee(ONE_HUNDRED_HBARS));
 
         // ===== NodeCreate =====
         addWithSigVariants(
@@ -2688,9 +2665,7 @@ public class KitchenSinkFeeComparisonSuite {
                 "no extras",
                 feeMap,
                 new String[] {PAYER},
-                (queryName, signers) -> getVersionInfo()
-                        .payingWith(PAYER)
-                        .signedBy(signers));
+                (queryName, signers) -> getVersionInfo().payingWith(PAYER).signedBy(signers));
 
         // ===== TransactionGetRecord (query) =====
         addQueryWithSigVariants(
@@ -2703,9 +2678,8 @@ public class KitchenSinkFeeComparisonSuite {
                         .payingWith(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .via(queryName + "Txn"),
-                (queryName, signers) -> getTxnRecord(queryName + "Txn")
-                        .payingWith(PAYER)
-                        .signedBy(signers));
+                (queryName, signers) ->
+                        getTxnRecord(queryName + "Txn").payingWith(PAYER).signedBy(signers));
 
         // ===== TransactionGetReceipt (query) =====
         addQueryWithSigVariants(
@@ -2718,9 +2692,8 @@ public class KitchenSinkFeeComparisonSuite {
                         .payingWith(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .via(queryName + "Txn"),
-                (queryName, signers) -> getReceipt(queryName + "Txn")
-                        .payingWith(PAYER)
-                        .signedBy(signers));
+                (queryName, signers) ->
+                        getReceipt(queryName + "Txn").payingWith(PAYER).signedBy(signers));
 
         return ops;
     }
@@ -2732,12 +2705,7 @@ public class KitchenSinkFeeComparisonSuite {
 
         // ===== UtilPrng with and without range =====
         addWithSigVariants(
-                ops,
-                prefix + "PrngRange0",
-                "RANGE=0",
-                feeMap,
-                new String[] {PAYER},
-                (txnName, signers) -> hapiPrng()
+                ops, prefix + "PrngRange0", "RANGE=0", feeMap, new String[] {PAYER}, (txnName, signers) -> hapiPrng()
                         .payingWith(PAYER)
                         .signedBy(signers)
                         .fee(ONE_HUNDRED_HBARS));
@@ -2748,10 +2716,8 @@ public class KitchenSinkFeeComparisonSuite {
                 "RANGE=100 (+100 extra)",
                 feeMap,
                 new String[] {PAYER},
-                (txnName, signers) -> hapiPrng(100)
-                        .payingWith(PAYER)
-                        .signedBy(signers)
-                        .fee(ONE_HUNDRED_HBARS));
+                (txnName, signers) ->
+                        hapiPrng(100).payingWith(PAYER).signedBy(signers).fee(ONE_HUNDRED_HBARS));
 
         // ===== AtomicBatch with varying transaction count =====
         addWithSigVariants(
@@ -2760,10 +2726,9 @@ public class KitchenSinkFeeComparisonSuite {
                 "TRANSACTIONS=1 (included)",
                 feeMap,
                 new String[] {BATCH_OPERATOR},
-                (txnName, signers) -> atomicBatch(
-                                cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 1L))
-                                        .payingWith(BATCH_OPERATOR)
-                                        .batchKey(BATCH_OPERATOR))
+                (txnName, signers) -> atomicBatch(cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 1L))
+                                .payingWith(BATCH_OPERATOR)
+                                .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .signedBy(signers)
                         .fee(ONE_HUNDRED_HBARS));
@@ -2864,7 +2829,8 @@ public class KitchenSinkFeeComparisonSuite {
                         com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK,
                         com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE);
             }
-            op.exposingNodePaymentTo(captureQueryFee(queryName, emphasis, feeMap)).via(queryName);
+            op.exposingNodePaymentTo(captureQueryFee(queryName, emphasis, feeMap))
+                    .via(queryName);
             ops.add(op);
         }
     }
@@ -2899,7 +2865,8 @@ public class KitchenSinkFeeComparisonSuite {
         });
     }
 
-    private static LongConsumer captureQueryFee(final String queryName, final String emphasis, final Map<String, Long> feeMap) {
+    private static LongConsumer captureQueryFee(
+            final String queryName, final String emphasis, final Map<String, Long> feeMap) {
         return fee -> {
             final String key = emphasis.isEmpty() ? queryName : queryName + "|" + emphasis;
             feeMap.put(key, fee);
@@ -2912,12 +2879,7 @@ public class KitchenSinkFeeComparisonSuite {
             LOG.info("\n========== FEE COMPARISON RESULTS ==========");
             LOG.info(String.format(
                     "%-40s %-30s %15s %15s %15s %10s",
-                    "Transaction",
-                    "Emphasis",
-                    "Legacy Fee",
-                    "Simple Fee",
-                    "Difference",
-                    "% Change"));
+                    "Transaction", "Emphasis", "Legacy Fee", "Simple Fee", "Difference", "% Change"));
             LOG.info("=".repeat(130));
 
             for (String txnKey : legacyFees.keySet()) {
@@ -2938,30 +2900,22 @@ public class KitchenSinkFeeComparisonSuite {
                     double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
                     LOG.info(String.format(
                             "%-40s %-30s %15d %15d %15d %9.2f%%",
-                            baseName,
-                            emphasis,
-                            legacyFee,
-                            simpleFee,
-                            diff,
-                            pctChange));
+                            baseName, emphasis, legacyFee, simpleFee, diff, pctChange));
                 }
             }
             LOG.info("=".repeat(130));
 
             // Also log summary statistics
-            long totalLegacy = legacyFees.values().stream().mapToLong(Long::longValue).sum();
-            long totalSimple = simpleFees.values().stream().mapToLong(Long::longValue).sum();
+            long totalLegacy =
+                    legacyFees.values().stream().mapToLong(Long::longValue).sum();
+            long totalSimple =
+                    simpleFees.values().stream().mapToLong(Long::longValue).sum();
             long totalDiff = totalSimple - totalLegacy;
             double totalPctChange = totalLegacy > 0 ? (totalDiff * 100.0 / totalLegacy) : 0;
 
             LOG.info(String.format(
                     "%-40s %-30s %15d %15d %15d %9.2f%%",
-                    "TOTAL",
-                    "",
-                    totalLegacy,
-                    totalSimple,
-                    totalDiff,
-                    totalPctChange));
+                    "TOTAL", "", totalLegacy, totalSimple, totalDiff, totalPctChange));
             LOG.info("=============================================\n");
         });
     }
@@ -2983,7 +2937,8 @@ public class KitchenSinkFeeComparisonSuite {
             }
             try (FileWriter writer = new FileWriter(filename)) {
                 // Write CSV header
-                writer.append("Transaction,Extras,Legacy Fee (tinybars),Legacy Fee (USD),Simple Fee (tinybars),Simple Fee (USD),Difference (tinybars),Difference (USD),% Change\n");
+                writer.append(
+                        "Transaction,Extras,Legacy Fee (tinybars),Legacy Fee (USD),Simple Fee (tinybars),Simple Fee (USD),Difference (tinybars),Difference (USD),% Change\n");
 
                 // Write data rows
                 for (String txnKey : legacyFees.keySet()) {
@@ -3031,8 +2986,10 @@ public class KitchenSinkFeeComparisonSuite {
                 }
 
                 // Write summary row
-                long totalLegacy = legacyFees.values().stream().mapToLong(Long::longValue).sum();
-                long totalSimple = simpleFees.values().stream().mapToLong(Long::longValue).sum();
+                long totalLegacy =
+                        legacyFees.values().stream().mapToLong(Long::longValue).sum();
+                long totalSimple =
+                        simpleFees.values().stream().mapToLong(Long::longValue).sum();
                 long totalDiff = totalSimple - totalLegacy;
                 double totalPctChange = totalLegacy > 0 ? (totalDiff * 100.0 / totalLegacy) : 0;
 
@@ -3070,7 +3027,7 @@ public class KitchenSinkFeeComparisonSuite {
             final boolean hasRates = ratesProvider.hasRateSet();
             try (FileWriter writer = new FileWriter(filename)) {
                 var json = new JSONFormatter(writer);
-                for( String txnKey: legacyFees.keySet()) {
+                for (String txnKey : legacyFees.keySet()) {
                     // Parse the key to extract transaction name and emphasis
                     String[] parts = txnKey.split("\\|", 2);
                     String txnName = parts[0];
@@ -3090,22 +3047,21 @@ public class KitchenSinkFeeComparisonSuite {
                         String escapedBaseName = baseName.replace(",", ";");
                         String escapedEmphasis = emphasis.replace(",", ";");
                         json.startRecord();
-                        json.key("name",escapedBaseName);
-                        json.key("desc",escapedEmphasis);
-                        json.key("old_hbar",legacyFee);
-                        json.key("old_usd",ratesProvider.toUsdWithActiveRates(legacyFee));
-                        json.key("simple_hbar",ratesProvider.toUsdWithActiveRates(legacyFee));
-                        json.key("simple_usd",ratesProvider.toUsdWithActiveRates(legacyFee));
-                        json.key("diff_hbar",diff);
-                        json.key("diff_usd",ratesProvider.toUsdWithActiveRates(diff));
-                        json.key("change",pctChange);
+                        json.key("name", escapedBaseName);
+                        json.key("desc", escapedEmphasis);
+                        json.key("old_hbar", legacyFee);
+                        json.key("old_usd", ratesProvider.toUsdWithActiveRates(legacyFee));
+                        json.key("simple_hbar", ratesProvider.toUsdWithActiveRates(legacyFee));
+                        json.key("simple_usd", ratesProvider.toUsdWithActiveRates(legacyFee));
+                        json.key("diff_hbar", diff);
+                        json.key("diff_usd", ratesProvider.toUsdWithActiveRates(diff));
+                        json.key("change", pctChange);
                         json.endRecord();
                     }
                 }
             } catch (IOException e) {
                 throw new RuntimeException("Failed to write JSON file: " + filename, e);
             }
-
         });
     }
 
@@ -3125,10 +3081,10 @@ public class KitchenSinkFeeComparisonSuite {
         }
 
         public void key(String key, String value) throws IOException {
-            if(!this.start) {
+            if (!this.start) {
                 writer.append(", ");
             }
-            writer.append(String.format("\"%s\":\"%s\"",key,value));
+            writer.append(String.format("\"%s\":\"%s\"", key, value));
             this.start = false;
         }
 
@@ -3137,15 +3093,15 @@ public class KitchenSinkFeeComparisonSuite {
         }
 
         public void key(String name, long value) throws IOException {
-            key(name, ""+value);
+            key(name, "" + value);
         }
 
         public void key(String name, double value) throws IOException {
-            key(name, String.format("%.5f",value));
+            key(name, String.format("%.5f", value));
         }
     }
-    private void json_key(FileWriter writer, String baseName, String escapedBaseName) throws IOException {
-        writer.append(String.format("\"%s\":\"%s\" ",baseName,escapedBaseName));
-    }
 
+    private void json_key(FileWriter writer, String baseName, String escapedBaseName) throws IOException {
+        writer.append(String.format("\"%s\":\"%s\" ", baseName, escapedBaseName));
+    }
 }
