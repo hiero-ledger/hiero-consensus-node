@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.Utilities;
+import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.network.topology.NetworkTopology;
 import com.swirlds.platform.network.topology.StaticTopology;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;

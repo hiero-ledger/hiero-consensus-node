@@ -74,6 +74,7 @@ open module com.hedera.node.test.clients {
     provides LauncherSessionListener with
             SharedNetworkLauncherSessionListener;
 
+    requires com.hedera.cryptography.wraps;
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;
@@ -101,7 +102,6 @@ open module com.hedera.node.test.clients {
     requires com.swirlds.config.api;
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
-    requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;

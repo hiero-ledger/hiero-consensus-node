@@ -153,6 +153,7 @@ import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.suites.contract.Utils;
+import com.hedera.services.bdd.suites.contract.openzeppelin.ERC20ContractInteractions;
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -217,7 +218,7 @@ public class LeakyContractTestsSuite {
     private static final String MISSING_TOKEN = "MISSING_TOKEN";
     private static final String WITH_SPENDER = "WITH_SPENDER";
     private static final String DO_SPECIFIC_APPROVAL = "doSpecificApproval";
-    public static final String TRANSFER_SIGNATURE = "Transfer(address,address,uint256)";
+    public static final String TRANSFER_SIGNATURE = ERC20ContractInteractions.TRANSFER_EVENT_SIGNATURE;
     private static final String CREATION = "creation";
     private static final String ENTITY_MEMO = "JUST DO IT";
     private static final String CREATE_2_TXN = "create2Txn";
