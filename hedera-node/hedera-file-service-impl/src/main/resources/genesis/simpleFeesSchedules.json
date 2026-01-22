@@ -172,7 +172,7 @@
           "name": "ConsensusSubmitMessage",
           "baseFee": 7000000,
           "extras": [
-            { "name": "BYTES",      "includedCount": 100 },
+            { "name": "BYTES",      "includedCount": 1024 },
             { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE", "includedCount": 0 }
           ]
         },

@@ -333,4 +333,18 @@ public class ConsensusServiceSimpleFeesSuite {
                         .via("submitTxn"),
                 validateChargedUsd("submitTxn", EXPECTED_SUBMIT_CUSTOM_MESSAGE_FEE));
     }
+
+    @HapiTest
+    final Stream<DynamicTest> maxAllowedBytesIncludedInBaseFee() {
+        final var payload = "a".repeat(1024);
+        return hapiTest(
+                cryptoCreate("payer"),
+                createTopic("customTopic"),
+                submitMessageTo("customTopic")
+                        .message(payload)
+                        .payingWith("payer")
+                        .fee(ONE_HBAR)
+                        .via("submitTxn"),
+                validateChargedUsd("submitTxn", EXPECTED_SUBMIT_MESSAGE_FEE));
+    }
 }
