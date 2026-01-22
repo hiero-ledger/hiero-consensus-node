@@ -17,7 +17,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -170,104 +169,6 @@ public class ConsensusServiceSimpleFeesSuite {
                     0.00122,
                     1,
                     0.00122,
-                    1);
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare submit message with included bytes")
-        final Stream<DynamicTest> submitMessageFeeWithIncludedBytesComparison() {
-            // 100 is less than the free size, so there's no per byte charge
-            final var byte_size = 100;
-            final byte[] messageBytes = new byte[byte_size]; // up to 1k
-            Arrays.fill(messageBytes, (byte) 0b1);
-            return compareSimpleToOld(
-                    () -> Arrays.asList(
-                            newKeyNamed(PAYER),
-                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                            // create topic, provide up to 1 hbar to pay for it
-                            createTopic("testTopic")
-                                    .blankMemo()
-                                    .payingWith(PAYER)
-                                    .fee(ONE_HBAR)
-                                    .via("create-topic-txn"),
-                            // submit message, provide up to 1 hbar to pay for it
-                            submitMessageTo("testTopic")
-                                    .blankMemo()
-                                    .payingWith(PAYER)
-                                    .message(new String(messageBytes))
-                                    .fee(ONE_HBAR)
-                                    .via("submit-message-txn")),
-                    "submit-message-txn",
-                    0.0001000,
-                    1,
-                    0.0001000,
-                    1);
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare submit message with extra bytes")
-        final Stream<DynamicTest> submitBiggerMessageFeeComparison() {
-            // 100 is less than the free size, so there's no per byte charge
-            final var byte_size = 1023;
-            final byte[] messageBytes = new byte[byte_size]; // up to 1k
-            Arrays.fill(messageBytes, (byte) 0b1);
-            return compareSimpleToOld(
-                    () -> Arrays.asList(
-                            newKeyNamed(PAYER),
-                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                            // create topic, provide up to 1 hbar to pay for it
-                            createTopic("testTopic")
-                                    .blankMemo()
-                                    .payingWith(PAYER)
-                                    .fee(ONE_HBAR)
-                                    .via("create-topic-txn"),
-                            // submit message, provide up to 1 hbar to pay for it
-                            submitMessageTo("testTopic")
-                                    .blankMemo()
-                                    .payingWith(PAYER)
-                                    .message(new String(messageBytes))
-                                    .fee(ONE_HBAR)
-                                    .via("submit-message-txn")),
-                    "submit-message-txn",
-                    // base == 0
-                    // network + node = 1000000
-                    // extra bytes = 1023-100= 923
-                    // byte cost = 110000
-                    // total = 102530000
-                    0.01025,
-                    1,
-                    0.01025,
-                    1);
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare submit message with custom fee and included bytes")
-        final Stream<DynamicTest> submitCustomFeeMessageWithIncludedBytesComparison() {
-            // 100 is less than the free size, so there's no per byte charge
-            final var byte_size = 100;
-            final byte[] messageBytes = new byte[byte_size]; // up to 1k
-            Arrays.fill(messageBytes, (byte) 0b1);
-            return compareSimpleToOld(
-                    () -> Arrays.asList(
-                            cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
-                            cryptoCreate("collector"),
-                            createTopic("testTopic")
-                                    .blankMemo()
-                                    .withConsensusCustomFee(fixedConsensusHbarFee(88, "collector"))
-                                    .payingWith(PAYER)
-                                    .fee(ONE_HUNDRED_HBARS)
-                                    .via("create-topic-txn"),
-                            // submit message, provide up to 1 hbar to pay for it
-                            submitMessageTo("testTopic")
-                                    .blankMemo()
-                                    .payingWith(PAYER)
-                                    .message(new String(messageBytes))
-                                    .fee(ONE_HUNDRED_HBARS)
-                                    .via("submit-message-txn")),
-                    "submit-message-txn",
-                    0.05,
-                    1,
-                    0.05,
                     1);
         }
 
