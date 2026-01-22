@@ -245,14 +245,14 @@ public class TransferTokenTest {
                                     () -> fungibleTokenId.get().getTokenNum(),
                                     false,
                                     () -> parsedToByteString(tokenTransferContractId.get()),
-                                    () -> parsedToByteString(tokenReceiverContractId.get()),
-                                    2L),
+                                    () -> parsedToByteString(tokenReceiverAccountId.get()),
+                                    3L),
                             new ErcEventRecord(
                                     () -> fungibleTokenId.get().getTokenNum(),
                                     false,
                                     () -> parsedToByteString(tokenTransferContractId.get()),
-                                    () -> parsedToByteString(tokenReceiverAccountId.get()),
-                                    3L)))));
+                                    () -> parsedToByteString(tokenReceiverContractId.get()),
+                                    2L)))));
         }
 
         @HapiTest
