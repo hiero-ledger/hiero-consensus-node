@@ -168,15 +168,13 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     if (embeddedNetwork.mode() != mode) {
                         SHARED_NETWORK.get().terminate();
                         SHARED_NETWORK.set(null);
-                        Optional.ofNullable(SHARED_BLOCK_NODE_NETWORK.get())
-                                .ifPresent(BlockNodeNetwork::terminate);
+                        Optional.ofNullable(SHARED_BLOCK_NODE_NETWORK.get()).ifPresent(BlockNodeNetwork::terminate);
                         SHARED_BLOCK_NODE_NETWORK.set(null);
                     }
                 } else {
                     SHARED_NETWORK.get().terminate();
                     SHARED_NETWORK.set(null);
-                    Optional.ofNullable(SHARED_BLOCK_NODE_NETWORK.get())
-                            .ifPresent(BlockNodeNetwork::terminate);
+                    Optional.ofNullable(SHARED_BLOCK_NODE_NETWORK.get()).ifPresent(BlockNodeNetwork::terminate);
                     SHARED_BLOCK_NODE_NETWORK.set(null);
                 }
             }

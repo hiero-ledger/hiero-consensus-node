@@ -30,8 +30,7 @@ public class MutateStakingInfosOp extends UtilOp {
         final var nodes = spec.embeddedStakingInfosOrThrow();
         final var targetId = toPbj(TxnUtils.asNodeId(node, spec));
         final var existing = nodes.get(targetId);
-        final var builder =
-                (existing != null ? existing : defaultStakingInfo(targetId.number(), spec)).copyBuilder();
+        final var builder = (existing != null ? existing : defaultStakingInfo(targetId.number(), spec)).copyBuilder();
         mutation.accept(builder);
         nodes.put(targetId, builder.build());
         spec.commitEmbeddedState();
