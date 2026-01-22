@@ -58,6 +58,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
@@ -173,16 +174,16 @@ public class Hip1259EnabledTests {
                 cryptoCreate("testAccount")
                         .balance(ONE_HBAR)
                         .payingWith(CIVILIAN_PAYER)
-                        .via("XXXXdemoTxn"),
+                        .via("demoTxn"),
 
-                getTxnRecord("XXXXdemoTxn")
+                getTxnRecord("demoTxn")
                         .exposingTo(record -> txnFee.set(record.getTransactionFee()))
                         .logged(),
 
                 // Verify fees went to fee collector (0.0.802)
-                validateRecordContains("XXXXdemoTxn", FEE_COLLECTOR_ACCOUNT),
+                validateRecordContains("demoTxn", FEE_COLLECTOR_ACCOUNT),
                 // Verify fees did NOT go to individual accounts
-                validateRecordNotContains("XXXXdemoTxn", UNEXPECTED_FEE_ACCOUNTS),
+                validateRecordNotContains("demoTxn", UNEXPECTED_FEE_ACCOUNTS),
                 // Verify fee collector balance increased
                 sourcing(() -> getAccountBalance(FEE_COLLECTOR)
                         .hasTinyBars(initialFeeCollectorBalance.get() + txnFee.get())).logged(),
@@ -201,7 +202,15 @@ public class Hip1259EnabledTests {
                 /*---------- STEP 4: Trigger staking period and verify distribution ----------*/
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+
+                /*---------- STEP 5: Node Payments is reset after distribution ----------*/
+                EmbeddedVerbs.<NodePayments>viewSingleton(TokenService.NAME, NODE_PAYMENTS_STATE_ID, nodePayments -> {
+                    final var totalNodeFees =
+                            nodePayments.payments().stream().mapToLong(NodePayment::fees).sum();
+                    System.out.println("XXXXXX Node Payments after distribution: " + nodePayments);
+                    assertEquals(0, totalNodeFees, "Node fees should be zero in state");
+                }));
     }
 
     /**
