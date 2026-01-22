@@ -1433,6 +1433,16 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 put("memo.useSpecName", "true");
             }
         };
+        if (!targetNetwork.nodes().isEmpty()) {
+            final var defaultNodeAccount = targetNetwork.nodes().getFirst().getAccountId();
+            // Ensure a valid node account is used for transactions when the network uses non-default node IDs.
+            overrides.put(
+                    "default.node",
+                    HapiPropertySource.asEntityString(
+                            defaultNodeAccount.shardNum(),
+                            defaultNodeAccount.realmNum(),
+                            defaultNodeAccount.accountNumOrThrow()));
+        }
 
         // We only need to set shard/realm if they aren't the default values (zero)
         final var shardRealm = determineShardRealm(targetNetwork);

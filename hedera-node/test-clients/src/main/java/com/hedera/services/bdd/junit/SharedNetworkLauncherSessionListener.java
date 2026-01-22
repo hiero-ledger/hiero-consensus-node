@@ -168,9 +168,14 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     if (embeddedNetwork.mode() != mode) {
                         SHARED_NETWORK.get().terminate();
                         SHARED_NETWORK.set(null);
+                        Optional.ofNullable(SHARED_BLOCK_NODE_NETWORK.get()).ifPresent(BlockNodeNetwork::terminate);
+                        SHARED_BLOCK_NODE_NETWORK.set(null);
                     }
                 } else {
-                    throw new IllegalStateException("Shared network is not an embedded network");
+                    SHARED_NETWORK.get().terminate();
+                    SHARED_NETWORK.set(null);
+                    Optional.ofNullable(SHARED_BLOCK_NODE_NETWORK.get()).ifPresent(BlockNodeNetwork::terminate);
+                    SHARED_BLOCK_NODE_NETWORK.set(null);
                 }
             }
             if (SHARED_NETWORK.get() == null) {

@@ -75,7 +75,6 @@ import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -690,10 +689,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         exportPath.toAbsolutePath(),
                         diskNetworkExport);
                 DiskStartupNetworks.writeNetworkInfo(state, exportPath, EnumSet.allOf(InfoType.class));
-            }
-
-            if (state instanceof MerkleNodeState merkleNodeState) {
-                blockProvenStateAccessor.update(merkleNodeState);
             }
 
             // Clear the eventIndexInBlock map for the next block
