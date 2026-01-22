@@ -22,14 +22,18 @@ import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
+import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
+import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -134,6 +138,34 @@ public interface FacilityInitModule {
     @Singleton
     static Set<QueryFeeCalculator> provideFileQueryFeeCalculators(FileServiceImpl fileService) {
         return fileService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideContractServiceFeeCalculators(ContractServiceImpl contractService) {
+        return contractService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideUtilServiceFeeCalculators(UtilServiceImpl utilService) {
+        return utilService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideNetworkQueryFeeCalculators(NetworkServiceImpl networkService) {
+        return networkService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideAddressBookFeeCalculators(AddressBookServiceImpl addressBookService) {
+        return addressBookService.serviceFeeCalculators();
     }
 
     @Provides

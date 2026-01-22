@@ -19,6 +19,7 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
+import com.hedera.services.bdd.junit.support.validators.HighVolumePricingValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
@@ -89,6 +90,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         @Override
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
             REPEATABLE_KEY_GENERATOR.set(new RepeatableKeyGenerator());
+
+            // Validate high-volume pricing curves before starting any tests
+            HighVolumePricingValidator.validateGenesisFeeSchedule();
 
             // Skip standard setup if any test in the plan uses HapiBlockNode
             if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class))) {

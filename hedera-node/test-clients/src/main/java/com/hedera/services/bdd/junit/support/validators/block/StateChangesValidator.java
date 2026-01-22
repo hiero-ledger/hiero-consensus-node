@@ -9,12 +9,15 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTERS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTER_STATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
+import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
+import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
+import static com.hedera.node.app.history.schemas.V069HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
@@ -32,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.cryptography.tss.TSS;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
@@ -43,16 +47,19 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
+import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.ProofKeySet;
+import com.hedera.hapi.node.state.history.WrapsMessageDetails;
+import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
-import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
@@ -74,9 +81,7 @@ import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -90,6 +95,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -118,7 +124,6 @@ public class StateChangesValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(StateChangesValidator.class);
     private static final long DEFAULT_HINTS_THRESHOLD_DENOMINATOR = 2;
     private static final SplittableRandom RANDOM = new SplittableRandom(System.currentTimeMillis());
-    private static final MerkleCryptography CRYPTO = TestMerkleCryptoFactory.getInstance();
 
     private static final int HASH_SIZE = 48;
     private static final int VISUALIZATION_HASH_DEPTH = 5;
@@ -136,13 +141,17 @@ public class StateChangesValidator implements BlockStreamValidator {
     private final Bytes expectedRootHash;
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
     private final Map<String, Set<Object>> entityChanges = new LinkedHashMap<>();
+    private final Map<Long, List<WrapsMessageDetails>> wrapsMessages = new LinkedHashMap<>();
 
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
     private MerkleNodeState state;
 
     @Nullable
-    private Bytes ledgerId;
+    private Bytes ledgerIdFromState;
+
+    @Nullable
+    private LedgerIdPublicationTransactionBody ledgerIdPublication;
 
     /**
      * Initialized to the weights in the genesis roster, and updated to the weights in the active
@@ -284,32 +293,26 @@ public class StateChangesValidator implements BlockStreamValidator {
         if (!(spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork)) {
             throw new IllegalArgumentException("Cannot validate state changes for an embedded network");
         }
-        try {
-            final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
-            final var genesisConfigTxt = node0.metadata().workingDirOrThrow().resolve("genesis-config.txt");
-            Files.writeString(genesisConfigTxt, subProcessNetwork.genesisConfigTxt());
-            final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
-            final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
-            final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");
-            final boolean stateProofsEnabled =
-                    spec.startupProperties().getBoolean("block.stateproof.verification.enabled");
-            return new StateChangesValidator(
-                    rootHash,
-                    node0.getExternalPath(SWIRLDS_LOG),
-                    node0.getExternalPath(APPLICATION_PROPERTIES),
-                    node0.getExternalPath(DATA_CONFIG_DIR),
-                    crsSize,
-                    isHintsEnabled ? HintsEnabled.YES : HintsEnabled.NO,
-                    isHistoryEnabled ? HistoryEnabled.YES : HistoryEnabled.NO,
-                    Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
-                            .map(Long::parseLong)
-                            .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR),
-                    stateProofsEnabled ? StateProofsEnabled.YES : StateProofsEnabled.NO,
-                    spec.shard(),
-                    spec.realm());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+
+        final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
+        final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
+        final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
+        final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");
+        final boolean stateProofsEnabled = spec.startupProperties().getBoolean("block.stateproof.verification.enabled");
+        return new StateChangesValidator(
+                rootHash,
+                node0.getExternalPath(SWIRLDS_LOG),
+                node0.getExternalPath(APPLICATION_PROPERTIES),
+                node0.getExternalPath(DATA_CONFIG_DIR),
+                crsSize,
+                isHintsEnabled ? HintsEnabled.YES : HintsEnabled.NO,
+                isHistoryEnabled ? HistoryEnabled.YES : HistoryEnabled.NO,
+                Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
+                        .map(Long::parseLong)
+                        .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR),
+                stateProofsEnabled ? StateProofsEnabled.YES : StateProofsEnabled.NO,
+                spec.shard(),
+                spec.realm());
     }
 
     public StateChangesValidator(
@@ -356,7 +359,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         this.hintsLibrary = (hintsEnabled == HintsEnabled.YES) ? new HintsLibraryImpl() : null;
         this.historyLibrary = (historyEnabled == HistoryEnabled.YES) ? new HistoryLibraryImpl() : null;
         // get the state hash before applying the state changes from current block
-        this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied.getRoot());
+        this.genesisStateHash = stateToBeCopied.getRoot().getHash();
         this.proofSeqFactory =
                 (stateProofsEnabled == StateProofsEnabled.YES) ? IndirectProofSequenceValidator::new : () -> null;
 
@@ -397,8 +400,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
                 this.state = stateToBeCopied.copy();
-                startOfStateHash =
-                        CRYPTO.digestTreeSync(stateToBeCopied.getRoot()).getBytes();
+                startOfStateHash = stateToBeCopied.getRoot().getHash().getBytes();
             }
             final StreamingTreeHasher inputTreeHasher = new NaiveStreamingTreeHasher();
             final StreamingTreeHasher outputTreeHasher = new NaiveStreamingTreeHasher();
@@ -455,6 +457,22 @@ public class StateChangesValidator implements BlockStreamValidator {
                                     op.message().toString().substring(0, 8),
                                     all);
                         }
+                    } else if (parts.function() == LEDGER_ID_PUBLICATION) {
+                        ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
+                        final SortedMap<Long, Bytes> nodeIdsToKeys = new TreeMap<>();
+                        for (final var contribution : ledgerIdPublication.nodeContributions()) {
+                            nodeIdsToKeys.put(contribution.nodeId(), contribution.historyProofKey());
+                        }
+                        final var r1Keys = new ArrayList<Bytes>();
+                        nodeIdsToKeys.keySet().forEach(nodeId -> {
+                            final var messages = wrapsMessages.get(nodeId);
+                            if (messages != null && messages.stream().anyMatch(details -> details.phase() == R1)) {
+                                r1Keys.add(nodeIdsToKeys.get(nodeId));
+                            }
+                        });
+                        // Eager-set the relevant public keys for later verification
+                        TSS.setSchnorrPublicKeys(
+                                r1Keys.stream().map(Bytes::toByteArray).toArray(byte[][]::new));
                     }
                 }
             }
@@ -531,7 +549,6 @@ public class StateChangesValidator implements BlockStreamValidator {
 
         // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
         state.copy();
-        CRYPTO.digestTreeSync(state.getRoot());
         final var rootHash = requireNonNull(state.getHash()).getBytes();
 
         if (!expectedRootHash.equals(rootHash)) {
@@ -551,6 +568,11 @@ public class StateChangesValidator implements BlockStreamValidator {
                         .append(actualRootMnemonic);
             }
             Assertions.fail(errorMsg.toString());
+        }
+
+        if (historyLibrary != null) {
+            assertNotNull(ledgerIdPublication, "Ledger id not published despite TSS history enabled");
+            assertEquals(ledgerIdFromState, ledgerIdPublication.ledgerId());
         }
     }
 
@@ -614,21 +636,41 @@ public class StateChangesValidator implements BlockStreamValidator {
             final StreamingTreeHasher stateChangesHasher,
             final StreamingTreeHasher traceDataHasher) {
         final var itemSerialized = BlockItem.PROTOBUF.toBytes(item);
-        final var digest = sha384DigestOrThrow();
+        final var itemAsLeaf = hashLeaf(itemSerialized);
+
         switch (item.item().kind()) {
-            case EVENT_HEADER, ROUND_HEADER ->
-                consensusHeaderHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
-            case SIGNED_TRANSACTION ->
-                inputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
+            case EVENT_HEADER, ROUND_HEADER -> consensusHeaderHasher.addLeaf(ByteBuffer.wrap(itemAsLeaf.toByteArray()));
+            case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(ByteBuffer.wrap(itemAsLeaf.toByteArray()));
             case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER ->
-                outputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
-            case STATE_CHANGES ->
-                stateChangesHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
-            case TRACE_DATA -> traceDataHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
+                outputTreeHasher.addLeaf(ByteBuffer.wrap(itemAsLeaf.toByteArray()));
+            case STATE_CHANGES -> stateChangesHasher.addLeaf(ByteBuffer.wrap(itemAsLeaf.toByteArray()));
+            case TRACE_DATA -> traceDataHasher.addLeaf(ByteBuffer.wrap(itemAsLeaf.toByteArray()));
             default -> {
                 // Other items are not part of the input/output trees
             }
         }
+    }
+
+    private static Bytes hashLeaf(final Bytes leafData) {
+        final var digest = sha384DigestOrThrow();
+        digest.update(StreamingTreeHasher.LEAF_PREFIX);
+        digest.update(leafData.toByteArray());
+        return Bytes.wrap(digest.digest());
+    }
+
+    private static Bytes hashInternalNodeSingleChild(final Bytes hash) {
+        final var digest = sha384DigestOrThrow();
+        digest.update(StreamingTreeHasher.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
+        digest.update(hash.toByteArray());
+        return Bytes.wrap(digest.digest());
+    }
+
+    private static Bytes hashInternalNode(final Bytes leftChildHash, final Bytes rightChildHash) {
+        final var digest = sha384DigestOrThrow();
+        digest.update(StreamingTreeHasher.INTERNAL_NODE_PREFIX);
+        digest.update(leftChildHash.toByteArray());
+        digest.update(rightChildHash.toByteArray());
+        return Bytes.wrap(digest.digest());
     }
 
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
@@ -650,41 +692,30 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var traceDataHash = traceDataHasher.rootHash().join();
 
         // Compute depth five hashes
-        final var depth5Node1 = BlockImplUtils.combine(previousBlockHash, prevBlocksRootHash);
-        final var depth5Node2 = BlockImplUtils.combine(startOfBlockStateHash, consensusHeaderHash);
-        final var depth5Node3 = BlockImplUtils.combine(inputTreeHash, outputTreeHash);
-        final var depth5Node4 = BlockImplUtils.combine(finalStateChangesHash, traceDataHash);
-
-        final var combinedNulls =
-                BlockImplUtils.combine(BlockStreamManager.ZERO_BLOCK_HASH, BlockStreamManager.ZERO_BLOCK_HASH);
-        // Nodes 5-8 for depth five are all combined null hashes, but enumerated for clarity
-        final var depth5Node5 = combinedNulls;
-        final var depth5Node6 = combinedNulls;
-        final var depth5Node7 = combinedNulls;
-        final var depth5Node8 = combinedNulls;
+        final var depth5Node1 = hashInternalNode(previousBlockHash, prevBlocksRootHash);
+        final var depth5Node2 = hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
+        final var depth5Node3 = hashInternalNode(inputTreeHash, outputTreeHash);
+        final var depth5Node4 = hashInternalNode(finalStateChangesHash, traceDataHash);
 
         // Compute depth four hashes
-        final var depth4Node1 = BlockImplUtils.combine(depth5Node1, depth5Node2);
-        final var depth4Node2 = BlockImplUtils.combine(depth5Node3, depth5Node4);
-        final var depth4Node3 = BlockImplUtils.combine(depth5Node5, depth5Node6);
-        final var depth4Node4 = BlockImplUtils.combine(depth5Node7, depth5Node8);
+        final var depth4Node1 = hashInternalNode(depth5Node1, depth5Node2);
+        final var depth4Node2 = hashInternalNode(depth5Node3, depth5Node4);
 
-        // Compute depth three hashes
-        final var depth3Node1 = BlockImplUtils.combine(depth4Node1, depth4Node2);
-        final var depth3Node2 = BlockImplUtils.combine(depth4Node3, depth4Node4);
+        // Compute depth three hash (no 'node 2' at this level since reserved subroots 9-16 aren't encoded in the tree)
+        final var depth3Node1 = hashInternalNode(depth4Node1, depth4Node2);
 
         // Compute depth two hashes (timestamp + last right sibling)
-        final var depth2Node1 = noThrowSha384HashOf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
-        final var depth2Node2 = BlockImplUtils.combine(depth3Node1, depth3Node2);
+        final var timestamp = Timestamp.PROTOBUF.toBytes(blockTimestamp);
+        final var depth2Node1 = hashLeaf(timestamp);
+        final var depth2Node2 = hashInternalNodeSingleChild(depth3Node1);
 
         // Compute the block's root hash (depth 1)
-        final var root = BlockImplUtils.combine(depth2Node1, depth2Node2);
+        final var root = hashInternalNode(depth2Node1, depth2Node2);
 
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
             new MerkleSiblingHash(false, prevBlocksRootHash),
             new MerkleSiblingHash(false, depth5Node2),
             new MerkleSiblingHash(false, depth4Node2),
-            new MerkleSiblingHash(false, depth2Node2)
         });
     }
 
@@ -752,65 +783,34 @@ public class StateChangesValidator implements BlockStreamValidator {
             // chain-of-trust. Necessary protobuf changes cause the following code not to compile, but
             // the method for retrieving the verification key hasn't yet been finalized, so this code
             // is disabled for a short time until such method is enumerated.
-            //            final var signature = proof.signedBlockProofOrThrow().blockSignature();
-            //            final var vk = proof.verificationKey();
-            //            final boolean valid =
-            //                    hintsLibrary.verifyAggregate(signature, expectedBlockHash, vk, 1,
-            // hintsThresholdDenominator);
-            //            if (!valid) {
-            //                Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " +
-            // proof);
-            //            } else {
-            //                logger.info("Verified signature on #{}", proof.block());
-            //            }
-            //            // If history proofs are enabled, verify the history proof
-            //            if (historyLibrary != null) {
-            //                assertTrue(
-            //                        proof.hasVerificationKeyProof(),
-            //                        "No chain-of-trust for hinTS key in proof (start round #" + firstRound + ") - " +
-            // proof);
-            //                final var chainOfTrustProof = proof.verificationKeyProofOrThrow();
-            //                switch (chainOfTrustProof.proof().kind()) {
-            //                    case UNSET ->
-            //                        Assertions.fail("Empty chain-of-trust for hinTS key in proof (start round #" +
-            // firstRound
-            //                                + ") - " + proof);
-            //                    case AGGREGATED_NODE_SIGNATURES -> {
-            //                        final var context = vkContexts.get(vk);
-            //                        final var wrapsMessage = context.wrapsMessageGiven(historyLibrary, vk);
-            //                        final var nonRecursiveProof = chainOfTrustProof.aggregatedNodeSignaturesOrThrow();
-            //                        assertTrue(
-            //                                historyLibrary.verifyAggregateSignature(
-            //                                        wrapsMessage,
-            //                                        context.publicKeysFor(nonRecursiveProof.signingNodeIds()),
-            //                                        nonRecursiveProof.aggregatedSignature().toByteArray()),
-            //                                "Invalid aggregated signature "
-            //                                        + nonRecursiveProof.aggregatedSignature()
-            //                                        + " in proof (start round #" + firstRound
-            //                                        + ", signing node ids " + nonRecursiveProof.signingNodeIds()
-            //                                        + ") on WRAPS message " + Bytes.wrap(wrapsMessage)
-            //                                        + " with metadata " + vk
-            //                                        + " - context " + context);
-            //                    }
-            //                    case WRAPS_PROOF -> {
-            //                        final var compressedProof = chainOfTrustProof.wrapsProofOrThrow();
-            //                        assertTrue(
-            //                                historyLibrary.isValidWraps(compressedProof.toByteArray()),
-            //                                "Invalid WRAPS proof (start round #" + firstRound + ") - " +
-            // chainOfTrustProof);
-            //                    }
-            //                }
-            //            }
-
+            final var signature = proof.signedBlockProofOrThrow().blockSignature();
+            if (historyLibrary == null) {
+                // C.f. cases in BlockStreamManagerImpl.finishProofWithSignature(); cannot use the
+                // convenience API directly here since we don't have a chain-of-trust proof
+                final var vk = signature.slice(0, 1480);
+                final var sig = signature.slice(1480, signature.length() - 1480);
+                final boolean valid =
+                        hintsLibrary.verifyAggregate(sig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
+                if (!valid) {
+                    Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
+                } else {
+                    logger.info("Verified signature on #{}", proof.block());
+                }
+            } else {
+                requireNonNull(ledgerIdFromState);
+                // Use convenience API to verify signature
+                TSS.verifyTSS(
+                        ledgerIdFromState.toByteArray(), signature.toByteArray(), expectedBlockHash.toByteArray());
+            }
             if (indirectProofsNeedVerification()) {
                 logger.info("Verifying contiguous indirect proofs prior to block {}", blockNumber);
-                indirectProofSeq.verify();
+                requireNonNull(indirectProofSeq).verify();
                 indirectProofSeq = null; // Clear out the indirect proof sequence after verification
             }
         } else {
-            final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(expectedBlockHash.toByteArray()));
+            final var expectedMockSignature = Bytes.wrap(noThrowSha384HashOf(expectedBlockHash.toByteArray()));
             assertEquals(
-                    expectedSignature,
+                    expectedMockSignature,
                     proof.signedBlockProofOrThrow().blockSignature(),
                     "Signature mismatch for " + proof);
         }
@@ -878,7 +878,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                             vkContexts.put(activeVk, activeVkContext);
                         }
                     } else if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
-                        ledgerId = ((ProtoBytes) singleton).value();
+                        ledgerIdFromState = ((ProtoBytes) singleton).value();
                     } else if (stateChange.stateId() == STATE_ID_ROSTER_STATE.protoOrdinal()) {
                         if (activeWeights == null) {
                             final var rosterState = (RosterState) singleton;
@@ -904,6 +904,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                         rosters.put(((ProtoBytes) key).value(), (Roster) value);
                     } else if (stateId == STATE_ID_PROOF_KEY_SETS.protoOrdinal()) {
                         proofKeys.put(((NodeId) key).id(), ((ProofKeySet) value).key());
+                    } else if (stateId == WRAPS_MESSAGE_HISTORIES_STATE_ID) {
+                        final long nodeId = ((ConstructionNodeId) key).nodeId();
+                        wrapsMessages.put(nodeId, ((WrapsMessageHistory) value).messages());
                     }
                 }
                 case MAP_DELETE -> {

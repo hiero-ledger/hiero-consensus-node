@@ -80,7 +80,7 @@ jobs:
 
       - name: Compile Application Code
         id: compile-source
-        run: ${GRADLE_EXEC} assemble :yahcli:assemble
+        run: ${GRADLE_EXEC} assemble :yahcli:yahCliJar
 
       - name: Set Failure Mode Output
         id: set-failure-mode

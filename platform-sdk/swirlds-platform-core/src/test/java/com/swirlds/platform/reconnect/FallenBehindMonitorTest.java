@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.Utilities;
+import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.time.Duration;
