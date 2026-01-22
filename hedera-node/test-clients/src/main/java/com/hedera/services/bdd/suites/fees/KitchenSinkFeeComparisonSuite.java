@@ -3080,11 +3080,11 @@ public class KitchenSinkFeeComparisonSuite {
             this.start = true;
         }
 
-        public void key(String key, String value) throws IOException {
+        public void key(String name, String value) throws IOException {
             if (!this.start) {
                 writer.append(", ");
             }
-            writer.append(String.format("\"%s\":\"%s\"", key, value));
+            writer.append(String.format("\"%s\":\"%s\"", name, value));
             this.start = false;
         }
 
@@ -3093,15 +3093,17 @@ public class KitchenSinkFeeComparisonSuite {
         }
 
         public void key(String name, long value) throws IOException {
-            key(name, "" + value);
+            if (!this.start) {
+                writer.append(", ");
+            }
+            writer.append(String.format("\"%s\" : %s ", name, ""+value));
         }
 
         public void key(String name, double value) throws IOException {
-            key(name, String.format("%.5f", value));
+            if (!this.start) {
+                writer.append(", ");
+            }
+            writer.append(String.format("\"%s\" : %.5f", name, value));
         }
-    }
-
-    private void json_key(FileWriter writer, String baseName, String escapedBaseName) throws IOException {
-        writer.append(String.format("\"%s\":\"%s\" ", baseName, escapedBaseName));
     }
 }
