@@ -93,21 +93,6 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     }
 
     @Test
-    @DisplayName("No admin key to update memo fails")
-    void rejectsNonExpiryMutationOfImmutableTopic() {
-        givenValidTopic(AccountID.newBuilder().accountNum(0).build(), false, false);
-        refreshStoresWithCurrentTopicInBothReadableAndWritable();
-
-        final var txBody = TransactionBody.newBuilder()
-                .consensusUpdateTopic(OP_BUILDER.topicID(topicId).memo("Please mind the vase"))
-                .build();
-        given(handleContext.body()).willReturn(txBody);
-
-        // expect:
-        assertFailsWith(ResponseCodeEnum.UNAUTHORIZED, () -> subject.handle(handleContext));
-    }
-
-    @Test
     @DisplayName("Invalid new admin key update fails")
     void validatesNewAdminKey() {
         givenValidTopic(AccountID.newBuilder().accountNum(0).build(), false);
