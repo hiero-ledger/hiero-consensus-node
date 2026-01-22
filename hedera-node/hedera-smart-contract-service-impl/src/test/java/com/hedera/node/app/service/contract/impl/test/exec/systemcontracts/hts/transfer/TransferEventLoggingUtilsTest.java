@@ -24,11 +24,9 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transf
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -281,23 +279,39 @@ public class TransferEventLoggingUtilsTest {
                         AccountAmount.newBuilder()
                                 .accountID(receiver2)
                                 .amount(10)
-                                .build(), AccountAmount.newBuilder()
+                                .build(),
+                        AccountAmount.newBuilder()
                                 .accountID(receiver3)
                                 .amount(10)
                                 .build()),
                 List.of(
                         new TestHelpers.TestTokenTransfer(
-                                FUNGIBLE_TOKEN_ID, false,
-                                sender2, Account.newBuilder().accountId(sender1).build(),
-                                receiver1, Account.newBuilder().accountId(receiver1).build(), 10),
+                                FUNGIBLE_TOKEN_ID,
+                                false,
+                                sender2,
+                                Account.newBuilder().accountId(sender1).build(),
+                                receiver1,
+                                Account.newBuilder().accountId(receiver1).build(),
+                                10),
                         new TestHelpers.TestTokenTransfer(
-                                FUNGIBLE_TOKEN_ID, false,
-                                sender1, Account.newBuilder().accountId(sender2).build(),
-                                receiver2, Account.newBuilder().accountId(receiver2).build(), 10),
+                                FUNGIBLE_TOKEN_ID,
+                                false,
+                                sender1,
+                                Account.newBuilder().accountId(sender2).build(),
+                                receiver2,
+                                Account.newBuilder().accountId(receiver2).build(),
+                                10),
                         new TestHelpers.TestTokenTransfer(
-                                FUNGIBLE_TOKEN_ID, false,
-                                sender3, Account.newBuilder().alias(Objects.requireNonNull(sender3.alias())).build(),
-                                receiver3, Account.newBuilder().alias(Objects.requireNonNull(receiver3.alias())).build(), 10)
-                 ));
+                                FUNGIBLE_TOKEN_ID,
+                                false,
+                                sender3,
+                                Account.newBuilder()
+                                        .alias(Objects.requireNonNull(sender3.alias()))
+                                        .build(),
+                                receiver3,
+                                Account.newBuilder()
+                                        .alias(Objects.requireNonNull(receiver3.alias()))
+                                        .build(),
+                                10)));
     }
 }
