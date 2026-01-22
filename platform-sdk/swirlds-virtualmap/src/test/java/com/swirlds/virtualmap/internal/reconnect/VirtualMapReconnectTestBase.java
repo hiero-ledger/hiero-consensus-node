@@ -272,6 +272,11 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
+        public int getHashChunkHeight() {
+            return delegate.getHashChunkHeight();
+        }
+
+        @Override
         public void enableBackgroundCompaction() {
             // no op
         }

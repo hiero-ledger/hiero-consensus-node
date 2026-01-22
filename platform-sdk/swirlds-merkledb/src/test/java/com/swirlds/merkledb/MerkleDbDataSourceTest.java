@@ -166,18 +166,18 @@ class MerkleDbDataSourceTest {
         // 0 initial capacity
         assertThrows(IllegalStateException.class, () -> TestType.variable_variable
                 .dataType()
-                .createDataSource(Path.of("badInitialCapacityZero" + nextInt()), "badInitialZero", 0, false, false));
+                .createDataSource(CONFIGURATION, testDirectory.resolve("badInitialCapacityZero" + nextInt()), "badInitialZero", 0, false, false));
         // negative initial capacity
         assertThrows(IllegalStateException.class, () -> TestType.variable_variable
                 .dataType()
                 .createDataSource(
-                        Path.of("badInitialCapacityNegative" + nextInt()), "badInitialNeg", -1, false, false));
+                        CONFIGURATION, testDirectory.resolve("badInitialCapacityNegative" + nextInt()), "badInitialNeg", -1, false, false));
     }
 
     @ParameterizedTest
     @EnumSource(TestType.class)
     void testRandomHashUpdates(final TestType testType) throws IOException {
-        final int testSize = 1000;
+        final int testSize = 2000;
         createAndApplyDataSource(testDirectory, "test2", testType, testSize, dataSource -> {
             final int chunkHeight = dataSource.getHashChunkHeight();
             // create some node hashes
@@ -573,7 +573,7 @@ class MerkleDbDataSourceTest {
         assertDoesNotThrow(
                 () -> TestType.long_fixed
                         .dataType()
-                        .createDataSource(testDirectory, "testDB", 1000, false, false)
+                        .createDataSource(CONFIGURATION, testDirectory, "testDB", 1000, false, false)
                         .close(),
                 "Should be possible to instantiate data source with merging disabled");
         // check db count
@@ -739,7 +739,7 @@ class MerkleDbDataSourceTest {
 
             // Restore
             final MerkleDbDataSource snapshot =
-                    testType.dataType().createDataSource(snapshotDbPath, dbName, size, false, false);
+                    testType.dataType().createDataSource(CONFIGURATION, snapshotDbPath, dbName, size, false, false);
             // Check all hashes are migrated successfully
             try {
                 for (long i = firstLeafPath; i <= lastLeafPath; i++) {
@@ -870,7 +870,7 @@ class MerkleDbDataSourceTest {
     @EnumSource(TestType.class)
     void closeWhileFlushingTest(final TestType testType) throws IOException, InterruptedException {
         final Path dbPath = testDirectory.resolve("merkledb-closeWhileFlushingTest-" + testType);
-        final MerkleDbDataSource dataSource = testType.dataType().createDataSource(dbPath, "vm", 1000, false, false);
+        final MerkleDbDataSource dataSource = testType.dataType().createDataSource(CONFIGURATION, dbPath, "vm", 1000, false, false);
 
         final int count = 20;
         final List<Bytes> keys = new ArrayList<>(count);
@@ -932,7 +932,7 @@ class MerkleDbDataSourceTest {
             CheckedConsumer<MerkleDbDataSource, Exception> dataSourceConsumer)
             throws IOException {
         final MerkleDbDataSource dataSource =
-                testType.dataType().createDataSource(testDirectory, name, size, false, false);
+                testType.dataType().createDataSource(CONFIGURATION, testDirectory, name, size, false, false);
         try {
             dataSourceConsumer.accept(dataSource);
         } catch (Throwable e) {

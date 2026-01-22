@@ -62,11 +62,10 @@ public class ReconnectHashLeafFlusher {
 
     public ReconnectHashLeafFlusher(
             @NonNull final VirtualDataSource dataSource,
-            final int hashChunkHeight,
             final int flushInterval,
             @NonNull final VirtualMapStatistics statistics) {
         this.dataSource = Objects.requireNonNull(dataSource);
-        this.hashChunkHeight = hashChunkHeight;
+        this.hashChunkHeight = this.dataSource.getHashChunkHeight();
         this.flushInterval = flushInterval;
         this.statistics = Objects.requireNonNull(statistics);
     }

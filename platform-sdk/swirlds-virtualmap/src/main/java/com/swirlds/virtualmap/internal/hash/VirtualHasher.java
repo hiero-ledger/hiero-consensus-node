@@ -477,6 +477,7 @@ public final class VirtualHasher {
      */
     @SuppressWarnings("rawtypes")
     public Hash hash(
+            final int hashChunkHeight,
             final @NonNull LongFunction<VirtualHashChunk> hashChunkPreloader,
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
@@ -485,6 +486,8 @@ public final class VirtualHasher {
             final @NonNull VirtualMapConfig virtualMapConfig) {
         requireNonNull(hashChunkPreloader);
         requireNonNull(virtualMapConfig);
+
+        this.defaultChunkHeight = hashChunkHeight;
 
         // We don't want to include null checks everywhere, so let the listener be NoopListener if null
         this.listener = listener == null
@@ -500,7 +503,7 @@ public final class VirtualHasher {
                 : getHashingPool(virtualMapConfig);
 
         final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(() ->
-                hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, virtualMapConfig, pool)));
+                hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool)));
         if (rootTask != null) {
             try {
                 rootTask.join();
@@ -531,7 +534,6 @@ public final class VirtualHasher {
      * @param lastLeafPath
      * 		The lastLeafPath of the tree that is being hashed. If &lt; 1, then a null hash result is returned.
      * 		No leaf in {@code sortedDirtyLeaves} may have a path greater than {@code lastLeafPath}.
-     * @param virtualMapConfig platform configuration for VirtualMap
      * @param pool the pool to use for hashing tasks.
      * @return the root hashing task, or null if there are no dirty leaves to hash.
      */
@@ -540,7 +542,6 @@ public final class VirtualHasher {
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
-            final @NonNull VirtualMapConfig virtualMapConfig,
             final @NonNull ForkJoinPool pool) {
         if (!sortedDirtyLeaves.hasNext()) {
             // Nothing to hash.
@@ -578,8 +579,6 @@ public final class VirtualHasher {
         // is calculated, it is set as an input dependency of that task. Output dependency value
         // may not be null.
 
-        // Default chunk height, from config
-        defaultChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
         int firstLeafRank = Path.getRank(firstLeafPath);
         int lastLeafRank = Path.getRank(lastLeafPath);
 

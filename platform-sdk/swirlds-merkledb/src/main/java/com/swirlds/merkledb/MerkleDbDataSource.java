@@ -582,15 +582,18 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     /** Get the most recent first leaf path */
+    @Override
     public long getFirstLeafPath() {
         return validLeafPathRange.getMinValidKey();
     }
 
     /** Get the most recent last leaf path */
+    @Override
     public long getLastLeafPath() {
         return validLeafPathRange.getMaxValidKey();
     }
 
+    @Override
     public int getHashChunkHeight() {
         return hashChunkHeight;
     }

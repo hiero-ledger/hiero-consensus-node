@@ -73,9 +73,9 @@ class ReconnectHashListenerTest {
                 new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", null, true, false));
 
         final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
-        final int hashChunkHeight = VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight();
+        final int hashChunkHeight = ds.getHashChunkHeight();
         final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(
-                ds, hashChunkHeight, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
+                ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
 
         // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
         final int first = size - 1;
@@ -88,6 +88,7 @@ class ReconnectHashListenerTest {
             return new VirtualHashChunk(chunkPath, hashChunkHeight);
         };
         hasher.hash(
+                hashChunkHeight,
                 chunkPreloader,
                 LongStream.range(first, last + 1).mapToObj(this::leaf).iterator(),
                 first,
@@ -224,6 +225,11 @@ class ReconnectHashListenerTest {
         @Override
         public long getLastLeafPath() {
             return delegate.getLastLeafPath();
+        }
+
+        @Override
+        public int getHashChunkHeight() {
+            return delegate.getHashChunkHeight();
         }
 
         @Override

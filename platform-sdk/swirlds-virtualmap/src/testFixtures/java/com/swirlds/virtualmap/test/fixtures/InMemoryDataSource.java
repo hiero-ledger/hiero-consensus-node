@@ -18,6 +18,9 @@ import java.util.stream.Stream;
  */
 public class InMemoryDataSource implements VirtualDataSource {
 
+    // This doesn't have to match VirtualMapConfig#virtualHasherChunkHeight
+    private static final int DEFAULT_HASH_CHUNK_HEIGHT = 3;
+
     private static final String NEGATIVE_CHUNKID_MESSAGE = "chunk ID is less than 0";
     private static final String NEGATIVE_PATH_MESSAGE = "path is less than 0";
 
@@ -293,6 +296,11 @@ public class InMemoryDataSource implements VirtualDataSource {
     @Override
     public long getLastLeafPath() {
         return lastLeafPath;
+    }
+
+    @Override
+    public int getHashChunkHeight() {
+        return DEFAULT_HASH_CHUNK_HEIGHT;
     }
 
     public void setFailureOnHashChunkLookup(boolean failureOnHashChunkLookup) {

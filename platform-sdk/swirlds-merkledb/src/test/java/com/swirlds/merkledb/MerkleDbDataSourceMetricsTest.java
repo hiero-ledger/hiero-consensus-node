@@ -184,6 +184,6 @@ class MerkleDbDataSourceMetricsTest {
 
     public static MerkleDbDataSource createDataSource(
             final Path testDirectory, final String name, final TestType testType, final int size) throws IOException {
-        return testType.dataType().createDataSource(testDirectory, name, size, false, false);
+        return testType.dataType().createDataSource(CONFIGURATION, testDirectory, name, size, false, false);
     }
 }

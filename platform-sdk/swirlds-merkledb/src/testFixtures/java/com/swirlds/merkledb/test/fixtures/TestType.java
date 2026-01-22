@@ -143,6 +143,7 @@ public enum TestType {
         }
 
         public MerkleDbDataSource createDataSource(
+                final Configuration configuration,
                 final Path dbPath,
                 final String name,
                 final int size,
@@ -150,7 +151,7 @@ public enum TestType {
                 boolean preferDiskBasedIndexes)
                 throws IOException {
             MerkleDbDataSource dataSource =
-                    new MerkleDbDataSource(dbPath, CONFIGURATION, name, size, enableMerging, preferDiskBasedIndexes);
+                    new MerkleDbDataSource(dbPath, configuration, name, size, enableMerging, preferDiskBasedIndexes);
             dataSource.registerMetrics(getMetrics());
             return dataSource;
         }

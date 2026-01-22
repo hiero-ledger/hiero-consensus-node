@@ -445,7 +445,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
         requireNonNull(dataSourceBuilder);
         requireNonNull(dataSource);
 
-        final int hashChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
+        final int hashChunkHeight = dataSource.getHashChunkHeight();
         if (cache == null) {
             cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, dataSource::loadHashChunk);
         }
@@ -1109,6 +1109,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
             }
         };
         Hash virtualHash = hasher.hash(
+                dataSource.getHashChunkHeight(),
                 cache::preloadHashChunk,
                 cache.dirtyLeavesForHash(metadata.getFirstLeafPath(), metadata.getLastLeafPath())
                         .iterator(),
@@ -1148,7 +1149,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
         final Path snapshotPath = dataSourceSnapshot();
         final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
         final VirtualNodeCache cacheSnapshot = cache.snapshot();
-        final int hashChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
+        final int hashChunkHeight = dataSource.getHashChunkHeight();
         return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
     }
 
@@ -1232,7 +1233,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
             final VirtualNodeCache snapshotCache = originalMap.cache.snapshot();
             flush(snapshotCache, originalMap.metadata, this.dataSource);
 
-            final int hashChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
+            final int hashChunkHeight = dataSource.getHashChunkHeight();
             reconnectCache = new VirtualNodeCache(
                     virtualMapConfig,
                     hashChunkHeight,
@@ -1282,7 +1283,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
         final VirtualMapMetadata originalState = originalMap.getMetadata();
         reconnectFlusher = new ReconnectHashLeafFlusher(
                 dataSource,
-                virtualMapConfig.virtualHasherChunkHeight(),
                 virtualMapConfig.reconnectFlushInterval(),
                 statistics);
         nodeRemover = new ReconnectNodeRemover(
@@ -1372,6 +1372,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
                 .setComponent("virtualmap")
                 .setThreadName("hasher")
                 .setRunnable(() -> reconnectHashingFuture.complete(hasher.hash(
+                        dataSource.getHashChunkHeight(),
                         reconnectCache::preloadHashChunk,
                         reconnectIterator,
                         firstLeafPath,

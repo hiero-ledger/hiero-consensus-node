@@ -57,7 +57,7 @@ public class RecordAccessorTest {
     void setUp() throws IOException {
         final VirtualMapMetadata state = new VirtualMapMetadata();
         dataSource = new BreakableDataSource();
-        final int hashChunkHeight = VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight();
+        final int hashChunkHeight = dataSource.getHashChunkHeight();
         final VirtualNodeCache cache =
                 new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, dataSource::loadHashChunk);
         records = new RecordAccessor(state, hashChunkHeight, cache, dataSource);
@@ -93,8 +93,7 @@ public class RecordAccessorTest {
 
         cache.putLeaf(sixthLeafMoved);
         cache.deleteLeaf(seventhLeafGone);
-        mutableRecords =
-                new RecordAccessor(state, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), cache.copy(), dataSource);
+        mutableRecords = new RecordAccessor(state, dataSource.getHashChunkHeight(), cache.copy(), dataSource);
         cache.prepareForHashing();
 
         // Set up the state for a 6 leaf in memory tree
@@ -333,6 +332,11 @@ public class RecordAccessorTest {
         @Override
         public long getLastLeafPath() {
             return delegate.getLastLeafPath();
+        }
+
+        @Override
+        public int getHashChunkHeight() {
+            return delegate.getHashChunkHeight();
         }
 
         @Override

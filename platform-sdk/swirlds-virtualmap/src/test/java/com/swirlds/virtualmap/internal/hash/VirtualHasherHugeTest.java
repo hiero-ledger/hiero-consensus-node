@@ -52,6 +52,7 @@ class VirtualHasherHugeTest extends VirtualHasherTestBase {
         // tests. In this test, I just want to be sure that we complete, and that we don't run out of memory.
         final VirtualHasher hasher = new VirtualHasher();
         final Hash rootHash = hasher.hash(
+                CHUNK_HEIGHT,
                 chunkPath -> new VirtualHashChunk(chunkPath, CHUNK_HEIGHT),
                 LongStream.range(firstLeafPath, lastLeafPath + 1)
                         .mapToObj(leafGetter)
