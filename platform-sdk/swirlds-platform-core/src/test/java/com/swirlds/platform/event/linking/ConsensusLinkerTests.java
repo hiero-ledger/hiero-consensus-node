@@ -378,10 +378,11 @@ class ConsensusLinkerTests {
                 linkedEvents.add(linkedEvent);
                 assertSame(event, linkedEvent.getBaseEvent());
 
-                final Set<Hash> linkedParents = linkedEvent.getAllParents().stream().map(EventImpl::getBaseHash)
+                final Set<Hash> linkedParents = linkedEvent.getAllParents().stream()
+                        .map(EventImpl::getBaseHash)
                         .collect(Collectors.toSet());
                 for (final EventDescriptorWrapper parent : event.getAllParents()) {
-                    if( eventWindow.isAncient(parent)) {
+                    if (eventWindow.isAncient(parent)) {
                         // Ancient parents should not be linked.
                         assertFalse(linkedParents.contains(parent.hash()));
                     } else {
@@ -455,7 +456,10 @@ class ConsensusLinkerTests {
         if (expectedOtherParents.isEmpty()) {
             assertEquals(0, toAssert.getOtherParents().size(), "Other parents list should be empty");
         } else {
-            assertEquals(expectedOtherParents.size(), toAssert.getOtherParents().size(), "Other parents list should be same size");
+            assertEquals(
+                    expectedOtherParents.size(),
+                    toAssert.getOtherParents().size(),
+                    "Other parents list should be same size");
             for (int i = 0; i < expectedOtherParents.size(); i++) {
                 assertSame(
                         expectedOtherParents.get(i),

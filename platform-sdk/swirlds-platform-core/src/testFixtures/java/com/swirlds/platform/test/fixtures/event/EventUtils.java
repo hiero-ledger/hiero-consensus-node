@@ -181,10 +181,10 @@ public final class EventUtils {
     private static int calculateOtherParentAge(final List<EventImpl> events, final int eventIndex) {
 
         final EventImpl event = events.get(eventIndex);
-        if(event.getOtherParents().isEmpty()){
+        if (event.getOtherParents().isEmpty()) {
             return 0;
         }
-        if(event.getOtherParents().size() > 1){
+        if (event.getOtherParents().size() > 1) {
             throw new IllegalArgumentException("Event has more than one other parent.");
         }
         final EventImpl otherParent = event.getOtherParents().getFirst();

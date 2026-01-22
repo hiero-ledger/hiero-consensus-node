@@ -141,7 +141,6 @@ class ShadowEventTest {
         final List<ShadowEvent> parentShadows = List.of(ssp, sop);
         final ShadowEvent s = new ShadowEvent(e, parentShadows);
 
-
         assertEquals(parentShadows, s.getAllParents(), "expect parent shadows to match");
     }
 
