@@ -183,12 +183,12 @@ public class OpenMetricsHttpServerTest {
         void testExceptionThrownWhileSnapshotting() {
             when(snapshotSupplier.get()).thenThrow(new RuntimeException());
             HttpResponse<String> response = callMetrics(false);
-            assertThat(response.statusCode()).isEqualTo(500);
+            assertThat(response.statusCode()).isEqualTo(200); // because status is already commited
             assertThat(response.body()).isEmpty();
 
             // subsequent request should also return 500
             response = callMetrics(false);
-            assertThat(response.statusCode()).isEqualTo(500);
+            assertThat(response.statusCode()).isEqualTo(200);
             assertThat(response.body()).isEmpty();
 
             verify(snapshotSupplier, times(2)).get();
@@ -261,7 +261,8 @@ public class OpenMetricsHttpServerTest {
         protected static void globalInit() throws IOException {
             final String path = "/metrics";
             final int port = findFreePort();
-            final OpenMetricsHttpServerConfig cfg = new OpenMetricsHttpServerConfig(true, port, path, 0, "#.###");
+            final OpenMetricsHttpServerConfig cfg =
+                    new OpenMetricsHttpServerConfig(true, "localhost", port, path, 0, "#.###");
             server = new OpenMetricsHttpServer(cfg);
             httpClient = HttpClient.newHttpClient();
             uri = URI.create("http://localhost:" + port + path);

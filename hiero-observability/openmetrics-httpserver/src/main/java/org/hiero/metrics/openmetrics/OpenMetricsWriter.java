@@ -18,12 +18,15 @@ import org.hiero.metrics.core.MetricType;
 
 /**
  * A writer that writes metrics in the OpenMetrics text format.
+ * <p>
+ * This class in not thread-safe, due to the use of {@link DecimalFormat}.
  *
  * <p>See <a href="https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md">OpenMetrics</a> for details.
  */
-public class OpenMetricsWriter {
+class OpenMetricsWriter {
 
     private static final EnumMap<MetricType, byte[]> METRIC_TYPES = new EnumMap<>(MetricType.class);
+    private static final byte[] UNKNOWN_TYPE = "unknown".getBytes(StandardCharsets.UTF_8);
 
     static {
         METRIC_TYPES.put(MetricType.GAUGE, "gauge".getBytes(StandardCharsets.UTF_8));
@@ -80,7 +83,8 @@ public class OpenMetricsWriter {
                 System.getLogger(getClass().getName())
                         .log(
                                 System.Logger.Level.WARNING,
-                                "Skipping unsupported measurement snapshot type: " + measurementSnapshot.getClass());
+                                "Skipping unsupported measurement snapshot type: "
+                                        + measurementSnapshot.getClass().getName());
             }
         }
     }
@@ -99,7 +103,7 @@ public class OpenMetricsWriter {
         output.write(TYPE);
         output.write(metricNameBytes);
         output.write(SPACE);
-        output.write(getMetricTypeBytes(metricSnapshot.type()));
+        output.write(METRIC_TYPES.getOrDefault(metricSnapshot.type(), UNKNOWN_TYPE));
         output.write(NEW_LINE);
 
         if (metricUnitAvailable) {
@@ -142,14 +146,6 @@ public class OpenMetricsWriter {
         }
 
         output.write(SPACE);
-    }
-
-    private static byte[] getMetricTypeBytes(MetricType metricType) {
-        byte[] typeNameBytes = METRIC_TYPES.get(metricType);
-        if (typeNameBytes == null) {
-            throw new IllegalArgumentException("Unsupported metric type: " + metricType);
-        }
-        return typeNameBytes;
     }
 
     private byte[] convertValue(long value) {

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.function.Supplier;
@@ -37,7 +38,7 @@ public class OpenMetricsWriterTest {
         }
 
         public void exportAndVerify(OpenMetricsWriter writer, String expectedOutput, Object... args) {
-            try (UnsynchronizedByteArrayOutputStream outputStream = new UnsynchronizedByteArrayOutputStream()) {
+            try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
                 writer.write(snapshotSupplier.get(), outputStream);
                 if (args.length > 0) {
                     expectedOutput = String.format(expectedOutput, args);

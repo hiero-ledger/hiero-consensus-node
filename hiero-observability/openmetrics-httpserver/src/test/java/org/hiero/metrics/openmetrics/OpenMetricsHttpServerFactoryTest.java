@@ -11,6 +11,7 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.BindException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.util.List;
 import org.hiero.metrics.core.MetricsExporter;
@@ -33,10 +34,11 @@ public class OpenMetricsHttpServerFactoryTest {
     @Test
     void testFailingCreation() throws IOException {
         // Occupy any port first
-        try (ServerSocket socket = new ServerSocket(0)) {
+        try (ServerSocket socket = new ServerSocket(0, 10, InetAddress.getByName("localhost"))) {
             Configuration configuration = mock(Configuration.class);
             when(configuration.getConfigData(OpenMetricsHttpServerConfig.class))
-                    .thenReturn(new OpenMetricsHttpServerConfig(true, socket.getLocalPort(), "/metrics", 0, "#.###"));
+                    .thenReturn(new OpenMetricsHttpServerConfig(
+                            true, "localhost", socket.getLocalPort(), "/metrics", 0, "#.###"));
 
             assertThatThrownBy(() -> new OpenMetricsHttpServerFactory().createExporter(List.of(), configuration))
                     .isInstanceOf(UncheckedIOException.class)

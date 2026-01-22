@@ -21,6 +21,10 @@ public class OpenMetricsHttpServerConfigTest {
                 .as("Open Metrics HTTP server must be enabled by default.")
                 .isTrue();
 
+        assertThat(endpointConfig.hostname())
+                .as("Open Metrics HTTP server default hostname must be 'localhost'.")
+                .isEqualTo("localhost");
+
         assertThat(endpointConfig.port())
                 .as("Open Metrics HTTP server default port must be 8888.")
                 .isEqualTo(8888);
@@ -42,6 +46,7 @@ public class OpenMetricsHttpServerConfigTest {
     void testNonDefaultValues() {
         OpenMetricsHttpServerConfig endpointConfig = configBuilder()
                 .withValue("metrics.exporter.openmetrics.http.enabled", "false")
+                .withValue("metrics.exporter.openmetrics.http.hostname", "127.0.0.1")
                 .withValue("metrics.exporter.openmetrics.http.port", "1234")
                 .withValue("metrics.exporter.openmetrics.http.path", "/custom-metrics")
                 .withValue("metrics.exporter.openmetrics.http.backlog", "5")
@@ -50,6 +55,7 @@ public class OpenMetricsHttpServerConfigTest {
                 .getConfigData(OpenMetricsHttpServerConfig.class);
 
         assertThat(endpointConfig.enabled()).isFalse();
+        assertThat(endpointConfig.hostname()).isEqualTo("127.0.0.1");
         assertThat(endpointConfig.port()).isEqualTo(1234);
         assertThat(endpointConfig.path()).isEqualTo("/custom-metrics");
         assertThat(endpointConfig.backlog()).isEqualTo(5);
