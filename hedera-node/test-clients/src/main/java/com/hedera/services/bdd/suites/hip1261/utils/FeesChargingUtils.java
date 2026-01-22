@@ -692,7 +692,7 @@ public class FeesChargingUtils {
      * SimpleFees formula for TokenAssociate:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
      * network = node * NETWORK_MULTIPLIER
-     * service = TOKEN_ASSOCIATE_BASE
+     * service = TOKEN_ASSOCIATE_BASE * tokens count
      * total   = node + network + service
      */
     public static double expectedTokenAssociateFullFeeUsd(long sigs, long tokens) {
@@ -703,7 +703,7 @@ public class FeesChargingUtils {
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
         // ----- service fees -----
-        final double serviceFee = TOKEN_ASSOCIATE_BASE_FEE_USD;
+        final double serviceFee = TOKEN_ASSOCIATE_BASE_FEE_USD * tokens;
         return nodeFee + networkFee + serviceFee;
     }
 
