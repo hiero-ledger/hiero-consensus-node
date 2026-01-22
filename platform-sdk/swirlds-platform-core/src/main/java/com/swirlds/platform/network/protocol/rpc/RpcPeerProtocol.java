@@ -340,6 +340,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     // handler told us we are ok to stop processing messages right now due to platform not being healthy
                     processMessages = false;
                 }
+                rpcPeerHandler.reportCommunicationOverload(outputQueue.size() > 1000); // TODO: make configurable
             }
         } finally {
             syncMetrics.rpcDispatchThreadRunning(-1);

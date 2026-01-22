@@ -124,6 +124,11 @@ public class RpcPeerProtocolTests {
                 }
 
                 @Override
+                public void reportCommunicationOverload(final boolean overloaded) {
+                    // no-op
+                }
+
+                @Override
                 public void receiveSyncData(@NonNull final SyncData syncMessage) {
                     maybeSendSync();
                     receivedSyncData = true;

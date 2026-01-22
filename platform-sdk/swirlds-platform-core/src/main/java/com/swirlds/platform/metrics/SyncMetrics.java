@@ -187,7 +187,14 @@ public class SyncMetrics {
     private static final IntegerGauge.Config BROADCAST_DISABLED_DUE_TO_LAG_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "broadcastDisabledDueToLag")
             .withDescription("How many broadcast peers are disabled due to the too large ping");
+
+    private static final IntegerGauge.Config BROADCAST_DISABLED_DUE_TO_OVERLOAD_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "broadcastDisabledDueToOverload")
+            .withDescription("How many broadcast peers are disabled due to the output queue being too large");
+
     private final IntegerGauge broadcastDisabledDueToLag;
+
+    private final IntegerGauge broadcastDisabledDueToOverload;
 
     private final AverageStat syncIndicatorDiff;
     private final AverageStat eventRecRate;
@@ -254,6 +261,7 @@ public class SyncMetrics {
         rpcDispatchThreadRunning = metrics.getOrCreate(RPC_DISPATCH_THREAD_RUNNING_CONFIG);
         syncsInProgress = metrics.getOrCreate(SYNCS_IN_PROGRESS_CONFIG);
         broadcastDisabledDueToLag = metrics.getOrCreate(BROADCAST_DISABLED_DUE_TO_LAG_CONFIG);
+        broadcastDisabledDueToOverload = metrics.getOrCreate(BROADCAST_DISABLED_DUE_TO_OVERLOAD_CONFIG);
 
         avgSyncDuration = new AverageAndMaxTimeStat(
                 metrics,
@@ -696,5 +704,9 @@ public class SyncMetrics {
 
     public void disabledBroadcastDueToLag(final boolean disabled) {
         broadcastDisabledDueToLag.add(disabled ? 1 : -1);
+    }
+
+    public void disabledBroadcastDueToOverload(final boolean disabled) {
+        broadcastDisabledDueToOverload.add(disabled ? 1 : -1);
     }
 }

@@ -128,6 +128,8 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     // volatile, as it is accessed by both platform and write threads
     private volatile long disabledBroadcastDueToLag = -1;
 
+    private volatile boolean communicationOverload = false;
+
     /**
      * Create new state class for an RPC peer
      *
@@ -242,6 +244,12 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         state.lastSyncFinishedTime = Instant.MIN;
     }
 
+    @Override
+    public void reportCommunicationOverload(final boolean overloaded) {
+        communicationOverload = overloaded;
+        syncMetrics.disabledBroadcastDueToOverload(overloaded);
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -279,7 +287,10 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
 
     private boolean isBroadcastRunning() {
         // TODO: Additionally check broadcast flag from configuration
-        return !state.peerIsBehind && state.lastSyncFinishedTime != Instant.MIN && disabledBroadcastDueToLag < 0;
+        return !state.peerIsBehind
+                && state.lastSyncFinishedTime != Instant.MIN
+                && disabledBroadcastDueToLag < 0
+                && !communicationOverload;
     }
 
     // HANDLE INCOMING MESSAGES - all done on dispatch thread
@@ -494,6 +505,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         this.syncMetrics.syncDone(new SyncResult(peerId, incomingEventsCounter, outgoingEventsCounter), null);
         incomingEventsCounter = 0;
         outgoingEventsCounter = 0;
+        this.syncMetrics.syncFinished();
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.IDLE);
     }
 
