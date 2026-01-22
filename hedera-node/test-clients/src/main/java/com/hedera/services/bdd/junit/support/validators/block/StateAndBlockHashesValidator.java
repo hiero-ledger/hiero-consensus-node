@@ -80,7 +80,6 @@ import org.junit.jupiter.api.Assertions;
  * </li>
  */
 public class StateAndBlockHashesValidator implements BlockStreamValidator {
-
     private static final Logger logger = LogManager.getLogger(StateAndBlockHashesValidator.class);
 
     private static final Bytes FINAL_EXPECTED_STATE_HASH = Bytes.fromHex(
@@ -316,7 +315,8 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
             assertNotNull(firstConsensusTimestamp, "No parseable timestamp found for block #" + i);
 
             if (i <= lastVerifiableIndex) {
-                logger.info("Processing block {}", i);
+				System.out.println("--------------------------------");
+                logger.info("Calculating final hash for block {}", i);
 
                 final var footer = block.items().get(block.items().size() - 2);
                 assertTrue(footer.hasBlockFooter());
