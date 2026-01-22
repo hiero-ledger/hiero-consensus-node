@@ -243,7 +243,6 @@ class TransactionProcessorTest {
                         CODE_FACTORY,
                         GAS_CALCULATOR))
                 .willReturn(initialFrame);
-        given(senderAccount.getNonce()).willReturn(NONCE);
         given(frameRunner.runToCompletion(
                         transaction.gasLimit(),
                         SENDER_ID,
@@ -317,7 +316,6 @@ class TransactionProcessorTest {
                 .willReturn(SUCCESS_RESULT);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
                 .willReturn(true);
-        given(senderAccount.getNonce()).willReturn(NONCE);
 
         final var result =
                 subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
@@ -380,7 +378,6 @@ class TransactionProcessorTest {
                 .willReturn(SUCCESS_RESULT);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
                 .willReturn(true);
-        given(senderAccount.getNonce()).willReturn(NONCE);
 
         final var result =
                 subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
@@ -639,7 +636,6 @@ class TransactionProcessorTest {
         given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
                 .willReturn(CHARGING_RESULT);
         given(senderAccount.getAddress()).willReturn(EIP_1014_ADDRESS);
-        given(senderAccount.getNonce()).willReturn(NONCE);
         given(receiverAccount.getAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frameBuilder.buildInitialFrameWith(
                         transaction,
@@ -750,7 +746,6 @@ class TransactionProcessorTest {
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
                 .willReturn(true);
-        given(senderAccount.getNonce()).willReturn(NONCE);
 
         final var result =
                 subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
@@ -805,7 +800,6 @@ class TransactionProcessorTest {
         given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
                 .willReturn(CHARGING_RESULT);
         given(senderAccount.getAddress()).willReturn(EIP_1014_ADDRESS);
-        given(senderAccount.getNonce()).willReturn(NONCE);
         given(receiverAccount.getAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frameBuilder.buildInitialFrameWith(
                         transaction,
@@ -873,7 +867,6 @@ class TransactionProcessorTest {
         given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
                 .willReturn(CHARGING_RESULT);
         given(senderAccount.getAddress()).willReturn(EIP_1014_ADDRESS);
-        given(senderAccount.getNonce()).willReturn(NONCE);
         given(receiverAccount.getAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frameBuilder.buildInitialFrameWith(
                         transaction,

@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult.resourceExhaustionFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
@@ -258,16 +257,6 @@ public class TransactionProcessor {
                 parties = partiesWhenContractNotRequired(to, sender, relayer, transaction, updater, config);
             } else {
                 parties = partiesWhenContractRequired(to, sender, relayer, transaction, updater, config);
-            }
-        }
-        if (transaction.isEthereumTransaction()) {
-            // For EIP-7702 transactions with code delegations, skip nonce check here
-            // because it was already checked in ContextTransactionProcessor before code delegations,
-            // and code delegations may have incremented the sender's nonce if they're an authority
-            final boolean hasCodeDelegations = transaction.codeDelegations() != null
-                    && !transaction.codeDelegations().isEmpty();
-            if (!hasCodeDelegations) {
-                validateTrue(transaction.nonce() == parties.sender().getNonce(), WRONG_NONCE);
             }
         }
         return parties;
