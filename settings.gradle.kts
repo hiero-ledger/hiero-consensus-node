@@ -4,16 +4,6 @@ plugins {
     id("com.hedera.pbj.pbj-compiler") version "0.12.10" apply false
 }
 
-// Workaround for Java 24 upgrade: Gradle's internal TimeTrackingProcessor
-// does not yet support Java 24, causing a warning that -Werror turns into an error.
-gradle.projectsEvaluated {
-    allprojects {
-        tasks.withType<JavaCompile>().configureEach {
-            options.compilerArgs.removeAll { it == "-Werror" }
-        }
-    }
-}
-
 javaModules {
     // This "intermediate parent project" should be removed
     module("platform-sdk") { artifact = "swirlds-platform" }
