@@ -98,15 +98,18 @@ public class UtilizationScaledThrottleMultiplier {
                 configuration.getConfigData(FeesConfig.class).percentUtilizationScaleFactors();
 
         return switch (functionality) {
-            case CRYPTO_CREATE -> entityScaleFactors
-                    .scaleForNew(ACCOUNT, roundedAccountPercentUtil(storeAccessor))
-                    .scaling((int) throttleMultiplier);
-            case CONTRACT_CREATE -> entityScaleFactors
-                    .scaleForNew(CONTRACT_BYTECODE, roundedContractPercentUtil(storeAccessor))
-                    .scaling((int) throttleMultiplier);
-            case FILE_CREATE -> entityScaleFactors
-                    .scaleForNew(FILE, roundedFilePercentUtil(storeAccessor))
-                    .scaling((int) throttleMultiplier);
+            case CRYPTO_CREATE ->
+                entityScaleFactors
+                        .scaleForNew(ACCOUNT, roundedAccountPercentUtil(storeAccessor))
+                        .scaling((int) throttleMultiplier);
+            case CONTRACT_CREATE ->
+                entityScaleFactors
+                        .scaleForNew(CONTRACT_BYTECODE, roundedContractPercentUtil(storeAccessor))
+                        .scaling((int) throttleMultiplier);
+            case FILE_CREATE ->
+                entityScaleFactors
+                        .scaleForNew(FILE, roundedFilePercentUtil(storeAccessor))
+                        .scaling((int) throttleMultiplier);
             case TOKEN_MINT -> {
                 final var mintsWithMetadata =
                         !body.tokenMintOrThrow().metadata().isEmpty();
@@ -116,18 +119,22 @@ public class UtilizationScaledThrottleMultiplier {
                                 .scaling((int) throttleMultiplier)
                         : throttleMultiplier;
             }
-            case TOKEN_CREATE -> entityScaleFactors
-                    .scaleForNew(TOKEN, roundedTokenPercentUtil(storeAccessor))
-                    .scaling((int) throttleMultiplier);
-            case TOKEN_ASSOCIATE_TO_ACCOUNT -> entityScaleFactors
-                    .scaleForNew(TOKEN_ASSOCIATION, roundedTokenRelPercentUtil(storeAccessor))
-                    .scaling((int) throttleMultiplier);
-            case CONSENSUS_CREATE_TOPIC -> entityScaleFactors
-                    .scaleForNew(TOPIC, roundedTopicPercentUtil(storeAccessor))
-                    .scaling((int) throttleMultiplier);
-            case TOKEN_AIRDROP -> entityScaleFactors
-                    .scaleForNew(AIRDROP, roundedAirdropPercentUtil(storeAccessor))
-                    .scaling((int) throttleMultiplier);
+            case TOKEN_CREATE ->
+                entityScaleFactors
+                        .scaleForNew(TOKEN, roundedTokenPercentUtil(storeAccessor))
+                        .scaling((int) throttleMultiplier);
+            case TOKEN_ASSOCIATE_TO_ACCOUNT ->
+                entityScaleFactors
+                        .scaleForNew(TOKEN_ASSOCIATION, roundedTokenRelPercentUtil(storeAccessor))
+                        .scaling((int) throttleMultiplier);
+            case CONSENSUS_CREATE_TOPIC ->
+                entityScaleFactors
+                        .scaleForNew(TOPIC, roundedTopicPercentUtil(storeAccessor))
+                        .scaling((int) throttleMultiplier);
+            case TOKEN_AIRDROP ->
+                entityScaleFactors
+                        .scaleForNew(AIRDROP, roundedAirdropPercentUtil(storeAccessor))
+                        .scaling((int) throttleMultiplier);
             default -> throttleMultiplier;
         };
     }
@@ -139,8 +146,7 @@ public class UtilizationScaledThrottleMultiplier {
         return (T) storeAccessor.apply(storeClass);
     }
 
-    private int roundedAccountPercentUtil(
-            @NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
+    private int roundedAccountPercentUtil(@NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfAccounts =
                 configuration.getConfigData(AccountsConfig.class).maxNumber();
@@ -155,8 +161,7 @@ public class UtilizationScaledThrottleMultiplier {
         return maxNumOfAccounts == 0 ? 100 : (int) ((100 * numAccounts) / maxNumOfAccounts);
     }
 
-    private int roundedContractPercentUtil(
-            @NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
+    private int roundedContractPercentUtil(@NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfContracts =
                 configuration.getConfigData(ContractsConfig.class).maxNumber();
@@ -198,8 +203,7 @@ public class UtilizationScaledThrottleMultiplier {
         return maxNumOfTokens == 0 ? 100 : (int) ((100 * numOfTokens) / maxNumOfTokens);
     }
 
-    private int roundedTokenRelPercentUtil(
-            @NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
+    private int roundedTokenRelPercentUtil(@NonNull final java.util.function.Function<Class<?>, Object> storeAccessor) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfTokenRels =
                 configuration.getConfigData(TokensConfig.class).maxAggregateRels();

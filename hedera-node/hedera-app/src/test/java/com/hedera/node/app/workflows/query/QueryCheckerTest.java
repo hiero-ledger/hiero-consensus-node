@@ -633,8 +633,9 @@ class QueryCheckerTest extends AppTestBase {
         assertThat(result).isEqualTo(expectedFee);
         verify(feeManager).getSimpleFeeCalculator();
         verify(simpleFeeCalculator).calculateTxFee(any(), any());
-        verify(feeManager).congestionMultiplierFor(
-                any(TransactionBody.class), any(HederaFunctionality.class), any(FeeContext.class));
+        verify(feeManager)
+                .congestionMultiplierFor(
+                        any(TransactionBody.class), any(HederaFunctionality.class), any(FeeContext.class));
     }
 
     private TransactionInfo createPaymentInfo(final AccountID payerID, final AccountAmount... transfers) {
