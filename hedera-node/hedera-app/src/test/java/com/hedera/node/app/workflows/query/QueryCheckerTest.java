@@ -120,61 +120,61 @@ class QueryCheckerTest extends AppTestBase {
     @Test
     void testConstructorWithIllegalArguments() {
         assertThatThrownBy(() -> new QueryChecker(
-                null,
-                cryptoTransferHandler,
-                solvencyPreCheck,
-                expiryValidation,
-                feeManager,
-                dispatcher,
-                ingestChecker))
+                        null,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                authorizer, null, solvencyPreCheck, expiryValidation, feeManager, dispatcher, ingestChecker))
+                        authorizer, null, solvencyPreCheck, expiryValidation, feeManager, dispatcher, ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                authorizer,
-                cryptoTransferHandler,
-                null,
-                expiryValidation,
-                feeManager,
-                dispatcher,
-                ingestChecker))
+                        authorizer,
+                        cryptoTransferHandler,
+                        null,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                authorizer,
-                cryptoTransferHandler,
-                solvencyPreCheck,
-                null,
-                feeManager,
-                dispatcher,
-                ingestChecker))
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        null,
+                        feeManager,
+                        dispatcher,
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                authorizer,
-                cryptoTransferHandler,
-                solvencyPreCheck,
-                expiryValidation,
-                null,
-                dispatcher,
-                ingestChecker))
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        null,
+                        dispatcher,
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                authorizer,
-                cryptoTransferHandler,
-                solvencyPreCheck,
-                expiryValidation,
-                feeManager,
-                null,
-                ingestChecker))
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        null,
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                authorizer,
-                cryptoTransferHandler,
-                solvencyPreCheck,
-                expiryValidation,
-                feeManager,
-                dispatcher,
-                null))
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        null))
                 .isInstanceOf(NullPointerException.class);
     }
 
