@@ -16,6 +16,8 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
+import com.swirlds.platform.gossip.permits.SyncGuard;
+import com.swirlds.platform.gossip.permits.SyncGuardFactory;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
 import com.swirlds.platform.metrics.SyncMetrics;
@@ -27,6 +29,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -35,7 +38,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-class RpcShadowgraphSynchronizerTest {
+class RpcPeerHandlerTest {
 
     static final int NUM_NODES = 10;
     public static final SyncData EMPTY_SYNC_MESSAGE =
@@ -48,8 +51,10 @@ class RpcShadowgraphSynchronizerTest {
     private NodeId selfId;
     private Consumer eventHandler;
     private GossipRpcSender gossipSender;
-    private RpcShadowgraphSynchronizer synchronizer;
+    private ShadowgraphSynchronizer synchronizer;
     private Consumer<SyncProgress> syncProgressReporter;
+    private IntakeEventCounter intakeCounter;
+    private SyncGuard syncGuard;
 
     @BeforeEach
     void testSetup() throws Exception {
@@ -79,31 +84,42 @@ class RpcShadowgraphSynchronizerTest {
         this.eventHandler = mock(Consumer.class);
         this.gossipSender = mock(GossipRpcSender.class);
         this.syncProgressReporter = mock(Consumer.class);
-        this.synchronizer = new RpcShadowgraphSynchronizer(
-                platformContext,
-                NUM_NODES,
-                syncMetrics,
-                eventHandler,
-                fallenBehindManager,
-                new NoOpIntakeEventCounter(),
-                selfId,
-                syncProgressReporter);
+        this.intakeCounter = new NoOpIntakeEventCounter();
+        this.synchronizer = new ShadowgraphSynchronizer(
+                platformContext, NUM_NODES, syncMetrics, fallenBehindManager, intakeCounter, syncProgressReporter);
 
         this.synchronizer.updateEventWindow(EventWindow.getGenesisEventWindow());
+
+        this.syncGuard = SyncGuardFactory.create(-1, 0.3, 10);
     }
 
     @Test
     void createPeerHandlerStartSync() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        var conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
+    }
+
+    private RpcPeerHandler createPeerHandler(final GossipRpcSender gossipSender, final NodeId otherNodeId) {
+        return new RpcPeerHandler(
+                synchronizer,
+                gossipSender,
+                selfId,
+                otherNodeId,
+                Duration.ofMillis(5),
+                syncMetrics,
+                platformContext.getTime(),
+                intakeCounter,
+                eventHandler,
+                syncGuard,
+                fallenBehindManager);
     }
 
     @Test
     void fullEmptySync() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        var conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
@@ -117,7 +133,7 @@ class RpcShadowgraphSynchronizerTest {
     @Test
     void errorOnDoubleSyncData() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        var conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
@@ -127,7 +143,7 @@ class RpcShadowgraphSynchronizerTest {
     @Test
     void errorOnTipsWithoutSyncData() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        var conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
         assertThrows(IllegalStateException.class, () -> conversation.receiveTips(List.of()));
@@ -136,7 +152,7 @@ class RpcShadowgraphSynchronizerTest {
     @Test
     void errorOnDoubleTips() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        var conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
@@ -150,7 +166,7 @@ class RpcShadowgraphSynchronizerTest {
     @Test
     void disconnectInMiddleOfEventSendingNotBreakingNextSync() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        var conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
@@ -172,7 +188,7 @@ class RpcShadowgraphSynchronizerTest {
     @Test
     void fullEmptySyncIgnoreEvents() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        var conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, true);
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(EMPTY_SYNC_MESSAGE_IGNORE_EVENTS);
@@ -185,7 +201,7 @@ class RpcShadowgraphSynchronizerTest {
     @Test
     void testFallenBehind() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        var conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 10, 5), List.of(), false));
@@ -199,7 +215,7 @@ class RpcShadowgraphSynchronizerTest {
     void testSyncProgressReporting() {
         for (int i = 2; i <= 5; i++) {
             var otherNodeId = NodeId.of(i);
-            var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+            var conversation = createPeerHandler(gossipSender, otherNodeId);
             conversation.checkForPeriodicActions(false, false);
             var eventWindow = new EventWindow(20 + i, 20 + i, 10, 5);
             conversation.receiveSyncData(new SyncData(eventWindow, List.of(), false));
@@ -211,7 +227,7 @@ class RpcShadowgraphSynchronizerTest {
     @Test
     void testUnhealthyExit() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        var conversation = createPeerHandler(gossipSender, otherNodeId);
         // we don't want to start sync in unhealthy state
         assertFalse(conversation.checkForPeriodicActions(true, false));
         Mockito.verifyNoMoreInteractions(gossipSender);
@@ -233,7 +249,7 @@ class RpcShadowgraphSynchronizerTest {
     @Test
     void removeFallenBehind() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        var conversation = createPeerHandler(gossipSender, otherNodeId);
         synchronizer.updateEventWindow(new EventWindow(100, 101, 10, 5));
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
