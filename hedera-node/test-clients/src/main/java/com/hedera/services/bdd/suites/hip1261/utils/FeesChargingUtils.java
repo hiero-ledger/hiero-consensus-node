@@ -532,17 +532,17 @@ public class FeesChargingUtils {
 
     /**
      * SimpleFees formula for ConsensusSubmitMessage:
-     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytes(txnSize)
      * network = node * NETWORK_MULTIPLIER
      * service = CONS_SUBMIT_MESSAGE_BASE
      *         + BYTES_FEE * max(0, bytes - includedBytesService)
      * total   = node + network + service
      */
-    public static double expectedTopicSubmitMessageFullFeeUsd(long sigs, long bytes) {
+    public static double expectedTopicSubmitMessageFullFeeUsd(long sigs, long bytes, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
@@ -555,13 +555,6 @@ public class FeesChargingUtils {
         return nodeFee + networkFee + serviceFee;
     }
 
-    /**
-     * Overload when message is within included bytes (100 bytes).
-     */
-    public static double expectedTopicSubmitMessageFullFeeUsd(long sigs) {
-        return expectedTopicSubmitMessageFullFeeUsd(sigs, 0L);
-    }
-
     public static double expectedTopicSubmitMessageNetworkFeeOnlyUsd(long sigs) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
@@ -570,39 +563,6 @@ public class FeesChargingUtils {
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
-    }
-
-    /**
-     * SimpleFees formula for ConsensusSubmitMessage with custom fee:
-     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
-     * network = node * NETWORK_MULTIPLIER
-     * service = CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE
-     *         + BYTES_FEE * max(0, bytes - includedBytesService)
-     * total   = node + network + service
-     */
-    public static double expectedTopicSubmitMessageWithCustomFeeFullFeeUsd(long sigs, long bytes) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
-
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ----- service fees -----
-        final long byteExtrasService = Math.max(0L, bytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
-        final double serviceExtrasFee = byteExtrasService * BYTES_FEE_USD;
-        final double serviceFee = CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD + serviceExtrasFee;
-
-        return nodeFee + networkFee + serviceFee;
-    }
-
-    /**
-     * SimpleFees formula for GetTopicInfo query:
-     * Returns the base query fee.
-     */
-    public static double expectedTopicGetInfoFeeUsd() {
-        return CONS_GET_TOPIC_INFO_BASE_FEE_USD;
     }
 
     public static HapiSpecOperation validateChargedFeeToUsd(

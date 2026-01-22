@@ -20,7 +20,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -28,6 +27,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CHUNK_NUMBER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
@@ -97,9 +98,9 @@ public class TopicSubmitMessageSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("submitMessageTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "submitMessageTxn",
-                            expectedTopicSubmitMessageFullFeeUsd(1L, 100L), // 1 sig, 100 bytes (no extras)
+                            txnSize -> expectedTopicSubmitMessageFullFeeUsd(1L, 100L, txnSize),
                             1.0));
         }
 
@@ -117,9 +118,9 @@ public class TopicSubmitMessageSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("submitMessageTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "submitMessageTxn",
-                            expectedTopicSubmitMessageFullFeeUsd(1L, 101L), // 1 sig, 101 bytes (1 extra)
+                            txnSize -> expectedTopicSubmitMessageFullFeeUsd(1L, 101L, txnSize),
                             1.0));
         }
 
@@ -137,9 +138,9 @@ public class TopicSubmitMessageSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("submitMessageTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "submitMessageTxn",
-                            expectedTopicSubmitMessageFullFeeUsd(1L, 500L), // 1 sig, 500 bytes (400 extra)
+                            txnSize -> expectedTopicSubmitMessageFullFeeUsd(1L, 500L, txnSize),
                             1.0));
         }
 
@@ -157,9 +158,9 @@ public class TopicSubmitMessageSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("submitMessageTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "submitMessageTxn",
-                            expectedTopicSubmitMessageFullFeeUsd(1L, 1024L), // 1 sig, 1024 bytes (924 extra)
+                            txnSize -> expectedTopicSubmitMessageFullFeeUsd(1L, 1024L, txnSize),
                             1.0));
         }
 
@@ -182,9 +183,9 @@ public class TopicSubmitMessageSimpleFeesTest {
                             .signedBy(PAYER, SUBMIT_KEY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("submitMessageTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "submitMessageTxn",
-                            expectedTopicSubmitMessageFullFeeUsd(2L, 50L), // 2 sigs (payer + submit), 50 bytes
+                            txnSize -> expectedTopicSubmitMessageFullFeeUsd(2L, 50L, txnSize),
                             1.0));
         }
 
@@ -210,10 +211,10 @@ public class TopicSubmitMessageSimpleFeesTest {
                             .sigControl(forKey(SUBMIT_KEY, validSig))
                             .fee(ONE_HUNDRED_HBARS)
                             .via("submitMessageTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "submitMessageTxn",
-                            expectedTopicSubmitMessageFullFeeUsd(
-                                    3L, 100L), // 3 sigs (1 payer + 2 submit threshold), 100 bytes
+                            txnSize -> expectedTopicSubmitMessageFullFeeUsd(
+                                    3L, 100L, txnSize), // 3 sigs (1 payer + 2 submit threshold), 100 bytes
                             1.0));
         }
 
@@ -235,9 +236,10 @@ public class TopicSubmitMessageSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("submitMessageTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "submitMessageTxn",
-                            expectedTopicSubmitMessageFullFeeUsd(1L, 100L), // 1 sig (payer is submit key), 100 bytes
+                            txnSize -> expectedTopicSubmitMessageFullFeeUsd(
+                                    1L, 100L, txnSize), // 1 sig (payer is submit key), 100 bytes
                             1.0));
         }
 
@@ -260,9 +262,9 @@ public class TopicSubmitMessageSimpleFeesTest {
                             .signedBy(PAYER, SUBMIT_KEY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("submitMessageTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "submitMessageTxn",
-                            expectedTopicSubmitMessageFullFeeUsd(2L, 500L), // 2 sigs, 500 bytes (400 extra)
+                            txnSize -> expectedTopicSubmitMessageFullFeeUsd(2L, 500L, txnSize),
                             1.0));
         }
     }
@@ -493,11 +495,11 @@ public class TopicSubmitMessageSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 "submitMessageTxn",
                                 initialBalance,
                                 afterBalance,
-                                expectedTopicSubmitMessageFullFeeUsd(1L, message.length()),
+                                txnSize -> expectedTopicSubmitMessageFullFeeUsd(1L, message.length(), txnSize),
                                 1.0));
             }
 
