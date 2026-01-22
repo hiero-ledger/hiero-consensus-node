@@ -19,7 +19,7 @@ public class CryptoGetAccountRecordsFeeCalculator implements QueryFeeCalculator 
     @Override
     public void accumulateNodePayment(
             @NonNull final Query query,
-            @NonNull SimpleFeeContext queryContext,
+            @NonNull SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =

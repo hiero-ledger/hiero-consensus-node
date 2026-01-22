@@ -19,7 +19,7 @@ public class TransactionGetRecordFeeCalculator implements QueryFeeCalculator {
     @Override
     public void accumulateNodePayment(
             @NonNull Query query,
-            @NonNull SimpleFeeContext queryContext,
+            @NonNull SimpleFeeContext simpleFeeContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =

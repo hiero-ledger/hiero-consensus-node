@@ -17,7 +17,7 @@ public class ConsensusGetTopicInfoFeeCalculator implements QueryFeeCalculator {
     @Override
     public void accumulateNodePayment(
             @NonNull Query query,
-            @Nullable SimpleFeeContext queryContext,
+            @Nullable SimpleFeeContext simpleFeeContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =
