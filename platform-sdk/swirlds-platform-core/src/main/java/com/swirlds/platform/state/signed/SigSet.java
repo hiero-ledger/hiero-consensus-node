@@ -155,9 +155,11 @@ public class SigSet implements FastCopyable, Iterable<NodeId> {
             final Signature signature = signatures.get(nodeId);
             final Bytes signatureBytes = signature.getBytes();
 
-            signaturePairs.add(new NodeIdSignaturePair(nodeId.id(), signature.getType().ordinal(), signatureBytes));
+            signaturePairs.add(
+                    new NodeIdSignaturePair(nodeId.id(), signature.getType().ordinal(), signatureBytes));
         }
-        com.hedera.hapi.platform.state.SigSet.PROTOBUF.write(new com.hedera.hapi.platform.state.SigSet(signaturePairs), out);
+        com.hedera.hapi.platform.state.SigSet.PROTOBUF.write(
+                new com.hedera.hapi.platform.state.SigSet(signaturePairs), out);
     }
 
     /**
