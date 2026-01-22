@@ -38,7 +38,7 @@ class ClprMessageQueueMetadataStoreTest {
                 .build();
 
         final var messageQueue = ClprMessageQueueMetadata.newBuilder()
-                .ledgerShortId(12)
+                .ledgerId(ClprLedgerId.DEFAULT)
                 .receivedMessageId(0)
                 .sentMessageId(1)
                 .nextOutgoingMessageId(2)
