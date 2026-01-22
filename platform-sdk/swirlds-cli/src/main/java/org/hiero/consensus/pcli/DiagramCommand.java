@@ -27,8 +27,8 @@ import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
-import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import picocli.CommandLine;
 
 @CommandLine.Command(
