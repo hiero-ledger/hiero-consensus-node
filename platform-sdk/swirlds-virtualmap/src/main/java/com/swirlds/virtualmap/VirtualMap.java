@@ -1450,7 +1450,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
         records.findLeafRecord(key);
     }
 
-    ////////////////////////
+    // ----------------------
 
     /**
      * Adds a new leaf with the given key and value. The precondition to calling this

@@ -358,7 +358,10 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     NETWORK_GET_VERSION_INFO,
                     TRANSACTION_GET_RECORD,
                     TRANSACTION_GET_RECEIPT,
-                    GET_BY_KEY -> true;
+                    GET_BY_KEY,
+                    CONTRACT_CALL_LOCAL,
+                    CONTRACT_GET_BYTECODE,
+                    CONTRACT_GET_INFO -> true;
             default -> false;
         };
     }
