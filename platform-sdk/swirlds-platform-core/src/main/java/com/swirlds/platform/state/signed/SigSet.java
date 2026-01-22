@@ -150,14 +150,14 @@ public class SigSet implements FastCopyable, Iterable<NodeId> {
      */
     public void serialize(@NonNull final WritableStreamingData out) throws IOException {
         final List<NodeId> sortedIds = getSigningNodes().stream().sorted().toList();
-        final List<NodeIdSignaturePair> sigs = new ArrayList<>(sortedIds.size());
+        final List<NodeIdSignaturePair> signaturePairs = new ArrayList<>(sortedIds.size());
         for (final NodeId nodeId : sortedIds) {
             final Signature signature = signatures.get(nodeId);
             final Bytes signatureBytes = signature.getBytes();
 
-            sigs.add(new NodeIdSignaturePair(nodeId.id(), signature.getType().ordinal(), signatureBytes));
+            signaturePairs.add(new NodeIdSignaturePair(nodeId.id(), signature.getType().ordinal(), signatureBytes));
         }
-        com.hedera.hapi.platform.state.SigSet.PROTOBUF.write(new com.hedera.hapi.platform.state.SigSet(sigs), out);
+        com.hedera.hapi.platform.state.SigSet.PROTOBUF.write(new com.hedera.hapi.platform.state.SigSet(signaturePairs), out);
     }
 
     /**
@@ -168,8 +168,8 @@ public class SigSet implements FastCopyable, Iterable<NodeId> {
      */
     public void deserialize(@NonNull final ReadableStreamingData in) throws IOException, ParseException {
         signatures.clear();
-        com.hedera.hapi.platform.state.SigSet sigSet = com.hedera.hapi.platform.state.SigSet.PROTOBUF.parse(in);
-        List<NodeIdSignaturePair> nodeIdSignaturePairs = sigSet.nodeIdSignaturePairs();
+        final com.hedera.hapi.platform.state.SigSet sigSet = com.hedera.hapi.platform.state.SigSet.PROTOBUF.parse(in);
+        final List<NodeIdSignaturePair> nodeIdSignaturePairs = sigSet.nodeIdSignaturePairs();
         if (nodeIdSignaturePairs.size() > MAX_SIGNATURE_COUNT) {
             throw new IOException(
                     "Signature count of " + signatures.size() + " exceeds maximum of " + MAX_SIGNATURE_COUNT);
