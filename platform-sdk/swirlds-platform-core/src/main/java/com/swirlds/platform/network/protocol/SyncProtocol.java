@@ -112,7 +112,7 @@ public class SyncProtocol extends AbstractSyncProtocol<ShadowgraphSynchronizer> 
 
     /**
      * Returns the permit provider used by this protocol.
-     * <br/>
+     * <p>
      * **NOTE** <br/> It is used only for unit testing, should never be called from production code.
      * </p>
      *
