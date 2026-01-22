@@ -171,7 +171,8 @@ public final class EventUtils {
     }
 
     /**
-     * Calculate the age of an event's other parent. Helper method for gatherOtherParentAges.
+     * Calculate the age of an event's other parent. Helper method for gatherOtherParentAges. This method expects that
+     * an event will not have more than a single other parent.
      *
      * @param events a list of events
      * @param eventIndex the index of the event to be considered. The age of the event's other
@@ -180,10 +181,13 @@ public final class EventUtils {
     private static int calculateOtherParentAge(final List<EventImpl> events, final int eventIndex) {
 
         final EventImpl event = events.get(eventIndex);
-        final EventImpl otherParent = event.getOtherParent();
-        if (otherParent == null) {
+        if(event.getOtherParents().isEmpty()){
             return 0;
         }
+        if(event.getOtherParents().size() > 1){
+            throw new IllegalArgumentException("Event has more than one other parent.");
+        }
+        final EventImpl otherParent = event.getOtherParents().getFirst();
         final NodeId otherParentNode = otherParent.getCreatorId();
 
         int age = 0;
