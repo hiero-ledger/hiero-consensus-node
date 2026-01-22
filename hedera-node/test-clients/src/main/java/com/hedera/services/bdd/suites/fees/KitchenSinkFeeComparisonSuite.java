@@ -3096,7 +3096,7 @@ public class KitchenSinkFeeComparisonSuite {
             if (!this.start) {
                 writer.append(", ");
             }
-            writer.append(String.format("\"%s\" : %s ", name, ""+value));
+            writer.append(String.format("\"%s\" : %s ", name, "" + value));
         }
 
         public void key(String name, double value) throws IOException {

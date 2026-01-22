@@ -622,6 +622,10 @@
             {
               "name": "KEYS",
               "includedCount": 1
+            },
+            {
+              "name": "HOOK_UPDATES",
+              "includedCount": 0
             }
           ]
         },
@@ -644,8 +648,14 @@
           "name": "ContractCreate",
           "baseFee": 9999000000,
           "extras": [
-            { "name": "GAS", "includedCount": 0 },
-            {"name": "KEYS", "includedCount": 1}
+            {
+              "name": "HOOK_UPDATES",
+              "includedCount": 0
+            },
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 80000,
@@ -692,6 +702,25 @@
               }
             }
           }
+        },
+        {
+          "name": "ContractCallLocal",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "ContractGetBytecode",
+          "baseFee": 0,
+          "extras": [
+            {
+              "name": "BYTES", "includedCount": 1000
+            }
+          ]
+        },
+        {
+          "name": "ContractGetInfo",
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },
