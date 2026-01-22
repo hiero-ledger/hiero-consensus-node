@@ -7,7 +7,6 @@ dependencies {
     testImplementation(testFixtures(project(":swirlds-state-impl")))
     testImplementation(testFixtures(project(":swirlds-state-api")))
     testImplementation(testFixtures(project(":swirlds-merkledb")))
-    testImplementation(project(":hapi"))
     testImplementation(project(":consensus-metrics"))
 }
 
