@@ -79,9 +79,6 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double CONS_GET_TOPIC_INFO_BASE_FEE_USD = 0.0;
 
-    public static final double CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD = 1.99;
-    public static final double CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD = 0.0499;
-
     /* ---------- File service ---------- */
 
     public static final double FILE_CREATE_BASE_FEE_USD = 0.000000005;
