@@ -266,6 +266,8 @@ class BEVM {
 
     void reset() {
         _mem.reset();
+        for( AdrKey ak : _internAK.keySet() )
+            ak._warm = false;
         _frame = null;
         _codes = null;
         _sp = 0;
@@ -576,11 +578,13 @@ class BEVM {
             default ->   ExceptionalHaltReason.INVALID_OPERATION;
             };
 
-            if( trace != null && !(op >= 0xF0 && op <= 0xFA && op != 0xF3) ) {
-                postTrace(trace);
-                if( halt!=null && halt != ExceptionalHaltReason.NONE )
-                    trace.p(" ").p(halt.toString());
-                System.out.println(trace);
+            if( trace != null ) {
+                if( !(op >= 0xF0 && op <= 0xFA && op != 0xF3) ) {
+                    postTrace(trace);
+                    if( halt!=null && halt != ExceptionalHaltReason.NONE )
+                        trace.p(" ").p(halt.toString());
+                    System.out.println(trace);
+                }
                 trace.clear();
             }
         }
@@ -612,6 +616,12 @@ class BEVM {
         // Dump TOS
         if( _sp > 0 ) trace.p(" 0x").hex8(STK3[_sp-1]).hex8(STK2[_sp-1]).hex8(STK1[_sp-1]).hex8(STK0[_sp-1]);
         return trace;
+    }
+
+    private void preTraceCall( SB trace, String str) {
+        if( trace == null ) return;
+        System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
+        trace.clear();
     }
 
     // ---------------------
@@ -1435,9 +1445,7 @@ class BEVM {
 
     // Custom Delegate Call 6->1
     private ExceptionalHaltReason customDelegateCall(SB trace, String str) {
-        if( trace != null )
-            System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
-
+        preTraceCall(trace,str);
         if( FrameUtils.isHookExecution(_frame) && isRedirectFromNativeEntity() )
             return ExceptionalHaltReason.INVALID_OPERATION;
 
@@ -1453,7 +1461,7 @@ class BEVM {
         var recipient = _frame.getRecipientAddress();
         var sender    = _frame.getSenderAddress();
 
-        return _abstractCall(trace,str, stipend, recipient, to, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen);
+        return _abstractCall(trace,str, stipend, recipient, to, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
     }
     private boolean isRedirectFromNativeEntity() {
         final var updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
@@ -1463,9 +1471,7 @@ class BEVM {
 
     // Custom Delegate Call 6->1
     private ExceptionalHaltReason customStaticCall(SB trace, String str) {
-        if( trace != null )
-            System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
-
+        preTraceCall(trace,str);
         if( FrameUtils.isHookExecution(_frame) && isRedirectFromNativeEntity() )
             return ExceptionalHaltReason.INVALID_OPERATION;
 
@@ -1477,7 +1483,7 @@ class BEVM {
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-        return _abstractCall(trace,str, stipend,to,Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen);
+        return _abstractCall(trace,str, stipend,to,Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,true);
     }
 
     // Revert transaction
@@ -1921,8 +1927,7 @@ class BEVM {
     private ExceptionalHaltReason create( SB trace, String str, boolean hasSalt ) {
         // Nested create contract call; so print the post-trace before the
         // nested call, and reload the pre-trace state after call.
-        if( trace != null )
-            System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
+        preTraceCall(trace,str);
         if( _sp < (hasSalt ? 4 : 3) ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
@@ -2049,8 +2054,7 @@ class BEVM {
     private ExceptionalHaltReason callCode(SB trace, String str) {
         // Nested create contract call; so print the post-trace before the
         // nested call, and reload the pre-trace state after call.
-        if( trace != null )
-            System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
+        preTraceCall(trace,str);
         if( _sp < 7 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long stipend = popLong();
         Address to = popAddress();
@@ -2061,7 +2065,7 @@ class BEVM {
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-        return _abstractCall(trace,str, stipend,to,value,hasValue,srcOff,srcLen,dstOff,dstLen);
+        return _abstractCall(trace,str, stipend,to,value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
 
     }
 
@@ -2069,8 +2073,7 @@ class BEVM {
     private ExceptionalHaltReason customCall(SB trace, String str) {
         // Nested create contract call; so print the post-trace before the
         // nested call, and reload the pre-trace state after call.
-        if( trace != null )
-            System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
+        preTraceCall(trace,str);
         if( _sp < 7 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long stipend = popLong();
         Address to = popAddress();
@@ -2083,18 +2086,18 @@ class BEVM {
         int dstLen = popInt();
         // yup, child frame sender is this frames' recipient
         var sender = _frame.getRecipientAddress();
-        return _abstractCall(trace,str, stipend, to, to, sender, value,hasValue,srcOff,srcLen,dstOff,dstLen);
+        return _abstractCall(trace,str, stipend, to, to, sender, value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
     }
 
 
-    private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address contract, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
+    private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address contract, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen, boolean isStatic ) {
         var recipient_sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
             ? FrameUtils.hookOwnerAddress(_frame)
             : _frame.getRecipientAddress();
-        return _abstractCall(trace, str, stipend, recipient_sender, contract, recipient_sender, value, hasValue, srcOff, srcLen, dstOff, dstLen );
+        return _abstractCall(trace, str, stipend, recipient_sender, contract, recipient_sender, value, hasValue, srcOff, srcLen, dstOff, dstLen, isStatic );
     }
 
-    private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address recipient, Address contract, Address sender, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
+    private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address recipient, Address contract, Address sender, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen, boolean isStatic ) {
         Account contractAccount = _frame.getWorldUpdater().get(contract);
 
         // gas cost check.  As usual, the input values are capped at
@@ -2183,7 +2186,7 @@ class BEVM {
             .value(value)
             .apparentValue(value)
             .code(code)
-            .isStatic(_frame.isStatic())
+            .isStatic(isStatic)
             .completer( child0 -> {} )
             .build();
         _frame.setState(MessageFrame.State.CODE_SUSPENDED);
