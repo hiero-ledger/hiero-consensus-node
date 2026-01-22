@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
-import org.hiero.base.io.SelfSerializable;
-
 /**
  * A virtual key, specifically for use with the Virtual FCMap {@code VirtualMap}. The indexes
  * used for looking up values are all stored on disk in order to support virtualization to
@@ -11,7 +9,7 @@ import org.hiero.base.io.SelfSerializable;
  *
  * <p>Keys must implement {@link Comparable}.
  */
-public interface VirtualKey extends SelfSerializable {
+public interface VirtualKey {
 
     /**
      * This needs to be a very good quality hash code with even spread, or it will be very inefficient when used in

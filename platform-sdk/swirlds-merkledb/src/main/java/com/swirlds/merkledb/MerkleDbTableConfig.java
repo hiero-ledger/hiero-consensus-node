@@ -10,12 +10,8 @@ import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import java.io.IOException;
 import java.util.Objects;
 import org.hiero.base.crypto.DigestType;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Virtual database table configuration. It describes how to store virtual keys and values
@@ -23,13 +19,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * configs are stored in virtual database metadata and persisted across JVM runs.
  */
 @Deprecated
-public final class MerkleDbTableConfig implements SelfSerializable {
-
-    private static final long CLASS_ID = 0xbb41e7eb9fcad23cL;
-
-    private static final class ClassVersion {
-        public static final int ORIGINAL = 1;
-    }
+public final class MerkleDbTableConfig {
 
     private static final FieldDefinition FIELD_TABLECONFIG_HASHVERSION =
             new FieldDefinition("hashVersion", FieldType.UINT32, false, true, false, 1);
@@ -254,54 +244,6 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      */
     public long getHashesRamToDiskThreshold() {
         return hashesRamToDiskThreshold;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.ORIGINAL;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        out.writeBoolean(false); // prefer disk indices
-        out.writeLong(initialCapacity);
-        out.writeLong(hashesRamToDiskThreshold);
-        out.writeShort(hashVersion);
-        out.writeInt(hashType.id());
-        out.writeShort(0); // key version
-        out.writeSerializable(null, true); // key serializer
-        out.writeShort(0); // value version
-        out.writeSerializable(null, true); // value serializer
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        in.readBoolean(); // prefer disk indices
-        initialCapacity = in.readLong();
-        hashesRamToDiskThreshold = in.readLong();
-        hashVersion = in.readShort();
-        hashType = DigestType.valueOf(in.readInt());
-        in.readShort(); // key version
-        in.readSerializable(); // key serializer
-        in.readShort(); // value version
-        in.readSerializable(); // value serializer
     }
 
     /**

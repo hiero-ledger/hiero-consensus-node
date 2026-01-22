@@ -15,7 +15,6 @@ import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,7 +35,6 @@ import org.hiero.base.concurrent.futures.StandardFuture;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.exceptions.PlatformException;
 import org.hiero.base.exceptions.ReferenceCountException;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
@@ -1290,34 +1288,6 @@ public final class VirtualNodeCache implements FastCopyable {
             dst.put(entry.getKey(), mutation);
             array.add(mutation);
             // Estimated size is not updated, which is hopefully fine
-        }
-    }
-
-    /**
-     * Serialize the {@link #pathToDirtyHashIndex}.
-     *
-     * @param map
-     * 		The index map to serialize. Cannot be null.
-     * @param out
-     * 		The output stream. Cannot be null.
-     * @throws IOException
-     * 		If something fails.
-     */
-    private void serializePathToDirtyHashIndex(
-            final Map<Long, Mutation<Long, Hash>> map, final SerializableDataOutputStream out) throws IOException {
-        assert snapshot.get() : "Only snapshots can be serialized";
-        out.writeInt(map.size());
-        for (final Map.Entry<Long, Mutation<Long, Hash>> entry : map.entrySet()) {
-            out.writeLong(entry.getKey());
-            final Mutation<Long, Hash> mutation = entry.getValue();
-            assert mutation != null : "Mutations cannot be null in a snapshot";
-            assert mutation.version <= this.fastCopyVersion.get()
-                    : "Trying to serialize pathToDirtyInternalIndex with a version ahead";
-            out.writeLong(mutation.version);
-            out.writeBoolean(mutation.isDeleted());
-            if (!mutation.isDeleted()) {
-                out.writeSerializable(mutation.value, true);
-            }
         }
     }
 
