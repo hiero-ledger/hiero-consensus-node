@@ -9,8 +9,11 @@ import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
+/**
+ * Helper class for looking up information about a roster.
+ */
 public class RosterLookup {
-    /** the only roster currently, until roster changes are implemented */
+    /** the roster to look up */
     private final Roster roster;
     /** the total weight of all roster entries. */
     private final long rosterTotalWeight;
@@ -19,6 +22,11 @@ public class RosterLookup {
     /** roster indices map. */
     private final Map<Long, Integer> rosterIndicesMap;
 
+    /**
+     * Constructor.
+     *
+     * @param roster the roster to look up
+     */
     public RosterLookup(@NonNull final Roster roster) {
         this.roster = roster;
         this.rosterTotalWeight = RosterUtils.computeTotalWeight(roster);
@@ -30,22 +38,41 @@ public class RosterLookup {
         this.nodeHasSupermajorityWeight = Threshold.SUPER_MAJORITY.isSatisfiedBy(maxWeight, rosterTotalWeight);
     }
 
+    /**
+     * @return the roster
+     */
     public Roster getRoster() {
         return roster;
     }
 
+    /**
+     * @return the total weight of all roster entries
+     */
     public long rosterTotalWeight() {
         return rosterTotalWeight;
     }
 
+    /**
+     * @return true if at least one node has a supermajority of the weight
+     */
     public boolean nodeHasSupermajorityWeight() {
         return nodeHasSupermajorityWeight;
     }
 
+    /**
+     * @return the number of members in the roster
+     */
     public int numMembers() {
         return roster.rosterEntries().size();
     }
 
+    /**
+     * Check if a node ID corresponds to a given index in the roster
+     *
+     * @param nodeId the ID of the node
+     * @param index  the index to check
+     * @return true if the node ID corresponds to the index, false otherwise
+     */
     public boolean idEqualsIndex(@NonNull final NodeId nodeId, final int index) {
         if (index < 0 || index >= roster.rosterEntries().size()) {
             return false;
@@ -55,8 +82,9 @@ public class RosterLookup {
 
     /**
      * Get the weigh of a node by its ID
+     *
      * @param nodeId the ID of the node
-     * @return the weight of the node, or 0 if the node is not in the address book
+     * @return the weight of the node, or 0 if the node is not in the roster
      */
     public long getWeight(@NonNull final NodeId nodeId) {
         final RosterEntry entry = roster.rosterEntries().get(rosterIndicesMap.get(nodeId.id()));
@@ -68,6 +96,7 @@ public class RosterLookup {
 
     /**
      * Get the weight of a node by its index
+     *
      * @param nodeIndex the index of the node
      * @return the weight of the node
      */
@@ -75,6 +104,12 @@ public class RosterLookup {
         return roster.rosterEntries().get(nodeIndex).weight();
     }
 
+    /**
+     * Get the index of a node by its ID
+     *
+     * @param nodeId the ID of the node
+     * @return the index of the node
+     */
     public int getRosterIndex(@NonNull final NodeId nodeId) {
         return rosterIndicesMap.get(nodeId.id()); // TODO handle null
     }
