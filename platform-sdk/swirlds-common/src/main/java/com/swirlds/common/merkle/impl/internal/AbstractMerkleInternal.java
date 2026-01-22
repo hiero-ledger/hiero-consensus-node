@@ -8,7 +8,6 @@ import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildTypeException;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
-import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
 import com.swirlds.common.merkle.interfaces.MerkleParent;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import java.util.List;
@@ -16,12 +15,12 @@ import org.hiero.base.exceptions.ReferenceCountException;
 
 /**
  * This abstract class implements boiler plate functionality for a binary {@link MerkleInternal} (i.e. an internal
- * node with 2 or fewer children). Classes that implement (@link MerkleInternal} are not required to extend an
- * abstract class such as this or {@link PartialNaryMerkleInternal}, but absent a reason it is recommended to do so
+ * node with 2 or fewer children). Classes that implement (@link MerkleInternal} are not required to extend this class,
+ * but absent a reason it is recommended to do so
  * in order to avoid re-implementation of this code.
  */
 public abstract sealed class AbstractMerkleInternal extends AbstractMerkleNode implements MerkleParent
-        permits PartialBinaryMerkleInternal, PartialNaryMerkleInternal {
+        permits PartialBinaryMerkleInternal {
 
     /**
      * Constructor for AbstractMerkleInternal.

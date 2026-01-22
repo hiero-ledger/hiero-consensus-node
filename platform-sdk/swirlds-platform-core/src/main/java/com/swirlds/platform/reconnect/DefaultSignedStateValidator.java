@@ -59,15 +59,11 @@ public class DefaultSignedStateValidator implements SignedStateValidator {
         State state = signedState.getState();
         if (roundOf(state) < previousStateData.round()
                 || consensusTimestampOf(state).isBefore(previousStateData.consensusTimestamp())) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    """
+            logger.error(EXCEPTION.getMarker(), """
                             State is too old. Failed reconnect state:
                             {}
                             Original reconnect state:
-                            {}""",
-                    getInfoString(state, hashDepth),
-                    previousStateData.getInfoString());
+                            {}""", getInfoString(state), previousStateData.getInfoString());
             throw new SignedStateInvalidException(("Received signed state is for a round smaller than or a "
                             + "consensus earlier than what we started with. Original round %d, received round %d. "
                             + "Original timestamp %s, received timestamp %s.")
