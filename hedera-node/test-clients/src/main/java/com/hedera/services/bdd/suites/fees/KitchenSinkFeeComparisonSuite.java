@@ -243,7 +243,9 @@ public class KitchenSinkFeeComparisonSuite {
                 // === COMPARE AND LOG RESULTS ===
                 logFeeComparison(legacyFees, simpleFees),
                 // === WRITE RESULTS TO CSV ===
-                writeFeeComparisonToCsv(legacyFees, simpleFees, "fee-comparison-crypto.csv"));
+                writeFeeComparisonToCsv(legacyFees, simpleFees, "fee-comparison-crypto.csv"),
+                writeFeeComparisonToJson(legacyFees, simpleFees, "fee-comparison-crypto.json")
+        );
     }
 
     /**
@@ -283,7 +285,9 @@ public class KitchenSinkFeeComparisonSuite {
                 // === COMPARE AND LOG RESULTS ===
                 logFeeComparison(legacyFees, simpleFees),
                 // === WRITE RESULTS TO CSV ===
-                writeFeeComparisonToCsv(legacyFees, simpleFees, "fee-comparison-full.csv"));
+                writeFeeComparisonToCsv(legacyFees, simpleFees, "fee-comparison-full.csv"),
+                writeFeeComparisonToJson(legacyFees, simpleFees, "fee-comparison-full.json")
+        );
     }
 
     // ==================== KEY CREATION ====================
@@ -3058,4 +3062,90 @@ public class KitchenSinkFeeComparisonSuite {
             }
         });
     }
+
+    private SpecOperation writeFeeComparisonToJson(
+            Map<String, Long> legacyFees, Map<String, Long> simpleFees, String filename) {
+        return withOpContext((spec, opLog) -> {
+            final var ratesProvider = spec.ratesProvider();
+            final boolean hasRates = ratesProvider.hasRateSet();
+            try (FileWriter writer = new FileWriter(filename)) {
+                var json = new JSONFormatter(writer);
+                for( String txnKey: legacyFees.keySet()) {
+                    // Parse the key to extract transaction name and emphasis
+                    String[] parts = txnKey.split("\\|", 2);
+                    String txnName = parts[0];
+                    String emphasis = parts.length > 1 ? parts[1] : "";
+
+                    // Extract the base name (remove prefix)
+                    String baseName = txnName.startsWith("legacy") ? txnName.substring(6) : txnName;
+                    String simpleTxnKey = "simple" + baseName + (emphasis.isEmpty() ? "" : "|" + emphasis);
+
+                    Long legacyFee = legacyFees.get(txnKey);
+                    Long simpleFee = simpleFees.get(simpleTxnKey);
+
+                    if (legacyFee != null && simpleFee != null) {
+                        long diff = simpleFee - legacyFee;
+                        double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
+                        // Escape commas in transaction name and emphasis
+                        String escapedBaseName = baseName.replace(",", ";");
+                        String escapedEmphasis = emphasis.replace(",", ";");
+                        json.startRecord();
+                        json.key("name",escapedBaseName);
+                        json.key("desc",escapedEmphasis);
+                        json.key("old_hbar",legacyFee);
+                        json.key("old_usd",ratesProvider.toUsdWithActiveRates(legacyFee));
+                        json.key("simple_hbar",ratesProvider.toUsdWithActiveRates(legacyFee));
+                        json.key("simple_usd",ratesProvider.toUsdWithActiveRates(legacyFee));
+                        json.key("diff_hbar",diff);
+                        json.key("diff_usd",ratesProvider.toUsdWithActiveRates(diff));
+                        json.key("change",pctChange);
+                        json.endRecord();
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to write JSON file: " + filename, e);
+            }
+
+        });
+    }
+
+    class JSONFormatter {
+
+        private final FileWriter writer;
+        private boolean start;
+
+        public JSONFormatter(FileWriter writer) {
+            this.writer = writer;
+            this.start = false;
+        }
+
+        public void startRecord() throws IOException {
+            writer.write("{ ");
+            this.start = true;
+        }
+
+        public void key(String key, String value) throws IOException {
+            if(!this.start) {
+                writer.append(", ");
+            }
+            writer.append(String.format("\"%s\":\"%s\"",key,value));
+            this.start = false;
+        }
+
+        public void endRecord() throws IOException {
+            writer.write("}\n");
+        }
+
+        public void key(String name, long value) throws IOException {
+            key(name, ""+value);
+        }
+
+        public void key(String name, double value) throws IOException {
+            key(name, String.format("%.5f",value));
+        }
+    }
+    private void json_key(FileWriter writer, String baseName, String escapedBaseName) throws IOException {
+        writer.append(String.format("\"%s\":\"%s\" ",baseName,escapedBaseName));
+    }
+
 }
