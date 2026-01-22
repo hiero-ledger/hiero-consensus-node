@@ -87,7 +87,11 @@ public class RosterLookup {
      * @return the weight of the node, or 0 if the node is not in the roster
      */
     public long getWeight(@NonNull final NodeId nodeId) {
-        final RosterEntry entry = roster.rosterEntries().get(rosterIndicesMap.get(nodeId.id()));
+        final Integer index = rosterIndicesMap.get(nodeId.id());
+        if (index == null) {
+            return 0;
+        }
+        final RosterEntry entry = roster.rosterEntries().get(index);
         if (entry == null) {
             return 0;
         }
