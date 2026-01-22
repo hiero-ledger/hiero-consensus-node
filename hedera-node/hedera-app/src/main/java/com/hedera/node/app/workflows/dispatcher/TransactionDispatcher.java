@@ -194,7 +194,8 @@ public class TransactionDispatcher {
                     CONTRACT_CALL,
                     CONTRACT_UPDATE_INSTANCE,
                     ETHEREUM_TRANSACTION,
-                    HOOK_STORE -> true;
+                    HOOK_STORE,
+                    HOOK_DISPATCH -> true;
             default -> false;
         };
     }
