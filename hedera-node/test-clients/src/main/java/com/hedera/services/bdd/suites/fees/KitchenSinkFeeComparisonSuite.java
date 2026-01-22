@@ -3051,8 +3051,8 @@ public class KitchenSinkFeeComparisonSuite {
                         json.key("desc", escapedEmphasis);
                         json.key("old_hbar", legacyFee);
                         json.key("old_usd", ratesProvider.toUsdWithActiveRates(legacyFee));
-                        json.key("simple_hbar", ratesProvider.toUsdWithActiveRates(legacyFee));
-                        json.key("simple_usd", ratesProvider.toUsdWithActiveRates(legacyFee));
+                        json.key("simple_hbar", simpleFee);
+                        json.key("simple_usd", ratesProvider.toUsdWithActiveRates(simpleFee));
                         json.key("diff_hbar", diff);
                         json.key("diff_usd", ratesProvider.toUsdWithActiveRates(diff));
                         json.key("change", pctChange);
