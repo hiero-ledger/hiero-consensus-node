@@ -45,8 +45,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -84,12 +82,14 @@ import org.junit.jupiter.api.Assertions;
 public class StateAndBlockHashesValidator implements BlockStreamValidator {
 
     private static final Logger logger = LogManager.getLogger(StateAndBlockHashesValidator.class);
-    private static final MerkleCryptography CRYPTO = TestMerkleCryptoFactory.getInstance();
 
     private static final Bytes FINAL_EXPECTED_STATE_HASH = Bytes.fromHex(
             "aa6f556fb309bec4daa93ca61938590e9c9481bf4a8d13e1f919ee3571818f0a89d102cde7a493b1726eebcdbe4e1390");
+    private static final Bytes FINAL_EXPECTED_BLOCK_HASH = Bytes.fromHex(
+            "c5d98c62812c9fb5c19082f2b218a842682402c2b4e559b0c413e6ba17933a43b91b13c7bd4a9602afad76c1706d98e3");
 
     private final Bytes expectedStateRootHash;
+    private final Bytes expectedFinalBlockHash;
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
     private final Map<String, Set<Object>> entityChanges = new LinkedHashMap<>();
     private final IndirectProofSequenceValidator indirectProofSeq = new IndirectProofSequenceValidator();
@@ -103,23 +103,29 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
     public static void main(String[] args) {
         final long shard = 11;
         final long realm = 12;
-        final var validator = new StateAndBlockHashesValidator(FINAL_EXPECTED_STATE_HASH, shard, realm);
+        final var validator =
+                new StateAndBlockHashesValidator(FINAL_EXPECTED_STATE_HASH, FINAL_EXPECTED_BLOCK_HASH, shard, realm);
         final var blocks = loadBlocks();
         validator.validateBlocks(blocks);
         logger.info("All blocks validated successfully");
     }
 
     public StateAndBlockHashesValidator(
-            @NonNull final Bytes expectedStateRootHash, final long shard, final long realm) {
-        this(expectedStateRootHash, shard, realm, false);
+            @NonNull final Bytes expectedStateRootHash,
+            @NonNull final Bytes expectedFinalBlockHash,
+            final long shard,
+            final long realm) {
+        this(expectedStateRootHash, expectedFinalBlockHash, shard, realm, false);
     }
 
     public StateAndBlockHashesValidator(
             @NonNull final Bytes expectedStateRootHash,
+            @NonNull final Bytes expectedFinalBlockHash,
             final long shard,
             final long realm,
             final boolean initStatesApi) {
         this.expectedStateRootHash = requireNonNull(expectedStateRootHash);
+        this.expectedFinalBlockHash = requireNonNull(expectedFinalBlockHash);
 
         System.setProperty("hedera.shard", String.valueOf(shard));
         System.setProperty("hedera.realm", String.valueOf(realm));
@@ -240,7 +246,10 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
 
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
-        logger.info("Beginning validation of expected root hash {}", expectedStateRootHash);
+        logger.info(
+                "Beginning validation of expected state root hash {}, expected final block hash {}",
+                expectedStateRootHash,
+                expectedFinalBlockHash);
         var previousBlockHash = BlockStreamManager.ZERO_BLOCK_HASH;
         var startOfStateHash = requireNonNull(BlockStreamManager.ZERO_BLOCK_HASH);
 
@@ -261,8 +270,7 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
             if (i != 0) {
                 final var stateToBeCopied = state;
                 this.state = stateToBeCopied.copy();
-                startOfStateHash =
-                        CRYPTO.digestTreeSync(stateToBeCopied.getRoot()).getBytes();
+                startOfStateHash = stateToBeCopied.getHash().getBytes();
                 logger.info("New start of state hash for block {}: {}", i, startOfStateHash);
             }
             final IncrementalStreamingHasher inputTreeHasher =
@@ -361,7 +369,7 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
 
         // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
         state.copy();
-        CRYPTO.digestTreeSync(state.getRoot());
+        state.getRoot().getHash();
         final var finalStateRootHash = requireNonNull(state.getHash()).getBytes();
 
         // Only validate final root hash if a non-zero expected value was provided
@@ -369,7 +377,14 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
             Assertions.fail(
                     "Final root hash mismatch - expected " + expectedStateRootHash + ", was " + finalStateRootHash);
         } else {
-            logger.info("Final state root hash: {}", finalStateRootHash);
+            logger.info("Verified final state root hash: {}", finalStateRootHash);
+        }
+
+        if (!expectedFinalBlockHash.equals(previousBlockHash)) {
+            Assertions.fail(
+                    "Final block hash mismatch - expected " + expectedFinalBlockHash + ", was " + previousBlockHash);
+        } else {
+            logger.info("Verified final block hash: {}", previousBlockHash);
         }
 
         indirectProofSeq.verify();
@@ -479,7 +494,6 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
         System.out.println("Updated Subroot '" + name + "': ");
         System.out.println("Intermediate hash state: " + hasher.intermediateHashingState());
         System.out.println("Leaf count: " + hasher.leafCount());
-        System.out.println("------------------------------");
     }
 
     private void hashSubTrees(
