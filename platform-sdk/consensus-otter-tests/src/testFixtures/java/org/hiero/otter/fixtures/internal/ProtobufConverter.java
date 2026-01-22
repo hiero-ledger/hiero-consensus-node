@@ -25,22 +25,6 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ EventDescriptor to a Legacy EventDescriptor.
-     *
-     * @param sourceEventDescriptor the PBJ EventDescriptor to convert
-     * @return the converted Legacy EventDescriptor
-     */
-    @NonNull
-    public static com.hedera.hapi.platform.event.legacy.EventDescriptor fromPbj(
-            @NonNull final com.hedera.hapi.platform.event.EventDescriptor sourceEventDescriptor) {
-        return com.hedera.hapi.platform.event.legacy.EventDescriptor.newBuilder()
-                .setHash(fromPbj(sourceEventDescriptor.hash()))
-                .setCreatorNodeId(sourceEventDescriptor.creatorNodeId())
-                .setBirthRound(sourceEventDescriptor.birthRound())
-                .build();
-    }
-
-    /**
      * Converts an Otter PlatformEvent to the consensus model PlatformEvent.
      *
      * @param sourcePlatformEvent the PBJ GossipEvent to convert
@@ -54,59 +38,6 @@ public class ProtobufConverter {
         new PbjStreamHasher().hashEvent(platformEvent);
         platformEvent.setConsensusData(sourcePlatformEvent.consensusData());
         return platformEvent;
-    }
-
-    /**
-     * Converts a PBJ EventCore to a Legacy EventCore.
-     *
-     * @param sourceEventCore the PBJ EventCore to convert
-     * @return the converted Legacy EventCore
-     */
-    @NonNull
-    public static com.hedera.hapi.platform.event.legacy.EventCore fromPbj(
-            @NonNull final com.hedera.hapi.platform.event.EventCore sourceEventCore) {
-        return com.hedera.hapi.platform.event.legacy.EventCore.newBuilder()
-                .setCreatorNodeId(sourceEventCore.creatorNodeId())
-                .setBirthRound(sourceEventCore.birthRound())
-                .setTimeCreated(sourceEventCore.timeCreated() != null ? fromPbj(sourceEventCore.timeCreated()) : null)
-                .build();
-    }
-
-    /**
-     * Converts a PBJ Timestamp to a Legacy Timestamp.
-     *
-     * @param sourceTimestamp the PBJ Timestamp to convert
-     * @return the converted Legacy Timestamp
-     */
-    @NonNull
-    public static com.hederahashgraph.api.proto.java.Timestamp fromPbj(
-            final com.hedera.hapi.node.base.Timestamp sourceTimestamp) {
-        return com.hederahashgraph.api.proto.java.Timestamp.newBuilder()
-                .setSeconds(sourceTimestamp.seconds())
-                .setNanos(sourceTimestamp.nanos())
-                .build();
-    }
-
-    /**
-     * Converts a Legacy ByteString to a PBJ Bytes.
-     *
-     * @param sourceBytes the Legacy ByteString to convert
-     * @return the converted PBJ Bytes
-     */
-    @NonNull
-    public static com.hedera.pbj.runtime.io.buffer.Bytes toPbj(final com.google.protobuf.ByteString sourceBytes) {
-        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(sourceBytes.toByteArray());
-    }
-
-    /**
-     * Converts a PBJ Bytes to a Legacy ByteString.
-     *
-     * @param sourceBytes the PBJ Bytes to convert
-     * @return the converted Legacy ByteString
-     */
-    @NonNull
-    public static com.google.protobuf.ByteString fromPbj(final com.hedera.pbj.runtime.io.buffer.Bytes sourceBytes) {
-        return com.google.protobuf.ByteString.copyFrom(sourceBytes.toByteArray());
     }
 
     /**
