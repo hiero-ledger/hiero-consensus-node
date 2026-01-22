@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.platform.state.signed.SigSet;
@@ -85,7 +86,7 @@ class SigSetTests {
 
     @Test
     @DisplayName("Serialization Test")
-    void serializationTest() throws IOException {
+    void serializationTest() throws IOException, ParseException {
         final Random random = getRandomPrintSeed();
 
         final Map<NodeId, Signature> signatures = generateSignatureMap(random);

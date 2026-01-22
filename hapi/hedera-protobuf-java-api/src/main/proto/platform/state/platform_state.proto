@@ -205,3 +205,32 @@ message NodeId {
    */
   uint64 id = 1;
 }
+
+/**
+  * A set of signatures from consensus nodes.<br/>
+  * This message contains a list of node ID and signature pairs.
+ */
+message SigSet {
+    /**
+     * A list of node ID and signature pairs.
+     */
+    repeated NodeIdSignaturePair nodeIdSignaturePairs = 1;
+}
+/**
+  * A pair of node ID and signature bytes.<br/>
+  * This message contains a node ID, signature type, and signature bytes.
+ */
+message NodeIdSignaturePair {
+    /**
+      * A node identifier.<br/>
+     */
+    int64 nodeId = 1;
+    /**
+      * A signature type.<br/>
+     */
+    int32 signatureType = 2;
+    /**
+      * Signature bytes.<br/>
+     */
+    bytes signatureBytes = 3;
+}
