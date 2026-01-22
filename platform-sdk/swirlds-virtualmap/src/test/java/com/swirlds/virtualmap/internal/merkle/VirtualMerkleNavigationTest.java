@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
-import static com.swirlds.common.merkle.iterators.MerkleIterationOrder.BREADTH_FIRST;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.common.merkle.route.ReverseMerkleRouteIterator;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
-import java.util.Iterator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -127,72 +124,6 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
         assertEquals(EGGPLANT, e.getValue(TestValueCodec.INSTANCE), "Wrong " + "value");
         assertEquals(FIG, f.getValue(TestValueCodec.INSTANCE), "Wrong value");
         assertEquals(GRAPE, g.getValue(TestValueCodec.INSTANCE), "Wrong value");
-    }
-
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("TreeNav")})
-    @DisplayName("Verify that the tree is navigable using a breadth first iterator")
-    void treeIsNavigableByBreadthFirstIterator() {
-        final Iterator<MerkleNode> itr = treeRoot.treeIterator().setOrder(BREADTH_FIRST);
-        assertSame(treeRoot, itr.next(), "Wrong value");
-        assertSame(tl, itr.next(), "Wrong value");
-        assertSame(tr, itr.next(), "Wrong value");
-        assertSame(tll, itr.next(), "Wrong value");
-        assertSame(tlr, itr.next(), "Wrong value");
-        assertSame(trl, itr.next(), "Wrong value");
-        assertSame(trr, itr.next(), "Wrong value");
-        assertSame(tlll, itr.next(), "Wrong value");
-        assertSame(tllr, itr.next(), "Wrong value");
-        assertSame(tlrl, itr.next(), "Wrong value");
-        assertSame(vm, itr.next(), "Wrong value");
-        assertSame(trll, itr.next(), "Wrong value");
-        assertSame(trlr, itr.next(), "Wrong value");
-        assertEquals(left, itr.next(), "Wrong value");
-        assertEquals(right, itr.next(), "Wrong value");
-        assertEquals(leftLeft, itr.next(), "Wrong value");
-        assertEquals(leftRight, itr.next(), "Wrong value");
-        assertEquals(rightLeft, itr.next(), "Wrong value");
-        assertEquals(d, itr.next(), "Wrong value");
-        assertEquals(a, itr.next(), "Wrong value");
-        assertEquals(e, itr.next(), "Wrong value");
-        assertEquals(c, itr.next(), "Wrong value");
-        assertEquals(f, itr.next(), "Wrong value");
-        assertEquals(b, itr.next(), "Wrong value");
-        assertEquals(g, itr.next(), "Wrong value");
-        assertFalse(itr.hasNext(), "Expected iteration to have ended");
-    }
-
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("TreeNav")})
-    @DisplayName("Verify that the tree is navigable using a depth first iterator")
-    void treeIsNavigableByDepthFirstIterator() {
-        final Iterator<MerkleNode> itr = treeRoot.treeIterator();
-        assertSame(tlll, itr.next(), "Wrong value");
-        assertSame(tllr, itr.next(), "Wrong value");
-        assertSame(tll, itr.next(), "Wrong value");
-        assertSame(tlrl, itr.next(), "Wrong value");
-        assertEquals(a, itr.next(), "Wrong value");
-        assertEquals(e, itr.next(), "Wrong value");
-        assertEquals(leftLeft, itr.next(), "Wrong value");
-        assertEquals(c, itr.next(), "Wrong value");
-        assertEquals(f, itr.next(), "Wrong value");
-        assertEquals(leftRight, itr.next(), "Wrong value");
-        assertEquals(left, itr.next(), "Wrong value");
-        assertEquals(b, itr.next(), "Wrong value");
-        assertEquals(g, itr.next(), "Wrong value");
-        assertEquals(rightLeft, itr.next(), "Wrong value");
-        assertEquals(d, itr.next(), "Wrong value");
-        assertEquals(right, itr.next(), "Wrong value");
-        assertSame(vm, itr.next(), "Wrong value");
-        assertSame(tlr, itr.next(), "Wrong value");
-        assertSame(tl, itr.next(), "Wrong value");
-        assertSame(trll, itr.next(), "Wrong value");
-        assertSame(trlr, itr.next(), "Wrong value");
-        assertSame(trl, itr.next(), "Wrong value");
-        assertSame(trr, itr.next(), "Wrong value");
-        assertSame(tr, itr.next(), "Wrong value");
-        assertSame(treeRoot, itr.next(), "Wrong value");
-        assertFalse(itr.hasNext(), "Expected iteration to have ended");
     }
 
     @Test

@@ -78,6 +78,6 @@ public final class StateInitializer {
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
         logger.info(STARTUP.getMarker(), """
                         The platform is using the following initial state:
-                        {}""", getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
+                        {}""", getInfoString(signedState.getState()));
     }
 }

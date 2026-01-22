@@ -79,8 +79,7 @@ import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -557,7 +556,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             if (expectedRootMnemonic == null) {
                 throw new AssertionError("No expected root mnemonic found in " + pathToNode0SwirldsLog);
             }
-            final var actualRootMnemonic = rootMnemonicFor(state.getRoot());
+            final var actualRootMnemonic =
+                    Mnemonics.generateMnemonic(state.getRoot().getHash());
             final var errorMsg = new StringBuilder("Hashes did not match for the following states,");
 
             if (!expectedRootMnemonic.equals(actualRootMnemonic)) {
@@ -813,13 +813,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                     proof.signedBlockProofOrThrow().blockSignature(),
                     "Signature mismatch for " + proof);
         }
-    }
-
-    private String rootMnemonicFor(@NonNull final MerkleNode state) {
-        final var sb = new StringBuilder();
-        new MerkleTreeVisualizer(state).setDepth(VISUALIZATION_HASH_DEPTH).render(sb);
-        logger.info("Replayed hashes:\n{}", sb);
-        return extractRootMnemonic(sb.toString());
     }
 
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {
