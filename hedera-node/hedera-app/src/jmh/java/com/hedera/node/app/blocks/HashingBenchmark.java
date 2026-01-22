@@ -2,7 +2,6 @@
 package com.hedera.node.app.blocks;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
@@ -13,11 +12,11 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.ConcurrentStreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -58,13 +57,12 @@ public class HashingBenchmark {
     private Bytes expectedAnswer;
 
     @Setup(Level.Trial)
-    public void setup() throws IOException {
-        final var digest = sha384DigestOrThrow();
+    public void setup() {
         leafHashes = new ArrayList<>(numLeafHashes);
         for (int i = 0; i < numLeafHashes; i++) {
             final var item = randomBlockItem();
-            final var hash = digest.digest(BlockItem.PROTOBUF.toBytes(item).toByteArray());
-            leafHashes.add(hash);
+            final var hash = BlockImplUtils.hashLeaf(BlockItem.PROTOBUF.toBytes(item));
+            leafHashes.add(hash.toByteArray());
         }
         expectedAnswer = NaiveStreamingTreeHasher.computeRootHash(leafHashes);
     }
