@@ -11,7 +11,6 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoStrin
 import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.INIT_SIG_SET_FILE_VERSION;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static java.util.Objects.requireNonNull;
 
@@ -21,7 +20,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
@@ -94,19 +92,6 @@ public final class SignedStateFileWriter {
         final Path metadataFile = directory.resolve(SavedStateMetadata.FILE_NAME);
 
         SavedStateMetadata.create(signedState, selfId, Instant.now()).write(metadataFile);
-    }
-
-    /**
-     * Write a {@link SigSet} to a stream.
-     *
-     * @param out         the stream to write to
-     * @param signedState the signed state to write
-     */
-    private static void writeSignatureSetToStream(final SerializableDataOutputStream out, final SignedState signedState)
-            throws IOException {
-        out.writeInt(INIT_SIG_SET_FILE_VERSION);
-        out.writeProtocolVersion();
-        out.writeSerializable(signedState.getSigSet(), true);
     }
 
     /**

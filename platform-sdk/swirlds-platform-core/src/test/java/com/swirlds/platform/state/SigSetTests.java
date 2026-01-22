@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.platform.state.signed.SigSet;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -18,11 +20,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Signature;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -87,29 +85,35 @@ class SigSetTests {
 
     @Test
     @DisplayName("Serialization Test")
-    void serializationTest() throws IOException, ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("");
-
+    void serializationTest() throws IOException {
         final Random random = getRandomPrintSeed();
+
+        final Map<NodeId, Signature> signatures = generateSignatureMap(random);
         final SigSet sigSet = new SigSet();
+        for (final NodeId node : signatures.keySet()) {
+            sigSet.addSignature(node, signatures.get(node));
+        }
 
-        generateSignatureMap(random).forEach(sigSet::addSignature);
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (final WritableStreamingData out = new WritableStreamingData(baos)) {
+            sigSet.serialize(out);
+        }
 
-        final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final byte[] serializedBytes = baos.toByteArray();
+        final ByteArrayInputStream bais = new ByteArrayInputStream(serializedBytes);
+        try (final ReadableStreamingData in = new ReadableStreamingData(bais)) {
+            final SigSet deserialized = new SigSet();
+            deserialized.deserialize(in);
 
-        out.writeSerializable(sigSet, true);
+            assertEqualsSigSet(sigSet, deserialized);
+        }
+    }
 
-        final SerializableDataInputStream in =
-                new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
-
-        final SigSet deserializedSigSet = in.readSerializable();
-
-        assertEquals(sigSet.size(), deserializedSigSet.size());
-        assertEquals(getSigningNodes(sigSet), getSigningNodes(deserializedSigSet));
-
-        for (final NodeId node : sigSet) {
-            assertEquals(sigSet.getSignature(node), deserializedSigSet.getSignature(node));
+    private static void assertEqualsSigSet(final SigSet expected, final SigSet actual) {
+        assertEquals(expected.size(), actual.size());
+        for (final NodeId nodeId : expected) {
+            assertTrue(actual.hasSignature(nodeId));
+            assertEquals(expected.getSignature(nodeId), actual.getSignature(nodeId));
         }
     }
 }

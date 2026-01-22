@@ -22,16 +22,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.hiero.base.crypto.Signature;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Signatures of the hash of a state.
+ * Objects of this class are serialized using the following protobuf schema:
+ * <pre>{@code
+ *
+ *  message SigSet {
+ *    repeated Signatures signature = 1;
+ *  }
+ *
+ *  message NodeIdSignaturePair {
+ *    int64 nodeId = 1;
+ *    int32 singatureType = 2;
+ *    Bytes singatureBytes = 3;
+ *  }
+ *  }
+ *  </pre>
+ *
  */
-public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable {
-    private static final long CLASS_ID = 0x756d0ee945226a92L;
+public class SigSet implements FastCopyable, Iterable<NodeId> {
 
     private static final FieldDefinition FIELD_SIGNATURES =
             new FieldDefinition("signatures", FieldType.MESSAGE, true, true, false, 1);
@@ -46,13 +57,6 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
      * The maximum allowed signature count. Used to prevent serialization DOS attacks.
      */
     public static final int MAX_SIGNATURE_COUNT = 1024;
-
-    private static class ClassVersion {
-        public static final int ORIGINAL = 1;
-        public static final int MIGRATE_TO_SERIALIZABLE = 2;
-        public static final int CLEANUP = 3;
-        public static final int SELF_SERIALIZABLE_NODE_ID = 4;
-    }
 
     private final Map<NodeId, Signature> signatures = new HashMap<>();
 
@@ -167,14 +171,6 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getMinimumSupportedVersion() {
-        return ClassVersion.CLEANUP;
-    }
-
-    /**
      * Serialize this object to a PBJ stream.
      *
      * @param out the stream to write to
@@ -187,21 +183,21 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
             final Signature signature = signatures.get(nodeId);
             final Bytes signatureBytes = signature.getBytes();
 
-            // Write the tag for the repeated signatures field
-            ProtoWriterTools.writeTag(out, FIELD_SIGNATURES);
-
             // Each signature is a message, so we need to calculate its size
-            int msgSize = calculateSignatureMsgSize(nodeId, signature);
+            final int msgSize = calculateSignatureMsgSize(nodeId, signature);
+            ProtoWriterTools.writeDelimited(out, FIELD_SIGNATURES, msgSize, o -> {
+                try {
+                    ProtoWriterTools.writeTag(o, FIELD_NODE_ID);
+                    o.writeVarLong(nodeId.id(), false);
 
-            out.writeVarInt(msgSize, false);
+                    ProtoWriterTools.writeTag(o, FIELD_SIGNATURE_TYPE);
+                    o.writeVarInt(signature.getType().ordinal(), false);
 
-            ProtoWriterTools.writeTag(out, FIELD_NODE_ID);
-            out.writeVarLong(nodeId.id(), false);
-
-            ProtoWriterTools.writeTag(out, FIELD_SIGNATURE_TYPE);
-            out.writeVarInt(signature.getType().ordinal(), false);
-
-            ProtoWriterTools.writeBytes(out, FIELD_SIGNATURE_BYTES, signatureBytes);
+                    ProtoWriterTools.writeBytes(o, FIELD_SIGNATURE_BYTES, signatureBytes);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
     }
 
@@ -299,60 +295,5 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
         } else {
             throw new IOException("Unsupported wire type: " + wireType);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        out.writeInt(signatures.size());
-
-        final List<NodeId> sortedIds = new ArrayList<>(signatures.size());
-        signatures.keySet().stream().sorted().forEachOrdered(sortedIds::add);
-
-        for (final NodeId nodeId : sortedIds) {
-            out.writeSerializable(nodeId, false);
-            signatures.get(nodeId).serialize(out, false);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        final int signatureCount = in.readInt();
-        if (signatureCount > MAX_SIGNATURE_COUNT) {
-            throw new IOException(
-                    "Signature count of " + signatureCount + " exceeds maximum of " + MAX_SIGNATURE_COUNT);
-        }
-
-        for (int index = 0; index < signatureCount; index++) {
-            final NodeId nodeId;
-            if (version < ClassVersion.SELF_SERIALIZABLE_NODE_ID) {
-                nodeId = NodeId.of(in.readLong());
-            } else {
-                nodeId = in.readSerializable(false, NodeId::new);
-            }
-            final Signature signature = Signature.deserialize(in, false);
-            signatures.put(nodeId, signature);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.SELF_SERIALIZABLE_NODE_ID;
     }
 }
