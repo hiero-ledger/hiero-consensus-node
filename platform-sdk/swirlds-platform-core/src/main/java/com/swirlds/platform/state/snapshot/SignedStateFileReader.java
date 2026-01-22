@@ -70,7 +70,6 @@ public final class SignedStateFileReader {
         if (pbjFile.exists()) {
             sigSet = new SigSet();
             try (final ReadableStreamingData in = new ReadableStreamingData(new FileInputStream(pbjFile))) {
-                in.limit(pbjFile.length());
                 sigSet.deserialize(in);
             }
         } else {

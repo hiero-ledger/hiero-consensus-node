@@ -158,8 +158,10 @@ public class SigSet implements FastCopyable, Iterable<NodeId> {
             signaturePairs.add(
                     new NodeIdSignaturePair(nodeId.id(), signature.getType().ordinal(), signatureBytes));
         }
-        com.hedera.hapi.platform.state.SigSet.PROTOBUF.write(
-                new com.hedera.hapi.platform.state.SigSet(signaturePairs), out);
+
+        final com.hedera.hapi.platform.state.SigSet sigSet = new com.hedera.hapi.platform.state.SigSet(signaturePairs);
+        out.writeVarInt(com.hedera.hapi.platform.state.SigSet.PROTOBUF.measureRecord(sigSet), false);
+        com.hedera.hapi.platform.state.SigSet.PROTOBUF.write(sigSet, out);
     }
 
     /**
@@ -170,7 +172,14 @@ public class SigSet implements FastCopyable, Iterable<NodeId> {
      */
     public void deserialize(@NonNull final ReadableStreamingData in) throws IOException, ParseException {
         signatures.clear();
+
+        final long length = in.readVarInt(false);
+        final long limitBefore = in.limit();
+        in.limit(in.position() + length);
+
         final com.hedera.hapi.platform.state.SigSet sigSet = com.hedera.hapi.platform.state.SigSet.PROTOBUF.parse(in);
+        in.limit(limitBefore);
+
         final List<NodeIdSignaturePair> nodeIdSignaturePairs = sigSet.nodeIdSignaturePairs();
         if (nodeIdSignaturePairs.size() > MAX_SIGNATURE_COUNT) {
             throw new IOException(
