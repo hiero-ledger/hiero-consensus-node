@@ -12,7 +12,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
@@ -84,8 +83,7 @@ public final class FakePlatform implements Platform {
                 Time.getCurrent(),
                 metrics,
                 FileSystemManager.create(configuration),
-                new NoOpRecycleBin(),
-                MerkleCryptographyFactory.create(configuration));
+                new NoOpRecycleBin());
     }
 
     @Override

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,7 +27,7 @@ public class FeeResult {
      * */
     public void addServiceFee(long count, long cost) {
         details.add(new FeeDetail(count, cost));
-        service = clampedAdd(service, count * cost);
+        service = clampedAdd(service, clampedMultiply(count, cost));
     }
 
     /** Add a node fee with details.
@@ -34,7 +36,7 @@ public class FeeResult {
      * */
     public void addNodeFee(long count, long cost) {
         details.add(new FeeDetail(count, cost));
-        node = clampedAdd(node, count * cost);
+        node = clampedAdd(node, clampedMultiply(count, cost));
     }
 
     /** Add a network fee with details.
@@ -43,6 +45,13 @@ public class FeeResult {
     public void addNetworkFee(long cost) {
         details.add(new FeeDetail(1, cost));
         network = clampedAdd(network, cost);
+    }
+
+    public void clearFees() {
+        node = 0L;
+        network = 0L;
+        service = 0L;
+        details.clear();
     }
 
     /** the total fee in tinycents. */

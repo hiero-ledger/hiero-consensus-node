@@ -6,7 +6,6 @@ import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.WireFilter;
 import com.swirlds.component.framework.wires.output.OutputWire;
@@ -45,12 +44,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.Queue;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.orphan.OrphanBuffer;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.
@@ -85,12 +84,7 @@ public class PlatformWiring {
         components
                 .eventIntakeModule()
                 .validatedEventsOutputWire()
-                .solderTo(components.orphanBufferWiring().getInputWire(OrphanBuffer::handleEvent, "unordered events"));
-        final OutputWire<PlatformEvent> splitOrphanBufferOutput =
-                components.orphanBufferWiring().getSplitOutput();
-
-        splitOrphanBufferOutput.solderTo(
-                components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::writeEvent));
+                .solderTo(components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::writeEvent));
 
         // Make sure that an event is persisted before being sent to consensus. This avoids the situation where we
         // reach consensus with events that might be lost due to a crash
@@ -127,8 +121,10 @@ public class PlatformWiring {
                 .getHealthMonitorWire()
                 .solderTo("executionHealthInput", "healthyDuration", execution::reportUnhealthyDuration);
 
-        splitOrphanBufferOutput.solderTo(
-                components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
+        components
+                .eventIntakeModule()
+                .validatedNonPersistedEventsOutputWire()
+                .solderTo(components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
         components
                 .branchDetectorWiring()
                 .getOutputWire()
@@ -387,8 +383,11 @@ public class PlatformWiring {
         solderNotifier(components);
 
         if (callbacks.preconsensusEventConsumer() != null) {
-            splitOrphanBufferOutput.solderTo(
-                    "preConsensusEventCallback", "pre-consensus events", callbacks.preconsensusEventConsumer());
+            components
+                    .eventIntakeModule()
+                    .validatedNonPersistedEventsOutputWire()
+                    .solderTo(
+                            "preConsensusEventCallback", "pre-consensus events", callbacks.preconsensusEventConsumer());
         }
 
         buildUnsolderedWires(components);
@@ -403,23 +402,22 @@ public class PlatformWiring {
     public static void wireMetrics(
             @NonNull final PlatformComponents components, @Nullable final EventPipelineTracker pipelineTracker) {
         if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("orphanBuffer");
-            components
-                    .orphanBufferWiring()
-                    .getOutputWire()
-                    .solderForMonitoring(
-                            platformEvents -> pipelineTracker.recordEvents("orphanBuffer", platformEvents));
             pipelineTracker.registerMetric("pces");
             components
                     .pcesInlineWriterWiring()
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("pces", platformEvent));
+                    .solderForMonitoring(
+                            platformEvent -> pipelineTracker.recordEvent("pces", platformEvent.getTimeReceived()));
             pipelineTracker.registerMetric("consensus");
             components
                     .consensusEngineWiring()
                     .getOutputWire()
-                    .solderForMonitoring(consensusEngineOutput ->
-                            pipelineTracker.recordRounds("consensus", consensusEngineOutput.consensusRounds()));
+                    .solderForMonitoring(consensusEngineOutput -> pipelineTracker.recordEvents(
+                            "consensus",
+                            consensusEngineOutput.consensusRounds().stream()
+                                    .flatMap(round ->
+                                            round.getConsensusEvents().stream().map(PlatformEvent::getTimeReceived))
+                                    .toList()));
         }
     }
 
@@ -431,8 +429,6 @@ public class PlatformWiring {
                 components.eventWindowManagerWiring().getOutputWire();
 
         eventWindowOutputWire.solderTo(components.eventIntakeModule().eventWindowInputWire(), INJECT);
-        eventWindowOutputWire.solderTo(
-                components.orphanBufferWiring().getInputWire(OrphanBuffer::setEventWindow, "event window"), INJECT);
         eventWindowOutputWire.solderTo(components.gossipWiring().getEventWindowInput(), INJECT);
         eventWindowOutputWire.solderTo(
                 components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::updateNonAncientEventBoundary),
@@ -480,7 +476,6 @@ public class PlatformWiring {
         components.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
         components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
         components.eventWindowManagerWiring().getInputWire(EventWindowManager::updateEventWindow);
-        components.orphanBufferWiring().getInputWire(OrphanBuffer::clear);
         components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::registerDiscontinuity);
         components.stateSignatureCollectorWiring().getInputWire(StateSignatureCollector::clear);
         components.issDetectorWiring().getInputWire(IssDetector::overridingState);
