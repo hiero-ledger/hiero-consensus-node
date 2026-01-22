@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Tag;
 public class ConsensusServiceSimpleFeesSuite {
     private static final double EXPECTED_CRYPTO_TRANSFER_FEE = 0.0001;
     private static final double EXPECTED_SUBMIT_MESSAGE_FEE = 0.0008;
+    private static final double EXPECTED_SUBMIT_CUSTOM_MESSAGE_FEE = 0.05;
 
     @Nested
     class TopicFeesComparison {
@@ -317,5 +318,19 @@ public class ConsensusServiceSimpleFeesSuite {
                         .fee(ONE_HBAR)
                         .via("submitTxn"),
                 validateChargedUsd("submitTxn", EXPECTED_SUBMIT_MESSAGE_FEE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> submitMessageWithCustomBaseFee() {
+        return hapiTest(
+                cryptoCreate("collector"),
+                cryptoCreate("payer"),
+                createTopic("customTopic").withConsensusCustomFee(fixedConsensusHbarFee(333, "collector")),
+                submitMessageTo("customTopic")
+                        .message("asdf")
+                        .payingWith("payer")
+                        .fee(ONE_HBAR)
+                        .via("submitTxn"),
+                validateChargedUsd("submitTxn", EXPECTED_SUBMIT_CUSTOM_MESSAGE_FEE));
     }
 }
