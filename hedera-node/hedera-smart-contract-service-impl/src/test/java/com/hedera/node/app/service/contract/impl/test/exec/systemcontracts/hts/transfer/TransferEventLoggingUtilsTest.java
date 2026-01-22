@@ -240,4 +240,38 @@ public class TransferEventLoggingUtilsTest {
                                 PARANOID_SOMEBODY,
                                 1)));
     }
+
+    // Multiple debit and credit accounts with same amount to check accountId ordering.
+    @Test
+    void emitErcLogEventsForMultipleDebitAndCreditWithSameAmount() {
+        emitErcLogEventsForFtAirdropCustomFee(
+                List.of(
+                        AccountAmount.newBuilder()
+                                .accountID(OWNER_ID)
+                                .amount(-10)
+                                .build(),
+                        AccountAmount.newBuilder()
+                                .accountID(A_NEW_ACCOUNT_ID)
+                                .amount(-10)
+                                .build(),
+                        AccountAmount.newBuilder()
+                                .accountID(RECEIVER_ID)
+                                .amount(10)
+                                .build(),
+                        AccountAmount.newBuilder()
+                                .accountID(B_NEW_ACCOUNT_ID)
+                                .amount(10)
+                                .build()),
+                List.of(
+                        new TestHelpers.TestTokenTransfer(
+                                FUNGIBLE_TOKEN_ID, false, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 10),
+                        new TestHelpers.TestTokenTransfer(
+                                FUNGIBLE_TOKEN_ID,
+                                false,
+                                A_NEW_ACCOUNT_ID,
+                                ALIASED_SOMEBODY,
+                                B_NEW_ACCOUNT_ID,
+                                PARANOID_SOMEBODY,
+                                10)));
+    }
 }

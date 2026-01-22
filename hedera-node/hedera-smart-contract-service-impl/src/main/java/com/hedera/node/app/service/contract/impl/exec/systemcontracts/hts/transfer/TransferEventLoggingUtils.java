@@ -60,6 +60,9 @@ public class TransferEventLoggingUtils {
         }
     }
 
+    /**
+     * Holder for AccountAmount values. Sorted as Comparable implementation to prevent transfer events order "randomness".
+     */
     private static class AccountChange implements Comparable<AccountChange> {
 
         public final AccountID accountId;
