@@ -76,9 +76,7 @@ public class TransferEventLoggingUtils {
         @Override
         public int compareTo(@NonNull final TransferEventLoggingUtils.AccountChange other) {
             final var res = Long.compare(other.amount, this.amount); // DESC amount
-            if (res != 0) {
-                return res;
-            } else {
+            if (res == 0) {
                 final var accountPrefix =
                         String.valueOf(this.accountId.shardNum()) + '.' + this.accountId.realmNum() + '.';
                 final var thisAccount = accountPrefix
@@ -95,6 +93,8 @@ public class TransferEventLoggingUtils {
                                         : "");
                 return thisAccount.compareTo(
                         otherAccount); // ASC shard.realm.accountNum or shard.realm.alias or shard.realm.""
+            } else {
+                return res;
             }
         }
     }
