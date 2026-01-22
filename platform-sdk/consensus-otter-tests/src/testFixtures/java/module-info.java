@@ -15,7 +15,6 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.state.impl;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
-    requires transitive com.google.protobuf;
     requires transitive org.apache.logging.log4j.core;
     requires transitive org.apache.logging.log4j;
     requires transitive org.assertj.core;

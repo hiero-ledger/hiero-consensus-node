@@ -137,7 +137,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** The gRPC service client used to initialize and stop the consensus node */
     private ContainerControlServiceInterface.ContainerControlServiceClient containerControlClient;
 
-
     /**
      * Constructor for the {@link ContainerNode} class.
      *
@@ -285,13 +284,15 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         // The PBJ gRPC client's Start() method blocks until the stream completes, but for
         // server-streaming RPCs the stream stays open indefinitely. We run Start() in a
         // background thread so it doesn't block the test from starting other nodes.
-        final Thread startThread = new Thread(() -> {
-            try {
-                nodeCommClient.Start(startRequest, eventPipeline);
-            } catch (final Exception e) {
-                log.error("Error in Start() call for node {}", selfId, e);
-            }
-        }, "grpc-start-" + selfId.id());
+        final Thread startThread = new Thread(
+                () -> {
+                    try {
+                        nodeCommClient.Start(startRequest, eventPipeline);
+                    } catch (final Exception e) {
+                        log.error("Error in Start() call for node {}", selfId, e);
+                    }
+                },
+                "grpc-start-" + selfId.id());
         startThread.setDaemon(true);
         startThread.start();
 
