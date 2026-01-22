@@ -32,6 +32,9 @@ public class ConsensusUpdateTopicFeeCalculator implements ServiceFeeCalculator {
         if (op.hasSubmitKey()) {
             keys += 1;
         }
+        if (op.hasFeeExemptKeyList()) {
+            keys += op.feeExemptKeyList().keys().size();
+        }
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_UPDATE_TOPIC);
         feeResult.addServiceFee(1, serviceDef.baseFee());
