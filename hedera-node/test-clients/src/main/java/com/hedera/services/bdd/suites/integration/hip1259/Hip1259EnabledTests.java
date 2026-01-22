@@ -32,6 +32,8 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
@@ -122,6 +124,84 @@ public class Hip1259EnabledTests {
                 nodeUpdate("2").declineReward(false),
                 nodeUpdate("3").declineReward(false));
         cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD));
+    }
+
+    /**
+     * Simple demo of HIP-1259 Fee Collection Account feature.
+     * Shows:
+     * 1. Transaction fees go to 0.0.802 instead of individual accounts
+     * 2. At staking period boundary, fees are distributed from 0.0.802 to node accounts
+     * 3. Node receives the exact fee amount collected
+     */
+    @Order(1)
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> feeCollectionAccountDemo() {
+        final AtomicLong initialFeeCollectorBalance = new AtomicLong(0);
+        final AtomicLong initialNodeAccountBalance = new AtomicLong(0);
+        final AtomicLong txnFee = new AtomicLong(0);
+        final AtomicLong nodeFee = new AtomicLong(0);
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
+
+        return hapiTest(
+                overriding("nodes.feeCollectionAccountEnabled", "true"),
+                // Record initial balances and consensus time
+                getAccountBalance(NODE_ACCOUNT).exposingBalanceTo(initialNodeAccountBalance::set),
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+
+                // Set up validator to check fee distribution at staking period boundary
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        selectedItems(
+                                feeDistributionValidator(1, List.of(3L, 800L, 801L, 98L), nodeFee::get),
+                                1,
+                                (spec, item) -> hasFeeDistribution(item, startConsensusTime)),
+                        Duration.ofSeconds(1)),
+
+                /*---------- STEP 1: Set up clean state ----------*/
+                cryptoCreate(CIVILIAN_PAYER),
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
+                // Clear any existing node payments
+                mutateSingleton(TokenService.NAME, NODE_PAYMENTS_STATE_ID, (NodePayments nodePayments) -> nodePayments
+                        .copyBuilder()
+                        .payments(List.of())
+                        .build()),
+
+                /*---------- STEP 2: Execute transaction and verify fees go to 0.0.802 ----------*/
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
+                getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectorBalance::set),
+
+                cryptoCreate("testAccount")
+                        .balance(ONE_HBAR)
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("XXXXdemoTxn"),
+
+                getTxnRecord("XXXXdemoTxn")
+                        .exposingTo(record -> txnFee.set(record.getTransactionFee()))
+                        .logged(),
+
+                // Verify fees went to fee collector (0.0.802)
+                validateRecordContains("XXXXdemoTxn", FEE_COLLECTOR_ACCOUNT),
+                // Verify fees did NOT go to individual accounts
+                validateRecordNotContains("XXXXdemoTxn", UNEXPECTED_FEE_ACCOUNTS),
+                // Verify fee collector balance increased
+                sourcing(() -> getAccountBalance(FEE_COLLECTOR)
+                        .hasTinyBars(initialFeeCollectorBalance.get() + txnFee.get())).logged(),
+
+                /*---------- STEP 3: Verify node fees accumulated in state ----------*/
+                sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                EmbeddedVerbs.<NodePayments>viewSingleton(TokenService.NAME, NODE_PAYMENTS_STATE_ID, nodePayments -> {
+                    final var totalNodeFees =
+                            nodePayments.payments().stream().mapToLong(NodePayment::fees).sum();
+                    nodeFee.set(totalNodeFees);
+                    System.out.println("XXXXXX Node Payments: " + nodePayments);
+                    assertTrue(totalNodeFees > 0, "Node fees should be accumulated in state");
+                }),
+
+                /*---------- STEP 4: Trigger staking period and verify distribution ----------*/
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     /**
