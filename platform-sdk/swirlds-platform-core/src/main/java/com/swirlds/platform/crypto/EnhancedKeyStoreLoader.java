@@ -791,22 +791,25 @@ public class EnhancedKeyStoreLoader {
      */
     private long validateKeysAreLoadableFromPemFiles(final Map<NodeId, PrivateKey> pfxPrivateKeys) {
         final AtomicLong errorCount = new AtomicLong(0);
-        for (final NodeId nodeId : this.nodeIds) {
-            if (rosterEntries.stream().anyMatch(e -> e.nodeId() == nodeId.id())) {
-                // validate private keys for local nodes
-                final Path ksLocation = privateKeyStore(nodeId);
-                final PrivateKey pemPrivateKey = readPrivateKey(nodeId, ksLocation);
-                if (pemPrivateKey == null
-                        || (pfxPrivateKeys.get(nodeId) != null
-                                && !Arrays.equals(
-                                        pemPrivateKey.getEncoded(),
-                                        pfxPrivateKeys.get(nodeId).getEncoded()))) {
-                    logger.error(
-                            ERROR.getMarker(), "Private key for nodeId: {} does not match the migrated key", nodeId);
-                    errorCount.incrementAndGet();
-                }
-            }
-        }
+        rosterEntries.stream()
+                .map(e -> NodeId.of(e.nodeId()))
+                .filter(this.nodeIds::contains)
+                .forEach(nodeId -> {
+                    // validate private keys for local nodes
+                    final Path ksLocation = privateKeyStore(nodeId);
+                    final PrivateKey pemPrivateKey = readPrivateKey(nodeId, ksLocation);
+                    if (pemPrivateKey == null
+                            || (pfxPrivateKeys.get(nodeId) != null
+                                    && !Arrays.equals(
+                                            pemPrivateKey.getEncoded(),
+                                            pfxPrivateKeys.get(nodeId).getEncoded()))) {
+                        logger.error(
+                                ERROR.getMarker(),
+                                "Private key for nodeId: {} does not match the migrated key",
+                                nodeId);
+                        errorCount.incrementAndGet();
+                    }
+                });
         return errorCount.get();
     }
 
