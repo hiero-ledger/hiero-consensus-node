@@ -382,10 +382,11 @@ public class AirdropToContractSystemContractTest {
                         receiverContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 9)),
                         airdropContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1L)),
                         // check ERC20 events with fee
+                        // Events are sorted by amount DESC, so the 9-unit transfer comes before the 1-unit fee
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord(TXN_NAME),
-                                TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId.get(), airdropId, 1L),
-                                TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId.get(), receiverId, 9L)));
+                                TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId.get(), receiverId, 9L),
+                                TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId.get(), airdropId, 1L)));
             }));
         }
 
@@ -429,10 +430,11 @@ public class AirdropToContractSystemContractTest {
                         receiverContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10)),
                         airdropContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1L)),
                         // check ERC20 events with fee
+                        // Events are sorted by amount DESC, so the 10-unit transfer comes before the 1-unit fee
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord(TXN_NAME),
-                                TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId.get(), airdropId, 1L),
-                                TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId.get(), receiverId, 10L)));
+                                TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId.get(), receiverId, 10L),
+                                TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId.get(), airdropId, 1L)));
             }));
         }
 
