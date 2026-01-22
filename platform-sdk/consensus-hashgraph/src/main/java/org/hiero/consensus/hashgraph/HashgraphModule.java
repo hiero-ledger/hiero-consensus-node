@@ -4,6 +4,7 @@ package org.hiero.consensus.hashgraph;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
+import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
@@ -52,6 +53,7 @@ public interface HashgraphModule {
      * @see #preconsensusEventOutputWire()
      * @see #staleEventOutputWire()
      */
+    @InputWireLabel("persisted ordered events")
     @NonNull
     InputWire<PlatformEvent> eventInputWire();
 
@@ -85,6 +87,7 @@ public interface HashgraphModule {
      *
      * @return the platform status input wire
      */
+    @InputWireLabel("platform status")
     @NonNull
     InputWire<PlatformStatus> platformStatusInputWire();
 
@@ -94,6 +97,7 @@ public interface HashgraphModule {
      *
      * @return the consensus snapshot input wire
      */
+    @InputWireLabel("consensus snapshot")
     @NonNull
     InputWire<ConsensusSnapshot> consensusSnapshotInputWire();
 

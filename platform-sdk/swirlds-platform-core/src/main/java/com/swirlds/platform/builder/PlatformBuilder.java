@@ -236,55 +236,6 @@ public final class PlatformBuilder {
     }
 
     /**
-     * Registers a callback that is called for each valid non-ancient preconsensus event in topological order (i.e.
-     * after each event exits the orphan buffer). Useful for scenarios where access to this internal stream of events is
-     * useful (e.g. UI hashgraph visualizers).
-     *
-     * <p>
-     * Among all callbacks in the following list, it is guaranteed that callbacks will not be called concurrently, and
-     * that there will be a happens-before relationship between each of the callbacks.
-     *
-     * <ul>
-     *     <li>{@link #withPreconsensusEventCallback(Consumer)} (i.e. this callback)</li>
-     *     <li>{@link #withConsensusSnapshotOverrideCallback(Consumer)}</li>
-     * </ul>
-     *
-     * @param preconsensusEventConsumer the callback to register
-     * @return this
-     */
-    @NonNull
-    public PlatformBuilder withPreconsensusEventCallback(
-            @NonNull final Consumer<PlatformEvent> preconsensusEventConsumer) {
-        throwIfAlreadyUsed();
-        this.preconsensusEventConsumer = requireNonNull(preconsensusEventConsumer);
-        return this;
-    }
-
-    /**
-     * Registers a callback that is called when the consensus snapshot is specified by an out of band operation (i.e.
-     * restart or reconnect). Useful for scenarios where access to this internal stream of data is useful (e.g. UI
-     * hashgraph visualizers).
-     *
-     * <p>
-     * Among all callbacks in the following list, it is guaranteed that callbacks will not be called concurrently, and
-     * that there will be a happens-before relationship between each of the callbacks.
-     *
-     * <ul>
-     *     <li>{@link #withPreconsensusEventCallback(Consumer)}</li>
-     *     <li>{@link #withConsensusSnapshotOverrideCallback(Consumer)} (i.e. this callback)</li>
-     * </ul>
-     *
-     * @return this
-     */
-    @NonNull
-    public PlatformBuilder withConsensusSnapshotOverrideCallback(
-            @NonNull final Consumer<ConsensusSnapshot> snapshotOverrideConsumer) {
-        throwIfAlreadyUsed();
-        this.snapshotOverrideConsumer = requireNonNull(snapshotOverrideConsumer);
-        return this;
-    }
-
-    /**
      * Register a callback that is called when a stale self event is detected (i.e. an event that will never reach
      * consensus). Depending on the use case, it may be a good idea to resubmit the transactions in the stale event.
      * <p>

@@ -400,9 +400,9 @@ public class PlatformWiring {
             components
                     .hashgraphModule()
                     .consensusRoundOutputWire()
-                    .solderForMonitoring(consensusEngineOutput -> pipelineTracker.recordEvents(
+                    .solderForMonitoring(consensusRound -> pipelineTracker.recordEvents(
                             "consensus",
-                            consensusEngineOutput.getConsensusEvents().stream()
+                            consensusRound.getConsensusEvents().stream()
                                     .map(PlatformEvent::getTimeReceived)
                                     .toList()));
         }

@@ -32,7 +32,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'HealthMonitor:health info:🏥' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
     -g 'EventIntakeModule:EventWindowDispatcher,ClearCommandDispatcher,EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter,📬' \
-    -g 'Consensus Engine:ConsensusEngine,EventWindowManager,ConsensusRounds,PreConsensusEvents,PreConsensusEventsSplitter,ConsensusRoundsSplitter,RoundsToCesEvents' \
+    -g 'Consensus Engine:ConsensusEngine,EventWindowManager,RoundsToCesEvents,ConsensusRoundsSplitter,consensusRounds,preconsensusEvents,PreconsensusEventsSplitter' \
     -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \
     -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter,completeStatesReserver,LatestCompleteStateNotifier' \
@@ -42,7 +42,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -g 'PCES Replay:pcesReplayer,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \
     -g 'State Hasher:StateHasher,postHasher_stateReserver' \
-    -g 'Consensus:Consensus Engine,ConsensusEventStream,🌀,🕐' \
+    -g 'Hashgraph Module:Consensus Engine,staleEventsSplitter,staleEvents,🌀,🕐' \
     -g 'State Verification:StateSigner,HashLogger,ISS Detector,ExecutionSignatureSubmission,🖋️,💥,💀' \
     -g 'Transaction Handling:Transaction Handler,LatestImmutableStateNexus,TransactionPrehandler,getSystemTransactions,🔮' \
     -g 'Branch Detection:BranchDetector,BranchReporter' \
