@@ -101,7 +101,7 @@ public class DeleteTokenPrecompileSuite {
                                 .via(DELETE_TXN),
                         getTokenInfo(VANILLA_TOKEN).isDeleted().logged(),
                         cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT))
-                                .hasKnownStatus(TOKEN_WAS_DELETED),
+                                .hasPrecheck(TOKEN_WAS_DELETED),
                         contractCall(
                                         DELETE_TOKEN_CONTRACT,
                                         TOKEN_DELETE_FUNCTION,
