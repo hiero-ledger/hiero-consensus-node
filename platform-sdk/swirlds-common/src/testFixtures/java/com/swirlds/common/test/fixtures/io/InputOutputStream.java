@@ -1,31 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.io;
 
-import com.swirlds.common.io.streams.DebuggableMerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
+import com.swirlds.common.io.streams.DebuggableDataInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A convenience class that constructs a pair of streams.
  */
 public class InputOutputStream implements AutoCloseable {
     private final ByteArrayOutputStream outByteStream;
-    private final MerkleDataOutputStream outStream;
-    private MerkleDataInputStream inStream;
+    private final SerializableDataOutputStream outStream;
+    private SerializableDataInputStream inStream;
 
     /**
      * Create an input/output stream pair.
      */
     public InputOutputStream() {
         outByteStream = new ByteArrayOutputStream();
-        outStream = new MerkleDataOutputStream(outByteStream);
+        outStream = new SerializableDataOutputStream(outByteStream);
     }
 
-    public MerkleDataOutputStream getOutput() {
+    public SerializableDataOutputStream getOutput() {
         return outStream;
     }
 
@@ -49,9 +49,9 @@ public class InputOutputStream implements AutoCloseable {
         }
 
         if (debug) {
-            inStream = new DebuggableMerkleDataInputStream(new ByteArrayInputStream(bytes));
+            inStream = new DebuggableDataInputStream(new ByteArrayInputStream(bytes));
         } else {
-            inStream = new MerkleDataInputStream(new ByteArrayInputStream(bytes));
+            inStream = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         }
 
         outByteStream.close();
@@ -62,7 +62,7 @@ public class InputOutputStream implements AutoCloseable {
         System.out.println(Arrays.toString(outByteStream.toByteArray()));
     }
 
-    public MerkleDataInputStream getInput() {
+    public SerializableDataInputStream getInput() {
         return inStream;
     }
 
