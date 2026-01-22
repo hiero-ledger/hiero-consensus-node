@@ -150,9 +150,7 @@ env:
   JAVA_OPTS: -Xmx28g -XX:ActiveProcessorCount=16
   GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
   GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
-  #CG_EXEC: cgexec -g cpu,memory:gradle-${{ github.run_id }} --sticky ionice -c 2 -n 2 nice -n 19
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
-  #PING_CG_EXEC: cgexec -g cpu,memory:ping-${{ github.run_id }} --sticky ionice -c 2 -n 2 nice -n 19
   PING_CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 defaults:

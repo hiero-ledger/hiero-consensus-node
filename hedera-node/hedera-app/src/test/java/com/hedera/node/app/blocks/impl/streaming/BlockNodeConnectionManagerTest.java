@@ -1431,8 +1431,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Path dir = tempDir;
         final Path file = dir.resolve("block-nodes.json");
 
-        final String json =
-                """
+        final String json = """
                 {
                   "nodes": [
                     {
