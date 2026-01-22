@@ -61,7 +61,7 @@ message ClprMessageQueueMetadata {
    * Received Running Hash
    *
    * The running hash bytes provided or computed for the remote ledger state
-   * after processing the most recently received message. Implementations SHOULD
+   * after processing the most recently received message. Implementations MUST
    * persist this value for verification and auditing of received messages.
    */
   bytes received_running_hash = 4;
@@ -71,19 +71,19 @@ message ClprMessageQueueMetadata {
    *
    * The running hash bytes for the local ledger (or the agreed interledger
    * running hash) after processing the most recently sent message to the
-   * remote ledger. Implementations SHOULD persist this value for verification
+   * remote ledger. Implementations MUST persist this value for verification
    * and auditing of sent messages.
    */
   bytes sent_running_hash = 5;
 
   /**
-   * Next Available Outgoing Message Id
+   * Next available message ID.
    *
-   * Unsigned 64-bit id that MUST be used to assign the next outgoing message id
-   * when sending a message to the remote ledger. This value MUST be strictly
-   * increasing for successive outgoing messages to the same ledger.
+   * MUST be used to assign the ID for the next outgoing message added to
+   * this queue. This value MUST be strictly increasing for successive
+   * outgoing messages to the same ledger.
    */
-  uint64 next_outgoing_message_id = 6;
+  uint64 next_message_id = 6;
 }
 
 /**

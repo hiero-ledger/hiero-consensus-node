@@ -41,7 +41,7 @@ class ClprMessageQueueMetadataStoreTest {
                 .ledgerId(ClprLedgerId.DEFAULT)
                 .receivedMessageId(0)
                 .sentMessageId(1)
-                .nextOutgoingMessageId(2)
+                .nextMessageId(2)
                 .build();
 
         writableStore.put(ledgerId, messageQueue);
