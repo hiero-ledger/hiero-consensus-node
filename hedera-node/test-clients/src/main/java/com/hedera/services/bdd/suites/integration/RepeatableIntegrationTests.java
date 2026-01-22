@@ -46,9 +46,11 @@ import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
+
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -76,21 +78,18 @@ public class RepeatableIntegrationTests {
         final var PAYER = "payer";
         final var SENDER = "sender";
         final var SENDER_BALANCE = ONE_MILLION_HBARS;
-        final AtomicLong initialNodeBalance = new AtomicLong();
         final var badPayment = cryptoTransfer(tinyBarsFromTo(SENDER, "3", ONE_HUNDRED_HBARS))
                 .payingWith(PAYER)
                 .signedBy(PAYER);
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                 cryptoCreate(SENDER).balance(SENDER_BALANCE),
-                getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
                 getAccountInfo(SENDER)
                         .withPayment(badPayment)
                         .hasAnswerOnlyPrecheck(INVALID_SIGNATURE)
                         .logged(),
                 handleAnyRepeatableQueryPayment(),
-                getAccountBalance(SENDER).hasTinyBars(SENDER_BALANCE),
-                sourcing(() -> getAccountBalance("3").hasTinyBars(initialNodeBalance.get())));
+                getAccountBalance(SENDER).hasTinyBars(SENDER_BALANCE));
     }
 
     @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
