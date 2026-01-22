@@ -12,12 +12,13 @@ import com.swirlds.config.api.ConfigProperty;
  *                               be used for hash computations.
  * @param keystorePassword       the password used to protect the PKCS12 key stores containing the nodes RSA keys. The
  *                               password used to protect the PKCS12 key stores containing the node RSA public/private
- *                               key pairs.
+ *                               key pairs. There is intentionally no usable default; components that require this
+ *                               password will fail fast if it is not configured.
  */
 @ConfigData("crypto")
 public record CryptoConfig(
         @ConfigProperty(defaultValue = "0.5") double cpuDigestThreadRatio,
-        @ConfigProperty(defaultValue = "password") String keystorePassword) {
+        @ConfigProperty(defaultValue = "") String keystorePassword) {
 
     /**
      * Calculates the number of threads needed to achieve the CPU core ratio given by {@link #cpuDigestThreadRatio()}.
