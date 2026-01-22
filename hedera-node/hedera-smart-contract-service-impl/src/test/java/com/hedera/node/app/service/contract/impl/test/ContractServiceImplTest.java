@@ -9,15 +9,23 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
+import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractDeleteFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractUpdateFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.EthereumFeeCalculator;
 import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import java.time.InstantSource;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -67,9 +75,18 @@ class ContractServiceImplTest {
     @Test
     void serviceFeeCalculatorsAreAvailable() {
         final var calculators = subject.serviceFeeCalculators();
-        assertEquals(1, calculators.size());
-        assertEquals(
+        assertEquals(6, calculators.size());
+        final Set<Class<? extends ServiceFeeCalculator>> expectedClasses = Set.of(
                 HookStoreHandler.FeeCalculator.class,
-                calculators.iterator().next().getClass());
+                ContractCreateFeeCalculator.class,
+                ContractCallFeeCalculator.class,
+                ContractDeleteFeeCalculator.class,
+                ContractUpdateFeeCalculator.class,
+                EthereumFeeCalculator.class);
+
+        final var actualClasses =
+                calculators.stream().map(ServiceFeeCalculator::getClass).collect(Collectors.toUnmodifiableSet());
+
+        assertEquals(expectedClasses, actualClasses, "Set must contain exactly the expected calculator classes");
     }
 }
