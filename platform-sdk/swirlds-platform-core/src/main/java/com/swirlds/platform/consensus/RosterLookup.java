@@ -117,7 +117,7 @@ public class RosterLookup {
      */
     public int getRosterIndex(@NonNull final NodeId nodeId) {
         final Integer index = rosterIndicesMap.get(nodeId.id());
-        if(index == null) {
+        if (index == null) {
             throw new IllegalArgumentException("Node ID not found in roster: " + nodeId.id());
         }
         return index;
