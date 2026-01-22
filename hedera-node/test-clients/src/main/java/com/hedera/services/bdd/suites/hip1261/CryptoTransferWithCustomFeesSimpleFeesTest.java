@@ -965,7 +965,8 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("tokenTransferTxn"),
                     validateChargedUsdWithin(
                             "tokenTransferTxn",
-                            expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 2, 5, 1, 4, 10_000_000L) + tokenAssociateFee,
+                            expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 2, 5, 1, 4, 10_000_000L)
+                                    + tokenAssociateFee,
                             0.0001),
                     getAccountBalance(HTS_COLLECTOR).hasTokenBalance(FT_WITH_HTS_FIXED_FEE, 2L),
                     getAccountBalance(DENOM_COLLECTOR).hasTokenBalance(DENOM_TOKEN, 2L),
@@ -1214,7 +1215,9 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .via("tokenTransferTxn")
                             .hasKnownStatus(INSUFFICIENT_GAS),
                     validateChargedUsdWithin(
-                            "tokenTransferTxn", expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 2, 5, 1, 4, 20L), 0.0001),
+                            "tokenTransferTxn",
+                            expectedCryptoTransferTokenWithCustomFullFeeUsd(3, 2, 5, 1, 4, 20L),
+                            0.0001),
                     getAccountBalance(HTS_COLLECTOR).hasTokenBalance(FT_WITH_HTS_FIXED_FEE, 0L),
                     getAccountBalance(DENOM_COLLECTOR).hasTokenBalance(DENOM_TOKEN, 0L),
                     getAccountBalance(PAYER_WITH_TWO_HOOKS)
