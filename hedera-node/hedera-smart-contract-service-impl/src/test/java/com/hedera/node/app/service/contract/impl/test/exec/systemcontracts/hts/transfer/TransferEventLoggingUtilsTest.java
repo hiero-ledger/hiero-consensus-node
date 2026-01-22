@@ -288,6 +288,18 @@ public class TransferEventLoggingUtilsTest {
                         new TestHelpers.TestTokenTransfer(
                                 FUNGIBLE_TOKEN_ID,
                                 false,
+                                sender3,
+                                Account.newBuilder()
+                                        .alias(Objects.requireNonNull(sender3.alias()))
+                                        .build(),
+                                receiver3,
+                                Account.newBuilder()
+                                        .alias(Objects.requireNonNull(receiver3.alias()))
+                                        .build(),
+                                10),
+                        new TestHelpers.TestTokenTransfer(
+                                FUNGIBLE_TOKEN_ID,
+                                false,
                                 sender2,
                                 Account.newBuilder().accountId(sender1).build(),
                                 receiver1,
@@ -300,18 +312,6 @@ public class TransferEventLoggingUtilsTest {
                                 Account.newBuilder().accountId(sender2).build(),
                                 receiver2,
                                 Account.newBuilder().accountId(receiver2).build(),
-                                10),
-                        new TestHelpers.TestTokenTransfer(
-                                FUNGIBLE_TOKEN_ID,
-                                false,
-                                sender3,
-                                Account.newBuilder()
-                                        .alias(Objects.requireNonNull(sender3.alias()))
-                                        .build(),
-                                receiver3,
-                                Account.newBuilder()
-                                        .alias(Objects.requireNonNull(receiver3.alias()))
-                                        .build(),
                                 10)));
     }
 }

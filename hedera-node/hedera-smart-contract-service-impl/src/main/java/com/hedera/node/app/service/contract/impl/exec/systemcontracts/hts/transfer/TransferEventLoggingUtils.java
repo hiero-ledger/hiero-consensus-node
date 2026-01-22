@@ -17,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -65,6 +66,13 @@ public class TransferEventLoggingUtils {
      */
     private static class AccountChange implements Comparable<AccountChange> {
 
+        private static final Comparator<AccountChange> COMPARATOR = Comparator.<AccountChange>comparingLong(
+                        e -> e.amount)
+                .reversed() // amount DESC
+                .thenComparing(e -> e.accountId.shardNum()) // shard ASC
+                .thenComparing(e -> e.accountId.realmNum()) // realm ASC
+                .thenComparing(e -> e.accountId.hasAccountNum() ? e.accountId.accountNum() : 0L); // accountNum ASC
+
         public final AccountID accountId;
         public long amount; // using not final var because it will be changed during the conversion algorithm
 
@@ -75,27 +83,7 @@ public class TransferEventLoggingUtils {
 
         @Override
         public int compareTo(@NonNull final TransferEventLoggingUtils.AccountChange other) {
-            final var res = Long.compare(other.amount, this.amount); // DESC amount
-            if (res == 0) {
-                final var accountPrefix =
-                        String.valueOf(this.accountId.shardNum()) + '.' + this.accountId.realmNum() + '.';
-                final var thisAccount = accountPrefix
-                        + (this.accountId.hasAccountNum()
-                                ? this.accountId.accountNum().toString()
-                                : this.accountId.hasAlias()
-                                        ? this.accountId.alias().toHex()
-                                        : "");
-                final var otherAccount = accountPrefix
-                        + (other.accountId.hasAccountNum()
-                                ? other.accountId.accountNum().toString()
-                                : other.accountId.hasAlias()
-                                        ? other.accountId.alias().toHex()
-                                        : "");
-                return thisAccount.compareTo(
-                        otherAccount); // ASC shard.realm.accountNum or shard.realm.alias or shard.realm.""
-            } else {
-                return res;
-            }
+            return COMPARATOR.compare(this, other);
         }
     }
 
