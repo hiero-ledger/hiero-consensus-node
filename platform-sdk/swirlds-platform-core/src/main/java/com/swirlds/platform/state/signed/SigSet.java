@@ -30,7 +30,7 @@ import org.hiero.consensus.model.node.NodeId;
  * <pre>{@code
  *
  *  message SigSet {
- *    repeated Signatures signature = 1;
+ *    repeated NodeIdSignaturePair signature = 1;
  *  }
  *
  *  message NodeIdSignaturePair {
