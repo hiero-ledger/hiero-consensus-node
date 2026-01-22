@@ -660,9 +660,13 @@ public class ConsensusImpl implements Consensus {
     }
 
     private boolean firstVote(@NonNull final EventImpl voting, @NonNull final EventImpl votedOn) {
+        // getRosterIndex() can throw an exception if the creator is not in the roster
+        // this should never happen since we don't create elections for events not in the roster,
+        // we instantly declare them not famous
+        final int votedOnIndex = rosterLookup.getRosterIndex(votedOn.getCreatorId());
         // first round of an election. Vote TRUE for self-ancestors of those you firstSee. Don't
         // decide.
-        EventImpl w = firstSee(voting, rosterLookup.getRosterIndex(votedOn.getCreatorId()));
+        EventImpl w = firstSee(voting, votedOnIndex);
         while (w != null && w.getRoundCreated() > voting.getRoundCreated() - 1 && selfParent(w) != null) {
             w = firstSelfWitnessS(selfParent(w));
         }
