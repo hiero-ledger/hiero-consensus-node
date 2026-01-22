@@ -6,9 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.platform.Utilities;
 import com.swirlds.platform.crypto.CryptoArgsProvider;
 import com.swirlds.platform.crypto.RosterAndCerts;
+import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.PeerInfo;
 import java.io.IOException;
