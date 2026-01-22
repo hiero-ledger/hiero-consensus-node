@@ -19,6 +19,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.interledger.clpr.ClprStateProofUtils.buildLocalClprStateProofWrapper;
+import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageQueueMetadata;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -488,16 +489,17 @@ public class ClprSuite implements LifecycleTest {
         });
     }
 
-    private static ContextualActionOp fetchMessageQueueMetadata(
-            final AtomicReference<HederaNode> node,
-            final AtomicReference<ClprMessageQueueMetadata> exposingMessageQueueMetadata) {
-        return doingContextual(spec -> {
-            try (final var client = createClient(node.get())) {
-                final var config = tryFetchLedgerConfiguration(node.get());
-                final var messageQueueMetadata =
-                        client.getMessageQueueMetadata(toPbj(config).ledgerId());
-                exposingMessageQueueMetadata.set(messageQueueMetadata);
-            }
-        });
-    }
+        private static ContextualActionOp fetchMessageQueueMetadata(
+                final AtomicReference<HederaNode> node,
+                final AtomicReference<ClprMessageQueueMetadata> exposingMessageQueueMetadata) {
+            return doingContextual(spec -> {
+                try (final var client = createClient(node.get())) {
+                    final var config = tryFetchLedgerConfiguration(node.get());
+                    final var messageQueueMetadataProof =
+                            client.getMessageQueueMetadata(toPbj(config).ledgerId());
+                    final var messageQueueMetadata = extractMessageQueueMetadata(messageQueueMetadataProof);
+                    exposingMessageQueueMetadata.set(messageQueueMetadata);
+                }
+            });
+        }
 }

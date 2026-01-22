@@ -17,6 +17,7 @@ import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.clpr.ClprGetMessagesResponse;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
 import org.hiero.interledger.clpr.ReadableClprMessageStore;
@@ -63,8 +64,10 @@ public class ClprGetMessagesHandler extends FreeQueryHandler {
         final var op = query.getClprMessages();
         final var readableMessagesStore = context.createStore(ReadableClprMessageStore.class);
         // build msg keys
-        final var key =
-                ClprMessageKey.newBuilder().messageId(0).ledgerShortId(0).build();
+        final var key = ClprMessageKey.newBuilder()
+                .messageId(0)
+                .ledgerId(ClprLedgerId.DEFAULT)
+                .build();
         final var msg = readableMessagesStore.get(key);
         if (msg != null) {
             final var result = ClprGetMessagesResponse.newBuilder()

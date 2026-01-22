@@ -24,7 +24,9 @@ import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema;
 
@@ -224,6 +226,23 @@ public class ClprStateProofManager {
         final ReadableKVState<ClprLedgerId, ClprMessageQueueMetadata> messageQueueMetadataReadableState =
                 readableStates.get(V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID);
         return messageQueueMetadataReadableState.get(ledgerId);
+    }
+
+    public ClprMessageValue getMessage(@NonNull final ClprMessageKey messageKey) {
+        requireNonNull(messageKey);
+        if (!clprConfig.devModeEnabled()) {
+            return null;
+        }
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return null;
+        }
+
+        final var state = snapshot.merkleState();
+        final var readableStates = state.getReadableStates(ClprService.NAME);
+        final ReadableKVState<ClprMessageKey, ClprMessageValue> messageQueueMetadataReadableState =
+                readableStates.get(V0700ClprSchema.CLPR_MESSAGES_STATE_ID);
+        return messageQueueMetadataReadableState.get(messageKey);
     }
 
     /**

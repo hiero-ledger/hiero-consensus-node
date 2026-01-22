@@ -94,12 +94,12 @@ message ClprMessageQueueMetadata {
  */
 message ClprMessageKey {
   /**
-   * Short Ledger Id
+   * Ledger Id
    *
-   * Signed integer identifier for the remote ledger. This field MUST match the
-   * `ledger_short_id` used as the map key in `ClprMessageQueueMetadata`.
+   * An identifier for the remote ledger. This field MUST match the
+   * `ledger_id` used as the map key in `ClprMessageQueueMetadata`.
    */
-  int32 ledger_short_id = 1;
+  ClprLedgerId ledger_id = 1;
 
   /**
    * Message Id

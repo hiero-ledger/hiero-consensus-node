@@ -22,6 +22,7 @@ import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
+import static org.hiero.interledger.clpr.impl.ClprServiceImpl.RUNNING_HASH_SIZE;
 
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
@@ -603,14 +604,13 @@ public class SystemTransactions {
         final var existingMessageQueueMetadata = messageQueueMetadataStore.get(
                 ClprLedgerId.newBuilder().ledgerId(ledgerId).build());
         if (existingMessageQueueMetadata == null) {
-            // TODO: update runnig hashes
             // build new metadata
             final var initialMessageQueueMetadata = ClprMessageQueueMetadata.newBuilder()
-                    .ledgerShortId(0)
-                    .nextOutgoingMessageId(0)
-                    .sentRunningHash(Bytes.EMPTY)
+                    .ledgerId(ClprLedgerId.newBuilder().ledgerId(ledgerId).build())
+                    .nextMessageId(1)
+                    .sentRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]))
                     .receivedMessageId(0)
-                    .receivedRunningHash(Bytes.EMPTY)
+                    .receivedRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]))
                     .build();
 
             final var msgQueueMetadataTxnBody = ClprService.buildMessageQueueMetadataUpdateTransactionBody(

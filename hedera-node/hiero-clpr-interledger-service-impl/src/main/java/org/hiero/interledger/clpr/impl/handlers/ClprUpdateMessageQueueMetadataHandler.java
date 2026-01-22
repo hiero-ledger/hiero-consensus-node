@@ -17,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessage;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
 import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
@@ -69,29 +70,35 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
         // TODO: Implement actual handle
         final var txn = context.body();
         final var body = txn.clprUpdateMessageQueueMetadata();
+        final var txnLedgerId = body.ledgerId();
         final var messageQueueMetadata =
                 ClprStateProofUtils.extractMessageQueueMetadata(body.messageQueueMetadataProof());
         final var writableMessageQueueMetadataStore =
                 context.storeFactory().writableStore(WritableClprMessageQueueMetadataStore.class);
 
         // TODO: REMOVE THIS TEST CODE
-        final var updatedMetadata = initOneMsg(context, messageQueueMetadata);
-
-        // update the state
-        writableMessageQueueMetadataStore.put(body.ledgerId(), updatedMetadata);
+        // if this transaction is updating REMOTE ledger queue,
+        // generate messages for the remote ledger (only for testing)
+        final var localLedgerId = stateProofManager.getLocalLedgerId();
+        if (localLedgerId != null && !localLedgerId.equals(txnLedgerId)) {
+            final var updatedMetadata = generateOutgoingMsg(context, txnLedgerId, messageQueueMetadata);
+            writableMessageQueueMetadataStore.put(txnLedgerId, updatedMetadata);
+        }
     }
 
     // TODO: REMOVE THIS TEST CODE
-    private ClprMessageQueueMetadata initOneMsg(HandleContext context, ClprMessageQueueMetadata metadata) {
-        // check if there are any pending messages to publish
-        final var nexOutgoingMessage = metadata.nextOutgoingMessageId();
-        if (nexOutgoingMessage == 0) {
+    private ClprMessageQueueMetadata generateOutgoingMsg(
+            HandleContext context, ClprLedgerId remoteLedgerId, ClprMessageQueueMetadata metadata) {
+
+        final var nexId = metadata.nextMessageId();
+        if (nexId < 1) {
             final var messageStore = context.storeFactory().writableStore(WritableClprMessageStore.class);
 
-            final var i = 1;
-            final var msgString = "Message ID: %d; Ledger ID: %d".formatted(i, metadata.ledgerShortId());
-            final var messageKey =
-                    ClprMessageKey.newBuilder().messageId(i).ledgerShortId(0).build();
+            final var msgString = "Message ID: %d; Ledger ID: %d".formatted(nexId, remoteLedgerId);
+            final var messageKey = ClprMessageKey.newBuilder()
+                    .messageId(nexId)
+                    .ledgerId(remoteLedgerId)
+                    .build();
             final var payload = ClprMessagePayload.newBuilder()
                     .message(ClprMessage.newBuilder()
                             .messageData(Bytes.wrap(msgString.getBytes()))
@@ -101,7 +108,7 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
                     ClprMessageValue.newBuilder().payload(payload).build();
             messageStore.put(messageKey, messageValue);
 
-            return metadata.copyBuilder().nextOutgoingMessageId(1).build();
+            return metadata.copyBuilder().nextMessageId(1).build();
         }
 
         return metadata;
