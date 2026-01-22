@@ -104,20 +104,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** The local base directory where artifacts copied from the container will be stored. */
     private final Path localOutputDirectory;
 
-    /** The PBJ gRPC client for the container control service */
-    private final PbjGrpcClient containerControlGrpcClient;
-
-    /** The PBJ gRPC client for the node communication service (created lazily after Init) */
-    private PbjGrpcClient nodeCommGrpcClient;
-
     /** Request options for gRPC calls */
     private final RequestOptions requestOptions;
 
     /** Configuration for creating PBJ gRPC clients */
     private final PbjGrpcClientConfig grpcClientConfig;
-
-    /** The gRPC service client used to initialize and stop the consensus node */
-    private final ContainerControlServiceInterface.ContainerControlServiceClient containerControlClient;
 
     /** The gRPC service client used to communicate with the consensus node */
     private NodeCommunicationServiceInterface.NodeCommunicationServiceClient nodeCommClient;
@@ -136,6 +127,16 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     /** The profiler for this node */
     private final ContainerProfiler profiler;
+
+    /** The PBJ gRPC client for the container control service */
+    private PbjGrpcClient containerControlGrpcClient;
+
+    /** The PBJ gRPC client for the node communication service */
+    private PbjGrpcClient nodeCommGrpcClient;
+
+    /** The gRPC service client used to initialize and stop the consensus node */
+    private ContainerControlServiceInterface.ContainerControlServiceClient containerControlClient;
+
 
     /**
      * Constructor for the {@link ContainerNode} class.
@@ -182,16 +183,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 java.util.Optional.empty(),
                 ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO);
 
-        // Create ContainerControl client immediately (server is already running)
-        final WebClient containerControlWebClient = WebClient.builder()
-                .baseUri("http://" + container.getHost() + ":" + container.getMappedPort(CONTAINER_CONTROL_PORT))
-                .build();
-        this.containerControlGrpcClient = new PbjGrpcClient(containerControlWebClient, grpcClientConfig);
-        this.containerControlClient = new ContainerControlServiceInterface.ContainerControlServiceClient(
-                containerControlGrpcClient, requestOptions);
-
-        // Note: nodeCommGrpcClient is created lazily in doStart() after Init() starts the server
-
         profiler = new ContainerProfiler(selfId, container, localOutputDirectory);
     }
 
@@ -226,6 +217,14 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     configuration().current().getConfigData(StateCommonConfig.class);
             ContainerUtils.copySavedStateToContainer(container, selfId, stateCommonConfig, savedStateDirectory);
         }
+
+        // Create ContainerControl gRPC client lazily (fresh connection to avoid stale socket)
+        final WebClient containerControlWebClient = WebClient.builder()
+                .baseUri("http://" + container.getHost() + ":" + container.getMappedPort(CONTAINER_CONTROL_PORT))
+                .build();
+        this.containerControlGrpcClient = new PbjGrpcClient(containerControlWebClient, grpcClientConfig);
+        this.containerControlClient = new ContainerControlServiceInterface.ContainerControlServiceClient(
+                containerControlGrpcClient, requestOptions);
 
         final InitRequest initRequest = InitRequest.newBuilder()
                 .selfId(ProtobufConverter.toPbjNodeId(selfId))
@@ -282,8 +281,19 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             }
         };
 
-        // Start the streaming RPC call
-        nodeCommClient.Start(startRequest, eventPipeline);
+        // Start the streaming RPC call asynchronously.
+        // The PBJ gRPC client's Start() method blocks until the stream completes, but for
+        // server-streaming RPCs the stream stays open indefinitely. We run Start() in a
+        // background thread so it doesn't block the test from starting other nodes.
+        final Thread startThread = new Thread(() -> {
+            try {
+                nodeCommClient.Start(startRequest, eventPipeline);
+            } catch (final Exception e) {
+                log.error("Error in Start() call for node {}", selfId, e);
+            }
+        }, "grpc-start-" + selfId.id());
+        startThread.setDaemon(true);
+        startThread.start();
 
         lifeCycle = RUNNING;
     }
@@ -300,6 +310,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             // conditions with the stream observer receiving an error.
             lifeCycle = SHUTDOWN;
 
+            if (containerControlClient == null) {
+                log.info("Node {} was never started, skipping kill", selfId);
+                return;
+            }
+
             final KillImmediatelyRequest request = KillImmediatelyRequest.newBuilder()
                     .timeoutSeconds((int) timeout.getSeconds())
                     .build();
@@ -315,6 +330,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     @Override
     public boolean isAlive() {
+        if (containerControlClient == null) {
+            return false; // Node hasn't been started yet
+        }
         final PingResponse response = containerControlClient.NodePing(Empty.DEFAULT);
         if (!response.alive()) {
             lifeCycle = SHUTDOWN;
@@ -528,7 +546,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         }
 
         log.info("Destroying container of node {}...", selfId);
-        containerControlGrpcClient.close();
+        if (containerControlGrpcClient != null) {
+            containerControlGrpcClient.close();
+        }
         if (nodeCommGrpcClient != null) {
             nodeCommGrpcClient.close();
         }

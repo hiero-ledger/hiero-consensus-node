@@ -131,24 +131,14 @@ public class NodeCommunicationService implements NodeCommunicationServiceInterfa
         consensusNodeManager = new ConsensusNodeManager(
                 selfId, platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
 
-        setupStreamingEventDispatcher(replies);
-
-        consensusNodeManager.start();
-    }
-
-    /**
-     * Sets up all the streaming event dispatchers for the platform.
-     *
-     * @param replies the pipeline to register for streaming events
-     */
-    private void setupStreamingEventDispatcher(@NonNull final Pipeline<? super EventMessage> replies) {
-        dispatcher = new OutboundDispatcher(dispatchExecutor, replies);
-
+        // Sets up all the streaming event dispatchers for the platform.
         consensusNodeManager.registerPlatformStatusChangeListener(
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
 
         consensusNodeManager.registerConsensusRoundListener(
                 rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
+
+        consensusNodeManager.start();
     }
 
     /**
