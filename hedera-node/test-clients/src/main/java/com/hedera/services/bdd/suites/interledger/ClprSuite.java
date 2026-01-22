@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessage;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
 import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
@@ -273,8 +274,8 @@ public class ClprSuite implements LifecycleTest {
         ClprMessageQueueMetadata localMessageQueueMetadata = ClprMessageQueueMetadata.newBuilder()
                 .receivedMessageId(0)
                 .sentMessageId(0)
-                .nextOutgoingMessageId(1)
-                .ledgerShortId(0)
+                .nextMessageId(1)
+                .ledgerId(ClprLedgerId.DEFAULT)
                 .build();
         return hapiTest(
                 // Specify node 0 as the target node to illicit local ledger responses
