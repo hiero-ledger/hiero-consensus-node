@@ -403,6 +403,14 @@ public class FeesChargingUtils {
         return nodeFee * NETWORK_MULTIPLIER;
     }
 
+    public static double expectedCryptoTransferNetworkFeeOnlyUsd(long sigs, final int txnSize) {
+        // ----- node fees -----
+        final double nodeExtrasFee = extra(sigs, NODE_INCLUDED_SIGNATURES, SIGNATURE_FEE_USD);
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
     /**
      * Validates that the charged fee for a transaction (in USD) is within an allowed percent difference
      * from the expected fee.
