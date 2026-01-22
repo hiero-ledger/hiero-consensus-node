@@ -15,7 +15,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.round.RoundCalculationUtils;
 
 @SuppressWarnings("unused") // issue tracked #6998
-/**
+/*
  * Validator that checks if the consensus mechanism does not return events more than once, either as stale or consensus.
  */
 public final class OutputNoEventsLostValidation implements ConsensusOutputValidation {
