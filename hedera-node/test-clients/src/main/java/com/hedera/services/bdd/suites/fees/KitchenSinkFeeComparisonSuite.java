@@ -185,9 +185,10 @@ public class KitchenSinkFeeComparisonSuite {
     private static final String THRESH_KEY_2_OF_3 = "threshKey2of3";
     private static final String THRESH_KEY_3_OF_5 = "threshKey3of5";
     private static final String COMPLEX_KEY = "complexKey";
-    private static final String SIG_KEY_1 = "sigKey1";
-    private static final String SIG_KEY_2 = "sigKey2";
     private static final String BATCH_OPERATOR = "batchOperator";
+    private static final String PAYER_KEY_1 = "payerKey1";
+    private static final String PAYER_KEY_2 = "payerKey2";
+    private static final String PAYER_KEY_3 = "payerKey3";
 
     // Payer names
     private static final String PAYER = "payer";
@@ -203,19 +204,21 @@ public class KitchenSinkFeeComparisonSuite {
     private static final String MEDIUM_MEMO = "x".repeat(50);
     private static final String LONG_MEMO = "x".repeat(100); // Max allowed memo length
 
-    private record SigVariant(String suffix, String... extraSigners) {
+    private record SigVariant(String suffix, String payerKey, int payerSigCount) {
         String[] withRequired(final String... requiredSigners) {
             final Set<String> merged = new LinkedHashSet<>();
             merged.addAll(Arrays.asList(requiredSigners));
-            merged.addAll(Arrays.asList(extraSigners));
             return merged.toArray(new String[0]);
         }
     }
 
     private record KeyVariant(String suffix, String label, String keyName) {}
 
-    private static final List<SigVariant> SIG_VARIANTS =
-            List.of(new SigVariant("S1"), new SigVariant("S2", SIG_KEY_1), new SigVariant("S3", SIG_KEY_1, SIG_KEY_2));
+    // Swap the payer key per variant so the signature count is actually required/verified.
+    private static final List<SigVariant> SIG_VARIANTS = List.of(
+            new SigVariant("S1", PAYER_KEY_1, 1),
+            new SigVariant("S2", PAYER_KEY_2, 2),
+            new SigVariant("S3", PAYER_KEY_3, 3));
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("Kitchen sink fee comparison - all transaction types with varying parameters")
@@ -298,8 +301,9 @@ public class KitchenSinkFeeComparisonSuite {
                 newKeyNamed(THRESH_KEY_2_OF_3).shape(threshOf(2, 3)),
                 newKeyNamed(THRESH_KEY_3_OF_5).shape(threshOf(3, 5)),
                 newKeyNamed(COMPLEX_KEY).shape(threshOf(2, listOf(2), KeyShape.SIMPLE, threshOf(1, 2))),
-                newKeyNamed(SIG_KEY_1).shape(ED25519),
-                newKeyNamed(SIG_KEY_2).shape(ED25519),
+                newKeyNamed(PAYER_KEY_1).shape(ED25519),
+                newKeyNamed(PAYER_KEY_2).shape(listOf(2)),
+                newKeyNamed(PAYER_KEY_3).shape(listOf(3)),
                 newKeyNamed(BATCH_OPERATOR).shape(ED25519),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP256K1));
     }
@@ -308,7 +312,7 @@ public class KitchenSinkFeeComparisonSuite {
 
     private static SpecOperation createBaseAccounts() {
         return blockingOrder(
-                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SIMPLE_KEY),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(PAYER_KEY_1),
                 cryptoCreate(PAYER_COMPLEX).balance(ONE_MILLION_HBARS).key(COMPLEX_KEY),
                 cryptoCreate(TREASURY).balance(ONE_MILLION_HBARS),
                 cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS),
@@ -424,6 +428,7 @@ public class KitchenSinkFeeComparisonSuite {
                 new KeyVariant("K3", "KEYS=3 (+2 extra)", LIST_KEY_3));
         for (final var keyVariant : updateKeyVariants) {
             for (final SigVariant sigVariant : SIG_VARIANTS) {
+                ops.add(updatePayerKey(sigVariant));
                 final String txnName = prefix + "CryptoUpdate" + keyVariant.suffix() + sigVariant.suffix();
                 final String account = txnName + "Acct";
                 ops.add(cryptoCreate(account)
@@ -442,8 +447,11 @@ public class KitchenSinkFeeComparisonSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .via(txnName));
                 ops.add(captureFee(
-                        txnName, joinEmphasis(keyVariant.label(), "HOOK_UPDATES=0", sigEmphasis(signers)), feeMap));
+                        txnName,
+                        joinEmphasis(keyVariant.label(), "HOOK_UPDATES=0", sigEmphasis(signers, sigVariant)),
+                        feeMap));
             }
+            ops.add(resetPayerKey());
         }
 
         for (final int hookCount : hookCounts) {
@@ -451,6 +459,7 @@ public class KitchenSinkFeeComparisonSuite {
                 continue;
             }
             for (final SigVariant sigVariant : SIG_VARIANTS) {
+                ops.add(updatePayerKey(sigVariant));
                 final String txnName = prefix + "CryptoUpdateH" + hookCount + sigVariant.suffix();
                 final String account = txnName + "Acct";
                 ops.add(cryptoCreate(account)
@@ -477,13 +486,15 @@ public class KitchenSinkFeeComparisonSuite {
                         joinEmphasis(
                                 "KEYS=0",
                                 "HOOK_UPDATES=" + hookCount + " (+" + hookCount + " extra)",
-                                sigEmphasis(signers)),
+                                sigEmphasis(signers, sigVariant)),
                         feeMap));
             }
+            ops.add(resetPayerKey());
         }
 
         for (final var keyVariant : updateKeyVariants) {
             for (final SigVariant sigVariant : SIG_VARIANTS) {
+                ops.add(updatePayerKey(sigVariant));
                 final String txnName = prefix + "CryptoUpdate" + keyVariant.suffix() + "H1" + sigVariant.suffix();
                 final String account = txnName + "Acct";
                 ops.add(cryptoCreate(account)
@@ -504,9 +515,10 @@ public class KitchenSinkFeeComparisonSuite {
                         .via(txnName));
                 ops.add(captureFee(
                         txnName,
-                        joinEmphasis(keyVariant.label(), "HOOK_UPDATES=1 (+1 extra)", sigEmphasis(signers)),
+                        joinEmphasis(keyVariant.label(), "HOOK_UPDATES=1 (+1 extra)", sigEmphasis(signers, sigVariant)),
                         feeMap));
             }
+            ops.add(resetPayerKey());
         }
 
         // ===== CryptoTransfer with varying ACCOUNTS extra =====
@@ -631,6 +643,7 @@ public class KitchenSinkFeeComparisonSuite {
 
         for (int i = 0; i < SIG_VARIANTS.size(); i++) {
             final SigVariant sigVariant = SIG_VARIANTS.get(i);
+            ops.add(updatePayerKey(sigVariant));
             final long serialBase = 1L + (i * 3L);
             final String[] signers = sigVariant.withRequired(PAYER, TREASURY);
 
@@ -647,7 +660,8 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(delA1));
-            ops.add(captureFee(delA1, joinEmphasis("ALLOWANCES=1 (included)", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(
+                    delA1, joinEmphasis("ALLOWANCES=1 (included)", sigEmphasis(signers, sigVariant)), feeMap));
 
             // ALLOWANCES=2
             ops.add(cryptoApproveAllowance()
@@ -664,7 +678,8 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(delA2));
-            ops.add(captureFee(delA2, joinEmphasis("ALLOWANCES=2 (+1 extra)", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(
+                    delA2, joinEmphasis("ALLOWANCES=2 (+1 extra)", sigEmphasis(signers, sigVariant)), feeMap));
 
             // ALLOWANCES=3
             ops.add(cryptoApproveAllowance()
@@ -683,11 +698,14 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(delA3));
-            ops.add(captureFee(delA3, joinEmphasis("ALLOWANCES=3 (+2 extra)", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(
+                    delA3, joinEmphasis("ALLOWANCES=3 (+2 extra)", sigEmphasis(signers, sigVariant)), feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== CryptoDelete =====
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final String txnName = prefix + "CryptoDelete" + sigVariant.suffix();
             final String account = txnName + "Acct";
             ops.add(cryptoCreate(account).balance(0L).payingWith(PAYER).fee(ONE_HUNDRED_HBARS));
@@ -698,8 +716,9 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(txnName));
-            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== CryptoTransfer with TOKEN_TRANSFER_BASE extra =====
         ops.add(tokenCreate(prefix + "FungibleForTransfer1")
@@ -813,6 +832,7 @@ public class KitchenSinkFeeComparisonSuite {
         final long[] nftSingleSerials = {1L, 2L, 3L};
         int nftSingleIdx = 0;
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final long serial = nftSingleSerials[nftSingleIdx++];
             final String txnName = prefix + "TokenTransferNFT1" + sigVariant.suffix();
             final String[] signers = sigVariant.withRequired(PAYER, TREASURY);
@@ -824,9 +844,12 @@ public class KitchenSinkFeeComparisonSuite {
                     .via(txnName));
             ops.add(captureFee(
                     txnName,
-                    joinEmphasis("NON_FUNGIBLE_TOKENS=1 (included), TOKEN_TRANSFER_BASE=1", sigEmphasis(signers)),
+                    joinEmphasis(
+                            "NON_FUNGIBLE_TOKENS=1 (included), TOKEN_TRANSFER_BASE=1",
+                            sigEmphasis(signers, sigVariant)),
                     feeMap));
         }
+        ops.add(resetPayerKey());
 
         final long[][] nftPairSerials = {
             {4L, 5L},
@@ -835,6 +858,7 @@ public class KitchenSinkFeeComparisonSuite {
         };
         int nftPairIdx = 0;
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final long[] serials = nftPairSerials[nftPairIdx++];
             final String txnName = prefix + "TokenTransferNFT2" + sigVariant.suffix();
             final String[] signers = sigVariant.withRequired(PAYER, TREASURY);
@@ -846,9 +870,12 @@ public class KitchenSinkFeeComparisonSuite {
                     .via(txnName));
             ops.add(captureFee(
                     txnName,
-                    joinEmphasis("NON_FUNGIBLE_TOKENS=2 (+1 extra), TOKEN_TRANSFER_BASE=1", sigEmphasis(signers)),
+                    joinEmphasis(
+                            "NON_FUNGIBLE_TOKENS=2 (+1 extra), TOKEN_TRANSFER_BASE=1",
+                            sigEmphasis(signers, sigVariant)),
                     feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== CryptoTransfer with NFT_SERIALS extra =====
         ops.add(tokenCreate(prefix + "NFTForSerials")
@@ -883,6 +910,7 @@ public class KitchenSinkFeeComparisonSuite {
         };
         int nftTripleIdx = 0;
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final long[] serials = nftSerialTriples[nftTripleIdx++];
             final String txnName = prefix + "TokenTransferNFTSerials3" + sigVariant.suffix();
             final String[] signers = sigVariant.withRequired(PAYER, TREASURY);
@@ -896,14 +924,16 @@ public class KitchenSinkFeeComparisonSuite {
                     txnName,
                     joinEmphasis(
                             "NFT_SERIALS=3 (+2 extra), NON_FUNGIBLE_TOKENS=1 (included), TOKEN_TRANSFER_BASE=1",
-                            sigEmphasis(signers)),
+                            sigEmphasis(signers, sigVariant)),
                     feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== CryptoTransfer with FUNGIBLE + NON_FUNGIBLE combo =====
         final long[] nftFtComboSerials = {10L, 11L, 12L};
         int nftFtComboIdx = 0;
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final long serial = nftFtComboSerials[nftFtComboIdx++];
             final String txnName = prefix + "TokenTransferFTNFT" + sigVariant.suffix();
             final String[] signers = sigVariant.withRequired(PAYER, TREASURY);
@@ -918,9 +948,10 @@ public class KitchenSinkFeeComparisonSuite {
                     txnName,
                     joinEmphasis(
                             "FUNGIBLE_TOKENS=1 (included), NON_FUNGIBLE_TOKENS=1 (included), TOKEN_TRANSFER_BASE=1",
-                            sigEmphasis(signers)),
+                            sigEmphasis(signers, sigVariant)),
                     feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== CryptoTransfer with TOKEN_TRANSFER_BASE_CUSTOM_FEES extra =====
         ops.add(tokenCreate(prefix + "FungibleWithCustomFee")
@@ -1189,6 +1220,7 @@ public class KitchenSinkFeeComparisonSuite {
         final int[] tokenUpdateKeyCounts = {1, 3, 5};
         for (final int keyCount : tokenUpdateKeyCounts) {
             for (final SigVariant sigVariant : SIG_VARIANTS) {
+                ops.add(updatePayerKey(sigVariant));
                 final String txnName = prefix + "TokenUpdateK" + keyCount + sigVariant.suffix();
                 final String token = txnName + "Token";
                 final var createOp = tokenCreate(token)
@@ -1227,13 +1259,15 @@ public class KitchenSinkFeeComparisonSuite {
                         joinEmphasis(
                                 "KEYS=" + keyCount
                                         + (keyCount == 1 ? " (included)" : " (+" + (keyCount - 1) + " extra)"),
-                                sigEmphasis(signers)),
+                                sigEmphasis(signers, sigVariant)),
                         feeMap));
             }
+            ops.add(resetPayerKey());
         }
 
         // ===== TokenAssociate (no extras) =====
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final String txnName = prefix + "TokenAssociate" + sigVariant.suffix();
             final String account = txnName + "Acct";
             ops.add(cryptoCreate(account)
@@ -1247,11 +1281,13 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(txnName));
-            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== TokenDissociate (no extras) =====
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final String txnName = prefix + "TokenDissociate" + sigVariant.suffix();
             final String account = txnName + "Acct";
             ops.add(cryptoCreate(account)
@@ -1269,8 +1305,9 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(txnName));
-            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== TokenBurn - Fungible (no extras) =====
         addWithSigVariants(
@@ -1312,6 +1349,7 @@ public class KitchenSinkFeeComparisonSuite {
 
         // ===== TokenFreeze / TokenUnfreeze (no extras) =====
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final String suffix = sigVariant.suffix();
             final String account = prefix + "FreezeAcct" + suffix;
             ops.add(cryptoCreate(account)
@@ -1330,7 +1368,7 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(freezeTxn));
-            ops.add(captureFee(freezeTxn, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(freezeTxn, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
 
             final String unfreezeTxn = prefix + "TokenUnfreeze" + suffix;
             ops.add(tokenUnfreeze(prefix + "FungibleK5", account)
@@ -1338,11 +1376,13 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(unfreezeTxn));
-            ops.add(captureFee(unfreezeTxn, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(unfreezeTxn, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== TokenPause / TokenUnpause (no extras) =====
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final String[] signers = sigVariant.withRequired(PAYER, SIMPLE_KEY);
             final String pauseTxn = prefix + "TokenPause" + sigVariant.suffix();
             ops.add(tokenPause(prefix + "FungibleK5")
@@ -1350,7 +1390,7 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(pauseTxn));
-            ops.add(captureFee(pauseTxn, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(pauseTxn, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
 
             final String unpauseTxn = prefix + "TokenUnpause" + sigVariant.suffix();
             ops.add(tokenUnpause(prefix + "FungibleK5")
@@ -1358,8 +1398,9 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(unpauseTxn));
-            ops.add(captureFee(unpauseTxn, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(unpauseTxn, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== TokenDelete (no extras) =====
         addWithSigVariants(
@@ -1404,6 +1445,7 @@ public class KitchenSinkFeeComparisonSuite {
 
         // ===== TokenGrantKyc / TokenRevokeKyc (no extras) =====
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final String suffix = sigVariant.suffix();
             final String account = prefix + "KycAcct" + suffix;
             ops.add(cryptoCreate(account)
@@ -1423,7 +1465,7 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(grantTxn));
-            ops.add(captureFee(grantTxn, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(grantTxn, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
 
             final String revokeTxn = prefix + "TokenRevokeKyc" + suffix;
             ops.add(revokeTokenKyc(prefix + "FungibleKyc", account)
@@ -1431,11 +1473,13 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(revokeTxn));
-            ops.add(captureFee(revokeTxn, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(revokeTxn, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== TokenReject (no extras) =====
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final String txnName = prefix + "TokenReject" + sigVariant.suffix();
             final String account = txnName + "Acct";
             ops.add(cryptoCreate(account)
@@ -1457,13 +1501,15 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(txnName));
-            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== TokenUpdateNfts (no extras) =====
         final long[] updateSerials = {1L, 2L, 3L};
         int updateIdx = 0;
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final long serial = updateSerials[updateIdx % updateSerials.length];
             updateIdx++;
             final String txnName = prefix + "TokenUpdateNfts" + sigVariant.suffix();
@@ -1474,8 +1520,9 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(txnName));
-            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== TokenAirdrop with varying AIRDROPS extra =====
         addWithSigVariants(
@@ -1530,28 +1577,30 @@ public class KitchenSinkFeeComparisonSuite {
                         .fee(ONE_HUNDRED_HBARS));
 
         // ===== TokenClaimAirdrop (no extras) =====
-        addWithSigVariants(
-                ops,
-                prefix + "TokenClaimAirdrop",
-                "no extras",
-                feeMap,
-                new String[] {PAYER, TREASURY},
-                txnName -> blockingOrder(
-                        cryptoCreate(txnName + "Receiver")
-                                .key(SIMPLE_KEY)
-                                .balance(ONE_HBAR)
-                                .maxAutomaticTokenAssociations(0)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        tokenAirdrop(moving(10L, prefix + "FungibleAirdrop").between(TREASURY, txnName + "Receiver"))
-                                .payingWith(PAYER)
-                                .signedBy(PAYER, TREASURY)
-                                .fee(ONE_HUNDRED_HBARS)),
-                (txnName, signers) -> tokenClaimAirdrop(HapiTokenClaimAirdrop.pendingAirdrop(
-                                TREASURY, txnName + "Receiver", prefix + "FungibleAirdrop"))
-                        .payingWith(PAYER)
-                        .signedBy(signers)
-                        .fee(ONE_HUNDRED_HBARS));
+        for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
+            final String txnName = prefix + "TokenClaimAirdrop" + sigVariant.suffix();
+            final String receiver = txnName + "Receiver";
+            ops.add(blockingOrder(
+                    cryptoCreate(receiver)
+                            .key(SIMPLE_KEY)
+                            .balance(ONE_HBAR)
+                            .maxAutomaticTokenAssociations(0)
+                            .payingWith(PAYER)
+                            .fee(ONE_HUNDRED_HBARS),
+                    tokenAirdrop(moving(10L, prefix + "FungibleAirdrop").between(TREASURY, receiver))
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, TREASURY)
+                            .fee(ONE_HUNDRED_HBARS)));
+            final String[] signers = sigVariant.withRequired(PAYER, receiver);
+            ops.add(tokenClaimAirdrop(HapiTokenClaimAirdrop.pendingAirdrop(TREASURY, receiver, prefix + "FungibleAirdrop"))
+                    .payingWith(PAYER)
+                    .signedBy(signers)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
+        }
+        ops.add(resetPayerKey());
 
         // ===== TokenCancelAirdrop (no extras) =====
         addWithSigVariants(
@@ -1639,12 +1688,13 @@ public class KitchenSinkFeeComparisonSuite {
                         ? "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE=1"
                         : "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE=0";
                 final String txnBase = prefix + "TopicCreateK" + keyCount + (customFee ? "CF1" : "CF0");
+                final String[] requiredSigners = keyCount >= 1 ? new String[] {PAYER, SIMPLE_KEY} : new String[] {PAYER};
                 addWithSigVariants(
                         ops,
                         txnBase,
                         joinEmphasis(keyLabel, cfLabel),
                         feeMap,
-                        new String[] {PAYER},
+                        requiredSigners,
                         (txnName, signers) -> {
                             final var op = createTopic(txnName + "Topic")
                                     .blankMemo()
@@ -1739,6 +1789,7 @@ public class KitchenSinkFeeComparisonSuite {
 
         // ===== ConsensusDeleteTopic (no extras) =====
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final String txnName = prefix + "TopicDelete" + sigVariant.suffix();
             final String topic = txnName + "Topic";
             ops.add(createTopic(topic)
@@ -1752,8 +1803,9 @@ public class KitchenSinkFeeComparisonSuite {
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
                     .via(txnName));
-            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(txnName, joinEmphasis("no extras", sigEmphasis(signers, sigVariant)), feeMap));
         }
+        ops.add(resetPayerKey());
 
         // ===== ConsensusGetTopicInfo (query) =====
         addQueryWithSigVariants(
@@ -1811,6 +1863,7 @@ public class KitchenSinkFeeComparisonSuite {
                         ? new String[] {PAYER}
                         : new String[] {PAYER, keyVariant.keyName()};
                 for (final SigVariant sigVariant : SIG_VARIANTS) {
+                    ops.add(updatePayerKey(sigVariant));
                     final String[] signers = sigVariant.withRequired(baseSigners);
                     final String txnName = txnBase + sigVariant.suffix();
                     final var op = fileCreate(txnName + "File")
@@ -1825,8 +1878,11 @@ public class KitchenSinkFeeComparisonSuite {
                     }
                     ops.add(op.via(txnName));
                     ops.add(captureFee(
-                            txnName, joinEmphasis(keyVariant.label(), bytesLabel, sigEmphasis(signers)), feeMap));
+                            txnName,
+                            joinEmphasis(keyVariant.label(), bytesLabel, sigEmphasis(signers, sigVariant)),
+                            feeMap));
                 }
+                ops.add(resetPayerKey());
             }
         }
 
@@ -2306,6 +2362,7 @@ public class KitchenSinkFeeComparisonSuite {
         final long[] hookComboSerials = {1L, 2L, 3L};
         int hookComboIdx = 0;
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final long serial = hookComboSerials[hookComboIdx++];
             final String txnName = prefix + "CryptoTransferHookCombo" + sigVariant.suffix();
             final String[] signers = sigVariant.withRequired(PAYER, prefix + "HookSender");
@@ -2328,9 +2385,10 @@ public class KitchenSinkFeeComparisonSuite {
                             "HOOK_EXECUTION=1 (pre), GAS=75000 (+50000 extra), ACCOUNTS=4 (+2 extra), "
                                     + "FUNGIBLE_TOKENS=2 (+1 extra), NON_FUNGIBLE_TOKENS=1 (included), "
                                     + "TOKEN_TRANSFER_BASE=1, TOKEN_TRANSFER_BASE_CUSTOM_FEES=1",
-                            sigEmphasis(signers)),
+                            sigEmphasis(signers, sigVariant)),
                     feeMap));
         }
+        ops.add(resetPayerKey());
 
         final long[][] hookComboSerialTriples = {
             {4L, 5L, 6L},
@@ -2339,6 +2397,7 @@ public class KitchenSinkFeeComparisonSuite {
         };
         int hookComboTripleIdx = 0;
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            ops.add(updatePayerKey(sigVariant));
             final long[] serials = hookComboSerialTriples[hookComboTripleIdx++];
             final String txnName = prefix + "CryptoTransferHookComboSerials3" + sigVariant.suffix();
             final String[] signers = sigVariant.withRequired(PAYER, prefix + "HookSender");
@@ -2363,9 +2422,10 @@ public class KitchenSinkFeeComparisonSuite {
                                     + "FUNGIBLE_TOKENS=3 (+2 extra), NON_FUNGIBLE_TOKENS=1 (included), "
                                     + "NFT_SERIALS=3 (+2 extra), TOKEN_TRANSFER_BASE=1, "
                                     + "TOKEN_TRANSFER_BASE_CUSTOM_FEES=2 (+1 extra)",
-                            sigEmphasis(signers)),
+                            sigEmphasis(signers, sigVariant)),
                     feeMap));
         }
+        ops.add(resetPayerKey());
 
         // Create sender with pre-post hook for 2 hook executions
         ops.add(uploadInitCode("TruePrePostHook"));
@@ -2758,10 +2818,39 @@ public class KitchenSinkFeeComparisonSuite {
 
     // ==================== FEE CAPTURE AND COMPARISON ====================
 
-    private static String sigEmphasis(final String[] signers) {
-        final int total = new LinkedHashSet<>(Arrays.asList(signers)).size();
+    private static SpecOperation updatePayerKey(final SigVariant sigVariant) {
+        return cryptoUpdate(PAYER)
+                .key(sigVariant.payerKey())
+                .payingWith(PAYER)
+                .signedBy(PAYER, sigVariant.payerKey())
+                .fee(ONE_HUNDRED_HBARS);
+    }
+
+    private static SpecOperation resetPayerKey() {
+        return cryptoUpdate(PAYER)
+                .key(PAYER_KEY_1)
+                .payingWith(PAYER)
+                .signedBy(PAYER, PAYER_KEY_1)
+                .fee(ONE_HUNDRED_HBARS);
+    }
+
+    private static int signatureCount(final String[] signers, final SigVariant sigVariant) {
+        final Set<String> unique = new LinkedHashSet<>(Arrays.asList(signers));
+        int total = unique.size();
+        if (sigVariant != null && unique.contains(PAYER)) {
+            total += Math.max(0, sigVariant.payerSigCount() - 1);
+        }
+        return total;
+    }
+
+    private static String sigEmphasis(final String[] signers, final SigVariant sigVariant) {
+        final int total = signatureCount(signers, sigVariant);
         final int extra = Math.max(0, total - 1);
         return extra == 0 ? "SIGS=" + total + " (included)" : "SIGS=" + total + " (+" + extra + " extra)";
+    }
+
+    private static String sigEmphasis(final String[] signers) {
+        return sigEmphasis(signers, null);
     }
 
     private static String joinEmphasis(final String... parts) {
@@ -2786,7 +2875,11 @@ public class KitchenSinkFeeComparisonSuite {
             final String[] requiredSigners,
             final Function<String, SpecOperation> setupOpFactory,
             final BiFunction<String, String[], T> opFactory) {
+        final boolean usesPayer = Arrays.asList(requiredSigners).contains(PAYER);
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            if (usesPayer) {
+                ops.add(updatePayerKey(sigVariant));
+            }
             final String[] signers = sigVariant.withRequired(requiredSigners);
             final String txnName = txnNameBase + sigVariant.suffix();
             if (setupOpFactory != null) {
@@ -2794,7 +2887,10 @@ public class KitchenSinkFeeComparisonSuite {
             }
             final T op = opFactory.apply(txnName, signers).via(txnName);
             ops.add(op);
-            ops.add(captureFee(txnName, joinEmphasis(emphasisBase, sigEmphasis(signers)), feeMap));
+            ops.add(captureFee(txnName, joinEmphasis(emphasisBase, sigEmphasis(signers, sigVariant)), feeMap));
+        }
+        if (usesPayer) {
+            ops.add(resetPayerKey());
         }
     }
 
@@ -2816,15 +2912,19 @@ public class KitchenSinkFeeComparisonSuite {
             final String[] requiredSigners,
             final Function<String, SpecOperation> setupOpFactory,
             final BiFunction<String, String[], T> queryFactory) {
+        final boolean usesPayer = Arrays.asList(requiredSigners).contains(PAYER);
         for (final SigVariant sigVariant : SIG_VARIANTS) {
+            if (usesPayer) {
+                ops.add(updatePayerKey(sigVariant));
+            }
             final String[] signers = sigVariant.withRequired(requiredSigners);
             final String queryName = queryNameBase + sigVariant.suffix();
             if (setupOpFactory != null) {
                 ops.add(setupOpFactory.apply(queryName));
             }
-            final String emphasis = joinEmphasis(emphasisBase, sigEmphasis(signers));
+            final String emphasis = joinEmphasis(emphasisBase, sigEmphasis(signers, sigVariant));
             final T op = queryFactory.apply(queryName, signers).fee(ONE_HUNDRED_HBARS);
-            if (signers.length > requiredSigners.length || queryName.contains("CryptoGetAccountRecords")) {
+            if ((usesPayer && sigVariant.payerSigCount() > 1) || queryName.contains("CryptoGetAccountRecords")) {
                 op.hasAnswerOnlyPrecheckFrom(
                         com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK,
                         com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE);
@@ -2832,6 +2932,9 @@ public class KitchenSinkFeeComparisonSuite {
             op.exposingNodePaymentTo(captureQueryFee(queryName, emphasis, feeMap))
                     .via(queryName);
             ops.add(op);
+        }
+        if (usesPayer) {
+            ops.add(resetPayerKey());
         }
     }
 
