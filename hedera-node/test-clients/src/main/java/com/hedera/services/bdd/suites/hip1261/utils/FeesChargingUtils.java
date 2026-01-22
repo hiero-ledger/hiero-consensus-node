@@ -15,9 +15,11 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_ACCOUNTS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_GAS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FUNGIBLE_TOKENS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_EXECUTION_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_UPDATES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.KEYS_FEE_USD;
@@ -144,6 +146,7 @@ public class FeesChargingUtils {
             long uniqueAccounts,
             long uniqueFungibleTokens,
             long uniqueNonFungibleTokens,
+            long gasAmount,
             boolean includesHbarBaseFee,
             boolean includesTokenTransferBase,
             boolean includesTokenTransferWithCustomBase) {
@@ -174,12 +177,14 @@ public class FeesChargingUtils {
                 extra(uniqueFungibleTokens, CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS, FUNGIBLE_TOKENS_FEE_USD);
         final double uniqueNonFungibleTokensExtrasFee = extra(
                 uniqueNonFungibleTokens, CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS, NON_FUNGIBLE_TOKENS_FEE_USD);
+        final double gasExtrasFee = extra(gasAmount, CRYPTO_TRANSFER_INCLUDED_GAS, GAS_FEE_USD);
 
         final double serviceFee = serviceBaseFee
                 + hooksExtrasFee
                 + accountsExtrasFee
                 + uniqueFungibleTokensExtrasFee
-                + uniqueNonFungibleTokensExtrasFee;
+                + uniqueNonFungibleTokensExtrasFee
+                + gasExtrasFee;
 
         return nodeFee + networkFee + serviceFee;
     }
@@ -189,7 +194,8 @@ public class FeesChargingUtils {
             long uniqueHooksExecuted,
             long uniqueAccounts,
             long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens) {
+            long uniqueNonFungibleTokens,
+            long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
                 sigs,
@@ -197,6 +203,7 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
+                gasAmount,
                 true,
                 false,
                 false);
@@ -207,7 +214,8 @@ public class FeesChargingUtils {
             long uniqueHooksExecuted,
             long uniqueAccounts,
             long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens) {
+            long uniqueNonFungibleTokens,
+            long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
                 sigs,
@@ -215,6 +223,7 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
+                gasAmount,
                 false,
                 true,
                 false);
@@ -225,7 +234,8 @@ public class FeesChargingUtils {
             long uniqueHooksExecuted,
             long uniqueAccounts,
             long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens) {
+            long uniqueNonFungibleTokens,
+            long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
                 sigs,
@@ -233,6 +243,7 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
+                gasAmount,
                 false,
                 true,
                 false);
@@ -243,7 +254,8 @@ public class FeesChargingUtils {
             long uniqueHooksExecuted,
             long uniqueAccounts,
             long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens) {
+            long uniqueNonFungibleTokens,
+            long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
                 sigs,
@@ -251,6 +263,7 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
+                gasAmount,
                 false,
                 true,
                 false);
@@ -261,7 +274,8 @@ public class FeesChargingUtils {
             long uniqueHooksExecuted,
             long uniqueAccounts,
             long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens) {
+            long uniqueNonFungibleTokens,
+            long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
                 sigs,
@@ -269,6 +283,7 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
+                gasAmount,
                 true,
                 true,
                 false);
@@ -279,7 +294,8 @@ public class FeesChargingUtils {
             long uniqueHooksExecuted,
             long uniqueAccounts,
             long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens) {
+            long uniqueNonFungibleTokens,
+            long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
                 sigs,
@@ -287,6 +303,7 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
+                gasAmount,
                 true,
                 true,
                 false);
@@ -297,7 +314,8 @@ public class FeesChargingUtils {
             long uniqueHooksExecuted,
             long uniqueAccounts,
             long uniqueFungibleTokens,
-            long uniqueNonFungibleTokens) {
+            long uniqueNonFungibleTokens,
+            long gasAmount) {
 
         return expectedCryptoTransferFullFeeUsd(
                 sigs,
@@ -305,6 +323,7 @@ public class FeesChargingUtils {
                 uniqueAccounts,
                 uniqueFungibleTokens,
                 uniqueNonFungibleTokens,
+                gasAmount,
                 true,
                 true,
                 false);
