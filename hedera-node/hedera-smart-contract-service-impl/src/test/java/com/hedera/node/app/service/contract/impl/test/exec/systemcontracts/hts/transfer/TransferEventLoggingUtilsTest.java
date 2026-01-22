@@ -247,14 +247,14 @@ public class TransferEventLoggingUtilsTest {
     // Multiple debit and credit accounts with same amount to check accountId ordering.
     @Test
     void emitErcLogEventsForMultipleDebitAndCreditWithSameAmount() {
-        AccountID sender1 = AccountID.newBuilder().accountNum(1_000_000_9).build();
-        AccountID sender2 = AccountID.newBuilder().accountNum(1_000_000_8).build();
-        AccountID sender3 = AccountID.newBuilder()
+        final AccountID sender1 = AccountID.newBuilder().accountNum(1_000_009).build();
+        final AccountID sender2 = AccountID.newBuilder().accountNum(1_000_008).build();
+        final AccountID sender3 = AccountID.newBuilder()
                 .alias(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("ee1ef340808e37344e8150037c0deee33060e123"))
                 .build();
-        AccountID receiver1 = AccountID.newBuilder().accountNum(1_000_000_1).build();
-        AccountID receiver2 = AccountID.newBuilder().accountNum(1_000_000_2).build();
-        AccountID receiver3 = AccountID.newBuilder()
+        final AccountID receiver1 = AccountID.newBuilder().accountNum(1_000_001).build();
+        final AccountID receiver2 = AccountID.newBuilder().accountNum(1_000_002).build();
+        final AccountID receiver3 = AccountID.newBuilder()
                 .alias(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("ff1ef340808e37344e8150037c0deee33060e123"))
                 .build();
 
