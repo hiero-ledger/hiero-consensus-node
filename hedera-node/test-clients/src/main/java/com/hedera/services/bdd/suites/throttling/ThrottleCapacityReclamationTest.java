@@ -49,7 +49,7 @@ public class ThrottleCapacityReclamationTest {
     @DisplayName("No double-reclaim: reverted mint + successful mint = third mint throttled")
     final Stream<DynamicTest> noDoubleReclaimAfterRevertedMint(
             @NonFungibleToken SpecNonFungibleToken nft,
-            @Contract(contract = "ReclaimCheck.sol", creationGas = 3_000_000) SpecContract doubleReclaimCheck) {
+            @Contract(contract = "ReclaimCheck", creationGas = 3_000_000) SpecContract doubleReclaimCheck) {
         return hapiTest(
                 overridingTwo(
                         "tokens.nfts.mintThrottleScaleFactor", "1:1",
@@ -60,10 +60,12 @@ public class ThrottleCapacityReclamationTest {
                 // 2. Do a successful outer mint (using reclaimed capacity)
                 // 3. Try a third mint which should be throttled (proving no double-reclaim)
                 doubleReclaimCheck
-                        .call("testNoDoubleReclaim", nft,
-                                new byte[][] {{(byte) 0xAA}},  // meta1 - will be reverted
-                                new byte[][] {{(byte) 0xBB}},  // meta2 - should succeed
-                                new byte[][] {{(byte) 0xCC}})  // meta3 - should be throttled
+                        .call(
+                                "testNoDoubleReclaim",
+                                nft,
+                                new byte[][] {{(byte) 0xAA}}, // meta1 - will be reverted
+                                new byte[][] {{(byte) 0xBB}}, // meta2 - should succeed
+                                new byte[][] {{(byte) 0xCC}}) // meta3 - should be throttled
                         .gas(3_000_000L));
     }
 
@@ -78,7 +80,7 @@ public class ThrottleCapacityReclamationTest {
     @DisplayName("Multiple reverts don't stack: 2 reverted mints still only allow 1 successful mint")
     final Stream<DynamicTest> multipleRevertsDoNotStackCapacity(
             @NonFungibleToken SpecNonFungibleToken nft,
-            @Contract(contract = "ReclaimCheck.sol", creationGas = 3_000_000) SpecContract doubleReclaimCheck) {
+            @Contract(contract = "ReclaimCheck", creationGas = 3_000_000) SpecContract doubleReclaimCheck) {
         return hapiTest(
                 overridingTwo(
                         "tokens.nfts.mintThrottleScaleFactor", "1:1",
@@ -90,12 +92,13 @@ public class ThrottleCapacityReclamationTest {
                 // 3. Do ONE successful mint (should work)
                 // 4. Try another mint which should be throttled (proving reverts don't stack)
                 doubleReclaimCheck
-                        .call("testMultipleRevertsNoExtraReclaim", nft,
-                                new byte[][] {{(byte) 0x11}},  // revertMeta1
-                                new byte[][] {{(byte) 0x22}},  // revertMeta2
-                                new byte[][] {{(byte) 0x33}},  // successMeta
-                                new byte[][] {{(byte) 0x44}})  // throttledMeta
+                        .call(
+                                "testMultipleRevertsNoExtraReclaim",
+                                nft,
+                                new byte[][] {{(byte) 0x11}}, // revertMeta1
+                                new byte[][] {{(byte) 0x22}}, // revertMeta2
+                                new byte[][] {{(byte) 0x33}}, // successMeta
+                                new byte[][] {{(byte) 0x44}}) // throttledMeta
                         .gas(3_000_000L));
     }
 }
-
