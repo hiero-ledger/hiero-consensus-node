@@ -292,12 +292,12 @@ message StateKey {
     /**
      * A state identifier for CLPR Message Queue.
      */
-    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_MESSAGE_QUEUE_METADATA = 57;
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_MESSAGE_QUEUE_METADATA = 58;
 
     /**
      * A state identifier for CLPR Messages.
      */
-    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_MESSAGES = 58;
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_MESSAGES = 59;
 
     // Queue states
     /**
