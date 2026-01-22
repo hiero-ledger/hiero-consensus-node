@@ -221,7 +221,7 @@ public class KitchenSinkFeeComparisonSuite {
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("Kitchen sink fee comparison - all transaction types with varying parameters")
-    final Stream<DynamicTest> kitchenSinkFeeComparison() {
+    final Stream<DynamicTest> kitchenSinkFeeComparisonCrypto() {
         // Maps to store fees from both runs
         final Map<String, Long> legacyFees = new LinkedHashMap<>();
         final Map<String, Long> simpleFees = new LinkedHashMap<>();
@@ -274,7 +274,7 @@ public class KitchenSinkFeeComparisonSuite {
                 createAllKeys(),
                 // === SETUP: Create base accounts ===
                 createBaseAccounts(),
-                // === RUN 1: Simple fees (simpleFeesEnabled=true) - must run first ===
+                // === RUN 1: Simple fees (simpleFeesEnabled=true) - run first ===
                 overriding("fees.simpleFeesEnabled", "true"),
                 blockingOrder(runAllTransactions("simple", simpleFees)),
                 // === RUN 2: Legacy fees (simpleFeesEnabled=false) ===
@@ -395,17 +395,17 @@ public class KitchenSinkFeeComparisonSuite {
                 final String txnBase = prefix + "CryptoCreate" + keyVariant.suffix() + "H" + hookCount;
                 addWithSigVariants(
                         ops,
-                        txnBase,
-                        joinEmphasis(keyVariant.label(), hookLabel),
+                        txnBase, // txn base name
+                        joinEmphasis(keyVariant.label(), hookLabel), // description for csv
                         feeMap,
-                        new String[] {PAYER},
+                        new String[] {PAYER}, // required signers
                         (txnName, signers) -> {
                             final var op = cryptoCreate(txnName + "Acct")
                                     .key(keyVariant.keyName())
                                     .balance(ONE_HBAR)
                                     .blankMemo()
                                     .payingWith(PAYER)
-                                    .signedBy(signers)
+                                    .signedBy(signers) // uses merged signers
                                     .fee(ONE_HUNDRED_HBARS);
                             if (hookCount == 1) {
                                 op.withHooks(accountAllowanceHook(1L, prefix + "HookContract1"));
