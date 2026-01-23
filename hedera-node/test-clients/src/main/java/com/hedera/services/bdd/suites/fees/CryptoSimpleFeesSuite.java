@@ -29,6 +29,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -484,14 +485,15 @@ public class CryptoSimpleFeesSuite {
     @DisplayName("crypto approve allowance with multiple signatures")
     final Stream<DynamicTest> cryptoApproveAllowanceMultipleSignatures() {
         return hapiTest(
-                newKeyNamed("payerKey"),
-                newKeyNamed("spenderKey"),
+                newKeyNamed("payerKey1"),
+                newKeyNamed("payerKey2"),
+                newKeyListNamed("payerKey", List.of("payerKey1", "payerKey2")),
                 cryptoCreate(PAYER).key("payerKey").balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("spender").key("spenderKey"),
+                cryptoCreate("spender"),
                 cryptoApproveAllowance()
                         .payingWith(PAYER)
                         .addCryptoAllowance(PAYER, "spender", 100L)
-                        .signedBy("payerKey", "spenderKey")
+                        .signedBy("payerKey")
                         .via("approveMultiSigTxn"),
                 validateChargedUsd(
                         "approveMultiSigTxn", CRYPTO_APPROVE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
@@ -501,8 +503,9 @@ public class CryptoSimpleFeesSuite {
     @DisplayName("crypto delete allowance with multiple signatures")
     final Stream<DynamicTest> cryptoDeleteAllowanceMultipleSignatures() {
         return hapiTest(
-                newKeyNamed("payerKey"),
-                newKeyNamed("extraKey"),
+                newKeyNamed("payerKey1"),
+                newKeyNamed("payerKey2"),
+                newKeyListNamed("payerKey", List.of("payerKey1", "payerKey2")),
                 cryptoCreate(PAYER).key("payerKey").balance(ONE_HUNDRED_HBARS),
                 tokenCreate("nft1")
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -513,7 +516,7 @@ public class CryptoSimpleFeesSuite {
                 cryptoDeleteAllowance()
                         .payingWith(PAYER)
                         .addNftDeleteAllowance(PAYER, "nft1", of(1L))
-                        .signedBy("payerKey", "extraKey")
+                        .signedBy("payerKey")
                         .via("deleteMultiSigTxn"),
                 validateChargedUsd("deleteMultiSigTxn", CRYPTO_DELETE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
