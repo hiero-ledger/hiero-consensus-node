@@ -2780,38 +2780,68 @@ public class KitchenSinkFeeComparisonSuite {
                         hapiPrng(100).payingWith(PAYER).signedBy(signers).fee(ONE_HUNDRED_HBARS));
 
         // ===== AtomicBatch with varying transaction count =====
-        addWithSigVariants(
-                ops,
-                prefix + "AtomicBatchT1",
-                "TRANSACTIONS=1 (included)",
-                feeMap,
-                new String[] {BATCH_OPERATOR},
-                (txnName, signers) -> atomicBatch(cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 1L))
-                                .payingWith(BATCH_OPERATOR)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .signedBy(signers)
-                        .fee(ONE_HUNDRED_HBARS));
+        for (final SigVariant sigVariant : SIG_VARIANTS) {
+            final String txnName = prefix + "AtomicBatchT1" + sigVariant.suffix();
+            final String innerTxn = txnName + "Inner1";
+            final String[] signers = sigVariant.withRequired(BATCH_OPERATOR);
+            ops.add(atomicBatch(cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 1L))
+                            .payingWith(BATCH_OPERATOR)
+                            .batchKey(BATCH_OPERATOR)
+                            .via(innerTxn))
+                    .payingWith(BATCH_OPERATOR)
+                    .signedBy(signers)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+            ops.add(captureFee(
+                    txnName,
+                    joinEmphasis("TRANSACTIONS=1 (included)", sigEmphasis(signers, sigVariant)),
+                    feeMap));
+            ops.add(captureFee(
+                    innerTxn,
+                    joinEmphasis("INNER=1", "TRANSACTIONS=1 (included)", sigEmphasis(signers, sigVariant)),
+                    feeMap));
+        }
 
-        addWithSigVariants(
-                ops,
-                prefix + "AtomicBatchT3",
-                "TRANSACTIONS=3 (+2 extra)",
-                feeMap,
-                new String[] {BATCH_OPERATOR},
-                (txnName, signers) -> atomicBatch(
-                                cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 1L))
-                                        .payingWith(BATCH_OPERATOR)
-                                        .batchKey(BATCH_OPERATOR),
-                                cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 2L))
-                                        .payingWith(BATCH_OPERATOR)
-                                        .batchKey(BATCH_OPERATOR),
-                                cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 3L))
-                                        .payingWith(BATCH_OPERATOR)
-                                        .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .signedBy(signers)
-                        .fee(ONE_HUNDRED_HBARS));
+        for (final SigVariant sigVariant : SIG_VARIANTS) {
+            final String txnName = prefix + "AtomicBatchT3" + sigVariant.suffix();
+            final String innerTxn1 = txnName + "Inner1";
+            final String innerTxn2 = txnName + "Inner2";
+            final String innerTxn3 = txnName + "Inner3";
+            final String[] signers = sigVariant.withRequired(BATCH_OPERATOR);
+            ops.add(atomicBatch(
+                            cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 1L))
+                                    .payingWith(BATCH_OPERATOR)
+                                    .batchKey(BATCH_OPERATOR)
+                                    .via(innerTxn1),
+                            cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 2L))
+                                    .payingWith(BATCH_OPERATOR)
+                                    .batchKey(BATCH_OPERATOR)
+                                    .via(innerTxn2),
+                            cryptoTransfer(tinyBarsFromTo(BATCH_OPERATOR, RECEIVER, 3L))
+                                    .payingWith(BATCH_OPERATOR)
+                                    .batchKey(BATCH_OPERATOR)
+                                    .via(innerTxn3))
+                    .payingWith(BATCH_OPERATOR)
+                    .signedBy(signers)
+                    .fee(ONE_HUNDRED_HBARS)
+                    .via(txnName));
+            ops.add(captureFee(
+                    txnName,
+                    joinEmphasis("TRANSACTIONS=3 (+2 extra)", sigEmphasis(signers, sigVariant)),
+                    feeMap));
+            ops.add(captureFee(
+                    innerTxn1,
+                    joinEmphasis("INNER=1", "TRANSACTIONS=3 (+2 extra)", sigEmphasis(signers, sigVariant)),
+                    feeMap));
+            ops.add(captureFee(
+                    innerTxn2,
+                    joinEmphasis("INNER=2", "TRANSACTIONS=3 (+2 extra)", sigEmphasis(signers, sigVariant)),
+                    feeMap));
+            ops.add(captureFee(
+                    innerTxn3,
+                    joinEmphasis("INNER=3", "TRANSACTIONS=3 (+2 extra)", sigEmphasis(signers, sigVariant)),
+                    feeMap));
+        }
 
         return ops;
     }
