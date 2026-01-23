@@ -29,6 +29,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDissociateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDissociateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
@@ -36,6 +37,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -100,7 +102,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenAssociateTxn",
                             expectedTokenAssociateFullFeeUsd(1L, 1L), // 1 sig, 1 token
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -120,7 +122,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenAssociateTxn",
                             expectedTokenAssociateFullFeeUsd(1L, 3L), // 1 sig, 3 tokens
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -143,7 +145,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenAssociateTxn",
                             expectedTokenAssociateFullFeeUsd(2L, 1L), // 2 sigs, 1 token
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -165,7 +167,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenAssociateTxn",
                             expectedTokenAssociateFullFeeUsd(1L, 5L), // 1 sig, 5 tokens
-                            1.0));
+                            0.001));
         }
     }
 
@@ -189,7 +191,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenDissociateTxn",
                             expectedTokenDissociateFullFeeUsd(1L, 1L), // 1 sig, 1 token
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -210,7 +212,7 @@ public class TokenAssociateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenDissociateTxn",
                             expectedTokenDissociateFullFeeUsd(1L, 3L), // 1 sig, 3 tokens
-                            1.0));
+                            0.001));
         }
     }
 
@@ -291,7 +293,7 @@ public class TokenAssociateSimpleFeesTest {
                         validateChargedUsdWithin(
                                 "tokenAssociateTxn",
                                 expectedTokenAssociateFullFeeUsd(1L, 1L), // 1 sig, 1 token
-                                1.0));
+                                0.001));
             }
 
             @HapiTest
@@ -311,7 +313,7 @@ public class TokenAssociateSimpleFeesTest {
                         validateChargedUsdWithin(
                                 "tokenAssociateTxn",
                                 expectedTokenAssociateFullFeeUsd(1L, 1L), // 1 sig, 1 token
-                                1.0));
+                                0.001));
             }
         }
 
@@ -360,7 +362,149 @@ public class TokenAssociateSimpleFeesTest {
                                 initialNodeBalance,
                                 afterNodeBalance,
                                 expectedTokenAssociateNetworkFeeOnlyUsd(1L),
-                                1.0));
+                                0.001));
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("TokenDissociate Simple Fees Negative Test Cases")
+    class TokenDissociateNegativeTestCases {
+
+        @Nested
+        @DisplayName("TokenDissociate Failures on Ingest and Handle")
+        class TokenDissociateFailuresOnIngest {
+
+            @HapiTest
+            @DisplayName("TokenDissociate - insufficient tx fee fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenDissociateInsufficientTxFeeFailsOnIngest() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
+                return hapiTest(
+                        cryptoCreate(TREASURY),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
+                        getAccountBalance(ACCOUNT).exposingBalanceTo(initialBalance::set),
+                        tokenDissociate(ACCOUNT, TOKEN1)
+                                .payingWith(ACCOUNT)
+                                .signedBy(ACCOUNT)
+                                .fee(1L) // Fee too low
+                                .via("tokenDissociateTxn")
+                                .hasPrecheck(INSUFFICIENT_TX_FEE),
+                        getTxnRecord("tokenDissociateTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
+                        getAccountBalance(ACCOUNT).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertEquals(initialBalance.get(), afterBalance.get());
+                        }));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDissociate - invalid token fails on handle - full fee charged")
+            final Stream<DynamicTest> tokenDissociateInvalidTokenFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
+                return hapiTest(
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        getAccountBalance(ACCOUNT).exposingBalanceTo(initialBalance::set),
+                        tokenDissociate(ACCOUNT, "0.0.99999999") // Invalid token
+                                .payingWith(ACCOUNT)
+                                .signedBy(ACCOUNT)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("tokenDissociateTxn")
+                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        getAccountBalance(ACCOUNT).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "tokenDissociateTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenDissociateFullFeeUsd(1L),
+                                0.001));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDissociate - not associated fails on handle - full fee charged")
+            final Stream<DynamicTest> tokenDissociateNotAssociatedFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
+                return hapiTest(
+                        cryptoCreate(TREASURY),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
+                        // Not associating the token
+                        getAccountBalance(ACCOUNT).exposingBalanceTo(initialBalance::set),
+                        tokenDissociate(ACCOUNT, TOKEN1)
+                                .payingWith(ACCOUNT)
+                                .signedBy(ACCOUNT)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("tokenDissociateTxn")
+                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        getAccountBalance(ACCOUNT).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "tokenDissociateTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenDissociateFullFeeUsd(1L),
+                                0.001));
+            }
+        }
+
+        @Nested
+        @DisplayName("TokenDissociate Failures on Pre-Handle")
+        class TokenDissociateFailuresOnPreHandle {
+
+            @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
+            @DisplayName("TokenDissociate - invalid payer signature fails on pre-handle - network fee only")
+            final Stream<DynamicTest> tokenDissociateInvalidPayerSigFailsOnPreHandle() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+                final AtomicLong initialNodeBalance = new AtomicLong();
+                final AtomicLong afterNodeBalance = new AtomicLong();
+
+                final String INNER_ID = "token-dissociate-txn-inner-id";
+
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF));
+
+                return hapiTest(
+                        cryptoCreate(TREASURY),
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(ACCOUNT).exposingBalanceTo(initialBalance::set),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "0.0.4")),
+                        getAccountBalance("0.0.4").exposingBalanceTo(initialNodeBalance::set),
+                        tokenDissociate(ACCOUNT, TOKEN1)
+                                .payingWith(ACCOUNT)
+                                .sigControl(forKey(PAYER_KEY, invalidSig))
+                                .signedBy(ACCOUNT)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .setNode("0.0.4")
+                                .via(INNER_ID)
+                                .hasKnownStatus(INVALID_PAYER_SIGNATURE),
+                        getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
+                        getAccountBalance(ACCOUNT).exposingBalanceTo(afterBalance::set),
+                        getAccountBalance("0.0.4").exposingBalanceTo(afterNodeBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertEquals(initialBalance.get(), afterBalance.get());
+                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                INNER_ID,
+                                initialNodeBalance,
+                                afterNodeBalance,
+                                expectedTokenDissociateNetworkFeeOnlyUsd(1L),
+                                0.001));
             }
         }
     }

@@ -111,7 +111,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(2L, 0L), // 2 sigs, 0 new keys
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -137,7 +137,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(3L, 1L), // 3 sigs, 1 new key
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -165,7 +165,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(2L, 1L), // 2 sigs, 1 new key
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -199,7 +199,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(3L, 3L), // 3 sigs, 3 new keys
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -230,7 +230,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(3L, 0L), // 3 sigs (2 payer + 1 admin)
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -257,7 +257,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(3L, 0L), // 3 sigs (payer + admin + new treasury)
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -284,7 +284,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(2L, 0L), // 2 sigs, 0 new keys
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -312,7 +312,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(2L, 1L), // 2 sigs, 1 new key
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -341,7 +341,7 @@ public class TokenUpdateSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenUpdateTxn",
                             expectedTokenUpdateFullFeeUsd(2L, 0L), // 2 sigs, 0 new keys
-                            1.0));
+                            0.001));
         }
     }
 
@@ -350,7 +350,7 @@ public class TokenUpdateSimpleFeesTest {
     class TokenUpdateSimpleFeesNegativeTestCases {
 
         @Nested
-        @DisplayName("TokenUpdate Failures on Ingest")
+        @DisplayName("TokenUpdate Failures on Ingest and Handle")
         class TokenUpdateFailuresOnIngest {
 
             @HapiTest
@@ -399,7 +399,7 @@ public class TokenUpdateSimpleFeesTest {
                         validateChargedUsdWithin(
                                 "tokenUpdateTxn",
                                 expectedTokenUpdateFullFeeUsd(1L, 0L), // 1 sig, 0 new keys
-                                1.0));
+                                0.001));
             }
         }
 
@@ -455,7 +455,7 @@ public class TokenUpdateSimpleFeesTest {
                                 initialNodeBalance,
                                 afterNodeBalance,
                                 expectedTokenUpdateNetworkFeeOnlyUsd(2L),
-                                1.0));
+                                0.001));
             }
         }
     }

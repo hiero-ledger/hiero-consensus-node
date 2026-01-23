@@ -31,7 +31,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double ALLOWANCES_FEE_USD = 0.05;
 
     public static final double TOKEN_CREATE_WITH_CUSTOM_FEES_FEE_USD = 1.0;
-    public static final double TOKEN_MINT_NFT_FEE_USD = 0.019999;
+    public static final double TOKEN_MINT_NFT_FEE_USD = 0.0199;
 
     public static final double AIRDROPS_FEE_USD = 0.05;
     public static final double HOOK_UPDATES_FEE_USD = 1.0;
@@ -117,6 +117,8 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOKEN_BURN_BASE_FEE_USD = 0.0009;
 
     public static final double TOKEN_ASSOCIATE_BASE_FEE_USD = 0.0499;
+    public static final long TOKEN_ASSOCIATE_INCLUDED_TOKENS = 1L;
+    public static final double TOKEN_ASSOCIATE_EXTRA_FEE_USD = 0.05;
 
     public static final double TOKEN_DISSOCIATE_BASE_FEE_USD = 0.0499;
 

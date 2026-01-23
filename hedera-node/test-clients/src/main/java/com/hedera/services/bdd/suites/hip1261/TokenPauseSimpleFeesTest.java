@@ -25,8 +25,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenPauseFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenPauseNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnpauseFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -100,7 +100,7 @@ public class TokenPauseSimpleFeesTest {
                     validateChargedUsdWithin(
                             "pauseTxn",
                             expectedTokenPauseFullFeeUsd(2L), // 2 sigs
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -130,7 +130,7 @@ public class TokenPauseSimpleFeesTest {
                     validateChargedUsdWithin(
                             "pauseTxn",
                             expectedTokenPauseFullFeeUsd(3L), // 3 sigs (2 payer + 1 pause key)
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -160,7 +160,7 @@ public class TokenPauseSimpleFeesTest {
                     validateChargedUsdWithin(
                             "pauseTxn",
                             expectedTokenPauseFullFeeUsd(3L), // 3 sigs (1 payer + 2 pause key)
-                            1.0));
+                            0.001));
         }
     }
 
@@ -193,7 +193,7 @@ public class TokenPauseSimpleFeesTest {
                     validateChargedUsdWithin(
                             "unpauseTxn",
                             expectedTokenUnpauseFullFeeUsd(2L), // 2 sigs
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -228,7 +228,7 @@ public class TokenPauseSimpleFeesTest {
                     validateChargedUsdWithin(
                             "unpauseTxn",
                             expectedTokenUnpauseFullFeeUsd(3L), // 3 sigs (2 payer + 1 pause key)
-                            1.0));
+                            0.001));
         }
     }
 
@@ -237,12 +237,15 @@ public class TokenPauseSimpleFeesTest {
     class TokenPauseNegativeTestCases {
 
         @Nested
-        @DisplayName("TokenPause Failures on Ingest")
+        @DisplayName("TokenPause Failures on Ingest and Handle")
         class TokenPauseFailuresOnIngest {
 
             @HapiTest
             @DisplayName("TokenPause - missing pause key signature fails")
             final Stream<DynamicTest> tokenPauseMissingPauseKeySignatureFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -253,11 +256,19 @@ public class TokenPauseSimpleFeesTest {
                                 .treasury(TREASURY)
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         tokenPause(TOKEN)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing pause key signature
                                 .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(INVALID_SIGNATURE));
+                                .via("pauseTxn")
+                                .hasKnownStatus(INVALID_SIGNATURE),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "pauseTxn", initialBalance, afterBalance, expectedTokenPauseFullFeeUsd(1L), 0.001));
             }
 
             @HapiTest
@@ -293,6 +304,9 @@ public class TokenPauseSimpleFeesTest {
             @HapiTest
             @DisplayName("TokenPause - no pause key fails")
             final Stream<DynamicTest> tokenPauseNoPauseKeyFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -302,12 +316,19 @@ public class TokenPauseSimpleFeesTest {
                                 .treasury(TREASURY)
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         tokenPause(TOKEN)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("pauseTxn")
-                                .hasKnownStatus(TOKEN_HAS_NO_PAUSE_KEY));
+                                .hasKnownStatus(TOKEN_HAS_NO_PAUSE_KEY),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "pauseTxn", initialBalance, afterBalance, expectedTokenPauseFullFeeUsd(1L), 0.001));
             }
         }
 
@@ -361,8 +382,117 @@ public class TokenPauseSimpleFeesTest {
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedTokenCreateNetworkFeeOnlyUsd(2L),
-                                1.0));
+                                expectedTokenPauseNetworkFeeOnlyUsd(2L),
+                                0.001));
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("TokenUnpause Simple Fees Negative Test Cases")
+    class TokenUnpauseNegativeTestCases {
+
+        @Nested
+        @DisplayName("TokenUnpause Failures on Ingest and Handle")
+        class TokenUnpauseFailuresOnIngest {
+
+            @HapiTest
+            @DisplayName("TokenUnpause - missing pause key signature fails")
+            final Stream<DynamicTest> tokenUnpauseMissingPauseKeySignatureFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(PAUSE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .pauseKey(PAUSE_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS),
+                        tokenPause(TOKEN)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, PAUSE_KEY)
+                                .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                        tokenUnpause(TOKEN)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER) // Missing pause key signature
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("unpauseTxn")
+                                .hasKnownStatus(INVALID_SIGNATURE),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "unpauseTxn", initialBalance, afterBalance, expectedTokenUnpauseFullFeeUsd(1L), 0.001));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnpause - insufficient tx fee fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenUnpauseInsufficientTxFeeFailsOnIngest() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(PAUSE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .pauseKey(PAUSE_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS),
+                        tokenPause(TOKEN)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, PAUSE_KEY)
+                                .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                        tokenUnpause(TOKEN)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, PAUSE_KEY)
+                                .fee(1L) // Fee too low
+                                .via("unpauseTxn")
+                                .hasPrecheck(INSUFFICIENT_TX_FEE),
+                        getTxnRecord("unpauseTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertEquals(initialBalance.get(), afterBalance.get());
+                        }));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnpause - no pause key fails")
+            final Stream<DynamicTest> tokenUnpauseNoPauseKeyFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                // No pause key
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                        tokenUnpause(TOKEN)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("unpauseTxn")
+                                .hasKnownStatus(TOKEN_HAS_NO_PAUSE_KEY),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "unpauseTxn", initialBalance, afterBalance, expectedTokenUnpauseFullFeeUsd(1L), 0.001));
             }
         }
     }

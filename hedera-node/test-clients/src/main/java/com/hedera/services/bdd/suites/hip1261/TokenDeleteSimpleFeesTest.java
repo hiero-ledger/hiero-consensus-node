@@ -100,7 +100,7 @@ public class TokenDeleteSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenDeleteTxn",
                             expectedTokenDeleteFullFeeUsd(2L), // 2 sigs
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -130,7 +130,7 @@ public class TokenDeleteSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenDeleteTxn",
                             expectedTokenDeleteFullFeeUsd(3L), // 3 sigs (2 payer + 1 admin)
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -160,7 +160,7 @@ public class TokenDeleteSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenDeleteTxn",
                             expectedTokenDeleteFullFeeUsd(3L), // 3 sigs (1 payer + 2 admin)
-                            1.0));
+                            0.001));
         }
     }
 
@@ -169,12 +169,15 @@ public class TokenDeleteSimpleFeesTest {
     class TokenDeleteSimpleFeesNegativeTestCases {
 
         @Nested
-        @DisplayName("TokenDelete Failures on Ingest")
+        @DisplayName("TokenDelete Failures on Ingest and Handle")
         class TokenDeleteFailuresOnIngest {
 
             @HapiTest
             @DisplayName("TokenDelete - missing admin key signature fails at handle")
             final Stream<DynamicTest> tokenDeleteMissingAdminKeySignatureFailsAtHandle() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -185,11 +188,23 @@ public class TokenDeleteSimpleFeesTest {
                                 .treasury(TREASURY)
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         tokenDelete(TOKEN)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing admin key signature
                                 .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(INVALID_SIGNATURE));
+                                .via("tokenDeleteTxn")
+                                .hasKnownStatus(INVALID_SIGNATURE),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "tokenDeleteTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenDeleteFullFeeUsd(1L),
+                                0.001));
             }
 
             @HapiTest
@@ -225,19 +240,36 @@ public class TokenDeleteSimpleFeesTest {
             @HapiTest
             @DisplayName("TokenDelete - invalid token fails - fee charged")
             final Stream<DynamicTest> tokenDeleteInvalidTokenFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         tokenDelete("0.0.99999999") // Invalid token
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("tokenDeleteTxn")
-                                .hasKnownStatus(INVALID_TOKEN_ID));
+                                .hasKnownStatus(INVALID_TOKEN_ID),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "tokenDeleteTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenDeleteFullFeeUsd(1L),
+                                0.001));
             }
 
             @HapiTest
             @DisplayName("TokenDelete - immutable token fails - fee charged")
             final Stream<DynamicTest> tokenDeleteImmutableTokenFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -247,17 +279,31 @@ public class TokenDeleteSimpleFeesTest {
                                 .treasury(TREASURY)
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         tokenDelete(TOKEN)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("tokenDeleteTxn")
-                                .hasKnownStatus(TOKEN_IS_IMMUTABLE));
+                                .hasKnownStatus(TOKEN_IS_IMMUTABLE),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "tokenDeleteTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenDeleteFullFeeUsd(1L),
+                                0.001));
             }
 
             @HapiTest
             @DisplayName("TokenDelete - already deleted token fails - fee charged")
             final Stream<DynamicTest> tokenDeleteAlreadyDeletedFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -272,12 +318,23 @@ public class TokenDeleteSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         tokenDelete(TOKEN)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("tokenDeleteTxn")
-                                .hasKnownStatus(TOKEN_WAS_DELETED));
+                                .hasKnownStatus(TOKEN_WAS_DELETED),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "tokenDeleteTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenDeleteFullFeeUsd(2L),
+                                0.001));
             }
         }
 
@@ -332,7 +389,7 @@ public class TokenDeleteSimpleFeesTest {
                                 initialNodeBalance,
                                 afterNodeBalance,
                                 expectedTokenDeleteNetworkFeeOnlyUsd(2L),
-                                1.0));
+                                0.001));
             }
         }
     }

@@ -32,6 +32,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NON_FUNGIBLE_TOKENS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_INCLUDED_TOKENS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_BURN_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_INCLUDED_KEYS;
@@ -775,7 +777,8 @@ public class FeesChargingUtils {
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
         // ----- service fees -----
-        final double serviceFee = TOKEN_ASSOCIATE_BASE_FEE_USD * tokens;
+        final long extraTokens = Math.max(0L, tokens - TOKEN_ASSOCIATE_INCLUDED_TOKENS);
+        final double serviceFee = TOKEN_ASSOCIATE_BASE_FEE_USD + extraTokens * TOKEN_ASSOCIATE_EXTRA_FEE_USD;
         return nodeFee + networkFee + serviceFee;
     }
 
@@ -826,6 +829,16 @@ public class FeesChargingUtils {
      */
     public static double expectedTokenDissociateFullFeeUsd(long sigs) {
         return expectedTokenDissociateFullFeeUsd(sigs, 1L);
+    }
+
+    /**
+     * Network-only fee for TokenDissociate failures in pre-handle.
+     */
+    public static double expectedTokenDissociateNetworkFeeOnlyUsd(long sigs) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        return nodeFee * NETWORK_MULTIPLIER;
     }
 
     /**
@@ -953,6 +966,16 @@ public class FeesChargingUtils {
     }
 
     /**
+     * Network-only fee for TokenUnfreeze failures in pre-handle.
+     */
+    public static double expectedTokenUnfreezeNetworkFeeOnlyUsd(long sigs) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
      * SimpleFees formula for TokenPause:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
      * network = node * NETWORK_MULTIPLIER
@@ -972,6 +995,16 @@ public class FeesChargingUtils {
         final double serviceFee = TOKEN_PAUSE_BASE_FEE_USD;
 
         return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Network-only fee for TokenPause failures in pre-handle.
+     */
+    public static double expectedTokenPauseNetworkFeeOnlyUsd(long sigs) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        return nodeFee * NETWORK_MULTIPLIER;
     }
 
     /**
@@ -997,6 +1030,16 @@ public class FeesChargingUtils {
     }
 
     /**
+     * Network-only fee for TokenUnpause failures in pre-handle.
+     */
+    public static double expectedTokenUnpauseNetworkFeeOnlyUsd(long sigs) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
      * SimpleFees formula for TokenWipe (fungible):
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
      * network = node * NETWORK_MULTIPLIER
@@ -1016,5 +1059,15 @@ public class FeesChargingUtils {
         final double serviceFee = TOKEN_WIPE_BASE_FEE_USD;
 
         return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Network-only fee for TokenWipe failures in pre-handle.
+     */
+    public static double expectedTokenWipeNetworkFeeOnlyUsd(long sigs) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        return nodeFee * NETWORK_MULTIPLIER;
     }
 }

@@ -104,7 +104,7 @@ public class TokenBurnSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenBurnTxn",
                             expectedTokenBurnFungibleFullFeeUsd(2L), // 2 sigs
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -126,7 +126,7 @@ public class TokenBurnSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenBurnTxn",
                             expectedTokenBurnFungibleFullFeeUsd(2L), // 2 sigs - amount doesn't affect fee
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -154,7 +154,7 @@ public class TokenBurnSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenBurnTxn",
                             expectedTokenBurnFungibleFullFeeUsd(3L), // 3 sigs (2 payer + 1 supply)
-                            1.0));
+                            0.001));
         }
     }
 
@@ -185,7 +185,7 @@ public class TokenBurnSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenBurnTxn",
                             expectedTokenBurnNftFullFeeUsd(2L, 1L), // 2 sigs, 1 serial
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -216,7 +216,7 @@ public class TokenBurnSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenBurnTxn",
                             expectedTokenBurnNftFullFeeUsd(2L, 3L), // 2 sigs, 3 serials
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -251,7 +251,7 @@ public class TokenBurnSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenBurnTxn",
                             expectedTokenBurnNftFullFeeUsd(3L, 2L), // 3 sigs, 2 serials
-                            1.0));
+                            0.001));
         }
     }
 
@@ -260,7 +260,7 @@ public class TokenBurnSimpleFeesTest {
     class TokenBurnNegativeTestCases {
 
         @Nested
-        @DisplayName("TokenBurn Failures on Ingest")
+        @DisplayName("TokenBurn Failures on Ingest and Handle")
         class TokenBurnFailuresOnIngest {
 
             @HapiTest
@@ -320,6 +320,9 @@ public class TokenBurnSimpleFeesTest {
             @HapiTest
             @DisplayName("TokenBurn - invalid burn amount fails")
             final Stream<DynamicTest> tokenBurnInvalidAmountFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(SUPPLY_KEY),
@@ -328,16 +331,24 @@ public class TokenBurnSimpleFeesTest {
                                 .initialSupply(1000L)
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(PAYER),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         burnToken(FUNGIBLE_TOKEN, -1L) // Invalid: -1 amount
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, SUPPLY_KEY)
                                 .via("tokenBurnTxn")
-                                .hasPrecheck(INVALID_TOKEN_BURN_AMOUNT));
+                                .hasPrecheck(INVALID_TOKEN_BURN_AMOUNT),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertEquals(initialBalance.get(), afterBalance.get());
+                        }));
             }
 
             @HapiTest
             @DisplayName("TokenBurn - no supply key fails")
             final Stream<DynamicTest> tokenBurnNoSupplyKeyFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         tokenCreate(FUNGIBLE_TOKEN)
@@ -345,11 +356,23 @@ public class TokenBurnSimpleFeesTest {
                                 .initialSupply(1000L)
                                 // No supply key
                                 .treasury(PAYER),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         burnToken(FUNGIBLE_TOKEN, 100L)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
                                 .via("tokenBurnTxn")
-                                .hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY));
+                                .hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "tokenBurnTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenBurnFungibleFullFeeUsd(1L),
+                                0.001));
             }
         }
 
@@ -397,7 +420,7 @@ public class TokenBurnSimpleFeesTest {
                                 initialNodeBalance,
                                 afterNodeBalance,
                                 expectedTokenBurnNetworkFeeOnlyUsd(2L),
-                                1.0));
+                                0.001));
             }
         }
     }

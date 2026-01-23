@@ -106,7 +106,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintFungibleFullFeeUsd(2L), // 2 sigs
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -131,7 +131,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintFungibleFullFeeUsd(2L), // 2 sigs - amount doesn't affect fee
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -162,7 +162,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintFungibleFullFeeUsd(3L), // 3 sigs (2 payer + 1 supply)
-                            1.0));
+                            0.001));
         }
     }
 
@@ -192,7 +192,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintNftFullFeeUsd(2L, 1L), // 2 sigs, 1 serial
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -222,7 +222,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintNftFullFeeUsd(2L, 3L), // 2 sigs, 3 serials
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -254,7 +254,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintNftFullFeeUsd(2L, 5L), // 2 sigs, 5 serials
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -287,7 +287,7 @@ public class TokenMintSimpleFeesTest {
                     validateChargedUsdWithin(
                             "tokenMintTxn",
                             expectedTokenMintNftFullFeeUsd(3L, 2L), // 3 sigs, 2 serials
-                            1.0));
+                            0.001));
         }
     }
 
@@ -296,7 +296,7 @@ public class TokenMintSimpleFeesTest {
     class TokenMintNegativeTestCases {
 
         @Nested
-        @DisplayName("TokenMint Failures on Ingest")
+        @DisplayName("TokenMint Failures on Ingest and Handle")
         class TokenMintFailuresOnIngest {
 
             @HapiTest
@@ -322,7 +322,7 @@ public class TokenMintSimpleFeesTest {
                         validateChargedUsdWithin(
                                 "tokenMintTxn",
                                 expectedTokenMintFungibleFullFeeUsd(1L), // 1 sig (payer only)
-                                1.0));
+                                0.001));
             }
 
             @HapiTest
@@ -378,7 +378,7 @@ public class TokenMintSimpleFeesTest {
                         validateChargedUsdWithin(
                                 "tokenMintTxn",
                                 expectedTokenMintFungibleFullFeeUsd(1L), // 1 sig (payer only)
-                                1.0));
+                                0.001));
             }
         }
 
@@ -434,7 +434,7 @@ public class TokenMintSimpleFeesTest {
                                 initialNodeBalance,
                                 afterNodeBalance,
                                 expectedTokenMintNetworkFeeOnlyUsd(2L),
-                                1.0));
+                                0.001));
             }
         }
     }

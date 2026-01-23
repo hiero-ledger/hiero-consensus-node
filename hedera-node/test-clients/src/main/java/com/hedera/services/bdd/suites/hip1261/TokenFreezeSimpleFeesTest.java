@@ -107,7 +107,7 @@ public class TokenFreezeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "freezeTxn",
                             expectedTokenFreezeFullFeeUsd(2L), // 2 sigs
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -140,7 +140,7 @@ public class TokenFreezeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "freezeTxn",
                             expectedTokenFreezeFullFeeUsd(3L), // 3 sigs (2 payer + 1 freeze key)
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -173,7 +173,7 @@ public class TokenFreezeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "freezeTxn",
                             expectedTokenFreezeFullFeeUsd(3L), // 3 sigs (1 payer + 2 freeze key)
-                            1.0));
+                            0.001));
         }
     }
 
@@ -206,7 +206,7 @@ public class TokenFreezeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "unfreezeTxn",
                             expectedTokenUnfreezeFullFeeUsd(2L), // 2 sigs
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -244,7 +244,7 @@ public class TokenFreezeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "unfreezeTxn",
                             expectedTokenUnfreezeFullFeeUsd(3L), // 3 sigs (2 payer + 1 freeze key)
-                            1.0));
+                            0.001));
         }
     }
 
@@ -253,12 +253,15 @@ public class TokenFreezeSimpleFeesTest {
     class TokenFreezeNegativeTestCases {
 
         @Nested
-        @DisplayName("TokenFreeze Failures on Ingest")
+        @DisplayName("TokenFreeze Failures on Ingest and Handle")
         class TokenFreezeFailuresOnIngest {
 
             @HapiTest
             @DisplayName("TokenFreeze - missing freeze key signature fails at handle")
             final Stream<DynamicTest> tokenFreezeMissingFreezeKeySignatureFailsAtHandle() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -272,11 +275,19 @@ public class TokenFreezeSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
                         tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         tokenFreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing freeze key signature
                                 .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(INVALID_SIGNATURE));
+                                .via("freezeTxn")
+                                .hasKnownStatus(INVALID_SIGNATURE),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "freezeTxn", initialBalance, afterBalance, expectedTokenFreezeFullFeeUsd(1L), 0.001));
             }
 
             @HapiTest
@@ -315,6 +326,9 @@ public class TokenFreezeSimpleFeesTest {
             @HapiTest
             @DisplayName("TokenFreeze - no freeze key fails")
             final Stream<DynamicTest> tokenFreezeNoFreezeKeyFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -326,17 +340,27 @@ public class TokenFreezeSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
                         tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         tokenFreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("freezeTxn")
-                                .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY));
+                                .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "freezeTxn", initialBalance, afterBalance, expectedTokenFreezeFullFeeUsd(1L), 0.001));
             }
 
             @HapiTest
             @DisplayName("TokenFreeze - token not associated fails")
             final Stream<DynamicTest> tokenFreezeNotAssociatedFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -350,17 +374,27 @@ public class TokenFreezeSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
                         // Not associating the token
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         tokenFreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, FREEZE_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("freezeTxn")
-                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
+                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "freezeTxn", initialBalance, afterBalance, expectedTokenFreezeFullFeeUsd(2L), 0.001));
             }
 
             @HapiTest
             @DisplayName("TokenFreeze - already frozen fails")
             final Stream<DynamicTest> tokenFreezeAlreadyFrozenFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -374,12 +408,19 @@ public class TokenFreezeSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
                         tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         tokenFreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, FREEZE_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("freezeTxn")
-                                .hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN));
+                                .hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "freezeTxn", initialBalance, afterBalance, expectedTokenFreezeFullFeeUsd(2L), 0.001));
             }
         }
 
@@ -437,7 +478,162 @@ public class TokenFreezeSimpleFeesTest {
                                 initialNodeBalance,
                                 afterNodeBalance,
                                 expectedTokenFreezeNetworkFeeOnlyUsd(2L),
-                                1.0));
+                                0.001));
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("TokenUnfreeze Simple Fees Negative Test Cases")
+    class TokenUnfreezeNegativeTestCases {
+
+        @Nested
+        @DisplayName("TokenUnfreeze Failures on Ingest and Handle")
+        class TokenUnfreezeFailuresOnIngest {
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - missing freeze key signature fails at handle")
+            final Stream<DynamicTest> tokenUnfreezeMissingFreezeKeySignatureFailsAtHandle() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true) // Start frozen
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER) // Missing freeze key signature
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("unfreezeTxn")
+                                .hasKnownStatus(INVALID_SIGNATURE),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "unfreezeTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenUnfreezeFullFeeUsd(1L),
+                                0.001));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - insufficient tx fee fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenUnfreezeInsufficientTxFeeFailsOnIngest() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .fee(1L) // Fee too low
+                                .via("unfreezeTxn")
+                                .hasPrecheck(INSUFFICIENT_TX_FEE),
+                        getTxnRecord("unfreezeTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertEquals(initialBalance.get(), afterBalance.get());
+                        }));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - no freeze key fails")
+            final Stream<DynamicTest> tokenUnfreezeNoFreezeKeyFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                // No freeze key
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("unfreezeTxn")
+                                .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "unfreezeTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenUnfreezeFullFeeUsd(1L),
+                                0.001));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - token not associated fails")
+            final Stream<DynamicTest> tokenUnfreezeNotAssociatedFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS),
+                        // Not associating the token
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("unfreezeTxn")
+                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "unfreezeTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenUnfreezeFullFeeUsd(2L),
+                                0.001));
             }
         }
     }

@@ -26,8 +26,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
@@ -112,7 +112,7 @@ public class TokenWipeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "wipeTxn",
                             expectedTokenWipeFungibleFullFeeUsd(2L), // 2 sigs
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -150,7 +150,7 @@ public class TokenWipeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "wipeTxn",
                             expectedTokenWipeFungibleFullFeeUsd(3L), // 3 sigs (2 payer + 1 wipe key)
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -188,7 +188,7 @@ public class TokenWipeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "wipeTxn",
                             expectedTokenWipeFungibleFullFeeUsd(3L), // 3 sigs (1 payer + 2 wipe key)
-                            1.0));
+                            0.001));
         }
 
         @HapiTest
@@ -220,7 +220,7 @@ public class TokenWipeSimpleFeesTest {
                     validateChargedUsdWithin(
                             "wipeTxn",
                             expectedTokenWipeFungibleFullFeeUsd(2L), // 2 sigs
-                            1.0));
+                            0.001));
         }
     }
 
@@ -229,12 +229,15 @@ public class TokenWipeSimpleFeesTest {
     class TokenWipeNegativeTestCases {
 
         @Nested
-        @DisplayName("TokenWipe Failures on Ingest")
+        @DisplayName("TokenWipe Failures on Ingest and Handle")
         class TokenWipeFailuresOnIngest {
 
             @HapiTest
             @DisplayName("TokenWipe - missing wipe key signature fails")
-            final Stream<DynamicTest> tokenWipeMissingWipeKeySignatureFails() {
+            final Stream<DynamicTest> tokenWipeMissingWipeKeySignatureFailsAtHandle() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
@@ -253,11 +256,23 @@ public class TokenWipeSimpleFeesTest {
                         cryptoTransfer(moving(100L, TOKEN).between(TREASURY, ACCOUNT))
                                 .payingWith(TREASURY)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         wipeTokenAccount(TOKEN, ACCOUNT, 50L)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing wipe key signature
                                 .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(INVALID_SIGNATURE));
+                                .via("wipeTxn")
+                                .hasKnownStatus(INVALID_SIGNATURE),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "wipeTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenWipeFungibleFullFeeUsd(1L),
+                                0.001));
             }
 
             @HapiTest
@@ -301,6 +316,9 @@ public class TokenWipeSimpleFeesTest {
             @HapiTest
             @DisplayName("TokenWipe - no wipe key fails")
             final Stream<DynamicTest> tokenWipeNoWipeKeyFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
@@ -318,17 +336,31 @@ public class TokenWipeSimpleFeesTest {
                         cryptoTransfer(moving(100L, TOKEN).between(TREASURY, ACCOUNT))
                                 .payingWith(TREASURY)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         wipeTokenAccount(TOKEN, ACCOUNT, 50L)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("wipeTxn")
-                                .hasKnownStatus(TOKEN_HAS_NO_WIPE_KEY));
+                                .hasKnownStatus(TOKEN_HAS_NO_WIPE_KEY),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "wipeTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenWipeFungibleFullFeeUsd(1L),
+                                0.001));
             }
 
             @HapiTest
             @DisplayName("TokenWipe - token not associated fails")
             final Stream<DynamicTest> tokenWipeNotAssociatedFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
@@ -344,17 +376,31 @@ public class TokenWipeSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
                         // Not associating the token
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         wipeTokenAccount(TOKEN, ACCOUNT, 50L)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, WIPE_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("wipeTxn")
-                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
+                                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "wipeTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenWipeFungibleFullFeeUsd(2L),
+                                0.001));
             }
 
             @HapiTest
             @DisplayName("TokenWipe - invalid wiping amount fails")
             final Stream<DynamicTest> tokenWipeInvalidAmountFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
@@ -373,12 +419,23 @@ public class TokenWipeSimpleFeesTest {
                         cryptoTransfer(moving(100L, TOKEN).between(TREASURY, ACCOUNT))
                                 .payingWith(TREASURY)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         wipeTokenAccount(TOKEN, ACCOUNT, 200L) // More than account has
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, WIPE_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("wipeTxn")
-                                .hasKnownStatus(INVALID_WIPING_AMOUNT));
+                                .hasKnownStatus(INVALID_WIPING_AMOUNT),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "wipeTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTokenWipeFungibleFullFeeUsd(2L),
+                                0.001));
             }
         }
 
@@ -440,8 +497,8 @@ public class TokenWipeSimpleFeesTest {
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedTokenCreateNetworkFeeOnlyUsd(2L),
-                                1.0));
+                                expectedTokenWipeNetworkFeeOnlyUsd(2L),
+                                0.001));
             }
         }
     }
