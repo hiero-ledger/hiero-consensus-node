@@ -222,17 +222,21 @@ public class SimpleFeesRecordStreamTest {
         final var record = item.getRecord();
         final var txnFee = record.getTransactionFee();
         final var rate = record.getReceipt().getExchangeRate();
-        var fract = ((double) result.totalTinyCents())
-                / (double) (txnFee * rate.getCurrentRate().getCentEquiv());
+
+        final var simpleFee = result.totalTinyCents();
+        final var legacyFee = txnFee * rate.getCurrentRate().getCentEquiv();
+        long diff = simpleFee - legacyFee;
+        double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
+
         json.startRecord();
         csv.field(body.data().kind().name());
         json.key("name",body.data().kind().name());
-        csv.field(result.totalTinyCents());
-        json.key("simple_tc",result.totalTinyCents());
-        csv.field(txnFee * rate.getCurrentRate().getCentEquiv());
-        json.key("old_tc",txnFee * rate.getCurrentRate().getCentEquiv());
-        csv.fieldPercentage(fract * 100);
-        json.key("diff",fract*100);
+        csv.field(simpleFee);
+        json.key("simple_tc",simpleFee);
+        csv.field(legacyFee);
+        json.key("old_tc",legacyFee);
+        csv.fieldPercentage(pctChange);
+        json.key("diff",pctChange);
         csv.field(result.getServiceTotalTinyCents());
         json.key("simple_service",result.getServiceBaseFeeTinyCents());
         csv.field(result.getNodeTotalTinyCents());
@@ -243,6 +247,8 @@ public class SimpleFeesRecordStreamTest {
         json.key("timestamp",record.getConsensusTimestamp().getSeconds());
         csv.field(result.toString());
         json.key("details",result.toString());
+        json.key("rate_cents",rate.getCurrentRate().getCentEquiv());
+        json.key("rate_hbar",rate.getCurrentRate().getHbarEquiv());
         csv.endLine();
         json.endRecord();
     }
