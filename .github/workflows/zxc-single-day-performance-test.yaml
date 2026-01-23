@@ -505,7 +505,7 @@ jobs:
 
       - name: Download JDK25
         run: |
-          gsutil cp "${{ env.NLG_VERSION }}" $HOME/jdk-linux-x64_bin.tar.gz
+          gsutil cp "${{ env.JDK_PACKAGE }}" $HOME/jdk-linux-x64_bin.tar.gz
 
       - name: Restart with JDK 25
         run: |
