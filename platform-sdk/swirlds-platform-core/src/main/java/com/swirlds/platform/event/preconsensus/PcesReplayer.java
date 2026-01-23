@@ -26,7 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.pces.PcesConfig;
+import org.hiero.consensus.pces.config.PcesConfig;
 
 /**
  * This class encapsulates the logic for replaying preconsensus events at boot up time.
