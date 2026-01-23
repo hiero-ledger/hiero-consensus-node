@@ -30,7 +30,7 @@ import org.hiero.consensus.model.hashgraph.Round;
  */
 public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener {
     Bytes ZERO_BLOCK_HASH = Bytes.wrap(new byte[StreamingTreeHasher.HASH_LENGTH]);
-    int NUM_SIBLINGS_PER_BLOCK = 4;
+    int NUM_SIBLINGS_PER_BLOCK = 3;
 
     /**
      * The types of work that may be identified as pending within a block.

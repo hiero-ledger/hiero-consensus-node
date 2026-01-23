@@ -472,7 +472,8 @@ public class BlockStreamBuilder
      * @param blockItems the list of block items
      * @param translationContext the translation context
      */
-    public record Output(@NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
+    public record Output(
+            @NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
