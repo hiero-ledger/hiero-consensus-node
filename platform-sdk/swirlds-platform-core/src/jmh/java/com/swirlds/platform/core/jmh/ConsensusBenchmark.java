@@ -35,14 +35,16 @@ import org.openjdk.jmh.infra.Blackhole;
 @Warmup(iterations = 1, time = 3)
 @Measurement(iterations = 3, time = 10)
 public class ConsensusBenchmark {
+    private static final long SEED = 0;
+
     @Param({"4", "10", "30"})
     public int numNodes;
 
+    @Param({"1", "2", "4"})
+    public int numOP;
+
     @Param({"100000"})
     public int numEvents;
-
-    @Param({"0"})
-    public long seed;
 
     private List<EventImpl> events;
     private Consensus consensus;
@@ -52,8 +54,9 @@ public class ConsensusBenchmark {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
-                .setRandomSeed(seed)
+                .setRandomSeed(SEED)
                 .setNumNodes(numNodes)
+                .setMaxOtherParents(numOP)
                 .setWeightGenerator(WeightGenerators.BALANCED)
                 .build();
         events = emitter.emitEvents(numEvents);
@@ -84,11 +87,16 @@ public class ConsensusBenchmark {
         }
 
         /*
-            Results on a M1 Max MacBook Pro:
-            Benchmark                              (numEvents)  (numNodes)  (seed)  Mode  Cnt    Score     Error  Units
-            ConsensusBenchmark.calculateConsensus       100000           4       0  avgt    3   79.660 ± 210.852  ms/op
-            ConsensusBenchmark.calculateConsensus       100000          10       0  avgt    3  165.470 ± 132.313  ms/op
-            ConsensusBenchmark.calculateConsensus       100000          30       0  avgt    3  573.532 ± 241.649  ms/op
+        Benchmark                              (numEvents)  (numNodes)  (numOP)  Mode  Cnt     Score     Error  Units
+        ConsensusBenchmark.calculateConsensus       100000           4        1  avgt    3   334.490 ±  43.182  ms/op
+        ConsensusBenchmark.calculateConsensus       100000           4        2  avgt    3   400.108 ± 112.360  ms/op
+        ConsensusBenchmark.calculateConsensus       100000           4        4  avgt    3   445.310 ± 264.019  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          10        1  avgt    3   761.099 ± 233.237  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          10        2  avgt    3   801.404 ± 214.349  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          10        4  avgt    3   979.868 ± 270.677  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          30        1  avgt    3  2895.844 ±  71.784  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          30        2  avgt    3  2893.139 ± 390.462  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          30        4  avgt    3  3621.163 ± 530.187  ms/op
         */
     }
 }
