@@ -8,8 +8,6 @@ import static com.swirlds.virtualmap.internal.Path.getParentPath;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
@@ -33,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
@@ -122,8 +121,8 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
     public void startLearnerTasks(
             final LearningSynchronizer learningSynchronizer,
             final StandardWorkGroup workGroup,
-            final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream) {
+            final SerializableDataInputStream inputStream,
+            final SerializableDataOutputStream outputStream) {
         in = new AsyncInputStream<>(inputStream, workGroup, () -> new Lesson<>(this), reconnectConfig);
         in.start();
         final AsyncOutputStream<QueryResponse> out = learningSynchronizer.buildOutputStream(workGroup, outputStream);

@@ -13,7 +13,6 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
-import com.swirlds.platform.Utilities;
 import com.swirlds.platform.gossip.shadowgraph.AbstractShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.shadowgraph.RpcShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
