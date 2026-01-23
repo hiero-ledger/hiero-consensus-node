@@ -93,6 +93,7 @@ public class SimpleFeesRecordStreamTest {
             this.writer.close();
         }
     }
+
     private static class JSONFormatter {
 
         private final FileWriter writer;
@@ -133,12 +134,12 @@ public class SimpleFeesRecordStreamTest {
             }
             writer.append(String.format("\"%s\" : %.5f", name, value));
         }
+
         public void close() throws IOException {
             this.writer.flush();
             this.writer.close();
         }
     }
-
 
     private static CSVWriter csv;
     private static JSONFormatter json;
@@ -230,25 +231,25 @@ public class SimpleFeesRecordStreamTest {
 
         json.startRecord();
         csv.field(body.data().kind().name());
-        json.key("name",body.data().kind().name());
+        json.key("name", body.data().kind().name());
         csv.field(simpleFee);
-        json.key("simple_tc",simpleFee);
+        json.key("simple_tc", simpleFee);
         csv.field(legacyFee);
-        json.key("old_tc",legacyFee);
+        json.key("old_tc", legacyFee);
         csv.fieldPercentage(pctChange);
-        json.key("diff",pctChange);
+        json.key("diff", pctChange);
         csv.field(result.getServiceTotalTinycents());
-        json.key("simple_service",result.getServiceBaseFeeTinycents());
+        json.key("simple_service", result.getServiceBaseFeeTinycents());
         csv.field(result.getNodeTotalTinycents());
-        json.key("simple_node",result.getNodeTotalTinycents());
+        json.key("simple_node", result.getNodeTotalTinycents());
         csv.field(result.getNetworkTotalTinycents());
-        json.key("network_total",result.getNetworkTotalTinycents());
+        json.key("network_total", result.getNetworkTotalTinycents());
         csv.field(record.getConsensusTimestamp().getSeconds());
-        json.key("timestamp",record.getConsensusTimestamp().getSeconds());
+        json.key("timestamp", record.getConsensusTimestamp().getSeconds());
         csv.field(result.toString());
-        json.key("details",result.toString());
-        json.key("rate_cents",rate.getCurrentRate().getCentEquiv());
-        json.key("rate_hbar",rate.getCurrentRate().getHbarEquiv());
+        json.key("details", result.toString());
+        json.key("rate_cents", rate.getCurrentRate().getCentEquiv());
+        json.key("rate_hbar", rate.getCurrentRate().getHbarEquiv());
         csv.endLine();
         json.endRecord();
     }

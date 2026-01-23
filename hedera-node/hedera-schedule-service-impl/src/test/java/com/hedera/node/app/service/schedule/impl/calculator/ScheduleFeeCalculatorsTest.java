@@ -217,7 +217,8 @@ class ScheduleFeeCalculatorsTest {
         final var queryFeeCalculator = new ScheduleGetInfoFeeCalculator();
         final var feeResult = new FeeResult();
 
-        queryFeeCalculator.accumulateNodePayment(query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+        queryFeeCalculator.accumulateNodePayment(
+                query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);

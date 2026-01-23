@@ -23,10 +23,9 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import java.util.List;
 import java.util.Set;
-
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;

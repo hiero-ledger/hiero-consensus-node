@@ -32,7 +32,6 @@ import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;

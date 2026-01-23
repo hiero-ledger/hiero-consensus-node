@@ -4,9 +4,7 @@ package com.hedera.node.app.spi.fees;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -80,11 +78,16 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      */
     @NonNull
     @Override
-    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
+    public FeeResult calculateTxFee(
+            @NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
         // Extract primitive counts (no allocations)
-        final long signatures = simpleFeeContext.feeContext() != null ? simpleFeeContext.feeContext().numTxnSignatures() : 0;
+        final long signatures = simpleFeeContext.feeContext() != null
+                ? simpleFeeContext.feeContext().numTxnSignatures()
+                : 0;
         // Get full transaction size in bytes (includes body, signatures, and all transaction data)
-        final long bytes = simpleFeeContext.feeContext() != null ? simpleFeeContext.feeContext().numTxnBytes() : 0;
+        final long bytes = simpleFeeContext.feeContext() != null
+                ? simpleFeeContext.feeContext().numTxnBytes()
+                : 0;
         final var result = new FeeResult();
 
         // Add node base and extras (bytes and payer signatures)

@@ -9,9 +9,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
-import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -25,14 +23,17 @@ public class ContractGetByteCodeFeeCalculator implements QueryFeeCalculator {
             @NonNull FeeSchedule feeSchedule) {
         final var serviceDef = requireNonNull(lookupServiceFee(feeSchedule, HederaFunctionality.CONTRACT_GET_BYTECODE));
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
-        if(simpleFeeContext.queryContext() != null) {
+        if (simpleFeeContext.queryContext() != null) {
             final var contractStore = simpleFeeContext.queryContext().createStore(ContractStateStore.class);
             final var op = query.contractGetBytecodeOrThrow();
             final var bytecode = contractStore.getBytecode(op.contractIDOrThrow());
             addExtraFee(
-                    feeResult, serviceDef, Extra.BYTES, feeSchedule, bytecode.code().length());
+                    feeResult,
+                    serviceDef,
+                    Extra.BYTES,
+                    feeSchedule,
+                    bytecode.code().length());
         }
-
     }
 
     @Override

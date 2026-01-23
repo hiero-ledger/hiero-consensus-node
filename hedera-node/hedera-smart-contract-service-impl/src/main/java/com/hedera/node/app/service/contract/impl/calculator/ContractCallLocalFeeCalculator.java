@@ -8,9 +8,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
-import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
 

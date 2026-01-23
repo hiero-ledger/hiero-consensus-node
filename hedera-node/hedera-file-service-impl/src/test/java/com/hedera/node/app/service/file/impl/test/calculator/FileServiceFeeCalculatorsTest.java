@@ -195,7 +195,8 @@ class FileServiceFeeCalculatorsTest {
         final var fileGetInfoFeeCalculator = new FileGetInfoFeeCalculator();
         final var feeResult = new FeeResult();
 
-        fileGetInfoFeeCalculator.accumulateNodePayment(query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+        fileGetInfoFeeCalculator.accumulateNodePayment(
+                query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
@@ -219,7 +220,8 @@ class FileServiceFeeCalculatorsTest {
         final var fileGetContentsFeeCalculator = new FileGetContentsFeeCalculator();
         final var feeResult = new FeeResult();
 
-        fileGetContentsFeeCalculator.accumulateNodePayment(query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+        fileGetContentsFeeCalculator.accumulateNodePayment(
+                query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);

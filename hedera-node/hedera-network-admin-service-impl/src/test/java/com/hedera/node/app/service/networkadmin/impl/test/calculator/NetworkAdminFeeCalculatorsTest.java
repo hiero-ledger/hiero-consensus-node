@@ -37,7 +37,10 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                Query.newBuilder().build(), SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+                Query.newBuilder().build(),
+                SimpleFeeContextUtil.fromQueryContext(mockQueryContext),
+                feeResult,
+                createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
@@ -53,7 +56,10 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                Query.newBuilder().build(), SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+                Query.newBuilder().build(),
+                SimpleFeeContextUtil.fromQueryContext(mockQueryContext),
+                feeResult,
+                createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
@@ -69,7 +75,10 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                Query.newBuilder().build(), SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+                Query.newBuilder().build(),
+                SimpleFeeContextUtil.fromQueryContext(mockQueryContext),
+                feeResult,
+                createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
@@ -85,7 +94,10 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                Query.newBuilder().build(),SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+                Query.newBuilder().build(),
+                SimpleFeeContextUtil.fromQueryContext(mockQueryContext),
+                feeResult,
+                createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
