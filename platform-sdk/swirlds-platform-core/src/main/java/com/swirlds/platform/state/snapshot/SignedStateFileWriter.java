@@ -148,6 +148,7 @@ public final class SignedStateFileWriter {
         try {
             if (signedState.isFreezeState()) {
                 stateLifecycleManager.createSnapshot(signedState.getState(), directory);
+                reservedSignedState.close();
             } else {
                 // Creating the snapshot asynchronously is the optimization which allows it to be created faster within
                 // the `VirtualMap#flush`, because it is done without one extra data source snapshot as data source and
@@ -168,6 +169,10 @@ public final class SignedStateFileWriter {
                     signedState.getRound(),
                     directory,
                     e);
+        } finally {
+            if (!reservedSignedState.isClosed()) {
+                reservedSignedState.close();
+            }
         }
 
         writeSignatureSetFile(directory, signedState);
