@@ -167,14 +167,18 @@ def map_txn_to_schedule(txn_name: str, schedule_names):
     return None
 
 
-def calc_service_fee(service_def, extra_fees, counts):
+def calc_service_fee(service_def, extra_fees, counts, txn_name=""):
     fee = service_def["baseFee"]
     for name, included in service_def["extras"].items():
         count = counts.get(name)
         if isinstance(count, str) and count.startswith(">"):
             count = included
         if count is None:
-            count = included
+            # Special case: detect ScheduleCreate for contract call from txn name
+            if name == "SCHEDULE_CREATE_CONTRACT_CALL_BASE" and "Call" in txn_name:
+                count = 1
+            else:
+                count = included
         if count > included:
             fee += (count - included) * extra_fees.get(name, 0)
     return fee
@@ -324,7 +328,7 @@ def main():
                     total_tinycents += existing * airdrop_fee_tinycents
                     total_tinycents += unlimited * airdrop_fee_tinycents
             else:
-                service_fee = calc_service_fee(service_defs[schedule_name], extra_fees, counts)
+                service_fee = calc_service_fee(service_defs[schedule_name], extra_fees, counts, txn)
                 if is_query:
                     total_tinycents = service_fee
                 else:
