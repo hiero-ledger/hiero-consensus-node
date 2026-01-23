@@ -93,8 +93,55 @@ public class SimpleFeesRecordStreamTest {
             this.writer.close();
         }
     }
+    private static class JSONFormatter {
+
+        private final FileWriter writer;
+        private boolean start;
+
+        public JSONFormatter(FileWriter writer) {
+            this.writer = writer;
+            this.start = false;
+        }
+
+        public void startRecord() throws IOException {
+            writer.write("{ ");
+            this.start = true;
+        }
+
+        public void key(String name, String value) throws IOException {
+            if (!this.start) {
+                writer.append(", ");
+            }
+            writer.append(String.format("\"%s\":\"%s\"", name, value));
+            this.start = false;
+        }
+
+        public void endRecord() throws IOException {
+            writer.write("}\n");
+        }
+
+        public void key(String name, long value) throws IOException {
+            if (!this.start) {
+                writer.append(", ");
+            }
+            writer.append(String.format("\"%s\" : %s ", name, "" + value));
+        }
+
+        public void key(String name, double value) throws IOException {
+            if (!this.start) {
+                writer.append(", ");
+            }
+            writer.append(String.format("\"%s\" : %.5f", name, value));
+        }
+        public void close() throws IOException {
+            this.writer.flush();
+            this.writer.close();
+        }
+    }
+
 
     private static CSVWriter csv;
+    private static JSONFormatter json;
 
     /**
      * Initialize the test class with simple fees enabled.
@@ -107,12 +154,16 @@ public class SimpleFeesRecordStreamTest {
         csv.write(
                 "Service Name, Simple Fee, Old Fees, Comparison, SF Service, SF Node, SF Network, Timestamp, Details");
         csv.endLine();
+        json = new JSONFormatter(new FileWriter("simple-fees-historical-comparison.json"));
     }
 
     @AfterAll
     static void afterAll() throws IOException {
         if (csv != null) {
             csv.close();
+        }
+        if (json != null) {
+            json.close();
         }
     }
 
@@ -130,7 +181,7 @@ public class SimpleFeesRecordStreamTest {
         final StandaloneFeeCalculator calc =
                 new StandaloneFeeCalculatorImpl(state, properties, new AppEntityIdFactory(DEFAULT_CONFIG));
 
-        final String records_dir = "../../temp/t/2025-11-10-8";
+        final String records_dir = "../../temp/2025-11-10-8";
 
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
             paths.filter(Files::isRegularFile).forEach(file -> {
@@ -171,17 +222,34 @@ public class SimpleFeesRecordStreamTest {
         final var record = item.getRecord();
         final var txnFee = record.getTransactionFee();
         final var rate = record.getReceipt().getExchangeRate();
-        var fract = ((double) result.totalTinyCents())
-                / (double) (txnFee * rate.getCurrentRate().getCentEquiv());
+
+        final var simpleFee = result.totalTinycents();
+        final var legacyFee = txnFee * rate.getCurrentRate().getCentEquiv();
+        long diff = simpleFee - legacyFee;
+        double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
+
+        json.startRecord();
         csv.field(body.data().kind().name());
-        csv.field(result.totalTinyCents());
-        csv.field(txnFee * rate.getCurrentRate().getCentEquiv());
-        csv.fieldPercentage(fract * 100);
-        csv.field(result.getServiceTotalTinyCents());
-        csv.field(result.getNodeTotalTinyCents());
-        csv.field(result.getNetworkTotalTinyCents());
+        json.key("name",body.data().kind().name());
+        csv.field(simpleFee);
+        json.key("simple_tc",simpleFee);
+        csv.field(legacyFee);
+        json.key("old_tc",legacyFee);
+        csv.fieldPercentage(pctChange);
+        json.key("diff",pctChange);
+        csv.field(result.getServiceTotalTinycents());
+        json.key("simple_service",result.getServiceBaseFeeTinycents());
+        csv.field(result.getNodeTotalTinycents());
+        json.key("simple_node",result.getNodeTotalTinycents());
+        csv.field(result.getNetworkTotalTinycents());
+        json.key("network_total",result.getNetworkTotalTinycents());
         csv.field(record.getConsensusTimestamp().getSeconds());
+        json.key("timestamp",record.getConsensusTimestamp().getSeconds());
         csv.field(result.toString());
+        json.key("details",result.toString());
+        json.key("rate_cents",rate.getCurrentRate().getCentEquiv());
+        json.key("rate_hbar",rate.getCurrentRate().getHbarEquiv());
         csv.endLine();
+        json.endRecord();
     }
 }

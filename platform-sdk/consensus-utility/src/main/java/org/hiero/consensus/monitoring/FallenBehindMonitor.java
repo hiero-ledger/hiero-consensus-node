@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.reconnect;
+package org.hiero.consensus.monitoring;
 
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static java.util.Objects.requireNonNull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,6 +14,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.concurrent.GuardedBy;
+import org.hiero.consensus.config.FallenBehindConfig;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -59,7 +58,7 @@ public class FallenBehindMonitor {
             @NonNull final Roster roster, @NonNull final Configuration config, @NonNull final Metrics metrics) {
         this(
                 requireNonNull(roster).rosterEntries().size() - 1,
-                requireNonNull(config).getConfigData(ReconnectConfig.class).fallenBehindThreshold());
+                requireNonNull(config).getConfigData(FallenBehindConfig.class).fallenBehindThreshold());
         requireNonNull(metrics)
                 .getOrCreate(new FunctionGauge.Config<>(
                                 INTERNAL_CATEGORY, "hasFallenBehind", Object.class, this::hasFallenBehind)
@@ -70,7 +69,6 @@ public class FallenBehindMonitor {
                 .withUnit("count"));
     }
 
-    @VisibleForTesting
     public FallenBehindMonitor(final int peersSize, final double fallenBehindThreshold) {
         this.peersSize = peersSize;
         this.fallenBehindThreshold = fallenBehindThreshold;
@@ -92,7 +90,7 @@ public class FallenBehindMonitor {
      *
      * @param id the id of the node who says we have fallen behind
      */
-    void report(@NonNull final NodeId id) {
+    public void report(@NonNull final NodeId id) {
         lock.lock();
         try {
             if (reportFallenBehind.add(id)) {

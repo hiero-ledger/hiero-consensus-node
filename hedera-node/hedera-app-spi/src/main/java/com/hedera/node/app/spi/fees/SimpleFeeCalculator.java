@@ -30,7 +30,7 @@ public interface SimpleFeeCalculator {
     FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull SimpleFeeContext simpleFeeContext);
 
     @NonNull
-    FeeResult calculateQueryFee(@NonNull Query query, @NonNull SimpleFeeContext queryContext);
+    FeeResult calculateQueryFee(@NonNull Query query, @NonNull SimpleFeeContext simpleFeeContext);
 
     long getExtraFee(Extra extra);
 }

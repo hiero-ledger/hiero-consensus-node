@@ -15,7 +15,6 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
-
 import org.assertj.core.api.Assertions;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -55,12 +54,13 @@ public class ConsensusCreateTopicFeeCalculatorTest {
             final var op = ConsensusCreateTopicTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusCreateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, com.hedera.node.app.spi.fees.SimpleFeeContextUtil.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(
+                    body, com.hedera.node.app.spi.fees.SimpleFeeContextUtil.fromFeeContext(feeContext));
 
             assertThat(result).isNotNull();
-            Assertions.assertThat(result.getNodeTotalTinyCents()).isEqualTo(100000L);
-            Assertions.assertThat(result.getServiceTotalTinyCents()).isEqualTo(498500000L);
-            Assertions.assertThat(result.getNetworkTotalTinyCents()).isEqualTo(200000L);
+            Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L);
+            Assertions.assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
         }
     }
 

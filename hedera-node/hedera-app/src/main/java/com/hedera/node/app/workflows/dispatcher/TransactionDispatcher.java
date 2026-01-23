@@ -10,6 +10,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -138,7 +139,7 @@ public class TransactionDispatcher {
             final var handler = getHandler(feeContext.body());
             if (shouldUseSimpleFees(feeContext)) {
                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                        .calculateTxFee(feeContext.body(), com.hedera.node.app.spi.fees.SimpleFeeContextUtil.fromFeeContext(feeContext));
+                        .calculateTxFee(feeContext.body(), SimpleFeeContextUtil.fromFeeContext(feeContext));
                 return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
             }
             return handler.calculateFees(feeContext);
@@ -194,7 +195,8 @@ public class TransactionDispatcher {
                     CONTRACT_CALL,
                     CONTRACT_UPDATE_INSTANCE,
                     ETHEREUM_TRANSACTION,
-                    HOOK_STORE -> true;
+                    HOOK_STORE,
+                    HOOK_DISPATCH -> true;
             default -> false;
         };
     }

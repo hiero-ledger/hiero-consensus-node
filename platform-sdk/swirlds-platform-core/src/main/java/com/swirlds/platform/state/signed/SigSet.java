@@ -1,14 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
-import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
-
-import com.hedera.pbj.runtime.FieldDefinition;
-import com.hedera.pbj.runtime.FieldType;
-import com.hedera.pbj.runtime.ProtoConstants;
-import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.hapi.platform.state.NodeIdSignaturePair;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.EOFException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.FastCopyable;
@@ -22,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -33,23 +29,12 @@ import org.hiero.consensus.model.node.NodeId;
 public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable {
     private static final long CLASS_ID = 0x756d0ee945226a92L;
 
-    private static final FieldDefinition FIELD_SIGNATURES =
-            new FieldDefinition("signatures", FieldType.MESSAGE, true, true, false, 1);
-    private static final FieldDefinition FIELD_NODE_ID =
-            new FieldDefinition("nodeId", FieldType.UINT64, false, true, false, 1);
-    private static final FieldDefinition FIELD_SIGNATURE_TYPE =
-            new FieldDefinition("signatureType", FieldType.UINT32, false, true, false, 2);
-    private static final FieldDefinition FIELD_SIGNATURE_BYTES =
-            new FieldDefinition("signatureBytes", FieldType.BYTES, false, true, false, 3);
-
     /**
      * The maximum allowed signature count. Used to prevent serialization DOS attacks.
      */
     public static final int MAX_SIGNATURE_COUNT = 1024;
 
     private static class ClassVersion {
-        public static final int ORIGINAL = 1;
-        public static final int MIGRATE_TO_SERIALIZABLE = 2;
         public static final int CLEANUP = 3;
         public static final int SELF_SERIALIZABLE_NODE_ID = 4;
     }
@@ -167,14 +152,6 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getMinimumSupportedVersion() {
-        return ClassVersion.CLEANUP;
-    }
-
-    /**
      * Serialize this object to a PBJ stream.
      *
      * @param out the stream to write to
@@ -182,144 +159,78 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
      */
     public void serialize(@NonNull final WritableStreamingData out) throws IOException {
         final List<NodeId> sortedIds = getSigningNodes().stream().sorted().toList();
-
+        final List<NodeIdSignaturePair> signaturePairs = new ArrayList<>(sortedIds.size());
         for (final NodeId nodeId : sortedIds) {
             final Signature signature = signatures.get(nodeId);
             final Bytes signatureBytes = signature.getBytes();
 
-            // Write the tag for the repeated signatures field
-            ProtoWriterTools.writeTag(out, FIELD_SIGNATURES);
-
-            // Each signature is a message, so we need to calculate its size
-            int msgSize = calculateSignatureMsgSize(nodeId, signature);
-
-            out.writeVarInt(msgSize, false);
-
-            ProtoWriterTools.writeTag(out, FIELD_NODE_ID);
-            out.writeVarLong(nodeId.id(), false);
-
-            ProtoWriterTools.writeTag(out, FIELD_SIGNATURE_TYPE);
-            out.writeVarInt(signature.getType().ordinal(), false);
-
-            ProtoWriterTools.writeBytes(out, FIELD_SIGNATURE_BYTES, signatureBytes);
+            signaturePairs.add(
+                    new NodeIdSignaturePair(nodeId.id(), signature.getType().ordinal(), signatureBytes));
         }
-    }
 
-    private static int calculateSignatureMsgSize(@NonNull final NodeId nodeId, @NonNull Signature signature) {
-        int msgSize = 0;
-        msgSize += ProtoWriterTools.sizeOfTag(FIELD_NODE_ID, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
-        msgSize += ProtoWriterTools.sizeOfVarInt64(nodeId.id());
-        msgSize += ProtoWriterTools.sizeOfTag(FIELD_SIGNATURE_TYPE, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
-        msgSize += ProtoWriterTools.sizeOfVarInt32(signature.getType().ordinal());
-        msgSize += ProtoWriterTools.sizeOfTag(FIELD_SIGNATURE_BYTES, ProtoConstants.WIRE_TYPE_DELIMITED);
-        msgSize += ProtoWriterTools.sizeOfVarInt32((int) signature.getBytes().length());
-        msgSize += (int) signature.getBytes().length();
-        return msgSize;
+        final com.hedera.hapi.platform.state.SigSet sigSet = new com.hedera.hapi.platform.state.SigSet(signaturePairs);
+        out.writeVarInt(com.hedera.hapi.platform.state.SigSet.PROTOBUF.measureRecord(sigSet), false);
+        com.hedera.hapi.platform.state.SigSet.PROTOBUF.write(sigSet, out);
     }
 
     /**
      * Deserialize this object from a PBJ stream.
      *
      * @param in the stream to read from
-     * @throws IOException if an I/O error occurs
+     * @throws ParseException if a parse error occurs
      */
-    public void deserialize(@NonNull final ReadableStreamingData in) throws IOException {
+    public void deserialize(@NonNull final ReadableStreamingData in) throws IOException, ParseException {
         signatures.clear();
-        final long endPosition = in.limit();
-        while (in.position() < endPosition) {
-            final int tag;
-            try {
-                tag = in.readVarInt(false);
-            } catch (final EOFException e) {
-                // no more data, exit loop
-                break;
-            }
-            final int fieldNum = tag >> TAG_FIELD_OFFSET;
-            if (fieldNum == FIELD_SIGNATURES.number()) {
-                final int msgSize = in.readVarInt(false);
-                final long limit = in.position() + msgSize;
 
-                long nodeIdVal = -1;
-                int sigTypeOrdinal = -1;
-                Bytes sigBytes = null;
+        final long length = in.readVarInt(false);
+        final long limitBefore = in.limit();
+        in.limit(in.position() + length);
 
-                while (in.position() < limit) {
-                    final int innerTag;
-                    try {
-                        innerTag = in.readVarInt(false);
-                    } catch (final EOFException e) {
-                        break;
-                    }
-                    final int innerFieldNum = innerTag >> TAG_FIELD_OFFSET;
-                    if (innerFieldNum == FIELD_NODE_ID.number()) {
-                        nodeIdVal = in.readVarLong(false);
-                    } else if (innerFieldNum == FIELD_SIGNATURE_TYPE.number()) {
-                        sigTypeOrdinal = in.readVarInt(false);
-                    } else if (innerFieldNum == FIELD_SIGNATURE_BYTES.number()) {
-                        final int bytesSize = in.readVarInt(false);
-                        final byte[] bytes = new byte[bytesSize];
-                        in.readBytes(bytes);
-                        sigBytes = Bytes.wrap(bytes);
-                    } else {
-                        // Skip unknown inner field
-                        final int wireType = innerTag & ProtoConstants.TAG_WIRE_TYPE_MASK;
-                        skipField(in, wireType);
-                    }
-                }
+        final com.hedera.hapi.platform.state.SigSet sigSet = com.hedera.hapi.platform.state.SigSet.PROTOBUF.parse(in);
+        in.limit(limitBefore);
 
-                if (nodeIdVal != -1 && sigTypeOrdinal != -1 && sigBytes != null) {
-                    final NodeId nodeId = NodeId.of(nodeIdVal);
-                    final org.hiero.base.crypto.SignatureType type = org.hiero.base.crypto.SignatureType.from(
-                            sigTypeOrdinal, org.hiero.base.crypto.SignatureType.RSA);
-                    signatures.put(nodeId, new Signature(type, sigBytes));
-                }
-
-                if (signatures.size() > MAX_SIGNATURE_COUNT) {
-                    throw new IOException(
-                            "Signature count of " + signatures.size() + " exceeds maximum of " + MAX_SIGNATURE_COUNT);
-                }
-            } else {
-                // Unknown field, skip it
-                final int wireType = tag & ProtoConstants.TAG_WIRE_TYPE_MASK;
-                skipField(in, wireType);
-            }
+        final List<NodeIdSignaturePair> nodeIdSignaturePairs = sigSet.nodeIdSignaturePairs();
+        if (nodeIdSignaturePairs.size() > MAX_SIGNATURE_COUNT) {
+            throw new IOException(
+                    "Signature count of " + signatures.size() + " exceeds maximum of " + MAX_SIGNATURE_COUNT);
         }
-    }
 
-    private static void skipField(@NonNull final ReadableStreamingData in, final int wireType) throws IOException {
-        if (wireType == ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal()) {
-            in.readVarLong(false);
-        } else if (wireType == ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal()) {
-            in.skip(8);
-        } else if (wireType == ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
-            final int length = in.readVarInt(false);
-            in.skip(length);
-        } else if (wireType == ProtoConstants.WIRE_TYPE_FIXED_32_BIT.ordinal()) {
-            in.skip(4);
-        } else {
-            throw new IOException("Unsupported wire type: " + wireType);
+        for (NodeIdSignaturePair nodeIdSignaturePair : nodeIdSignaturePairs) {
+            signatures.put(
+                    NodeId.of(nodeIdSignaturePair.nodeId()),
+                    new Signature(
+                            SignatureType.from(nodeIdSignaturePair.signatureType(), SignatureType.RSA),
+                            nodeIdSignaturePair.signatureBytes()));
         }
     }
 
     /**
      * {@inheritDoc}
+     * this method should be removed after release 0.71
      */
+    @Deprecated(forRemoval = true)
+    @Override
+    public int getMinimumSupportedVersion() {
+        return ClassVersion.CLEANUP;
+    }
+
+    /**
+     * {@inheritDoc}
+     * @deprecated use {@link #serialize(WritableStreamingData)} instead,
+     * this method should be removed after release 0.71
+     */
+    @Deprecated(forRemoval = true)
     @Override
     public void serialize(final SerializableDataOutputStream out) throws IOException {
-        out.writeInt(signatures.size());
-
-        final List<NodeId> sortedIds = new ArrayList<>(signatures.size());
-        signatures.keySet().stream().sorted().forEachOrdered(sortedIds::add);
-
-        for (final NodeId nodeId : sortedIds) {
-            out.writeSerializable(nodeId, false);
-            signatures.get(nodeId).serialize(out, false);
-        }
+        throw new UnsupportedOperationException("Serialization is not supported");
     }
 
     /**
      * {@inheritDoc}
+     * @deprecated use {@link #deserialize(ReadableStreamingData)} instead,
+     * this method should be removed after release 0.71
      */
+    @Deprecated(forRemoval = true)
     @Override
     public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
         final int signatureCount = in.readInt();
@@ -342,7 +253,9 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
 
     /**
      * {@inheritDoc}
+     * this method should be removed after release 0.71
      */
+    @Deprecated(forRemoval = true)
     @Override
     public long getClassId() {
         return CLASS_ID;
@@ -350,7 +263,9 @@ public class SigSet implements FastCopyable, Iterable<NodeId>, SelfSerializable 
 
     /**
      * {@inheritDoc}
+     * this method should be removed after release 0.71
      */
+    @Deprecated(forRemoval = true)
     @Override
     public int getVersion() {
         return ClassVersion.SELF_SERIALIZABLE_NODE_ID;

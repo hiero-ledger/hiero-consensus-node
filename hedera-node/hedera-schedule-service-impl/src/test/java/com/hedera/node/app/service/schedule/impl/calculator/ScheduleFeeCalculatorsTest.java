@@ -23,6 +23,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -201,12 +202,12 @@ class ScheduleFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
+        final var result = feeCalculator.calculateTxFee(testCase.body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
         assertThat(result).isNotNull();
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(testCase.expectedNodeFee);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(testCase.expectedServiceFee);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(testCase.expectedNetworkFee);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(testCase.expectedNodeFee);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(testCase.expectedServiceFee);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(testCase.expectedNetworkFee);
     }
 
     @Test
@@ -216,11 +217,11 @@ class ScheduleFeeCalculatorsTest {
         final var queryFeeCalculator = new ScheduleGetInfoFeeCalculator();
         final var feeResult = new FeeResult();
 
-        queryFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+        queryFeeCalculator.accumulateNodePayment(query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
 
-        assertThat(feeResult.getNodeTotalTinyCents()).isEqualTo(0L);
-        assertThat(feeResult.getNetworkTotalTinyCents()).isEqualTo(0L);
-        assertThat(feeResult.getServiceTotalTinyCents()).isEqualTo(5L);
+        assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(5L);
     }
 
     private static FeeSchedule createTestFeeSchedule() {

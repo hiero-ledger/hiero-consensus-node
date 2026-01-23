@@ -37,7 +37,6 @@ candidate. XTS are intended to complete within a given 3-hour window. These test
 The XTS text suite consists of the following tests:
 
 - timing-sensitive-tests
-- time-consuming-tests
 - hammer-tests
 - hapi-tests-time-consuming
 

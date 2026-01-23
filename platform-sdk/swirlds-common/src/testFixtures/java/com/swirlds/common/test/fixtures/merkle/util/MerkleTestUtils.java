@@ -22,11 +22,8 @@ import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleExternalLeaf;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal2;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf2;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleNode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -36,10 +33,8 @@ import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
@@ -76,39 +71,6 @@ public final class MerkleTestUtils {
     private static final Metrics metrics = createMetrics();
 
     private MerkleTestUtils() {}
-
-    /**
-     * Returns an empty merkle tree.
-     */
-    public static DummyMerkleNode buildSizeZeroTree() {
-        return null;
-    }
-
-    /**
-     * Returns a merkle tree with only a single leaf.
-     *
-     * <pre>
-     * A
-     * </pre>
-     */
-    public static DummyMerkleNode buildSizeOneTree() {
-        return new DummyMerkleLeaf("A");
-    }
-
-    /**
-     * Returns the following tree:
-     *
-     * root
-     * |
-     * A
-     */
-    public static DummyMerkleNode buildSimpleTree() {
-        final DummyMerkleInternal root = new DummyMerkleInternal("root");
-        final MerkleLeaf A = new DummyMerkleLeaf("A");
-        root.setChild(0, A);
-        initializeTreeAfterCopy(root);
-        return root;
-    }
 
     /**
      * Returns the following tree:
@@ -194,77 +156,6 @@ public final class MerkleTestUtils {
     }
 
     /**
-     * Returns the following tree:
-     *
-     * <pre>
-     *             root
-     *           / |   \
-     *          A  i0  i1
-     *             /\  /\
-     *            B C D null
-     * </pre>
-     *
-     * All nodes at depth 1 (A, i0, i1) are instantiated using either DummyMerkleNode2 or DummyMerkleInternal2 types.
-     */
-    public static DummyMerkleNode buildLessSimpleTreeWithSwappedTypes() {
-        final DummyMerkleInternal root = new DummyMerkleInternal("root");
-
-        final MerkleLeaf A = new DummyMerkleLeaf2("A");
-        final MerkleInternal i0 = new DummyMerkleInternal2("i0");
-        final MerkleInternal i1 = new DummyMerkleInternal2("i1");
-        root.setChild(0, A);
-        root.setChild(1, i0);
-        root.setChild(2, i1);
-
-        final MerkleLeaf B = new DummyMerkleLeaf("B");
-        final MerkleLeaf C = new DummyMerkleLeaf("C");
-        i0.setChild(0, B);
-        i0.setChild(1, C);
-
-        final MerkleLeaf D = new DummyMerkleLeaf("D");
-        i1.setChild(0, D);
-        i1.setChild(1, null);
-
-        initializeTreeAfterCopy(root);
-        return root;
-    }
-
-    /**
-     * Returns the following tree:
-     *
-     * <pre>
-     *             root
-     *           / |   \
-     *          A  i0  i1
-     *            / \  / \
-     *           B E1  D E2
-     * </pre>
-     */
-    public static DummyMerkleNode buildTreeWithExternalData() {
-        final DummyMerkleInternal root = new DummyMerkleInternal("root");
-
-        final MerkleLeaf A = new DummyMerkleLeaf("A");
-        final MerkleInternal i0 = new DummyMerkleInternal("i0");
-        final MerkleInternal i1 = new DummyMerkleInternal("i1");
-        root.setChild(0, A);
-        root.setChild(1, i0);
-        root.setChild(2, i1);
-
-        final MerkleLeaf B = new DummyMerkleLeaf("B");
-        final MerkleLeaf E1 = new DummyMerkleExternalLeaf(1234, 10, 0);
-        i0.setChild(0, B);
-        i0.setChild(1, E1);
-
-        final MerkleLeaf D = new DummyMerkleLeaf("D");
-        final MerkleLeaf E2 = new DummyMerkleExternalLeaf(4321, 10, 0);
-        i1.setChild(0, D);
-        i1.setChild(1, E2);
-
-        initializeTreeAfterCopy(root);
-        return root;
-    }
-
-    /**
      * Returns a random number from a gaussian distribution with the specified parameters.
      *
      * @param random
@@ -279,16 +170,6 @@ public final class MerkleTestUtils {
     public static double randomWithDistribution(
             final Random random, final double mean, final double standardDeviation, final double minimum) {
         return Math.max(random.nextGaussian() * standardDeviation + mean, minimum);
-    }
-
-    /**
-     * Returns true with a given probability
-     *
-     * @param probability
-     * 		The probability of returning true. &gt;=1.0 = 100% true
-     */
-    public static boolean randomChance(final Random random, final double probability) {
-        return random.nextDouble() < probability;
     }
 
     /**
@@ -433,55 +314,6 @@ public final class MerkleTestUtils {
         return node;
     }
 
-    /**
-     * Generate a random tree deterministically.
-     *
-     * @param seed
-     * 		Two trees generated using the same seed (and other arguments) will have the exact same topology.
-     * @param numberOfLeavesAverage
-     * 		The average number of leaves for each internal node.
-     * @param numberOfLeavesStandardDeviation
-     * 		The standard deviation for the number of leaves for each internal node.
-     * 		Each internal node will have at least one leaf.
-     * @param leafSizeAverage
-     * 		The average number of bytes in each leaf. A leaf will have at a minimum one byte.
-     * @param leafSizeStandardDeviation
-     * 		The standard deviation for the number bytes in each leaf.
-     * @param numberOfInternalNodesAverage
-     * 		The average number of internal nodes children for each internal node.
-     * @param numberOfInternalNodesStandardDeviation
-     * 		The standard deviation for the number of internal nodes.
-     * @param numberOfInternalNodesDecayFactor
-     * 		The average number of internal nodes will decrease by this amount for
-     * 		every level the tree grows deeper. This will bound the size of the tree.
-     * @return The root of the tree.
-     */
-    public static DummyMerkleNode generateRandomTree(
-            final long seed,
-            final double numberOfLeavesAverage,
-            final double numberOfLeavesStandardDeviation,
-            final double leafSizeAverage,
-            final double leafSizeStandardDeviation,
-            final double numberOfInternalNodesAverage,
-            final double numberOfInternalNodesStandardDeviation,
-            final double numberOfInternalNodesDecayFactor) {
-
-        final Random random = new Random(seed);
-
-        return generateRandomInternalNode(
-                random,
-                null,
-                0,
-                numberOfLeavesAverage,
-                numberOfLeavesStandardDeviation,
-                leafSizeAverage,
-                leafSizeStandardDeviation,
-                numberOfInternalNodesAverage,
-                numberOfInternalNodesStandardDeviation,
-                numberOfInternalNodesDecayFactor,
-                0);
-    }
-
     private static DummyMerkleNode generateRandomBalancedTree(
             final Random random,
             final MerkleInternal parent,
@@ -545,217 +377,6 @@ public final class MerkleTestUtils {
                 random, null, 0, depth, internalNodeChildren, leafSizeAverage, leafSizeStandardDeviation, 0);
     }
 
-    private static void randomlyMutateTree(
-            final DummyMerkleNode root,
-            final double leafMutationProbability,
-            final double internalMutationProbability,
-            final Random random,
-            final double numberOfLeavesAverage,
-            final double numberOfLeavesStandardDeviation,
-            final double leafSizeAverage,
-            final double leafSizeStandardDeviation,
-            final double numberOfInternalNodesAverage,
-            final double numberOfInternalNodesStandardDeviation,
-            final double numberOfInternalNodesDecayFactor,
-            final int depth) {
-
-        if (root instanceof MerkleInternal) {
-            final MerkleInternal internal = root.cast();
-            for (int childIndex = 0; childIndex < internal.getNumberOfChildren(); childIndex++) {
-                MerkleNode child = internal.getChild(childIndex);
-                if (child == null || child instanceof MerkleLeaf && randomChance(random, leafMutationProbability)) {
-                    final MerkleNode replacement =
-                            generateRandomMerkleLeaf(random, leafSizeAverage, leafSizeStandardDeviation);
-                    internal.setChild(childIndex, replacement);
-                } else if (child instanceof MerkleInternal) {
-                    if (randomChance(random, internalMutationProbability)) {
-                        final MerkleNode replacement = generateRandomInternalNode(
-                                random,
-                                internal,
-                                childIndex,
-                                numberOfLeavesAverage,
-                                numberOfLeavesStandardDeviation,
-                                leafSizeAverage,
-                                leafSizeStandardDeviation,
-                                numberOfInternalNodesAverage,
-                                numberOfInternalNodesStandardDeviation,
-                                numberOfInternalNodesDecayFactor,
-                                depth + 1);
-                        internal.setChild(childIndex, replacement);
-                    } else {
-                        randomlyMutateTree(
-                                (DummyMerkleNode) child,
-                                leafMutationProbability,
-                                internalMutationProbability,
-                                random,
-                                numberOfLeavesAverage,
-                                numberOfLeavesStandardDeviation,
-                                leafSizeAverage,
-                                leafSizeStandardDeviation,
-                                numberOfInternalNodesAverage,
-                                numberOfInternalNodesStandardDeviation,
-                                numberOfInternalNodesDecayFactor,
-                                depth + 1);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Iterate over a tree. For each node, possibly replace leaves with other leaves and
-     * internal nodes with new subtrees.
-     *
-     * Does not modify the root (so that the reference passed into this method now points to the modified tree).
-     *
-     * @param root
-     * 		The tree to modify.
-     * @param leafMutationProbability
-     * 		The probability than any particular leaf will be replaced with a new subtree.
-     * @param internalMutationProbability
-     * 		The probability that any particular internal node will be replaced with
-     * 		a new subtree.
-     * @param seed
-     * 		Two trees mutated using the same seed (and other arguments) will have the exact same topology.
-     * @param numberOfLeavesAverage
-     * 		The average number of leaves for each internal node.
-     * @param numberOfLeavesStandardDeviation
-     * 		The standard deviation for the number of leaves for each internal node.
-     * 		Each internal node will have at least one leaf.
-     * @param leafSizeAverage
-     * 		The average number of bytes in each leaf. A leaf will have at a minimum one byte.
-     * @param leafSizeStandardDeviation
-     * 		The standard deviation for the number bytes in each leaf.
-     * @param numberOfInternalNodesAverage
-     * 		The average number of internal nodes children for each internal node.
-     * @param numberOfInternalNodesStandardDeviation
-     * 		The standard deviation for the number of internal nodes.
-     * @param numberOfInternalNodesDecayFactor
-     * 		The average number of internal nodes will decrease by this amount for
-     * 		every level the tree grows deeper. This will bound the size of the tree.
-     */
-    public static void randomlyMutateTree(
-            final DummyMerkleNode root,
-            final double leafMutationProbability,
-            final double internalMutationProbability,
-            final long seed,
-            final double numberOfLeavesAverage,
-            final double numberOfLeavesStandardDeviation,
-            final double leafSizeAverage,
-            final double leafSizeStandardDeviation,
-            final double numberOfInternalNodesAverage,
-            final double numberOfInternalNodesStandardDeviation,
-            final double numberOfInternalNodesDecayFactor) {
-
-        final Random random = new Random(seed);
-
-        randomlyMutateTree(
-                root,
-                leafMutationProbability,
-                internalMutationProbability,
-                random,
-                numberOfLeavesAverage,
-                numberOfLeavesStandardDeviation,
-                leafSizeAverage,
-                leafSizeStandardDeviation,
-                numberOfInternalNodesAverage,
-                numberOfInternalNodesStandardDeviation,
-                numberOfInternalNodesDecayFactor,
-                0);
-    }
-
-    public static void printTreeStats(final MerkleNode root) {
-        System.out.println("Number of nodes: " + measureNumberOfNodes(root));
-        System.out.println("Number of leaves: " + measureNumberOfLeafNodes(root));
-        System.out.println("Maximum depth: " + measureTreeDepth(root));
-        System.out.println("Average leaf depth: " + measureAverageLeafDepth(root));
-    }
-
-    /**
-     * Counts and returns the number of nodes in a merkle tree.
-     */
-    public static int measureNumberOfNodes(final MerkleNode root) {
-        final Iterator<MerkleNode> it = new MerkleIterator<>(root).ignoreNull(false);
-        int count = 0;
-        while (it.hasNext()) {
-            it.next();
-            count++;
-        }
-        return count;
-    }
-
-    /**
-     * Counts and returns the number of leaf nodes in a merkle tree.
-     */
-    public static int measureNumberOfLeafNodes(final MerkleNode root) {
-        final Iterator<?> it = new MerkleIterator<>(root)
-                .ignoreNull(false)
-                .setFilter((final MerkleNode node) -> !(node instanceof MerkleInternal));
-        int count = 0;
-        while (it.hasNext()) {
-            it.next();
-            count++;
-        }
-        return count;
-    }
-
-    /**
-     * Find the maximum depth of a tree.
-     */
-    public static int measureTreeDepth(final MerkleNode root) {
-        if (root == null) {
-            return 0;
-        }
-        if (root.isLeaf()) {
-            return 1;
-        } else {
-            final MerkleInternal node = root.cast();
-            int maxChildDepth = 0;
-            for (int childIndex = 0; childIndex < node.getNumberOfChildren(); childIndex++) {
-                maxChildDepth = Math.max(maxChildDepth, measureTreeDepth(node.getChild(childIndex)));
-            }
-            return maxChildDepth + 1;
-        }
-    }
-
-    /**
-     * Measure the average depth of all leaf nodes in a tree.
-     */
-    private static AverageLeafDepth measureAverageLeafDepthInternal(
-            final MerkleNode tree, final int depth, final Set<MerkleNode> visitedNodes) {
-
-        final AverageLeafDepth averageDepth = new AverageLeafDepth();
-
-        if (tree != null) {
-            if (tree.isLeaf()) {
-                averageDepth.addLeaves(1);
-                averageDepth.addDepth(depth + 1);
-            } else {
-                final MerkleInternal node = tree.cast();
-                for (int childIndex = 0; childIndex < node.getNumberOfChildren(); childIndex++) {
-                    final MerkleNode child = node.getChild(childIndex);
-                    if (visitedNodes.contains(child)) {
-                        // Don't visit nodes more than once
-                        continue;
-                    }
-                    final AverageLeafDepth childDepth = measureAverageLeafDepthInternal(child, depth + 1, visitedNodes);
-                    averageDepth.add(childDepth);
-                    visitedNodes.add(child);
-                }
-            }
-        }
-
-        return averageDepth;
-    }
-
-    /**
-     * Measure the average depth of all leaf nodes in a tree.
-     */
-    public static double measureAverageLeafDepth(final MerkleNode root) {
-        final Set<MerkleNode> visitedNodes = new HashSet<>();
-        return measureAverageLeafDepthInternal(root, 0, visitedNodes).getAverageDepth();
-    }
-
     /**
      * Measure the average leaf size. All leaves must be DummyMerkleLeaves.
      */
@@ -780,35 +401,6 @@ public final class MerkleTestUtils {
         }
 
         return totalSize / count;
-    }
-
-    public static List<DummyMerkleNode> buildSmallTreeList() {
-        final List<DummyMerkleNode> list = new ArrayList<>();
-        list.add(MerkleTestUtils.buildSizeZeroTree());
-        list.add(MerkleTestUtils.buildSizeOneTree());
-        list.add(MerkleTestUtils.buildSimpleTree());
-        list.add(MerkleTestUtils.buildLessSimpleTree());
-        list.add(MerkleTestUtils.buildLessSimpleTreeExtended());
-        list.add(MerkleTestUtils.buildTreeWithExternalData());
-        list.add(MerkleTestUtils.buildLessSimpleTreeWithSwappedTypes());
-        return list;
-    }
-
-    public static List<DummyMerkleNode> buildTreeList() {
-        final List<DummyMerkleNode> list = buildSmallTreeList();
-        final DummyMerkleNode randomTree = generateRandomTree(0, 2, 1, 1, 0, 3, 1, 0.25);
-        System.out.println("Random tree statistics:");
-        printTreeStats(randomTree);
-
-        list.add(randomTree);
-
-        final DummyMerkleNode mutatedRandomTree = generateRandomTree(0, 2, 1, 1, 0, 3, 1, 0.25);
-        randomlyMutateTree(mutatedRandomTree, 0.1, 0.05, 1234, 2, 1, 1, 0, 3, 1, 0.25);
-        System.out.println("Random tree statistics (mutated):");
-        printTreeStats(mutatedRandomTree);
-        list.add(mutatedRandomTree);
-
-        return list;
     }
 
     /**

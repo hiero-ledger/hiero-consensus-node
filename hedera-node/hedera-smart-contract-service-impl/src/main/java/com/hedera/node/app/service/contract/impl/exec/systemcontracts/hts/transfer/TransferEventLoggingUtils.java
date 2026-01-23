@@ -16,6 +16,8 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -59,7 +61,17 @@ public class TransferEventLoggingUtils {
         }
     }
 
-    private static class AccountChange {
+    /**
+     * Holder for AccountAmount values. Sorted as a Comparable implementation to try to produce fewer transfer events.
+     */
+    private static class AccountChange implements Comparable<AccountChange> {
+
+        private static final Comparator<AccountChange> COMPARATOR = Comparator.<AccountChange>comparingLong(
+                        e -> e.amount)
+                .reversed() // amount DESC
+                .thenComparing(e -> e.accountId.shardNum()) // shard ASC
+                .thenComparing(e -> e.accountId.realmNum()) // realm ASC
+                .thenComparing(e -> e.accountId.hasAccountNum() ? e.accountId.accountNum() : 0L); // accountNum ASC
 
         public final AccountID accountId;
         public long amount; // using not final var because it will be changed during the conversion algorithm
@@ -67,6 +79,11 @@ public class TransferEventLoggingUtils {
         public AccountChange(final AccountID accountId, long amount) {
             this.accountId = accountId;
             this.amount = amount;
+        }
+
+        @Override
+        public int compareTo(@NonNull final TransferEventLoggingUtils.AccountChange other) {
+            return COMPARATOR.compare(this, other);
         }
     }
 
@@ -125,8 +142,12 @@ public class TransferEventLoggingUtils {
                 receivers.add(new AccountChange(account.accountIDOrThrow(), account.amount()));
             }
         }
+        // 2. Sort both senders and receivers to prevent "random ordering" of resulted ERC events.
+        // For sort order see AccountChange.compareTo
+        Collections.sort(senders);
+        Collections.sort(receivers);
 
-        // 2. Convert senders/receivers to transfer events
+        // 3. Convert senders/receivers to transfer events
         int sIdx = 0;
         int rIdx = 0;
         while (sIdx < senders.size() && rIdx < receivers.size()) {

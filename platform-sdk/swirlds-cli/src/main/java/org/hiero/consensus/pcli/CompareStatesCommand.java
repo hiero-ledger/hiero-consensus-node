@@ -3,6 +3,7 @@ package org.hiero.consensus.pcli;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -112,7 +113,8 @@ public final class CompareStatesCommand extends AbstractCommand {
      * @return the loaded state
      */
     private static ReservedSignedState loadAndHashState(
-            @NonNull final PlatformContext platformContext, @NonNull final Path stateDirPath) throws IOException {
+            @NonNull final PlatformContext platformContext, @NonNull final Path stateDirPath)
+            throws IOException, ParseException {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(stateDirPath);
 
@@ -138,7 +140,7 @@ public final class CompareStatesCommand extends AbstractCommand {
      * @return return code of the program
      */
     @Override
-    public Integer call() throws IOException {
+    public Integer call() throws IOException, ParseException {
         BootstrapUtils.setupConstructableRegistry();
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(

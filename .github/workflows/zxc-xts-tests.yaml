@@ -166,20 +166,6 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
-  xts-time-consuming-tests:
-    name: XTS Time Consuming Tests
-    needs:
-      - commit-info
-      - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/zxc-execute-time-consuming-tests.yaml
-    with:
-      ref: ${{ needs.commit-info.outputs.sha }}
-    secrets:
-      access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
-
   xts-hammer-tests:
     name: XTS Hammer Tests
     needs:
@@ -348,7 +334,6 @@ jobs:
       - commit-info
       - build
       - xts-timing-sensitive-tests
-      - xts-time-consuming-tests
       - xts-hammer-tests
       - xts-hapi-tests
       - xts-otter-tests
@@ -369,7 +354,6 @@ jobs:
             ${{ needs.commit-info.result || 'skipped' }}
             ${{ needs.build.result || 'skipped' }}
             ${{ needs.xts-timing-sensitive-tests.result || 'skipped' }}
-            ${{ needs.xts-time-consuming-tests.result || 'skipped' }}
             ${{ needs.xts-hammer-tests.result || 'skipped' }}
             ${{ needs.xts-hapi-tests.result || 'skipped' }}
             ${{ needs.xts-otter-tests.result || 'skipped' }}
@@ -378,7 +362,6 @@ jobs:
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.build.outputs.failure-mode || 'none' }}
             ${{ needs.xts-timing-sensitive-tests.outputs.failure-mode || 'none' }}
-            ${{ needs.xts-time-consuming-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
@@ -387,7 +370,6 @@ jobs:
             "commit-info"
             "build"
             "xts-timing-sensitive-tests"
-            "xts-time-consuming-tests"
             "xts-hammer-tests"
             "xts-hapi-tests"
             "xts-otter-tests"

@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
@@ -122,7 +123,7 @@ class SignedStateFileReadWriteTest {
 
     @Test
     @DisplayName("Write Then Read State File Test")
-    void writeThenReadStateFileTest() throws IOException {
+    void writeThenReadStateFileTest() throws IOException, ParseException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
         final SigSet sigSet = new SigSet();
         sigSet.addSignature(NodeId.of(1), new Signature(SignatureType.ED25519, randomUtf8Bytes(16)));

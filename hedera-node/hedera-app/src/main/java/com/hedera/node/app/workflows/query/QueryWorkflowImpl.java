@@ -30,6 +30,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -41,7 +42,6 @@ import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.ingest.SubmissionManager;
 import com.hedera.node.config.ConfigProvider;
@@ -220,14 +220,17 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             // But if payment is required, we must be able to submit a transaction
                             ingestChecker.verifyReadyForTransactions();
 
-                            // 3.ii Validate CryptoTransfer
-                            queryChecker.validateCryptoTransfer(checkerResult.txnInfoOrThrow());
+                            // Get the account store for validations
+                            final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
+
+                            // 3.ii Validate CryptoTransfer (including sender signatures)
+                            queryChecker.validateCryptoTransfer(
+                                    accountStore, checkerResult.txnInfoOrThrow(), configuration);
 
                             // 3.iii Check permissions
                             queryChecker.checkPermissions(payerID, function);
 
                             // Get the payer
-                            final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
                             final var payer = accountStore.getAccountById(payerID);
                             if (payer == null) {
                                 // This should never happen, because the account is checked in the pure checks
@@ -238,9 +241,10 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             long queryFees = 0;
                             if (shouldUseSimpleFees(context)) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(context.query(), SimpleFeeContextUtil.fromQueryContext(context));
+                                        .calculateQueryFee(
+                                                context.query(), SimpleFeeContextUtil.fromQueryContext(context));
                                 queryFees = tinycentsToTinybars(
-                                        queryFeeTinyCents.totalTinyCents(),
+                                        queryFeeTinyCents.totalTinycents(),
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                             } else {
                                 queryFees = handler.computeFees(context).totalFee();
@@ -300,7 +304,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
                                 .calculateQueryFee(context.query(), SimpleFeeContextUtil.fromQueryContext(context));
                         queryFees = tinycentsToTinybars(
-                                queryFeeTinyCents.totalTinyCents(),
+                                queryFeeTinyCents.totalTinycents(),
                                 fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                     } else {
                         queryFees = handler.computeFees(context).totalFee();
@@ -359,7 +363,10 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     NETWORK_GET_VERSION_INFO,
                     TRANSACTION_GET_RECORD,
                     TRANSACTION_GET_RECEIPT,
-                    GET_BY_KEY -> true;
+                    GET_BY_KEY,
+                    CONTRACT_CALL_LOCAL,
+                    CONTRACT_GET_BYTECODE,
+                    CONTRACT_GET_INFO -> true;
             default -> false;
         };
     }

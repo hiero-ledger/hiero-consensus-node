@@ -7,10 +7,9 @@ import static com.swirlds.platform.reconnect.ReconnectStateLearner.endReconnectH
 import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
@@ -31,6 +30,8 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -196,11 +197,9 @@ public class ReconnectStateTeacher {
                         lastRoundReceived));
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         logger.info(
-                RECONNECT.getMarker(),
-                """
+                RECONNECT.getMarker(), """
                         The following state will be sent to the learner:
-                        {}""",
-                () -> getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
+                        {}""", () -> getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
     }
 
     private void logReconnectFinish() {
@@ -230,8 +229,8 @@ public class ReconnectStateTeacher {
         final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
                 time,
                 threadManager,
-                new MerkleDataInputStream(connection.getDis()),
-                new MerkleDataOutputStream(connection.getDos()),
+                new SerializableDataInputStream(connection.getDis()),
+                new SerializableDataOutputStream(connection.getDos()),
                 teacherView,
                 connection::disconnect,
                 reconnectConfig);
@@ -259,7 +258,8 @@ public class ReconnectStateTeacher {
                 .append(hash);
 
         logger.info(RECONNECT.getMarker(), sb);
-        connection.getDos().writeSerializable(signatures, true);
+        final WritableStreamingData wsd = new WritableStreamingData(connection.getDos());
+        signatures.serialize(wsd);
         connection.getDos().flush();
     }
 }

@@ -10,11 +10,15 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -64,6 +68,47 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
             @NonNull final Map<ProtoBytes, ProtoBytes> map) {
         this.state = Mockito.spy(new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, map));
         return state;
+    }
+
+    @Test
+    @DisplayName("Constructor with modifications and readCache works")
+    void testConstructorWithModificationsAndReadCache() {
+        final Map<ProtoBytes, ProtoBytes> modifications = new HashMap<>();
+        modifications.put(A_KEY, APPLE);
+        final ConcurrentMap<ProtoBytes, ProtoBytes> readCache = new ConcurrentHashMap<>();
+        readCache.put(B_KEY, BANANA);
+
+        final var customState = new WritableKVStateBase<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, modifications, readCache) {
+            @Override
+            protected void putIntoDataSource(@NonNull ProtoBytes key, @NonNull ProtoBytes value) {}
+
+            @Override
+            protected void removeFromDataSource(@NonNull ProtoBytes key) {}
+
+            @NonNull
+            @Override
+            public long sizeOfDataSource() {
+                return 0;
+            }
+
+            @Override
+            protected ProtoBytes readFromDataSource(@NonNull ProtoBytes key) {
+                return null;
+            }
+
+            @NonNull
+            @Override
+            protected Iterator<ProtoBytes> iterateFromDataSource() {
+                return Collections.emptyIterator();
+            }
+        };
+
+        assertThat(customState.getStateId()).isEqualTo(FRUIT_STATE_ID);
+        // modifications should be in the state
+        assertThat(customState.get(A_KEY)).isEqualTo(APPLE);
+        // readCache should be in the state
+        assertThat(customState.get(B_KEY)).isEqualTo(BANANA);
+        assertThat(customState.readKeys()).contains(B_KEY);
     }
 
     @Nested

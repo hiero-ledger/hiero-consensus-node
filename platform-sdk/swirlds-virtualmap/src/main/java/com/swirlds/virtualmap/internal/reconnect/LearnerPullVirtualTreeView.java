@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
@@ -111,8 +109,8 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     public void startLearnerTasks(
             final LearningSynchronizer learningSynchronizer,
             final StandardWorkGroup workGroup,
-            final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream) {
+            final SerializableDataInputStream inputStream,
+            final SerializableDataOutputStream outputStream) {
         this.nodeCount = learningSynchronizer;
 
         final AsyncOutputStream<PullVirtualTreeRequest> out =

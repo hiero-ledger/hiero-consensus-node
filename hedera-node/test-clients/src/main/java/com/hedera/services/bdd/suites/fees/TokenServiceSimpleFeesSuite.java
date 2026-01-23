@@ -33,12 +33,16 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedSimpleFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.nodeFeeFromBytesUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -75,6 +79,8 @@ public class TokenServiceSimpleFeesSuite {
     private static final String ADMIN = "admin";
     private static final String OTHER = "other";
     private static final String HBAR_COLLECTOR = "hbarCollector";
+    private static final int NODE_INCLUDED_BYTES = 1024;
+    private static final int NETWORK_MULTIPLIER = 9;
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare create fungible token")
@@ -170,35 +176,69 @@ public class TokenServiceSimpleFeesSuite {
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare update fungible token")
     final Stream<DynamicTest> compareUpdateFungibleToken() {
-        final var NEW_SUPPLY_KEY = "NEW_SUPPLY_KEY";
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(NEW_SUPPLY_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .payingWith(PAYER)
-                                .fee(ONE_MILLION_HBARS)
-                                .supplyKey(SUPPLY_KEY)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .hasKnownStatus(SUCCESS),
-                        tokenUpdate(FUNGIBLE_TOKEN)
-                                .payingWith(PAYER)
-                                .fee(ONE_MILLION_HBARS)
-                                .signedBy(PAYER, SUPPLY_KEY, NEW_SUPPLY_KEY)
-                                .supplyKey(NEW_SUPPLY_KEY)
-                                .hasKnownStatus(SUCCESS)
-                                .via("update-token-txn")),
-                "update-token-txn",
-                // base = 9000000,
-                // 1 key for the new supply key
-                // 3 sigs for the payer, old supply key, and new supply key
-                // 2 extra sigs = 0.002
-                0.001 + 0.002,
-                1,
-                0.001 + 0.002,
-                1);
+        final var supplyKeySimple = SUPPLY_KEY + "_simple";
+        final var newSupplyKeySimple = "NEW_SUPPLY_KEY_SIMPLE";
+        final var payerSimple = PAYER + "_simple";
+        final var adminSimple = ADMIN + "_simple";
+        final var tokenSimple = FUNGIBLE_TOKEN + "_simple";
+        final var updateSimpleTxn = "update-token-txn-simple";
+
+        final var supplyKeyOld = SUPPLY_KEY + "_old";
+        final var newSupplyKeyOld = "NEW_SUPPLY_KEY_OLD";
+        final var payerOld = PAYER + "_old";
+        final var adminOld = ADMIN + "_old";
+        final var tokenOld = FUNGIBLE_TOKEN + "_old";
+        final var updateOldTxn = "update-token-txn-old";
+
+        final var baseFee = 0.001 + 0.002;
+
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                newKeyNamed(supplyKeySimple),
+                newKeyNamed(newSupplyKeySimple),
+                cryptoCreate(adminSimple).balance(ONE_MILLION_HBARS),
+                cryptoCreate(payerSimple).balance(ONE_MILLION_HBARS),
+                tokenCreate(tokenSimple)
+                        .payingWith(payerSimple)
+                        .fee(ONE_MILLION_HBARS)
+                        .supplyKey(supplyKeySimple)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .hasKnownStatus(SUCCESS),
+                tokenUpdate(tokenSimple)
+                        .payingWith(payerSimple)
+                        .fee(ONE_MILLION_HBARS)
+                        .signedBy(payerSimple, supplyKeySimple, newSupplyKeySimple)
+                        .supplyKey(newSupplyKeySimple)
+                        .hasKnownStatus(SUCCESS)
+                        .via(updateSimpleTxn),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, updateSimpleTxn);
+                    final var expectedFee = baseFee + nodeFeeFromBytesUsd(signedTxnSize);
+                    allRunFor(spec, validateChargedSimpleFees("Simple Fees", updateSimpleTxn, expectedFee, 1));
+                }),
+                overriding("fees.simpleFeesEnabled", "false"),
+                newKeyNamed(supplyKeyOld),
+                newKeyNamed(newSupplyKeyOld),
+                cryptoCreate(adminOld).balance(ONE_MILLION_HBARS),
+                cryptoCreate(payerOld).balance(ONE_MILLION_HBARS),
+                tokenCreate(tokenOld)
+                        .payingWith(payerOld)
+                        .fee(ONE_MILLION_HBARS)
+                        .supplyKey(supplyKeyOld)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .hasKnownStatus(SUCCESS),
+                tokenUpdate(tokenOld)
+                        .payingWith(payerOld)
+                        .fee(ONE_MILLION_HBARS)
+                        .signedBy(payerOld, supplyKeyOld, newSupplyKeyOld)
+                        .supplyKey(newSupplyKeyOld)
+                        .hasKnownStatus(SUCCESS)
+                        .via(updateOldTxn),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, updateOldTxn);
+                    final var expectedFee = baseFee + nodeFeeFromBytesUsd(signedTxnSize);
+                    allRunFor(spec, validateChargedSimpleFees("Old Fees", updateOldTxn, expectedFee, 1));
+                }));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})

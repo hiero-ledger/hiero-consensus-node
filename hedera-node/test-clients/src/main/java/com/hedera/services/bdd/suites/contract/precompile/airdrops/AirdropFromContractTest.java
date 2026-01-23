@@ -173,10 +173,11 @@ public class AirdropFromContractTest {
                             .via(TXN_NAME),
                     getTxnRecord(TXN_NAME).hasPriority(recordWith().pendingAirdropsCount(0)),
                     // check ERC20 event with fee
+                    // Events are sorted by amount DESC, so the 10-unit transfer comes before the 1-unit fee
                     TransferTokenTest.validateErcEvent(
                             getTxnRecord(TXN_NAME),
-                            TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId, contractId, 1L),
-                            TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId, receiverId, 10L)),
+                            TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId, receiverId, 10L),
+                            TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId, contractId, 1L)),
                     sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 500989)),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10)),
                     airdropContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1L)),

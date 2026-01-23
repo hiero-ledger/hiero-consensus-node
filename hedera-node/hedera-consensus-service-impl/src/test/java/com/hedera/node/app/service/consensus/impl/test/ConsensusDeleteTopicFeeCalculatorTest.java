@@ -13,10 +13,9 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusDeleteTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import java.util.List;
 import java.util.Set;
-
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import org.assertj.core.api.Assertions;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -59,9 +58,9 @@ public class ConsensusDeleteTopicFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
             assertThat(result).isNotNull();
-            Assertions.assertThat(result.getNodeTotalTinyCents()).isEqualTo(100000L);
-            Assertions.assertThat(result.getServiceTotalTinyCents()).isEqualTo(498500000L);
-            Assertions.assertThat(result.getNetworkTotalTinyCents()).isEqualTo(200000L);
+            Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L);
+            Assertions.assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
         }
     }
 

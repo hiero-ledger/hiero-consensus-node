@@ -25,19 +25,21 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
             @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
-        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
 
         final var op = txnBody.consensusSubmitMessageOrThrow();
 
         final var msgSize = op.message().length();
         addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, msgSize);
-        final var topic = simpleFeeContext
-                .feeContext()
-                .readableStore(ReadableTopicStore.class)
-                .getTopic(op.topicIDOrThrow());
-        final var hasCustomFees = (topic != null && !topic.customFees().isEmpty());
-        if (hasCustomFees) {
-            addExtraFee(feeResult, serviceDef, Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, feeSchedule, 1);
+        if (simpleFeeContext.feeContext() != null) {
+            final var topic = simpleFeeContext
+                    .feeContext()
+                    .readableStore(ReadableTopicStore.class)
+                    .getTopic(op.topicIDOrThrow());
+            final var hasCustomFees = (topic != null && !topic.customFees().isEmpty());
+            if (hasCustomFees) {
+                addExtraFee(feeResult, serviceDef, Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, feeSchedule, 1);
+            }
         }
     }
 

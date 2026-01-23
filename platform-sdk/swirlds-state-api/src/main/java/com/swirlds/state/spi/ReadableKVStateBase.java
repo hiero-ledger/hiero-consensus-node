@@ -50,6 +50,7 @@ public abstract class ReadableKVStateBase<K, V> implements ReadableKVState<K, V>
      * @param readCache A map that is used to init the cache.
      */
     // This constructor is used by some consumers of the API that are outside of this repository.
+    @SuppressWarnings("unused")
     protected ReadableKVStateBase(final int stateId, final String label, @NonNull ConcurrentMap<K, V> readCache) {
         this.stateId = stateId;
         this.readCache = Objects.requireNonNull(readCache);

@@ -4,8 +4,6 @@ package com.swirlds.common.merkle.synchronization;
 import static com.swirlds.base.units.UnitConstants.MILLISECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
@@ -20,6 +18,7 @@ import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -36,12 +35,12 @@ public class LearningSynchronizer implements ReconnectNodeCount {
     /**
      * Used to get data from the teacher.
      */
-    private final MerkleDataInputStream inputStream;
+    private final SerializableDataInputStream inputStream;
 
     /**
      * Used to transmit data to the teacher.
      */
-    private final MerkleDataOutputStream outputStream;
+    private final SerializableDataOutputStream outputStream;
 
     private final Runnable breakConnection;
 
@@ -88,8 +87,8 @@ public class LearningSynchronizer implements ReconnectNodeCount {
      */
     public LearningSynchronizer(
             @NonNull final ThreadManager threadManager,
-            @NonNull final MerkleDataInputStream in,
-            @NonNull final MerkleDataOutputStream out,
+            @NonNull final SerializableDataInputStream in,
+            @NonNull final SerializableDataOutputStream out,
             @NonNull final MerkleNode newRoot,
             @NonNull final LearnerTreeView<?> view,
             @NonNull final Runnable breakConnection,

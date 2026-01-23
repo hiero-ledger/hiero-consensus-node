@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.reconnect;
+package org.hiero.consensus.monitoring;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -8,8 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.gossip.Utilities;
-import com.swirlds.platform.network.PeerInfo;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.time.Duration;
 import java.util.List;
@@ -138,14 +137,18 @@ class FallenBehindMonitorTest {
     void basicTest() {
         final FallenBehindMonitorTestData test = new FallenBehindMonitorTestData();
 
-        final List<PeerInfo> peers = Utilities.createPeerInfoList(test.roster, test.selfId);
+        final List<NodeId> peers = test.roster.rosterEntries().stream()
+                .map(RosterEntry::nodeId)
+                .filter(nodeId -> nodeId != test.selfId.id())
+                .map(NodeId::of)
+                .toList();
 
         // we should not think we have fallen behind initially
         assertFalse(test.fallenBehindMonitor.hasFallenBehind());
 
         // neighbors 0 and 1 report fallen behind
-        test.fallenBehindMonitor.report(peers.get(0).nodeId());
-        test.fallenBehindMonitor.report(peers.get(1).nodeId());
+        test.fallenBehindMonitor.report(peers.get(0));
+        test.fallenBehindMonitor.report(peers.get(1));
 
         // we still dont have enough reports that we have fallen behind, we need more than [fallenBehindThreshold] of
         // the neighbors
@@ -153,14 +156,14 @@ class FallenBehindMonitorTest {
 
         // add more reports
         for (int i = 2; i < 10; i++) {
-            test.fallenBehindMonitor.report(peers.get(i).nodeId());
+            test.fallenBehindMonitor.report(peers.get(i));
         }
 
         // we are still missing 1 report
         assertFalse(test.fallenBehindMonitor.hasFallenBehind());
 
         // add the report that will go over the [fallenBehindThreshold]
-        test.fallenBehindMonitor.report(peers.get(10).nodeId());
+        test.fallenBehindMonitor.report(peers.get(10));
 
         // we should now say we have fallen behind
         assertTrue(test.fallenBehindMonitor.hasFallenBehind());

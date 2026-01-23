@@ -105,7 +105,6 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TokenCreateSpecs. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
-@HapiTestLifecycle
 /**
  * Validates the {@code TokenCreate} transaction, including its:
  * <ul>
@@ -113,6 +112,7 @@ import org.junit.jupiter.api.Tag;
  *     <li>Default values.</li>
  * </ul>
  */
+@HapiTestLifecycle
 @Tag(TOKEN)
 class AtomicTokenCreateSpecs {
 

@@ -25,6 +25,8 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
+
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
@@ -91,12 +93,12 @@ class TokenAirdropFeeCalculatorsTest {
                         .build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
         assertThat(result).isNotNull();
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(1000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(9000100L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(9000100L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     @Test
@@ -110,12 +112,12 @@ class TokenAirdropFeeCalculatorsTest {
                         TokenCancelAirdropTransactionBody.newBuilder().build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
         assertThat(result).isNotNull();
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(1000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(199000000L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(199000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     @Test
@@ -128,12 +130,12 @@ class TokenAirdropFeeCalculatorsTest {
                 .tokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder().build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
         assertThat(result).isNotNull();
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(1000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(299000000L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(299000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     private static FeeSchedule createTestFeeSchedule() {

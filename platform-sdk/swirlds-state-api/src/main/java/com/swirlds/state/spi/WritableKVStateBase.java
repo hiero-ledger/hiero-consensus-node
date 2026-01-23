@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.*;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * A base class for implementations of {@link WritableKVState}.
@@ -41,6 +42,27 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
     protected WritableKVStateBase(
             final int stateId, @NonNull final String label, @NonNull final Map<K, V> modifications) {
         super(stateId, label);
+        this.modifications = Objects.requireNonNull(modifications);
+    }
+
+    /**
+     * Create a new StateBase from the provided map and read cache.
+     *
+     * @param stateId The state ID
+     * @param label The state label
+     * @param modifications A map that is used to init the cache.
+     * @param readCache A concurrent map that is used to init the read cache.
+     *
+     *
+     */
+    // This constructor is used by some consumers of the API that are outside of this repository.
+    @SuppressWarnings("unused")
+    protected WritableKVStateBase(
+            final int stateId,
+            @NonNull final String label,
+            @NonNull final Map<K, V> modifications,
+            @NonNull ConcurrentMap<K, V> readCache) {
+        super(stateId, label, readCache);
         this.modifications = Objects.requireNonNull(modifications);
     }
 

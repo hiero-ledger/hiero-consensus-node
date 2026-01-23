@@ -7,10 +7,14 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiPrng;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.nodeFeeFromBytesUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import java.util.Map;
@@ -31,6 +35,8 @@ public class UtilServiceSimpleFeesTest {
     // Base fees from the simple fee schedule
     private static final double BASE_FEE_PRNG = 0.001;
     private static final double BASE_FEE_ATOMIC_BATCH = 0.001;
+    private static final int NODE_INCLUDED_BYTES = 1024;
+    private static final int NETWORK_MULTIPLIER = 9;
 
     @HapiTest
     @DisplayName("USD base fee as expected for PRNG transaction")
@@ -38,8 +44,16 @@ public class UtilServiceSimpleFeesTest {
         return hapiTest(
                 overridingAllOf(Map.of(PRNG_IS_ENABLED, "true")),
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
-                hapiPrng().payingWith(CIVILIAN).via("prngTxn").blankMemo(),
-                validateChargedUsd("prngTxn", BASE_FEE_PRNG));
+                hapiPrng()
+                        .payingWith(CIVILIAN)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("prngTxn")
+                        .blankMemo(),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "prngTxn");
+                    final var expectedFee = BASE_FEE_PRNG + nodeFeeFromBytesUsd(signedTxnSize);
+                    allRunFor(spec, validateChargedUsd("prngTxn", expectedFee));
+                }));
     }
 
     @HapiTest
@@ -50,7 +64,14 @@ public class UtilServiceSimpleFeesTest {
 
         return hapiTest(
                 cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
-                atomicBatch(innerTxn).payingWith(batchOperator).via("batchTxn"),
-                validateChargedUsd("batchTxn", BASE_FEE_ATOMIC_BATCH));
+                atomicBatch(innerTxn)
+                        .payingWith(batchOperator)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("batchTxn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "batchTxn");
+                    final var expectedFee = BASE_FEE_ATOMIC_BATCH + nodeFeeFromBytesUsd(signedTxnSize);
+                    allRunFor(spec, validateChargedUsd("batchTxn", expectedFee));
+                }));
     }
 }
