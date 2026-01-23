@@ -67,7 +67,7 @@ public class FeeResult {
     public void addServiceExtraFeeTinyCents(String name, long per_unit, long used, long included) {
         var charged = Math.max(0, used - included);
         if (charged > 0) {
-            serviceExtrasDetails.add(new FeeDetail(name, per_unit, used, included, charged));
+            serviceExtrasDetails.add(new FeeDetail(name, unitCost, used, included, charged));
             serviceTotal = clampedAdd(serviceTotal, clampedMultiply(per_unit, charged));
         }
     }
