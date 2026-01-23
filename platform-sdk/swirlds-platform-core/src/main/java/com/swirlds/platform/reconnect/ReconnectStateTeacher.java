@@ -7,6 +7,7 @@ import static com.swirlds.platform.reconnect.ReconnectStateLearner.endReconnectH
 import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
@@ -257,7 +258,8 @@ public class ReconnectStateTeacher {
                 .append(hash);
 
         logger.info(RECONNECT.getMarker(), sb);
-        connection.getDos().writeSerializable(signatures, true);
+        final WritableStreamingData wsd = new WritableStreamingData(connection.getDos());
+        signatures.serialize(wsd);
         connection.getDos().flush();
     }
 }
