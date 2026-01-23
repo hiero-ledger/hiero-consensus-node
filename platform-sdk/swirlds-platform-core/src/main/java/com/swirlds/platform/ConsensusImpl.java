@@ -26,7 +26,6 @@ import com.swirlds.platform.consensus.ConsensusUtils;
 import com.swirlds.platform.consensus.CountingVote;
 import com.swirlds.platform.consensus.DeGen;
 import com.swirlds.platform.consensus.InitJudges;
-import org.hiero.consensus.roster.RosterLookup;
 import com.swirlds.platform.consensus.RoundElections;
 import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.internal.EventImpl;
@@ -52,6 +51,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.roster.RosterLookup;
 
 /**
  * All the code for calculating the consensus for events in a hashgraph. This calculates the
