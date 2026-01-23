@@ -113,7 +113,7 @@ public class FeeResult {
      * @param used how many of the extra were used
      * @param included how many of the extra were included for free
      */
-    public void addNodeExtraFeeTinyCents(String name, long per_unit, long used, long included) {
+    public void addNodeExtraFeeTinyCents(String name, long unitCost, long used, long included) {
         var charged = Math.max(0, used - included);
         if (charged > 0) {
             nodeExtrasDetails.add(new FeeDetail(name, per_unit, used, included, charged));
