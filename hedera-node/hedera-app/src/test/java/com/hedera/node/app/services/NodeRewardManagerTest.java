@@ -335,10 +335,8 @@ class NodeRewardManagerTest {
                 .build();
     }
 
-    // ========== Multi-day outage tests ==========
-
     /**
-     * Tests that when the network is down for multiple days (e.g., 3 days), only ONE node reward
+     * Tests that when the network is down for multiple days, only ONE node reward
      * distribution is triggered when the network comes back up, not one for each missed day.
      * <p>
      * This is the current expected behavior - the system only checks if we're in a "later" period,
