@@ -29,6 +29,7 @@ import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -148,7 +149,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
         @Override
         public void accumulateServiceFee(
                 @NonNull final TransactionBody txnBody,
-                @Nullable final FeeContext feeContext,
+                @NonNull final SimpleFeeContext simpleFeeContext,
                 @NonNull final FeeResult feeResult,
                 @NonNull final FeeSchedule feeSchedule) {
             // HOOK dispatch should be free, the fee is charged as part of the CryptoTransfer

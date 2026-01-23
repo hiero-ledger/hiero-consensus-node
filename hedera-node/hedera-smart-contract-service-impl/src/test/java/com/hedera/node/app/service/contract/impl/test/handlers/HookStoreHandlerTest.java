@@ -19,6 +19,8 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import java.util.List;
+
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import org.assertj.core.api.Assertions;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
@@ -113,7 +115,7 @@ public class HookStoreHandlerTest {
         final var subject = new HookStoreHandler.FeeCalculator();
 
         final var feeResult = new FeeResult();
-        subject.accumulateServiceFee(tx, feeContext, feeResult, feeSchedule);
+        subject.accumulateServiceFee(tx, SimpleFeeContextUtil.fromFeeContext(feeContext), feeResult, feeSchedule);
         Assertions.assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(1000000000L);
     }
 }

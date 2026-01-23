@@ -75,16 +75,16 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Service fee is transaction-specific.
      *
      * @param txnBody the transaction body
-     * @param feeContext the fee context containing signature count and full transaction bytes
+     * @param simpleFeeContext the fee context containing signature count and full transaction bytes
      * @return the calculated fee result
      */
     @NonNull
     @Override
-    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
+    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
         // Extract primitive counts (no allocations)
-        final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
+        final long signatures = simpleFeeContext.feeContext() != null ? simpleFeeContext.feeContext().numTxnSignatures() : 0;
         // Get full transaction size in bytes (includes body, signatures, and all transaction data)
-        final long bytes = feeContext != null ? feeContext.numTxnBytes() : 0;
+        final long bytes = simpleFeeContext.feeContext() != null ? simpleFeeContext.feeContext().numTxnBytes() : 0;
         final var result = new FeeResult();
 
         // Add node base and extras (bytes and payer signatures)
@@ -96,7 +96,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
-        serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
+        serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
         return result;
     }
 
@@ -135,15 +135,15 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Default implementation for query fee calculation.
      *
      * @param query The query to calculate fees for
-     * @param queryContext the query context
+     * @param simpleFeeContext the query context
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
     @Override
-    public long calculateQueryFee(@NonNull final Query query, @NonNull final QueryContext queryContext) {
+    public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final SimpleFeeContext simpleFeeContext) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
-        queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
-        return result.totalTinycents();
+        queryFeeCalculator.accumulateNodePayment(query, simpleFeeContext, result, feeSchedule);
+        return result;
     }
 }

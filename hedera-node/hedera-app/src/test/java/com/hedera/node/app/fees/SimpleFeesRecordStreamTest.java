@@ -181,7 +181,7 @@ public class SimpleFeesRecordStreamTest {
         final StandaloneFeeCalculator calc =
                 new StandaloneFeeCalculatorImpl(state, properties, new AppEntityIdFactory(DEFAULT_CONFIG));
 
-        final String records_dir = "../../temp/2025-11-10-9";
+        final String records_dir = "../../temp/2025-11-10-8";
 
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
             paths.filter(Files::isRegularFile).forEach(file -> {
@@ -223,7 +223,7 @@ public class SimpleFeesRecordStreamTest {
         final var txnFee = record.getTransactionFee();
         final var rate = record.getReceipt().getExchangeRate();
 
-        final var simpleFee = result.totalTinyCents();
+        final var simpleFee = result.totalTinycents();
         final var legacyFee = txnFee * rate.getCurrentRate().getCentEquiv();
         long diff = simpleFee - legacyFee;
         double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
@@ -237,12 +237,12 @@ public class SimpleFeesRecordStreamTest {
         json.key("old_tc",legacyFee);
         csv.fieldPercentage(pctChange);
         json.key("diff",pctChange);
-        csv.field(result.getServiceTotalTinyCents());
-        json.key("simple_service",result.getServiceBaseFeeTinyCents());
-        csv.field(result.getNodeTotalTinyCents());
-        json.key("simple_node",result.getNodeTotalTinyCents());
-        csv.field(result.getNetworkTotalTinyCents());
-        json.key("network_total",result.getNetworkTotalTinyCents());
+        csv.field(result.getServiceTotalTinycents());
+        json.key("simple_service",result.getServiceBaseFeeTinycents());
+        csv.field(result.getNodeTotalTinycents());
+        json.key("simple_node",result.getNodeTotalTinycents());
+        csv.field(result.getNetworkTotalTinycents());
+        json.key("network_total",result.getNetworkTotalTinycents());
         csv.field(record.getConsensusTimestamp().getSeconds());
         json.key("timestamp",record.getConsensusTimestamp().getSeconds());
         csv.field(result.toString());
