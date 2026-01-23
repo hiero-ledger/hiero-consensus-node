@@ -153,7 +153,7 @@ public class SimpleFeesRecordStreamTest {
     static void beforeAll() throws IOException {
         csv = new CSVWriter(new FileWriter("simple-fees-historical-comparison.csv"));
         csv.write(
-                "Service Name, Simple Fee, Old Fees, Comparison, SF Service, SF Node, SF Network, Timestamp, Details");
+                "Service Name, Simple Fee, Old Fees, Comparison, SF Service, SF Node, SF Network, Timestamp, Details, rate cents, rate hbar");
         csv.endLine();
         json = new JSONFormatter(new FileWriter("simple-fees-historical-comparison.json"));
     }
@@ -182,7 +182,7 @@ public class SimpleFeesRecordStreamTest {
         final StandaloneFeeCalculator calc =
                 new StandaloneFeeCalculatorImpl(state, properties, new AppEntityIdFactory(DEFAULT_CONFIG));
 
-        final String records_dir = "../../temp/2025-11-10-8";
+        final String records_dir = "../../temp/2025-11-10-9";
 
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
             paths.filter(Files::isRegularFile).forEach(file -> {
@@ -199,8 +199,6 @@ public class SimpleFeesRecordStreamTest {
                             process_item(item, calc);
                         } catch (Exception e) {
                             System.out.println("exception " + e);
-                            //                            System.out.println("on item" + item);
-                            e.printStackTrace();
                         }
                     });
                 } catch (FileNotFoundException e) {
@@ -218,14 +216,19 @@ public class SimpleFeesRecordStreamTest {
         final var body = TransactionBody.PROTOBUF.parse(
                 Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
         final Transaction txn = Transaction.newBuilder().body(body).build();
-        //        System.out.println(body.data().kind().name());
         final var result = calc.calculateIntrinsic(txn);
         final var record = item.getRecord();
         final var txnFee = record.getTransactionFee();
         final var rate = record.getReceipt().getExchangeRate();
 
         final var simpleFee = result.totalTinycents();
-        final var legacyFee = txnFee * rate.getCurrentRate().getCentEquiv();
+
+
+        long legacyFee = 0;
+        if(rate.getCurrentRate().getHbarEquiv() != 0) {
+            legacyFee = txnFee * rate.getCurrentRate().getCentEquiv() / rate.getCurrentRate().getHbarEquiv();
+        }
+
         long diff = simpleFee - legacyFee;
         double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
 
@@ -236,6 +239,8 @@ public class SimpleFeesRecordStreamTest {
         json.key("simple_tc", simpleFee);
         csv.field(legacyFee);
         json.key("old_tc", legacyFee);
+//        csv.field(txnFee);
+//        json.key("txn_fee", txnFee);
         csv.fieldPercentage(pctChange);
         json.key("diff", pctChange);
         csv.field(result.getServiceTotalTinycents());
@@ -248,7 +253,9 @@ public class SimpleFeesRecordStreamTest {
         json.key("timestamp", record.getConsensusTimestamp().getSeconds());
         csv.field(result.toString());
         json.key("details", result.toString());
+        csv.field(rate.getCurrentRate().getCentEquiv());
         json.key("rate_cents", rate.getCurrentRate().getCentEquiv());
+        csv.field(rate.getCurrentRate().getHbarEquiv());
         json.key("rate_hbar", rate.getCurrentRate().getHbarEquiv());
         csv.endLine();
         json.endRecord();
