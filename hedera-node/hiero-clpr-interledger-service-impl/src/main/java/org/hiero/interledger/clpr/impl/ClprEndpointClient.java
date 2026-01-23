@@ -501,12 +501,13 @@ public class ClprEndpointClient {
         final var sentMessageId = localMessageQueueMetadata.sentMessageId();
         if (lastPendingMessageId - 1 > sentMessageId) {
             // get bundle for current remote ledger
-            final var maxMessagesInBundle = 5;
+            final var maxMessagesInBundle = 1;
 
             // find first and last message id in the bundle
             final var firstPendingMsgId = sentMessageId + 1;
             final var lastMsgIdInBundle = Math.min(firstPendingMsgId + maxMessagesInBundle, lastPendingMessageId);
             final var messagePayloadList = new ArrayList<ClprMessagePayload>();
+            final var updateLocalQueueBuilder = localMessageQueueMetadata.copyBuilder();
             for (long i = firstPendingMsgId; i <= lastMsgIdInBundle; i++) {
                 // check if this is the last messag in the bundle
                 if (i == lastMsgIdInBundle) {
@@ -530,6 +531,9 @@ public class ClprEndpointClient {
                     messagePayloadList.add(payload);
                 }
             }
+            // update local queue
+            updateLocalQueueBuilder.sentMessageId(localMessageQueueMetadata.sentMessageId() + messagePayloadList.size());
+            // TODO: update the running hash
 
             if (messagePayloadList.size() > 0) {
                 log.info("CLPR: Now sending messages");
