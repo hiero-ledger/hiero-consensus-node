@@ -48,7 +48,7 @@ public interface GossipModule {
     InputWire<PlatformEvent> eventToGossipInputWire();
 
     /**
-     * {@link InputWire} for the event window received from the {@code Hashgraph} component.
+     * {@link InputWire} for the event window received from the {@code Hashgraph} module.
      *
      * @return the {@link InputWire} for the event window
      */
