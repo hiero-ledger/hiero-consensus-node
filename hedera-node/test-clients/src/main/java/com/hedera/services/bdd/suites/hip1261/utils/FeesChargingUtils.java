@@ -492,7 +492,7 @@ public class FeesChargingUtils {
 
         // Node fee BYTES extra: (txnBytes - 1024) * BYTES_FEE_USD * networkMultiplier
         final var nodeBytesOverage = Math.max(0, txnSize - 1024);
-        double expectedFee = nodeBytesOverage * BYTES_FEE_USD * 10;
+        double expectedFee = nodeBytesOverage * BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
 
         opLog.info(
                 "Transaction size: {} bytes, node bytes overage: {}, expected fee: {}",
