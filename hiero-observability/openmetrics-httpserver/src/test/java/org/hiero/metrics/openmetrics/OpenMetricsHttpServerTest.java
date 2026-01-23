@@ -7,6 +7,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -17,6 +19,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -29,7 +32,6 @@ import org.hiero.metrics.core.MetricKey;
 import org.hiero.metrics.core.MetricRegistry;
 import org.hiero.metrics.core.MetricRegistrySnapshot;
 import org.hiero.metrics.core.Unit;
-import org.hiero.metrics.openmetrics.config.OpenMetricsHttpServerConfig;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,6 +42,8 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -194,6 +198,19 @@ public class OpenMetricsHttpServerTest {
             verify(snapshotSupplier, times(2)).get();
         }
 
+        @ParameterizedTest
+        @ValueSource(strings = {"POST", "PUT", "DELETE", "PATCH", "OPTIONS"})
+        void testExceptionWhenNoAllowedHttpMethod(String method) {
+            HttpResponse<String> response = send(HttpRequest.newBuilder()
+                    .uri(uri)
+                    .timeout(Duration.ofSeconds(1))
+                    .method(method, HttpRequest.BodyPublishers.noBody()));
+
+            assertThat(response.statusCode()).isEqualTo(405);
+            assertThat(response.headers().firstValue("Allow")).hasValue("GET, HEAD");
+            assertThat(response.body()).isEmpty();
+        }
+
         @Test
         void testConcurrentRequest() throws ExecutionException, InterruptedException {
             final CountDownLatch firstRequestStarted = new CountDownLatch(1);
@@ -238,6 +255,7 @@ public class OpenMetricsHttpServerTest {
             assertThat(response.headers().firstValue("Content-Type"))
                     .hasValue("application/openmetrics-text; version=1.0.0; charset=utf-8");
             assertThat(response.headers().firstValue("Cache-Control")).hasValue("no-store");
+            assertThat(response.headers().firstValue("Vary")).hasValue("Accept-Encoding");
 
             response = callMetrics(true);
             assertThat(response.statusCode()).isEqualTo(200);
@@ -246,6 +264,7 @@ public class OpenMetricsHttpServerTest {
                     .hasValue("application/openmetrics-text; version=1.0.0; charset=utf-8");
             assertThat(response.headers().firstValue("Cache-Control")).hasValue("no-store");
             assertThat(response.headers().firstValue("Content-Encoding")).hasValue("gzip");
+            assertThat(response.headers().firstValue("Vary")).hasValue("Accept-Encoding");
 
             verify(snapshotSupplier, times(2)).get();
         }
@@ -253,17 +272,23 @@ public class OpenMetricsHttpServerTest {
 
     abstract static class BaseTest {
 
+        private static final OpenMetricsHttpServerFactory factory = new OpenMetricsHttpServerFactory();
         private static HttpClient httpClient;
         protected static OpenMetricsHttpServer server;
-        private static URI uri;
+        protected static URI uri;
 
         @BeforeAll
-        protected static void globalInit() throws IOException {
+        protected static void globalInit() {
             final String path = "/metrics";
             final int port = findFreePort();
-            final OpenMetricsHttpServerConfig cfg =
-                    new OpenMetricsHttpServerConfig(true, "localhost", port, path, 0, "#.###");
-            server = new OpenMetricsHttpServer(cfg);
+
+            Configuration config = ConfigurationBuilder.create()
+                    .autoDiscoverExtensions()
+                    .withValue("metrics.exporter.openmetrics.http.port", Integer.toString(port))
+                    .withValue("metrics.exporter.openmetrics.http.path", path)
+                    .build();
+
+            server = (OpenMetricsHttpServer) factory.createExporter(List.of(), config);
             httpClient = HttpClient.newHttpClient();
             uri = URI.create("http://localhost:" + port + path);
         }
@@ -285,21 +310,25 @@ public class OpenMetricsHttpServerTest {
             }
         }
 
-        protected HttpResponse<String> callMetrics(boolean useGzip) {
+        protected HttpResponse<String> send(HttpRequest.Builder requestBuilder) {
             try {
-                HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
-                        .uri(uri)
-                        .timeout(Duration.ofSeconds(1))
-                        .GET();
-
-                if (useGzip) {
-                    reqBuilder.header("Accept-Encoding", "gzip");
-                }
-
-                return httpClient.send(reqBuilder.build(), BODY_HANDLER);
+                return httpClient.send(requestBuilder.build(), BODY_HANDLER);
             } catch (Exception e) {
-                throw new RuntimeException("Error calling metrics endpoint", e);
+                throw new RuntimeException("Error sending request", e);
             }
+        }
+
+        protected HttpResponse<String> callMetrics(boolean useGzip) {
+            HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
+                    .uri(uri)
+                    .timeout(Duration.ofSeconds(1))
+                    .GET();
+
+            if (useGzip) {
+                reqBuilder.header("Accept-Encoding", "gzip");
+            }
+
+            return send(reqBuilder);
         }
     }
 }
