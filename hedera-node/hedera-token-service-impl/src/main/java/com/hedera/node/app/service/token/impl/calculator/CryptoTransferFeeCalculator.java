@@ -79,16 +79,15 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
                     Math.min(
                             hookInfo.numHookInvocations()
                                     * config.getConfigData(ContractsConfig.class)
-                                    .maxGasPerSec(),
+                                            .maxGasPerSec(),
                             hookInfo.totalGasLimitOfHooks()));
             addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, hookInfo.numHookInvocations());
             addExtraFee(feeResult, serviceDef, GAS, feeSchedule, effectiveGasLimit);
         }
 
-        if(simpleFeeContext.feeContext() != null) {
+        if (simpleFeeContext.feeContext() != null) {
             final ReadableTokenStore tokenStore = simpleFeeContext.feeContext().readableStore(ReadableTokenStore.class);
             final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
-
 
             final Extra transferType = determineTransferType(tokenCounts);
             if (transferType != null) {
