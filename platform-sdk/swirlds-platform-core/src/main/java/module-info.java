@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.platform.reconnect.api.ProtocolFactory;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 
@@ -8,6 +9,7 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 module com.swirlds.platform.core {
     uses EventCreatorModule;
     uses EventIntakeModule;
+    uses ProtocolFactory;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;
@@ -97,6 +99,7 @@ module com.swirlds.platform.core {
             org.hiero.otter.test;
     exports com.swirlds.platform.recovery.internal to
             org.hiero.consensus.pcli;
+    exports com.swirlds.platform.reconnect.api;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

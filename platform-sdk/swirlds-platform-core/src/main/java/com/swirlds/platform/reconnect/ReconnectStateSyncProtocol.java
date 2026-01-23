@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network.protocol;
+package com.swirlds.platform.reconnect;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
-import com.swirlds.platform.reconnect.ReconnectStatePeerProtocol;
-import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
+import com.swirlds.platform.network.protocol.Protocol;
+import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
