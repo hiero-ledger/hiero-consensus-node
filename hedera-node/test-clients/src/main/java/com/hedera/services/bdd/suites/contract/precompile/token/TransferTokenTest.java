@@ -34,6 +34,8 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.bdd.suites.contract.openzeppelin.ERC20ContractInteractions;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -46,6 +48,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -81,7 +84,7 @@ public class TransferTokenTest {
     @Account(tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount tokenReceiverAccount;
 
-    @FungibleToken(name = "fungibleToken", initialSupply = 20)
+    @FungibleToken(name = "fungibleToken", initialSupply = 100)
     static SpecFungibleToken fungibleToken;
 
     @NonFungibleToken(name = "nonFungibleToken", numPreMints = 4)
@@ -242,14 +245,66 @@ public class TransferTokenTest {
                                     () -> fungibleTokenId.get().getTokenNum(),
                                     false,
                                     () -> parsedToByteString(tokenTransferContractId.get()),
-                                    () -> parsedToByteString(tokenReceiverContractId.get()),
-                                    2L),
+                                    () -> parsedToByteString(tokenReceiverAccountId.get()),
+                                    3L),
                             new ErcEventRecord(
                                     () -> fungibleTokenId.get().getTokenNum(),
                                     false,
                                     () -> parsedToByteString(tokenTransferContractId.get()),
-                                    () -> parsedToByteString(tokenReceiverAccountId.get()),
-                                    3L)))));
+                                    () -> parsedToByteString(tokenReceiverContractId.get()),
+                                    2L)))));
+        }
+
+        @HapiTest
+        @DisplayName("'transferTokens' function without explicit allowance and multiple senders")
+        public Stream<DynamicTest> transferUsingTransferTokensMultipleSenders(
+                @NonNull @Account(name = "sender1") final SpecAccount sender1,
+                @NonNull @Account(name = "sender2") final SpecAccount sender2,
+                @NonNull @Account(name = "receiver1") final SpecAccount receiver1,
+                @NonNull @Account(name = "receiver2") final SpecAccount receiver2) {
+            return hapiTest(withOpContext((spec, opLog) -> {
+                allRunFor(
+                        spec,
+                        // we are using exactly this 'association order'
+                        // to exclude possibility of accountNum sorting for transfers
+                        receiver2.associateTokens(fungibleToken),
+                        receiver1.associateTokens(fungibleToken),
+                        sender1.associateTokens(fungibleToken),
+                        sender2.associateTokens(fungibleToken),
+                        fungibleToken.treasury().transferUnitsTo(sender1, 10, fungibleToken),
+                        fungibleToken.treasury().transferUnitsTo(sender2, 10, fungibleToken),
+                        sender1.authorizeContract(tokenTransferContract),
+                        sender2.authorizeContract(tokenTransferContract));
+                final var tokenId = spec.registry().getTokenID(fungibleToken.name());
+                final var sender1Id = spec.registry().getAccountID(sender1.name());
+                final var sender2Id = spec.registry().getAccountID(sender2.name());
+                final var receiver1Id = spec.registry().getAccountID(receiver1.name());
+                final var receiver2Id = spec.registry().getAccountID(receiver2.name());
+                // assert accountNum order to exclude possibility of accountNum sorting for transfers
+                Assertions.assertTrue(receiver2Id.getAccountNum() < receiver1Id.getAccountNum());
+                Assertions.assertTrue(receiver1Id.getAccountNum() < sender1Id.getAccountNum());
+                Assertions.assertTrue(sender1Id.getAccountNum() < sender2Id.getAccountNum());
+                allRunFor(
+                        spec,
+                        // Transfer using transferTokens function
+                        tokenTransferContract
+                                .call(
+                                        TRANSFER_TOKENS,
+                                        fungibleToken,
+                                        new Address[] {
+                                            HapiParserUtil.asHeadlongAddress(Utils.asAddress(receiver1Id)),
+                                            HapiParserUtil.asHeadlongAddress(Utils.asAddress(sender2Id)),
+                                            HapiParserUtil.asHeadlongAddress(Utils.asAddress(receiver2Id)),
+                                            HapiParserUtil.asHeadlongAddress(Utils.asAddress(sender1Id)),
+                                        },
+                                        new long[] {4L, -3L, 3L, -4L})
+                                .gas(1_000_000L)
+                                .via(TXN_NAME),
+                        // order of 'input transfers' are sorted by HTS, and we got correct ERC20 events in result
+                        validateErcEvent(
+                                ErcEventRecord.of(tokenId, false, sender1Id, receiver1Id, 4L),
+                                ErcEventRecord.of(tokenId, false, sender2Id, receiver2Id, 3L)));
+            }));
         }
 
         @HapiTest
@@ -334,7 +389,7 @@ public class TransferTokenTest {
 
         @HapiTest
         @DisplayName("'transferFromNFT' function given allowance")
-        public Stream<DynamicTest> transferUsingTransferFromNFTWithAllowance() {
+        public Stream<DynamicTest> transferUsingTransferFromNftWithAllowance() {
             return hapiTest(
                     // Approve the 'TokenTransferContract' to spend 4th NFT token
                     // We cant approve from 'TokenTransferContract' because it is not an owner of the token.
