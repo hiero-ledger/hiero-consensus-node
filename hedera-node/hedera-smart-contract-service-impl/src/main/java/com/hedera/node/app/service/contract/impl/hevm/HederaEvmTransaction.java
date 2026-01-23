@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -32,7 +33,9 @@ public record HederaEvmTransaction(
         @Nullable ContractCreateTransactionBody hapiCreation,
         @Nullable List<CodeDelegation> codeDelegations,
         @Nullable HandleException exception,
-        @Nullable HookDispatchTransactionBody hookDispatch) {
+        @Nullable HookDispatchTransactionBody hookDispatch,
+        long codeDelegationGasCost,
+        long codeDelegationGasRefund) {
     public static final long NOT_APPLICABLE = -1L;
 
     public boolean hasExpectedNonce() {
@@ -88,7 +91,7 @@ public record HederaEvmTransaction(
     }
 
     public long gasAvailable(final long intrinsicGas) {
-        return gasLimit - intrinsicGas;
+        return gasLimit - intrinsicGas - codeDelegationGasCost;
     }
 
     public long upfrontCostGiven(final long gasPrice) {
@@ -139,8 +142,37 @@ public record HederaEvmTransaction(
                 this.hapiCreation,
                 this.codeDelegations,
                 exception,
-                this.hookDispatch);
+                this.hookDispatch,
+                0,
+                0);
     }
+
+    /**
+     * Returns a copy of this transaction updated with the gas results from code delegation.
+     *
+     * @param codeDelegationResult the result of code delegation
+     * @return a copy of this transaction with updated gas cost and refund from code delegation
+     */
+    public HederaEvmTransaction fromCodeDelegationResult(@NonNull final CodeDelegationResult codeDelegationResult) {
+        return new HederaEvmTransaction(
+                this.senderId,
+                this.relayerId,
+                this.contractId,
+                this.nonce,
+                this.payload,
+                this.chainId,
+                this.value,
+                this.gasLimit,
+                this.offeredGasPrice,
+                this.maxGasAllowance,
+                this.hapiCreation,
+                this.codeDelegations,
+                this.exception,
+                this.hookDispatch,
+                Math.max(0L, this.gasLimit() - codeDelegationResult.getAvailableGas()),
+                codeDelegationResult.getRefund());
+    }
+
     /**
      * @return the hook id, or null if this is not a hook dispatch
      */

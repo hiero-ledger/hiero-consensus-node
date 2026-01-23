@@ -28,6 +28,7 @@ import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcesso
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationProcessor;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
@@ -161,6 +162,9 @@ class EthereumTransactionHandlerTest {
     @Mock
     private CodeDelegationProcessor codeDelegationProcessor;
 
+    @Mock
+    private CodeDelegationResult codeDelegationResult;
+
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     private final Metrics metrics = new NoOpMetrics();
@@ -260,6 +264,8 @@ class EthereumTransactionHandlerTest {
                 .willReturn(recordBuilder);
         given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(callRecordBuilder);
+        given(codeDelegationProcessor.process(any(), any())).willReturn(codeDelegationResult);
+        given(codeDelegationResult.getAvailableGas()).willReturn(GAS_LIMIT);
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -321,6 +327,8 @@ class EthereumTransactionHandlerTest {
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
+        given(codeDelegationProcessor.process(any(), any())).willReturn(codeDelegationResult);
+        given(codeDelegationResult.getAvailableGas()).willReturn(GAS_LIMIT);
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -539,6 +547,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.to()).willReturn(toAddress);
             given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP7702);
             given(ethTxDataReturned.authorizationList()).willReturn(new byte[1]);
+            given(ethTxDataReturned.authorizationListAsRlp()).willReturn(new Object[0]);
             given(ethTxDataReturned.authorizationListAsRlp()).willReturn(new Object[] {});
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -597,6 +606,8 @@ class EthereumTransactionHandlerTest {
         given(context.dispatchMetadata()).willReturn(dispatchMetadata);
         given(dispatchMetadata.getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class))
                 .willReturn(optionalCallback);
+        given(codeDelegationProcessor.process(any(), any())).willReturn(codeDelegationResult);
+        given(codeDelegationResult.getAvailableGas()).willReturn(GAS_LIMIT);
 
         // Execute the handler
         assertDoesNotThrow(() -> subject.handle(context));

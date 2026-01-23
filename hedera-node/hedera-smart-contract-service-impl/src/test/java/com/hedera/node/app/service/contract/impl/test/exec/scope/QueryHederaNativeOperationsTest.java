@@ -21,9 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.QueryHederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
@@ -140,5 +142,13 @@ class QueryHederaNativeOperationsTest {
     @Test
     void authorizingSimpleKeysTest() {
         assertSame(NO_AUTHORIZING_KEYS, subject.authorizingSimpleKeys());
+    }
+
+    @Test
+    void createNewChildRecordBuilderTest() {
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> subject.createNewChildRecordBuilder(
+                        ContractCreateStreamBuilder.class, HederaFunctionality.CONTRACT_CREATE));
     }
 }

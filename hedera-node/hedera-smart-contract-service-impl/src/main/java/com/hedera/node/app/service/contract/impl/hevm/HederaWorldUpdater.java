@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
@@ -312,4 +313,20 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * @return true if the account was created and the code delegation was set successfully, false otherwise
      */
     boolean createAccountWithCodeDelegation(@NonNull final Address authority, @NonNull final Address delegationAddress);
+
+    /**
+     * Returns the lazy creation cost in gas for the given recipient address.
+     * @param recipient the address of the account to be lazily created
+     * @return the lazy creation cost in gas
+     */
+    long lazyCreationCostInGas(@NonNull final Address recipient);
+
+    /**
+     * Creates a new child record builder for the given functionality.
+     * @param recordBuilderClass the class of the record builder to create
+     * @param functionality the Hedera functionality for which the record builder is created
+     *
+     * @return The new record builder
+     */
+    <T> T createNewChildRecordBuilder(@NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality);
 }

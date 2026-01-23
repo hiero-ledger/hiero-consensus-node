@@ -169,7 +169,9 @@ public class HevmTransactionFactory {
                 body,
                 null,
                 null,
-                null);
+                null,
+                0,
+                0);
     }
 
     /**
@@ -198,7 +200,9 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 null,
-                body);
+                body,
+                0,
+                0);
     }
 
     private HederaEvmTransaction fromHapiCall(
@@ -218,7 +222,9 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 null,
-                null);
+                null,
+                0,
+                0);
     }
 
     private HederaEvmTransaction fromHapiEthereum(
@@ -250,7 +256,9 @@ public class HevmTransactionFactory {
                 null,
                 ethTxData.extractCodeDelegations(),
                 null,
-                null);
+                null,
+                0,
+                0);
     }
 
     private @NonNull HederaEvmTransaction fromEthTxCreate(
@@ -272,7 +280,9 @@ public class HevmTransactionFactory {
                 synthEthTxCreation(ledgerConfig.autoRenewPeriodMinDuration(), ethTxData),
                 ethTxData.extractCodeDelegations(),
                 null,
-                null);
+                null,
+                0,
+                0);
     }
 
     /**
@@ -320,7 +330,9 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 exception,
-                body.hookDispatch());
+                body.hookDispatch(),
+                0,
+                0);
     }
 
     private @NonNull EthTxData assertValidEthTx(@NonNull final EthereumTransactionBody body) {

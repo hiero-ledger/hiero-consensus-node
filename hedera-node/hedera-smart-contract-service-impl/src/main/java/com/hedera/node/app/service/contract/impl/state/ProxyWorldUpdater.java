@@ -16,6 +16,7 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
@@ -500,6 +501,23 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
 
         final var maybeHaltReason = evmFrameState.tryLazyCreation(authority, delegationAddress);
         return maybeHaltReason.isEmpty();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long lazyCreationCostInGas(@NonNull Address recipient) {
+        return enhancement.operations().lazyCreationCostInGas(recipient);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public <T> T createNewChildRecordBuilder(
+            @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality) {
+        return enhancement().nativeOperations().createNewChildRecordBuilder(recordBuilderClass, functionality);
     }
 
     private long getValidatedCreationNumber(

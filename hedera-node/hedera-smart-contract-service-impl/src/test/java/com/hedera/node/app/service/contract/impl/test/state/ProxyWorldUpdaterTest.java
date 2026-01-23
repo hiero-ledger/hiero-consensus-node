@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -508,5 +509,36 @@ class ProxyWorldUpdaterTest {
     void createAccountWithCodeDelegationTest() {
         subject.createAccountWithCodeDelegation(SOME_EVM_ADDRESS, Address.ZERO);
         verify(evmFrameState).tryLazyCreation(SOME_EVM_ADDRESS, Address.ZERO);
+    }
+
+    @Test
+    void lazyCreationCostInGasDelegatesToOperations() {
+        final var expectedCost = 12_345L;
+        given(hederaOperations.lazyCreationCostInGas(SOME_EVM_ADDRESS)).willReturn(expectedCost);
+
+        final var result = subject.lazyCreationCostInGas(SOME_EVM_ADDRESS);
+
+        assertEquals(expectedCost, result);
+        verify(hederaOperations).lazyCreationCostInGas(SOME_EVM_ADDRESS);
+    }
+
+    @Test
+    void createNewChildRecordBuilderDelegatesToNativeOperations() {
+        final var mockBuilder =
+                mock(com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder.class);
+        given(nativeOperations.createNewChildRecordBuilder(
+                        com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder.class,
+                        com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE))
+                .willReturn(mockBuilder);
+
+        final var result = subject.createNewChildRecordBuilder(
+                com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder.class,
+                com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE);
+
+        assertSame(mockBuilder, result);
+        verify(nativeOperations)
+                .createNewChildRecordBuilder(
+                        com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder.class,
+                        com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE);
     }
 }

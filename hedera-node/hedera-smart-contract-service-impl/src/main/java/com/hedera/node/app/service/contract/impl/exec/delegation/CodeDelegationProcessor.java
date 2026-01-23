@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.delegation;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl.INTRINSIC_DELEGATION_GAS_COST;
 import static org.hyperledger.besu.evm.account.Account.MAX_NONCE;
 import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
@@ -9,6 +12,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import java.math.BigInteger;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
@@ -56,7 +60,7 @@ public record CodeDelegationProcessor(long chainId) {
      * @return The result of the code delegation processing.
      */
     public CodeDelegationResult process(final WorldUpdater worldUpdater, final HederaEvmTransaction transaction) {
-        final CodeDelegationResult result = new CodeDelegationResult();
+        final CodeDelegationResult result = new CodeDelegationResult(transaction.gasLimit());
 
         if (transaction.codeDelegations() == null) {
             // If there are no code delegations, we can return early.
@@ -113,6 +117,21 @@ public record CodeDelegationProcessor(long chainId) {
         if (maybeAuthorityAccount.isEmpty()) {
             // only create an account if nonce is valid
             if (codeDelegation.nonce() != 0) {
+                return;
+            }
+
+            // Calculate the cost for lazy creation minus the intrinsic delegation gas cost for a single code delegation
+            // Ensure minimum of INTRINSIC_DELEGATION_GAS_COST
+            final var lazyCreationCost = Math.max(
+                    proxyWorldUpdater.lazyCreationCostInGas(authorizerAddress) - INTRINSIC_DELEGATION_GAS_COST,
+                    INTRINSIC_DELEGATION_GAS_COST);
+            if (result.getAvailableGas() >= lazyCreationCost) {
+                result.deductGas(lazyCreationCost);
+            } else {
+                // Create failed record due to insufficient gas for lazy creation
+                final var failedRecord =
+                        proxyWorldUpdater.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE);
+                failedRecord.status(INSUFFICIENT_GAS);
                 return;
             }
 
