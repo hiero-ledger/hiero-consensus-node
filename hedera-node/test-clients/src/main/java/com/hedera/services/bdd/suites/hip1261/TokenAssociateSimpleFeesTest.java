@@ -219,7 +219,7 @@ public class TokenAssociateSimpleFeesTest {
     class TokenAssociateNegativeTestCases {
 
         @Nested
-        @DisplayName("TokenAssociate Failures on Ingest")
+        @DisplayName("TokenAssociate Failures on Ingest and Handle")
         class TokenAssociateFailuresOnIngest {
 
             // TODO revisit this test failure Answer-only precheck was OK, not one of [RECORD_NOT_FOUND]!
