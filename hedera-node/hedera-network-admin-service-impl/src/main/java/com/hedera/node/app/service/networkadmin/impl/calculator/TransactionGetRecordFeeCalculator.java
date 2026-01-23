@@ -25,7 +25,7 @@ public class TransactionGetRecordFeeCalculator implements QueryFeeCalculator {
             @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TRANSACTION_GET_RECORD);
-        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
     }
 
     @Override

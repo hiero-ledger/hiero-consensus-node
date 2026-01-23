@@ -64,9 +64,9 @@ class CryptoApproveAllowanceFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then: Base fee (500000000) with 1 allowance included (includedCount=1)
-            assertThat(result.getServiceTotalTinyCents()).isEqualTo(500000000L);
-            assertThat(result.getNodeTotalTinyCents()).isEqualTo(100000L);
-            assertThat(result.getNetworkTotalTinyCents()).isEqualTo(900000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(500000000L);
+            assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            assertThat(result.getNetworkTotalTinycents()).isEqualTo(900000L);
         }
 
         @Test
@@ -96,7 +96,7 @@ class CryptoApproveAllowanceFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then: Base fee (500000000) + 2 extra allowances (2 * 500000000 = 1000000000)
-            assertThat(result.getServiceTotalTinyCents()).isEqualTo(1500000000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(1500000000L);
         }
 
         @Test
@@ -130,7 +130,7 @@ class CryptoApproveAllowanceFeeCalculatorTest {
 
             // Then: Base fee (500000000) + 2 extra allowances (2 * 500000000 = 1000000000)
             // Total allowances = 1 crypto + 1 token + 1 NFT = 3, so 2 extras
-            assertThat(result.getServiceTotalTinyCents()).isEqualTo(1500000000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(1500000000L);
         }
 
         @Test

@@ -27,7 +27,7 @@ public class GetByKeyFeeCalculator implements QueryFeeCalculator {
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.GET_BY_KEY);
-        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
     }
 
     @Override

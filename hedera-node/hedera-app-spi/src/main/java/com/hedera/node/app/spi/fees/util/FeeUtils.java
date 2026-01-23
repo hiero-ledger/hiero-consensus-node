@@ -28,9 +28,9 @@ public class FeeUtils {
      */
     public static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
         return new Fees(
-                tinycentsToTinybars(feeResult.getNodeTotalTinyCents(), rate),
-                tinycentsToTinybars(feeResult.getNetworkTotalTinyCents(), rate),
-                tinycentsToTinybars(feeResult.getServiceTotalTinyCents(), rate));
+                tinycentsToTinybars(feeResult.getNodeTotalTinycents(), rate),
+                tinycentsToTinybars(feeResult.getNetworkTotalTinycents(), rate),
+                tinycentsToTinybars(feeResult.getServiceTotalTinycents(), rate));
     }
 
     public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {

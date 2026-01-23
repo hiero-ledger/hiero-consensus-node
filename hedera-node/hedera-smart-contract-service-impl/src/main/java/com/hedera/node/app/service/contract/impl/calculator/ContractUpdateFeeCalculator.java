@@ -27,7 +27,7 @@ public class ContractUpdateFeeCalculator implements ServiceFeeCalculator {
         final var adminKey = op.adminKey();
         final long keys = adminKey != null ? countKeys(adminKey) : 0;
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CONTRACT_UPDATE);
-        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keys);
         if (!op.hookCreationDetails().isEmpty()) {
             addExtraFee(

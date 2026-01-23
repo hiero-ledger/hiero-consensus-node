@@ -25,7 +25,7 @@ public class TokenWipeFeeCalculator implements ServiceFeeCalculator {
         // get the type of the token
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_ACCOUNT_WIPE);
-        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

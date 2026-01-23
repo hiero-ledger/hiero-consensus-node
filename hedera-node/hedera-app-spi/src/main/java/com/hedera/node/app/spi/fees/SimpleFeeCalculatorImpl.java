@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
-import static org.hiero.hapi.support.fees.Extra.BYTES;
-import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
-
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -68,7 +65,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                         default -> 0;
                     };
             final long unitFee = getExtraFee(ref.name());
-            result.addNodeExtraFeeTinyCents(ref.name().name(), unitFee, used, ref.includedCount());
+            result.addNodeExtraFeeTinycents(ref.name().name(), unitFee, used, ref.includedCount());
         }
     }
 
@@ -91,7 +88,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
 
         // Add node base and extras (bytes and payer signatures)
-        result.setNodeBaseFeeTinyCents(feeSchedule.node().baseFee());
+        result.setNodeBaseFeeTinycents(feeSchedule.node().baseFee());
         addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
@@ -147,6 +144,6 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
         queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
-        return result.totalTinyCents();
+        return result.totalTinycents();
     }
 }

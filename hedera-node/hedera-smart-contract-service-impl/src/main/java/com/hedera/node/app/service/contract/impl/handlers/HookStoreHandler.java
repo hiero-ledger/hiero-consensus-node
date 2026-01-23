@@ -79,7 +79,7 @@ public class HookStoreHandler implements TransactionHandler {
             requireNonNull(feeSchedule);
             final var fee = lookupServiceFee(feeSchedule, HederaFunctionality.HOOK_STORE);
             requireNonNull(fee);
-            feeResult.setServiceBaseFeeTinyCents(fee.baseFee());
+            feeResult.setServiceBaseFeeTinycents(fee.baseFee());
             final var op = txnBody.hookStoreOrThrow();
             addExtraFee(feeResult, fee, Extra.HOOK_SLOT_UPDATE, feeSchedule, slotCount(op.storageUpdates()));
         }

@@ -72,7 +72,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         final var hookInfo = getHookInfo(op);
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
-        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
 
         final Extra transferType = determineTransferType(tokenCounts);
         if (transferType != null) {

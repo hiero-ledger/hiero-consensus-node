@@ -86,9 +86,9 @@ public class ContractServiceFeeCalculatorsTest {
 
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(100000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(499000000L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(200000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(499000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
     }
 
     @Test
@@ -104,9 +104,9 @@ public class ContractServiceFeeCalculatorsTest {
 
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(100000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(509000000L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(200000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(509000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
     }
 
     @Test
@@ -120,9 +120,9 @@ public class ContractServiceFeeCalculatorsTest {
 
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(100000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(519000000L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(200000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(519000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
     }
 
     @Test
@@ -135,9 +135,9 @@ public class ContractServiceFeeCalculatorsTest {
 
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(2100000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(499000000L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(4200000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(2100000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(499000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(4200000L);
     }
 
     @Test
@@ -153,9 +153,9 @@ public class ContractServiceFeeCalculatorsTest {
 
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(2100000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(509000000L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(4200000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(2100000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(509000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(4200000L);
     }
 
     @Test
@@ -170,9 +170,9 @@ public class ContractServiceFeeCalculatorsTest {
 
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(2100000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(539000000L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(4200000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(2100000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(539000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(4200000L);
     }
 
     @Test
@@ -185,9 +185,9 @@ public class ContractServiceFeeCalculatorsTest {
 
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(1100000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(69000000L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(2200000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1100000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(69000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2200000L);
     }
 
     @Test
@@ -199,9 +199,9 @@ public class ContractServiceFeeCalculatorsTest {
 
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(0L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(0L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(0L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(0L);
     }
 
     @Test
@@ -213,9 +213,9 @@ public class ContractServiceFeeCalculatorsTest {
 
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(100000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(0L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(200000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
     }
 
     @Test

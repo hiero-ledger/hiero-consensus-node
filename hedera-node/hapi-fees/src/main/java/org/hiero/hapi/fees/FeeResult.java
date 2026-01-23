@@ -33,7 +33,7 @@ public class FeeResult {
     /**
      * Get the total Service component in tiny cents.
      */
-    public long getServiceTotalTinyCents() {
+    public long getServiceTotalTinycents() {
         return serviceTotal;
     }
 
@@ -43,7 +43,7 @@ public class FeeResult {
      * @param cost the base fee component of this service fee in tinycents.
      *
      */
-    public void setServiceBaseFeeTinyCents(long cost) {
+    public void setServiceBaseFeeTinycents(long cost) {
         this.serviceBase = cost;
         this.serviceTotal = clampedAdd(serviceTotal, cost);
     }
@@ -54,21 +54,21 @@ public class FeeResult {
      * @return service base fee
      *
      */
-    public long getServiceBaseFeeTinyCents() {
+    public long getServiceBaseFeeTinycents() {
         return this.serviceBase;
     }
 
     /** Add a Service extra fee in tiny cents.
      * @param name the name of this extra
-     * @param per_unit the cost of a single extra in tiny cents.
+     * @param unitCost the cost of a single extra in tiny cents.
      * @param used how many of the extra were used
      * @param included how many of the extra were included for free
      */
-    public void addServiceExtraFeeTinyCents(String name, long per_unit, long used, long included) {
+    public void addServiceExtraFeeTinycents(String name, long unitCost, long used, long included) {
         var charged = Math.max(0, used - included);
         if (charged > 0) {
             serviceExtrasDetails.add(new FeeDetail(name, unitCost, used, included, charged));
-            serviceTotal = clampedAdd(serviceTotal, clampedMultiply(per_unit, charged));
+            serviceTotal = clampedAdd(serviceTotal, clampedMultiply(unitCost, charged));
         }
     }
 
@@ -82,7 +82,7 @@ public class FeeResult {
     /**
      * Get the total Node component of the fee in tinycents.
      */
-    public long getNodeTotalTinyCents() {
+    public long getNodeTotalTinycents() {
         return nodeTotal;
     }
 
@@ -92,7 +92,7 @@ public class FeeResult {
      * @param cost the actual computed cost of this service fee in tinycents.
      *
      */
-    public void setNodeBaseFeeTinyCents(long cost) {
+    public void setNodeBaseFeeTinycents(long cost) {
         this.nodeBase = cost;
         this.nodeTotal = clampedAdd(nodeTotal, cost);
     }
@@ -103,21 +103,21 @@ public class FeeResult {
      * @return service base fee
      *
      */
-    public long getNodeBaseFeeTinyCents() {
+    public long getNodeBaseFeeTinycents() {
         return this.nodeBase;
     }
 
     /** Add a Node extra fee in tiny cents.
      * @param name the name of this extra
-     * @param per_unit the cost of a single extra in tiny cents.
+     * @param unitCost the cost of a single extra in tiny cents.
      * @param used how many of the extra were used
      * @param included how many of the extra were included for free
      */
-    public void addNodeExtraFeeTinyCents(String name, long unitCost, long used, long included) {
+    public void addNodeExtraFeeTinycents(String name, long unitCost, long used, long included) {
         var charged = Math.max(0, used - included);
         if (charged > 0) {
-            nodeExtrasDetails.add(new FeeDetail(name, per_unit, used, included, charged));
-            nodeTotal = clampedAdd(nodeTotal, clampedMultiply(per_unit, charged));
+            nodeExtrasDetails.add(new FeeDetail(name, unitCost, used, included, charged));
+            nodeTotal = clampedAdd(nodeTotal, clampedMultiply(unitCost, charged));
         }
     }
     /**
@@ -140,8 +140,8 @@ public class FeeResult {
      * Get the Network component in tiny cents. This will always
      * be a multiple of the Node fee
      */
-    public long getNetworkTotalTinyCents() {
-        return clampedMultiply(this.getNodeTotalTinyCents(), this.networkMultiplier);
+    public long getNetworkTotalTinycents() {
+        return clampedMultiply(this.getNodeTotalTinycents(), this.networkMultiplier);
     }
 
     public void clearFees() {
@@ -158,16 +158,16 @@ public class FeeResult {
     /**
      * The total computed fee of this transaction (Service + Node + Network) in tiny cents.
      */
-    public long totalTinyCents() {
+    public long totalTinycents() {
         return clampedAdd(
-                clampedAdd(this.getNodeTotalTinyCents(), this.getNetworkTotalTinyCents()),
-                this.getServiceTotalTinyCents());
+                clampedAdd(this.getNodeTotalTinycents(), this.getNetworkTotalTinycents()),
+                this.getServiceTotalTinycents());
     }
 
     public record FeeDetail(String name, long perUnit, long used, long included, long charged) {}
 
     @Override
     public String toString() {
-        return "FeeResult{" + "fee=" + this.totalTinyCents() + ", details=" + getServiceExtraDetails() + '}';
+        return "FeeResult{" + "fee=" + this.totalTinycents() + ", details=" + getServiceExtraDetails() + '}';
     }
 }

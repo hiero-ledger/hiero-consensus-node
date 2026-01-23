@@ -79,9 +79,9 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
 
             final var result = feeCalculator.calculateTxFee(body, feeCtx);
             assertThat(result).isNotNull();
-            Assertions.assertThat(result.getNodeTotalTinyCents()).isEqualTo(100000L);
-            Assertions.assertThat(result.getServiceTotalTinyCents()).isEqualTo(498500000L);
-            Assertions.assertThat(result.getNetworkTotalTinyCents()).isEqualTo(200000L);
+            Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L);
+            Assertions.assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
         }
 
         @Test
@@ -105,9 +105,9 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
 
             final var result = feeCalculator.calculateTxFee(body, feeCtx);
             assertThat(result).isNotNull();
-            Assertions.assertThat(result.getNodeTotalTinyCents()).isEqualTo(100000L);
-            Assertions.assertThat(result.getServiceTotalTinyCents()).isEqualTo(498500000L + 500000000L);
-            Assertions.assertThat(result.getNetworkTotalTinyCents()).isEqualTo(200000L);
+            Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L + 500000000L);
+            Assertions.assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
         }
     }
 

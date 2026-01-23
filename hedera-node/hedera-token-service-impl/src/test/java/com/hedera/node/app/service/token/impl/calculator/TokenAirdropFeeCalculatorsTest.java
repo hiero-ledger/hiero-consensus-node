@@ -94,9 +94,9 @@ class TokenAirdropFeeCalculatorsTest {
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
         assertThat(result).isNotNull();
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(1000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(9000100L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(9000100L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     @Test
@@ -113,9 +113,9 @@ class TokenAirdropFeeCalculatorsTest {
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
         assertThat(result).isNotNull();
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(1000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(199000000L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(199000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     @Test
@@ -131,9 +131,9 @@ class TokenAirdropFeeCalculatorsTest {
         final var result = feeCalculator.calculateTxFee(body, feeContext);
 
         assertThat(result).isNotNull();
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(1000L);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(299000000L);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(299000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     private static FeeSchedule createTestFeeSchedule() {

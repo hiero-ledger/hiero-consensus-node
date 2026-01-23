@@ -114,6 +114,6 @@ public class HookStoreHandlerTest {
 
         final var feeResult = new FeeResult();
         subject.accumulateServiceFee(tx, feeContext, feeResult, feeSchedule);
-        Assertions.assertThat(feeResult.getServiceTotalTinyCents()).isEqualTo(1000000000L);
+        Assertions.assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(1000000000L);
     }
 }

@@ -24,7 +24,7 @@ public class TokenUnfreezeAccountFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.tokenUnfreezeOrThrow();
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_UNFREEZE_ACCOUNT);
-        feeResult.setServiceBaseFeeTinyCents(serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

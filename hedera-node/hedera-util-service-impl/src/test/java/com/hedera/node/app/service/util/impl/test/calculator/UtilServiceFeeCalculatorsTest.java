@@ -84,9 +84,9 @@ class UtilServiceFeeCalculatorsTest {
         final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
 
         assertThat(result).isNotNull();
-        assertThat(result.getNodeTotalTinyCents()).isEqualTo(testCase.expectedNodeFee);
-        assertThat(result.getServiceTotalTinyCents()).isEqualTo(testCase.expectedServiceFee);
-        assertThat(result.getNetworkTotalTinyCents()).isEqualTo(testCase.expectedNetworkFee);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(testCase.expectedNodeFee);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(testCase.expectedServiceFee);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(testCase.expectedNetworkFee);
     }
 
     @Test
