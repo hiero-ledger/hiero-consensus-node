@@ -9,6 +9,7 @@ import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
@@ -52,7 +53,7 @@ public final class SignedStateFileReader {
             @NonNull final Path stateDir,
             @NonNull final PlatformContext platformContext,
             @NonNull final StateLifecycleManager stateLifecycleManager)
-            throws IOException {
+            throws IOException, ParseException {
 
         requireNonNull(stateDir);
         requireNonNull(platformContext);
@@ -69,7 +70,6 @@ public final class SignedStateFileReader {
         if (pbjFile.exists()) {
             sigSet = new SigSet();
             try (final ReadableStreamingData in = new ReadableStreamingData(new FileInputStream(pbjFile))) {
-                in.limit(pbjFile.length());
                 sigSet.deserialize(in);
             }
         } else {

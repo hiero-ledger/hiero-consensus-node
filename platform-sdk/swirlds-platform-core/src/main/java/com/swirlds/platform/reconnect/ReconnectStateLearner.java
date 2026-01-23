@@ -4,6 +4,8 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
@@ -166,7 +168,7 @@ public class ReconnectStateLearner {
             reservedSignedState = reconnect();
             endReconnectHandshake(connection);
             return reservedSignedState;
-        } catch (final IOException | SignedStateInvalidException e) {
+        } catch (final IOException | SignedStateInvalidException | ParseException e) {
             if (reservedSignedState != null) {
                 // if the state was received, we need to release it or it will be leaked
                 reservedSignedState.close();
@@ -251,9 +253,12 @@ public class ReconnectStateLearner {
      * @throws IOException
      * 		if any I/O related errors occur
      */
-    private void receiveSignatures() throws IOException {
+    private void receiveSignatures() throws IOException, ParseException {
         logger.info(RECONNECT.getMarker(), "Receiving signed state signatures");
-        sigSet = connection.getDis().readSerializable();
+
+        sigSet = new SigSet();
+        final ReadableStreamingData streamingData = new ReadableStreamingData(connection.getDis());
+        sigSet.deserialize(streamingData);
 
         final StringBuilder sb = new StringBuilder();
         sb.append("Received signatures from nodes ");
