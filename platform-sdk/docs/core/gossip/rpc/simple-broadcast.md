@@ -6,7 +6,7 @@ It follows a very simple rule - each time a node creates an event, it pushes thi
 
 This works well only with a fully connected network, but this is what we have right now, and it gives a testing platform for more complex implementations and a baseline to compare them against.
 
-The system is still using a full sync implementation as a fallback, but with a lower frequency, to allow catching up with broken nodes, work around dead connections, and provide some resiliency against malicious nodes.
+The system is still using a full sync implementation as a fallback, but with a lower frequency, to allow catching up with broken nodes, work around dead connections, and provide some resiliency.
 
 To avoid a high duplicate ratio (where every sync resyncs all events coming from the broadcast anyway), the default frequency of sync was decreased to occur at most a few times per second. This provides a reasonable window for the broadcast to push enough events, which will be processed to reduce duplications. In the future, we might want to revisit more sophisticated sync algorithms, which will skip asking for items already received from the broadcast by not yet seen in the graph.
 
