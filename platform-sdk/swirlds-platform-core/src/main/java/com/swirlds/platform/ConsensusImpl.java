@@ -26,7 +26,7 @@ import com.swirlds.platform.consensus.ConsensusUtils;
 import com.swirlds.platform.consensus.CountingVote;
 import com.swirlds.platform.consensus.DeGen;
 import com.swirlds.platform.consensus.InitJudges;
-import com.swirlds.platform.consensus.RosterLookup;
+import org.hiero.consensus.roster.RosterLookup;
 import com.swirlds.platform.consensus.RoundElections;
 import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.internal.EventImpl;
@@ -1182,7 +1182,7 @@ public class ConsensusImpl implements Consensus {
         }
 
         //
-        // parents have equal rounds. But if all are -infinity, then this is -infinity
+        // If the greatest parent round is -infinity, then all are -infinity, and this is -infinity
         //
         if (greatestParentRound == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
             x.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY);

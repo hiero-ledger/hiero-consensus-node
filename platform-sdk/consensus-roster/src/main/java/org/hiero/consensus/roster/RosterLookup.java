@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.roster;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -7,7 +7,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Helper class for looking up information about a roster.
@@ -41,7 +40,7 @@ public class RosterLookup {
     /**
      * @return the roster
      */
-    public Roster getRoster() {
+    public @NonNull Roster getRoster() {
         return roster;
     }
 
@@ -81,7 +80,7 @@ public class RosterLookup {
     }
 
     /**
-     * Get the weigh of a node by its ID
+     * Get the weight of a node by its ID
      *
      * @param nodeId the ID of the node
      * @return the weight of the node, or 0 if the node is not in the roster
