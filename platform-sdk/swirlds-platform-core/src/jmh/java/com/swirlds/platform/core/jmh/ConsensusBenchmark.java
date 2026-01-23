@@ -87,16 +87,18 @@ public class ConsensusBenchmark {
         }
 
         /*
+        Results on a M1 Max MacBook Pro:
+
         Benchmark                              (numEvents)  (numNodes)  (numOP)  Mode  Cnt     Score     Error  Units
-        ConsensusBenchmark.calculateConsensus       100000           4        1  avgt    3   334.490 ±  43.182  ms/op
-        ConsensusBenchmark.calculateConsensus       100000           4        2  avgt    3   400.108 ± 112.360  ms/op
-        ConsensusBenchmark.calculateConsensus       100000           4        4  avgt    3   445.310 ± 264.019  ms/op
-        ConsensusBenchmark.calculateConsensus       100000          10        1  avgt    3   761.099 ± 233.237  ms/op
-        ConsensusBenchmark.calculateConsensus       100000          10        2  avgt    3   801.404 ± 214.349  ms/op
-        ConsensusBenchmark.calculateConsensus       100000          10        4  avgt    3   979.868 ± 270.677  ms/op
-        ConsensusBenchmark.calculateConsensus       100000          30        1  avgt    3  2895.844 ±  71.784  ms/op
-        ConsensusBenchmark.calculateConsensus       100000          30        2  avgt    3  2893.139 ± 390.462  ms/op
-        ConsensusBenchmark.calculateConsensus       100000          30        4  avgt    3  3621.163 ± 530.187  ms/op
+        ConsensusBenchmark.calculateConsensus       100000           4        1  avgt    3   371.516 ± 260.771  ms/op
+        ConsensusBenchmark.calculateConsensus       100000           4        2  avgt    3   404.322 ± 140.380  ms/op
+        ConsensusBenchmark.calculateConsensus       100000           4        4  avgt    3   417.989 ± 230.466  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          10        1  avgt    3   746.292 ±  97.510  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          10        2  avgt    3   840.145 ± 180.210  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          10        4  avgt    3   953.634 ± 393.661  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          30        1  avgt    3  2841.761 ± 523.974  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          30        2  avgt    3  3060.256 ± 430.140  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          30        4  avgt    3  3606.326 ± 276.873  ms/op
         */
     }
 }

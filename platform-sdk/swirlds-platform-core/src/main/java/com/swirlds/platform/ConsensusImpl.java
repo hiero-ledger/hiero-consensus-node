@@ -987,7 +987,9 @@ public class ConsensusImpl implements Consensus {
                 x.setLastSee(mm, null);
                 continue;
             }
+            // the latest event the parent can lastSee()
             EventImpl latestEventSeen = null;
+            EventImpl parentWhichSeesLatestEvent = null;
             for (final EventImpl parent : x.getAllParents()) {
                 if (ancient(parent)) {
                     // we can ignore ancient parents
@@ -999,13 +1001,15 @@ public class ConsensusImpl implements Consensus {
                 }
                 if (latestEventSeen == null) {
                     latestEventSeen = candidate;
+                    parentWhichSeesLatestEvent = parent;
                     continue;
                 }
 
                 if ((round(candidate) > round(latestEventSeen))
                         || (candidate.getDeGen() > latestEventSeen.getDeGen()
-                                && (firstSee(candidate, mm) == firstSee(latestEventSeen, mm)))) {
+                                && (firstSee(parent, mm) == firstSee(parentWhichSeesLatestEvent, mm)))) {
                     latestEventSeen = candidate;
+                    parentWhichSeesLatestEvent = parent;
                 }
             }
             x.setLastSee(mm, latestEventSeen);
