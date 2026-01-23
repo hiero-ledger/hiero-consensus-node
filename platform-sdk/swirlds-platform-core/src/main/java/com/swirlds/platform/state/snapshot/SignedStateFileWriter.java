@@ -146,10 +146,9 @@ public final class SignedStateFileWriter {
 
         final SignedState signedState = reservedSignedState.get();
         try {
-            if (signedState.isFreezeState()) {
-                stateLifecycleManager.createSnapshot(signedState.getState(), directory);
-                reservedSignedState.close();
-            } else {
+            //noinspection DataFlowIssue -- it is checked in isStateToSave()
+            if (signedState.isStateToSave()
+                    && signedState.getStateToDiskReason().equals(StateToDiskReason.PERIODIC_SNAPSHOT)) {
                 // Creating the snapshot asynchronously is the optimization which allows it to be created faster within
                 // the `VirtualMap#flush`, because it is done without one extra data source snapshot as data source and
                 // cache are already in place, so the only thing needed is an actual data source snapshot.
@@ -161,6 +160,9 @@ public final class SignedStateFileWriter {
                 reservedSignedState.close();
                 // Block until the snapshot is created.
                 snapshotAsync.get();
+            } else {
+                stateLifecycleManager.createSnapshot(signedState.getState(), directory);
+                reservedSignedState.close();
             }
         } catch (final Throwable e) {
             logger.error(
