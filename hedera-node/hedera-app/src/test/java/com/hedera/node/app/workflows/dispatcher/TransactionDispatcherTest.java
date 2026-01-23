@@ -163,10 +163,7 @@ class TransactionDispatcherTest {
             given(feeContext.activeRate()).willReturn(testExchangeRate);
 
             // And: Simple fee calculator returns a fee result
-            final var feeResult = new FeeResult();
-            feeResult.node = 100000L; // 100K tinycents
-            feeResult.network = 200000L; // 200K tinycents
-            feeResult.service = 498500000L; // 498.5M tinycents
+            final var feeResult = new FeeResult(498500000L, 100000L, 2);
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
             given(simpleFeeCalculator.calculateTxFee(txBody, feeContext)).willReturn(feeResult);
 
