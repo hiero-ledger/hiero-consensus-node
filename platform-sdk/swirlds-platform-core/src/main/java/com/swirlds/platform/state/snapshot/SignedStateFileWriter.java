@@ -10,7 +10,6 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThres
 import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.INIT_SIG_SET_FILE_VERSION;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static java.util.Objects.requireNonNull;
 
@@ -35,7 +34,6 @@ import java.nio.file.Path;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -94,19 +92,6 @@ public final class SignedStateFileWriter {
         final Path metadataFile = directory.resolve(SavedStateMetadata.FILE_NAME);
 
         SavedStateMetadata.create(signedState, selfId, Instant.now()).write(metadataFile);
-    }
-
-    /**
-     * Write a {@link SigSet} to a stream.
-     *
-     * @param out         the stream to write to
-     * @param signedState the signed state to write
-     */
-    private static void writeSignatureSetToStream(final SerializableDataOutputStream out, final SignedState signedState)
-            throws IOException {
-        out.writeInt(INIT_SIG_SET_FILE_VERSION);
-        out.writeProtocolVersion();
-        out.writeSerializable(signedState.getSigSet(), true);
     }
 
     /**
