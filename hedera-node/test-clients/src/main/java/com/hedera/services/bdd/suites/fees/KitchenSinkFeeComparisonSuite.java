@@ -111,12 +111,15 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCancelAirdrop;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop;
+import com.hederahashgraph.api.proto.java.SignedTransaction;
+import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -923,7 +926,7 @@ public class KitchenSinkFeeComparisonSuite {
             ops.add(captureFee(
                     txnName,
                     joinEmphasis(
-                            "NFT_SERIALS=3 (+2 extra), NON_FUNGIBLE_TOKENS=1 (included), TOKEN_TRANSFER_BASE=1",
+                            "NON_FUNGIBLE_TOKENS=3 (+2 extra), TOKEN_TRANSFER_BASE=1",
                             sigEmphasis(signers, sigVariant)),
                     feeMap));
         }
@@ -1528,7 +1531,9 @@ public class KitchenSinkFeeComparisonSuite {
         addWithSigVariants(
                 ops,
                 prefix + "TokenAirdropA1",
-                "AIRDROPS=1 (included)",
+                "AIRDROPS=1 (included), PENDING_AIRDROPS=1, EXISTING_PENDING_AIRDROPS=0, "
+                        + "UNLIMITED_ASSOCIATIONS=0, ACCOUNTS=2 (included), FUNGIBLE_TOKENS=1 (included), "
+                        + "TOKEN_TRANSFER_BASE=1",
                 feeMap,
                 new String[] {PAYER, TREASURY},
                 txnName -> cryptoCreate(txnName + "R1")
@@ -1546,7 +1551,9 @@ public class KitchenSinkFeeComparisonSuite {
         addWithSigVariants(
                 ops,
                 prefix + "TokenAirdropA3",
-                "AIRDROPS=3 (+2 extra)",
+                "AIRDROPS=3 (+2 extra), PENDING_AIRDROPS=3, EXISTING_PENDING_AIRDROPS=0, "
+                        + "UNLIMITED_ASSOCIATIONS=0, ACCOUNTS=4 (+2 extra), FUNGIBLE_TOKENS=1 (included), "
+                        + "TOKEN_TRANSFER_BASE=1",
                 feeMap,
                 new String[] {PAYER, TREASURY},
                 txnName -> blockingOrder(
@@ -1593,7 +1600,8 @@ public class KitchenSinkFeeComparisonSuite {
                             .signedBy(PAYER, TREASURY)
                             .fee(ONE_HUNDRED_HBARS)));
             final String[] signers = sigVariant.withRequired(PAYER, receiver);
-            ops.add(tokenClaimAirdrop(HapiTokenClaimAirdrop.pendingAirdrop(TREASURY, receiver, prefix + "FungibleAirdrop"))
+            ops.add(tokenClaimAirdrop(
+                            HapiTokenClaimAirdrop.pendingAirdrop(TREASURY, receiver, prefix + "FungibleAirdrop"))
                     .payingWith(PAYER)
                     .signedBy(signers)
                     .fee(ONE_HUNDRED_HBARS)
@@ -1688,14 +1696,10 @@ public class KitchenSinkFeeComparisonSuite {
                         ? "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE=1"
                         : "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE=0";
                 final String txnBase = prefix + "TopicCreateK" + keyCount + (customFee ? "CF1" : "CF0");
-                final String[] requiredSigners = keyCount >= 1 ? new String[] {PAYER, SIMPLE_KEY} : new String[] {PAYER};
+                final String[] requiredSigners =
+                        keyCount >= 1 ? new String[] {PAYER, SIMPLE_KEY} : new String[] {PAYER};
                 addWithSigVariants(
-                        ops,
-                        txnBase,
-                        joinEmphasis(keyLabel, cfLabel),
-                        feeMap,
-                        requiredSigners,
-                        (txnName, signers) -> {
+                        ops, txnBase, joinEmphasis(keyLabel, cfLabel), feeMap, requiredSigners, (txnName, signers) -> {
                             final var op = createTopic(txnName + "Topic")
                                     .blankMemo()
                                     .payingWith(PAYER)
@@ -2384,7 +2388,7 @@ public class KitchenSinkFeeComparisonSuite {
                     joinEmphasis(
                             "HOOK_EXECUTION=1 (pre), GAS=75000 (+50000 extra), ACCOUNTS=4 (+2 extra), "
                                     + "FUNGIBLE_TOKENS=2 (+1 extra), NON_FUNGIBLE_TOKENS=1 (included), "
-                                    + "TOKEN_TRANSFER_BASE=1, TOKEN_TRANSFER_BASE_CUSTOM_FEES=1",
+                                    + "TOKEN_TRANSFER_BASE_CUSTOM_FEES=1",
                             sigEmphasis(signers, sigVariant)),
                     feeMap));
         }
@@ -2419,9 +2423,8 @@ public class KitchenSinkFeeComparisonSuite {
                     txnName,
                     joinEmphasis(
                             "HOOK_EXECUTION=1 (pre), GAS=75000 (+50000 extra), ACCOUNTS=4 (+2 extra), "
-                                    + "FUNGIBLE_TOKENS=3 (+2 extra), NON_FUNGIBLE_TOKENS=1 (included), "
-                                    + "NFT_SERIALS=3 (+2 extra), TOKEN_TRANSFER_BASE=1, "
-                                    + "TOKEN_TRANSFER_BASE_CUSTOM_FEES=2 (+1 extra)",
+                                    + "FUNGIBLE_TOKENS=3 (+2 extra), NON_FUNGIBLE_TOKENS=3 (+2 extra), "
+                                    + "TOKEN_TRANSFER_BASE_CUSTOM_FEES=1",
                             sigEmphasis(signers, sigVariant)),
                     feeMap));
         }
@@ -2793,9 +2796,7 @@ public class KitchenSinkFeeComparisonSuite {
                     .fee(ONE_HUNDRED_HBARS)
                     .via(txnName));
             ops.add(captureFee(
-                    txnName,
-                    joinEmphasis("TRANSACTIONS=1 (included)", sigEmphasis(signers, sigVariant)),
-                    feeMap));
+                    txnName, joinEmphasis("TRANSACTIONS=1 (included)", sigEmphasis(signers, sigVariant)), feeMap));
             ops.add(captureFee(
                     innerTxn,
                     joinEmphasis("INNER=1", "TRANSACTIONS=1 (included)", sigEmphasis(signers, sigVariant)),
@@ -2826,9 +2827,7 @@ public class KitchenSinkFeeComparisonSuite {
                     .fee(ONE_HUNDRED_HBARS)
                     .via(txnName));
             ops.add(captureFee(
-                    txnName,
-                    joinEmphasis("TRANSACTIONS=3 (+2 extra)", sigEmphasis(signers, sigVariant)),
-                    feeMap));
+                    txnName, joinEmphasis("TRANSACTIONS=3 (+2 extra)", sigEmphasis(signers, sigVariant)), feeMap));
             ops.add(captureFee(
                     innerTxn1,
                     joinEmphasis("INNER=1", "TRANSACTIONS=3 (+2 extra)", sigEmphasis(signers, sigVariant)),
@@ -3007,6 +3006,27 @@ public class KitchenSinkFeeComparisonSuite {
         };
     }
 
+    private static String runtimeEmphasisFor(final HapiSpec spec, final String txnName) {
+        try {
+            final byte[] txnBytes = spec.registry().getBytes(txnName);
+            final Transaction txn = Transaction.parseFrom(txnBytes);
+            final int sigPairs = actualSigPairs(txn);
+            final int signedTxnBytes = HapiTxnOp.serializedSignedTxFrom(txn).length;
+            return joinEmphasis("SIGS_ACTUAL=" + sigPairs, "TX_BYTES=" + signedTxnBytes);
+        } catch (Exception e) {
+            LOG.warn("Unable to append runtime emphasis for {}", txnName, e);
+            return "";
+        }
+    }
+
+    private static int actualSigPairs(final Transaction txn) throws Exception {
+        if (!txn.getSignedTransactionBytes().isEmpty()) {
+            final SignedTransaction signedTxn = SignedTransaction.parseFrom(txn.getSignedTransactionBytes());
+            return signedTxn.getSigMap().getSigPairCount();
+        }
+        return txn.getSigMap().getSigPairCount();
+    }
+
     private static SpecOperation logFeeComparison(Map<String, Long> legacyFees, Map<String, Long> simpleFees) {
         return withOpContext((spec, opLog) -> {
             LOG.info("\n========== FEE COMPARISON RESULTS ==========");
@@ -3082,7 +3102,8 @@ public class KitchenSinkFeeComparisonSuite {
 
                     // Extract the base name (remove prefix)
                     String baseName = txnName.startsWith("legacy") ? txnName.substring(6) : txnName;
-                    String simpleTxnKey = "simple" + baseName + (emphasis.isEmpty() ? "" : "|" + emphasis);
+                    String simpleTxnName = "simple" + baseName;
+                    String simpleTxnKey = simpleTxnName + (emphasis.isEmpty() ? "" : "|" + emphasis);
 
                     Long legacyFee = legacyFees.get(txnKey);
                     Long simpleFee = simpleFees.get(simpleTxnKey);
@@ -3100,9 +3121,11 @@ public class KitchenSinkFeeComparisonSuite {
                             diffUsd = String.format("%.5f", ratesProvider.toUsdWithActiveRates(diff));
                         }
 
+                        final String runtimeExtras = runtimeEmphasisFor(spec, simpleTxnName);
+                        final String combinedEmphasis = joinEmphasis(emphasis, runtimeExtras);
                         // Escape commas in transaction name and emphasis
                         String escapedBaseName = baseName.replace(",", ";");
-                        String escapedEmphasis = emphasis.replace(",", ";");
+                        String escapedEmphasis = combinedEmphasis.replace(",", ";");
 
                         writer.append(String.format(
                                 "%s,%s,%d,%s,%d,%s,%d,%s,%.2f\n",
@@ -3168,7 +3191,8 @@ public class KitchenSinkFeeComparisonSuite {
 
                     // Extract the base name (remove prefix)
                     String baseName = txnName.startsWith("legacy") ? txnName.substring(6) : txnName;
-                    String simpleTxnKey = "simple" + baseName + (emphasis.isEmpty() ? "" : "|" + emphasis);
+                    String simpleTxnName = "simple" + baseName;
+                    String simpleTxnKey = simpleTxnName + (emphasis.isEmpty() ? "" : "|" + emphasis);
 
                     Long legacyFee = legacyFees.get(txnKey);
                     Long simpleFee = simpleFees.get(simpleTxnKey);
@@ -3176,9 +3200,11 @@ public class KitchenSinkFeeComparisonSuite {
                     if (legacyFee != null && simpleFee != null) {
                         long diff = simpleFee - legacyFee;
                         double pctChange = legacyFee > 0 ? (diff * 100.0 / legacyFee) : 0;
+                        final String runtimeExtras = runtimeEmphasisFor(spec, simpleTxnName);
+                        final String combinedEmphasis = joinEmphasis(emphasis, runtimeExtras);
                         // Escape commas in transaction name and emphasis
                         String escapedBaseName = baseName.replace(",", ";");
-                        String escapedEmphasis = emphasis.replace(",", ";");
+                        String escapedEmphasis = combinedEmphasis.replace(",", ";");
                         json.startRecord();
                         json.key("name", escapedBaseName);
                         json.key("desc", escapedEmphasis);
