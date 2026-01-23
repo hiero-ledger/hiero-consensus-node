@@ -75,4 +75,37 @@ class RosterLookupTest {
         assertFalse(singleNodeRoster.idEqualsIndex(singleId, 1000));
     }
 
+    @Test
+    void testGetWeight(){
+        for (int i = 0; i < simpleRoster.getRoster().rosterEntries().size(); i++) {
+            final NodeId nodeId = NodeId.of(simpleRoster.getRoster().rosterEntries().get(i).nodeId());
+            assertEquals(1, simpleRoster.getWeight(nodeId));
+            assertEquals(1, simpleRoster.getWeight(i));
+        }
+
+        final NodeId singleId = NodeId.of(singleNodeRoster.getRoster().rosterEntries().getFirst().nodeId());
+        assertEquals(1, singleNodeRoster.getWeight(singleId));
+        assertEquals(1, singleNodeRoster.getWeight(0));
+
+        final NodeId nonExistentNodeId = NodeId.of(1000);
+        assertEquals(0, simpleRoster.getWeight(nonExistentNodeId));
+        assertEquals(0, singleNodeRoster.getWeight(nonExistentNodeId));
+    }
+
+    @Test
+    void testGetRosterIndex(){
+        for (int i = 0; i < simpleRoster.getRoster().rosterEntries().size(); i++) {
+            final NodeId nodeId = NodeId.of(simpleRoster.getRoster().rosterEntries().get(i).nodeId());
+            assertEquals(i, simpleRoster.getRosterIndex(nodeId));
+        }
+        final NodeId singleId = NodeId.of(singleNodeRoster.getRoster().rosterEntries().getFirst().nodeId());
+
+        final NodeId nonExistentNodeId = NodeId.of(1000);
+        assertEquals(0, singleNodeRoster.getRosterIndex(singleId));
+
+
+        assertThrows(IllegalArgumentException.class, () -> simpleRoster.getRosterIndex(nonExistentNodeId));
+        assertThrows(IllegalArgumentException.class, () -> singleNodeRoster.getRosterIndex(nonExistentNodeId));
+    }
+
 }
