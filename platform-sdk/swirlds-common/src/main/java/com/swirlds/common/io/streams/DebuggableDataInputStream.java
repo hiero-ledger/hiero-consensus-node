@@ -4,15 +4,12 @@ package com.swirlds.common.io.streams;
 import com.swirlds.base.function.CheckedFunction;
 import com.swirlds.common.io.streams.internal.SerializationOperation;
 import com.swirlds.common.io.streams.internal.SerializationStack;
-import com.swirlds.common.merkle.MerkleNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -20,13 +17,14 @@ import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import org.hiero.base.ValueReference;
 import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 
 /**
- * A stream that performs the same role as a {@link MerkleDataInputStream} but with extra debug functionality. This
+ * A stream that performs the same role as a {@link SerializableDataInputStream} but with extra debug functionality. This
  * debuggability adds overhead, so use of this stream should be limited to test environments or production environments
  * where there is a known serialization problem (heaven forbid).
  */
-public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
+public class DebuggableDataInputStream extends SerializableDataInputStream {
 
     /**
      * The stack trace contains the following elements:
@@ -50,12 +48,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
 
     private final SerializationStack stack;
 
-    /**
-     * Create a new {@link MerkleDataInputStream} that has extra debug capability.
-     *
-     * @param in the base stream
-     */
-    public DebuggableMerkleDataInputStream(final InputStream in) {
+    public DebuggableDataInputStream(final InputStream in) {
         super(in);
 
         final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
@@ -583,36 +576,6 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
         startOperation(SerializationOperation.READ_NORMALISED_STRING);
         try {
             return super.readNormalisedString(maxLength);
-        } finally {
-            finishOperation();
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public <T extends MerkleNode> T readMerkleTree(final Path directory, final int maxNumberOfNodes)
-            throws IOException {
-
-        startOperation(SerializationOperation.READ_MERKLE_TREE);
-        try {
-            return super.readMerkleTree(directory, maxNumberOfNodes);
-        } finally {
-            finishOperation();
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void readNextNode(
-            final Path directory, final Map<Long /* class ID */, Integer /* version */> deserializedVersions)
-            throws IOException {
-        startOperation(SerializationOperation.READ_MERKLE_NODE);
-        try {
-            super.readNextNode(directory, deserializedVersions);
         } finally {
             finishOperation();
         }
