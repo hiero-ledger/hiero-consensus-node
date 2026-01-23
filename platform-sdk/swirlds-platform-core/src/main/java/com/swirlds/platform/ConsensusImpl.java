@@ -977,7 +977,7 @@ public class ConsensusImpl implements Consensus {
         x.initLastSee(rosterLookup.numMembers());
 
         for (int mm = 0; mm < rosterLookup.numMembers(); mm++) {
-            if (rosterLookup.idEqualsIndex(x.getCreatorId(), mm)) {
+            if (rosterLookup.isIdAtIndex(x.getCreatorId(), mm)) {
                 // mm created x, so x is considered to see itself
                 x.setLastSee(mm, x);
                 continue;
@@ -1033,7 +1033,7 @@ public class ConsensusImpl implements Consensus {
         if (notRelevantForConsensus(x)) {
             return null;
         }
-        if (m == m2 && rosterLookup.idEqualsIndex(x.getCreatorId(), m2)) {
+        if (m == m2 && rosterLookup.isIdAtIndex(x.getCreatorId(), m2)) {
             return firstSelfWitnessS(selfParent(x));
         }
         return firstSee(lastSee(x, m2), m);

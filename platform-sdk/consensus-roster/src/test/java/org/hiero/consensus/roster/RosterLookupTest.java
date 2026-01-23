@@ -61,21 +61,21 @@ class RosterLookupTest {
     }
 
     @Test
-    void testIdEqualsIndex() {
+    void testIsIdAtIndex() {
         for (int i = 0; i < simpleRoster.getRoster().rosterEntries().size(); i++) {
             final NodeId nodeId =
                     NodeId.of(simpleRoster.getRoster().rosterEntries().get(i).nodeId());
-            assertTrue(simpleRoster.idEqualsIndex(nodeId, i));
-            assertFalse(simpleRoster.idEqualsIndex(nodeId, i + 1));
-            assertFalse(simpleRoster.idEqualsIndex(nodeId, -1));
-            assertFalse(simpleRoster.idEqualsIndex(nodeId, 1000));
+            assertTrue(simpleRoster.isIdAtIndex(nodeId, i));
+            assertFalse(simpleRoster.isIdAtIndex(nodeId, i + 1));
+            assertFalse(simpleRoster.isIdAtIndex(nodeId, -1));
+            assertFalse(simpleRoster.isIdAtIndex(nodeId, 1000));
         }
         final NodeId singleId = NodeId.of(
                 singleNodeRoster.getRoster().rosterEntries().getFirst().nodeId());
-        assertTrue(singleNodeRoster.idEqualsIndex(singleId, 0));
-        assertFalse(singleNodeRoster.idEqualsIndex(singleId, 1));
-        assertFalse(singleNodeRoster.idEqualsIndex(singleId, -1));
-        assertFalse(singleNodeRoster.idEqualsIndex(singleId, 1000));
+        assertTrue(singleNodeRoster.isIdAtIndex(singleId, 0));
+        assertFalse(singleNodeRoster.isIdAtIndex(singleId, 1));
+        assertFalse(singleNodeRoster.isIdAtIndex(singleId, -1));
+        assertFalse(singleNodeRoster.isIdAtIndex(singleId, 1000));
     }
 
     @Test

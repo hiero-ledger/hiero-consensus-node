@@ -72,7 +72,7 @@ public class RosterLookup {
      * @param index  the index to check
      * @return true if the node ID corresponds to the index, false otherwise
      */
-    public boolean idEqualsIndex(@NonNull final NodeId nodeId, final int index) {
+    public boolean isIdAtIndex(@NonNull final NodeId nodeId, final int index) {
         if (index < 0 || index >= roster.rosterEntries().size()) {
             return false;
         }
