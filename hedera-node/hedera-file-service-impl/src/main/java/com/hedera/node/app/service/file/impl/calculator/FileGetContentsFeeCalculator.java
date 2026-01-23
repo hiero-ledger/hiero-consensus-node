@@ -21,13 +21,14 @@ public class FileGetContentsFeeCalculator implements QueryFeeCalculator {
             @NonNull SimpleFeeContext simpleFeeContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
-        final var fileStore = simpleFeeContext.queryContext().createStore(ReadableFileStore.class);
-        final var op = query.fileGetContentsOrThrow();
-
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_GET_CONTENTS);
-        final var fileContents = fileStore.getFileLeaf(op.fileIDOrThrow()).contents();
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
-        addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, fileContents.length());
+        if (simpleFeeContext.queryContext() != null) {
+            final var fileStore = simpleFeeContext.queryContext().createStore(ReadableFileStore.class);
+            final var op = query.fileGetContentsOrThrow();
+            final var fileContents = fileStore.getFileLeaf(op.fileIDOrThrow()).contents();
+            addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, fileContents.length());
+        }
     }
 
     @Override
