@@ -74,7 +74,7 @@ public abstract class AbstractSyncProtocol<T extends AbstractShadowgraphSynchron
      * Handle new event fully processed by event intake
      * @param platformEvent event to be processed
      */
-    public void addEvent(@NonNull PlatformEvent platformEvent) {
+    public void addEvent(@NonNull final PlatformEvent platformEvent) {
         // no-op
     }
 

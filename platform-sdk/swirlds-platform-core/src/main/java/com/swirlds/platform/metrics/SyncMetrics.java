@@ -157,13 +157,13 @@ public class SyncMetrics {
     private static final CountPerSecond.Config BROADCAST_EVENTS_SENT_COUNTER_CONFIG = new CountPerSecond.Config(
                     PLATFORM_CATEGORY, "broadcastEventsSent")
             .withUnit("hz")
-            .withDescription("Number of times per second event was sent over broadcast to the remote nodes");
+            .withDescription("Number of times per second an event was sent over broadcast to the remote nodes");
     private final CountPerSecond broadcastEventsSentCounter;
 
     private static final CountPerSecond.Config BROADCAST_EVENTS_RECEIVED_COUNTER_CONFIG = new CountPerSecond.Config(
                     PLATFORM_CATEGORY, "broadcastEventsReceived")
             .withUnit("hz")
-            .withDescription("Number of times per second event was received by broadcast from the remote nodes");
+            .withDescription("Number of times per second an event was received by broadcast from the remote nodes");
     private final CountPerSecond broadcastEventsReceivedCounter;
 
     private final IntegerGauge.Config RPC_READ_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
@@ -580,7 +580,7 @@ public class SyncMetrics {
     }
 
     /**
-     * Event was sent over broadcast to remote nodes (as opposed to sending events over sync)
+     * Event was received over broadcast from remote nodes (as opposed to receiving events over sync)
      */
     public void broadcastEventReceived() {
         broadcastEventsReceivedCounter.count();
