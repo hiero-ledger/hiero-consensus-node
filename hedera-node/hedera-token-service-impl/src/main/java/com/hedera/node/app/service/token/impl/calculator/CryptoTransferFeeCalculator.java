@@ -65,19 +65,11 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
 
-        final ReadableTokenStore tokenStore = simpleFeeContext.feeContext().readableStore(ReadableTokenStore.class);
-        final var op = txnBody.cryptoTransferOrThrow();
-        final long numAccounts = countUniqueAccounts(op);
-        final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
-        final var hookInfo = getHookInfo(op);
-
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
-
-        final Extra transferType = determineTransferType(tokenCounts);
-        if (transferType != null) {
-            addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
-        }
+        final var op = txnBody.cryptoTransferOrThrow();
+        final long numAccounts = countUniqueAccounts(op);
+        final var hookInfo = getHookInfo(op);
         if (hookInfo.numHookInvocations() > 0) {
             final var config = simpleFeeContext.feeContext().configuration();
             // Avoid overflow in by clamping effective limit. Since we validate each hook dispatch can't
@@ -87,17 +79,28 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
                     Math.min(
                             hookInfo.numHookInvocations()
                                     * config.getConfigData(ContractsConfig.class)
-                                            .maxGasPerSec(),
+                                    .maxGasPerSec(),
                             hookInfo.totalGasLimitOfHooks()));
             addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, hookInfo.numHookInvocations());
             addExtraFee(feeResult, serviceDef, GAS, feeSchedule, effectiveGasLimit);
         }
 
-        addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
-        final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
-        addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
-        final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
-        addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, totalNft);
+        if(simpleFeeContext.feeContext() != null) {
+            final ReadableTokenStore tokenStore = simpleFeeContext.feeContext().readableStore(ReadableTokenStore.class);
+            final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
+
+
+            final Extra transferType = determineTransferType(tokenCounts);
+            if (transferType != null) {
+                addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
+            }
+
+            addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
+            final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
+            addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
+            final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
+            addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, totalNft);
+        }
     }
 
     /**
