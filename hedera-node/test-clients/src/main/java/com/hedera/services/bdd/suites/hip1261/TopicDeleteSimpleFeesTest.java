@@ -273,14 +273,28 @@ public class TopicDeleteSimpleFeesTest {
             @HapiTest
             @DisplayName("TopicDelete - invalid topic fails - fee charged")
             final Stream<DynamicTest> topicDeleteInvalidTopicFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         deleteTopic("0.0.99999999") // Invalid topic
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("topicDeleteTxn")
-                                .hasKnownStatus(INVALID_TOPIC_ID));
+                                .hasKnownStatus(INVALID_TOPIC_ID),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "topicDeleteTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTopicDeleteFullFeeUsd(1L),
+                                1.0));
             }
 
             @HapiTest
@@ -319,6 +333,9 @@ public class TopicDeleteSimpleFeesTest {
             @HapiTest
             @DisplayName("TopicDelete - immutable topic (no admin key) fails - fee charged")
             final Stream<DynamicTest> topicDeleteImmutableTopicFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         createTopic(TOPIC)
@@ -326,12 +343,23 @@ public class TopicDeleteSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         deleteTopic(TOPIC)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("topicDeleteTxn")
-                                .hasKnownStatus(UNAUTHORIZED));
+                                .hasKnownStatus(UNAUTHORIZED),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "topicDeleteTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTopicDeleteFullFeeUsd(1L),
+                                1.0));
             }
         }
     }

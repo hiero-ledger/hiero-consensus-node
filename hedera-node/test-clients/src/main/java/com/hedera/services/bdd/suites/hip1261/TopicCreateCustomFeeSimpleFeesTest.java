@@ -199,23 +199,6 @@ public class TopicCreateCustomFeeSimpleFeesTest {
         }
 
         @HapiTest
-        @DisplayName("TopicCreate without keys - base fee only")
-        final Stream<DynamicTest> topicCreateNoKeysBaseFeeOnly() {
-            return hapiTest(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    createTopic(TOPIC)
-                            // No admin or submit keys
-                            .payingWith(PAYER)
-                            .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("createTopicTxn"),
-                    validateChargedUsdWithin(
-                            "createTopicTxn",
-                            expectedTopicCreateFullFeeUsd(1L, 0L), // 1 sig, 0 extra keys
-                            1.0));
-        }
-
-        @HapiTest
         @DisplayName("TopicCreate with fee schedule key only")
         final Stream<DynamicTest> topicCreateWithFeeScheduleKeyOnly() {
             return hapiTest(

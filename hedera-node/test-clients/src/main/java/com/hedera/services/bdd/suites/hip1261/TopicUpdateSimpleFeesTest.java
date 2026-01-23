@@ -391,20 +391,37 @@ public class TopicUpdateSimpleFeesTest {
             @HapiTest
             @DisplayName("TopicUpdate - invalid topic fails - fee charged")
             final Stream<DynamicTest> topicUpdateInvalidTopicFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         updateTopic("0.0.99999999") // Invalid topic
                                 .memo("updated memo")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("topicUpdateTxn")
-                                .hasKnownStatus(INVALID_TOPIC_ID));
+                                .hasKnownStatus(INVALID_TOPIC_ID),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "topicUpdateTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTopicUpdateFullFeeUsd(1L),
+                                1.0));
             }
 
             @HapiTest
             @DisplayName("TopicUpdate - deleted topic fails - fee charged")
             final Stream<DynamicTest> topicUpdateDeletedTopicFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(ADMIN_KEY),
@@ -417,18 +434,32 @@ public class TopicUpdateSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         updateTopic(TOPIC)
                                 .memo("updated memo")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("topicUpdateTxn")
-                                .hasKnownStatus(INVALID_TOPIC_ID));
+                                .hasKnownStatus(INVALID_TOPIC_ID),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "topicUpdateTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTopicUpdateFullFeeUsd(2L),
+                                1.0));
             }
 
             @HapiTest
             @DisplayName("TopicUpdate - immutable topic (no admin key) submit key update fails - fee charged")
             final Stream<DynamicTest> topicUpdateImmutableTopicFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(SUBMIT_KEY),
@@ -437,13 +468,24 @@ public class TopicUpdateSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         updateTopic(TOPIC)
                                 .submitKey(SUBMIT_KEY) // Trying to add submit key to immutable topic
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("topicUpdateTxn")
-                                .hasKnownStatus(UNAUTHORIZED));
+                                .hasKnownStatus(UNAUTHORIZED),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsd(
+                                "topicUpdateTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedTopicUpdateFullFeeUsd(1L, 1L),
+                                1.0));
             }
 
             @HapiTest
