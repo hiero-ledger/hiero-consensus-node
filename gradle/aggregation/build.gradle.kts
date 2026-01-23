@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 dependencies {
-    published(project(":hiero-metrics"))
-    published(project(":openmetrics-httpserver"))
+    implementation(project(":hiero-metrics"))
+    implementation(project(":openmetrics-httpserver"))
     published(project(":app"))
     published(project(":hedera-protobuf-java-api"))
     published(project(":app-service-contract-impl"))

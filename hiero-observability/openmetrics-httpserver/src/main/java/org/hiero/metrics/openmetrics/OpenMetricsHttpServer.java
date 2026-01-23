@@ -131,7 +131,7 @@ class OpenMetricsHttpServer implements MetricsExporter {
                 writer.write(supplier.get(), outputStream);
             }
         } catch (RuntimeException e) {
-            logger.log(System.Logger.Level.ERROR, "Unexpected error during exporting metrics snapshots", e);
+            logger.log(System.Logger.Level.WARNING, "Unexpected error during exporting metrics snapshots", e);
             // Best-effort: Only attempt to send 500 if we haven't committed response yet
             try {
                 if (exchange.getResponseCode() == -1) {
