@@ -5,8 +5,6 @@ import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
@@ -32,6 +30,8 @@ import java.time.Duration;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 
@@ -195,8 +195,8 @@ public class ReconnectStateLearner {
 
         statistics.incrementReceiverStartTimes();
 
-        final MerkleDataInputStream in = new MerkleDataInputStream(connection.getDis());
-        final MerkleDataOutputStream out = new MerkleDataOutputStream(connection.getDos());
+        final SerializableDataInputStream in = new SerializableDataInputStream(connection.getDis());
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(connection.getDos());
 
         connection.getDis().getSyncByteCounter().resetCount();
         connection.getDos().getSyncByteCounter().resetCount();

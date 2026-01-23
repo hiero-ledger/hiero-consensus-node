@@ -50,6 +50,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -2594,11 +2595,11 @@ public class CryptoTransferSimpleFeesTest {
                                 assertEquals(initialBalance.get(), afterBalance.get());
                                 assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                             }),
-                            validateChargedFeeToUsd(
+                            validateChargedFeeToUsdWithTxnSize(
                                     INNER_ID,
                                     initialNodeBalance,
                                     afterNodeBalance,
-                                    expectedCryptoTransferNetworkFeeOnlyUsd(1),
+                                    txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(1, txnSize),
                                     0.01)));
                 }
 
