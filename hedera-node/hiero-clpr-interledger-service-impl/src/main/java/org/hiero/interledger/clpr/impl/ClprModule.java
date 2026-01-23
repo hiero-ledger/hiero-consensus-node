@@ -55,12 +55,14 @@ public interface ClprModule {
      */
     @Provides
     @Singleton
-    static ClprEndpoint provideClprEndpoint(
+    static ClprEndpointClient provideClprEndpoint(
             @NonNull final NetworkInfo networkInfo,
             @NonNull final ConfigProvider configProvider,
             @NonNull final ExecutorService executor,
             @NonNull final Metrics metrics,
-            @NonNull final ClprConnectionManager clprConnectionManager) {
-        return new ClprEndpoint(networkInfo, configProvider, executor, metrics, clprConnectionManager);
+            @NonNull final ClprConnectionManager clprConnectionManager,
+            @NonNull final ClprStateProofManager stateProofManager) {
+        return new ClprEndpointClient(
+                networkInfo, configProvider, executor, metrics, clprConnectionManager, stateProofManager);
     }
 }

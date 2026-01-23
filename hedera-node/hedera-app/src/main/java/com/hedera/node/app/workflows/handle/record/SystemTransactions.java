@@ -519,30 +519,40 @@ public class SystemTransactions {
         }
         final var existingMetadata = metadataStore.get();
         final var existingRosterHash = existingMetadata != null ? existingMetadata.rosterHash() : null;
-        if (existingRosterHash != null && rosterHash.equals(existingRosterHash)) {
-            return;
-        }
 
         final Network network = safeGetNetwork(storeFactory);
         final ReadableNodeStore nodeStore = safeGetNodeStore(storeFactory);
 
         final var includeServiceEndpoint = clprConfig.publicizeNetworkAddresses();
         final Map<Long, ServiceEndpoint> endpointByNodeId;
-        if (includeServiceEndpoint && nodeStore != null) {
-            endpointByNodeId = nodeStore.keys().stream()
+        final Map<Long, AccountID> accountIdByNodeId;
+        if (nodeStore != null) {
+            endpointByNodeId = includeServiceEndpoint
+                    ? nodeStore.keys().stream()
+                            .map(key -> nodeStore.get(key.number()))
+                            .filter(Objects::nonNull)
+                            .filter(node -> !node.serviceEndpoint().isEmpty())
+                            .collect(
+                                    HashMap::new,
+                                    (map, node) -> map.put(
+                                            node.nodeId(),
+                                            node.serviceEndpoint().getFirst()),
+                                    HashMap::putAll)
+                    : Map.of();
+            accountIdByNodeId = nodeStore.keys().stream()
                     .map(key -> nodeStore.get(key.number()))
                     .filter(Objects::nonNull)
-                    .filter(node -> !node.serviceEndpoint().isEmpty())
                     .collect(
                             HashMap::new,
-                            (map, node) -> map.put(
-                                    node.nodeId(), node.serviceEndpoint().getFirst()),
+                            (map, node) -> map.put(node.nodeId(), node.accountIdOrThrow()),
                             HashMap::putAll);
         } else {
             endpointByNodeId = Map.of();
+            accountIdByNodeId = Map.of();
         }
         final Function<Long, ServiceEndpoint> endpointProvider =
                 includeServiceEndpoint ? endpointByNodeId::get : nodeId -> null;
+        final Function<Long, AccountID> accountIdProvider = accountIdByNodeId::get;
 
         final Bytes ledgerId = existingMetadata != null && existingMetadata.ledgerId() != null
                 ? existingMetadata.ledgerId().ledgerId()
@@ -551,6 +561,17 @@ public class SystemTransactions {
         final var existingConfig = configStore != null
                 ? configStore.get(ClprLedgerId.newBuilder().ledgerId(ledgerId).build())
                 : null;
+        final var rosterChanged = existingRosterHash == null || !rosterHash.equals(existingRosterHash);
+        final var hasAdvertisedEndpoints = existingConfig != null
+                && existingConfig.endpoints().stream()
+                        .anyMatch(org.hiero.hapi.interledger.state.clpr.ClprEndpoint::hasEndpoint);
+        // Trigger regeneration when roster changes or when the stored config's endpoint visibility does not match the
+        // current publicize flag (so we add or strip endpoints accordingly).
+        final var endpointsMismatch =
+                existingConfig == null || (includeServiceEndpoint ? !hasAdvertisedEndpoints : hasAdvertisedEndpoints);
+        if (!rosterChanged && !endpointsMismatch) {
+            return;
+        }
         final var systemAdminAccountId = idFactory.newAccountId(configProvider
                 .getConfiguration()
                 .getConfigData(AccountsConfig.class)
@@ -561,7 +582,13 @@ public class SystemTransactions {
         }
         final var dispatchTime = systemContext.now();
         final var transactionBody = ClprService.buildLedgerConfigurationUpdateTransactionBody(
-                activeRoster, systemAdminAccountId, ledgerId, dispatchTime, includeServiceEndpoint, endpointProvider);
+                activeRoster,
+                systemAdminAccountId,
+                ledgerId,
+                dispatchTime,
+                includeServiceEndpoint,
+                endpointProvider,
+                accountIdProvider);
         systemContext.dispatchCreation(
                 builder -> builder.clprSetLedgerConfiguration(transactionBody.clprSetLedgerConfigurationOrThrow()), 0L);
     }

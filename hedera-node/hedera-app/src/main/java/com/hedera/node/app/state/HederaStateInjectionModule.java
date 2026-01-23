@@ -7,6 +7,7 @@ import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl;
 import com.hedera.node.app.state.recordcache.RecordCacheImpl;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -33,8 +34,9 @@ public interface HederaStateInjectionModule {
 
     @Provides
     @Singleton
-    static BlockProvenStateAccessor provideBlockProvenStateAccessor() {
-        return new BlockProvenStateAccessor();
+    static BlockProvenStateAccessor provideBlockProvenStateAccessor(
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
+        return new BlockProvenStateAccessor(stateLifecycleManager);
     }
 
     @Provides

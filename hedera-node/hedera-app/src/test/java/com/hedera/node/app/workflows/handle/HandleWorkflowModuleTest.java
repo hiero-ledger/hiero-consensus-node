@@ -310,7 +310,6 @@ class HandleWorkflowModuleTest {
     @Mock
     private ClprHandlers clprHandlers;
 
-    @Mock
     @TempDir
     java.nio.file.Path tempDir;
 

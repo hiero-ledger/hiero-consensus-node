@@ -55,6 +55,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         if (!stateProofManager.clprEnabled()) {
             throw new PreCheckException(ResponseCodeEnum.NOT_SUPPORTED);
         }
+        final var localLedgerId = getLocalLedgerIdOrThrow();
         requireNonNull(context);
         // TODO: Determine what throttles apply to this transaction.
         //  Number of state proofs per second?
@@ -80,6 +81,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             throws PreCheckException {
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
         validateTruePreCheck(clprConfig.clprEnabled(), ResponseCodeEnum.NOT_SUPPORTED);
+        final var localLedgerId = getLocalLedgerIdOrThrow();
         final var configTxnBdy = txn.clprSetLedgerConfiguration();
         validateTruePreCheck(configTxnBdy != null, ResponseCodeEnum.INVALID_TRANSACTION_BODY);
 
@@ -96,6 +98,9 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         // TODO: Check that certificates are non-empty and valid for each endpoint.
 
         final var existingConfig = stateProofManager.readLedgerConfiguration(ledgerId);
+        // Guard: prevent remote/user submissions from overwriting the local ledger configuration.
+        validateFalsePreCheck(
+                localLedgerId.equals(ledgerId) && existingConfig != null, ResponseCodeEnum.INVALID_TRANSACTION);
         if (existingConfig != null) {
             final var existingConfigTime = existingConfig.timestampOrThrow();
             final var newConfigTime = ledgerConfig.timestampOrThrow();
@@ -107,7 +112,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             return; // In all cases it is safe to update the existing ledger configuration.
         }
 
-        // there is not exiting configuration for this ledger id.
+        // there is no existing configuration for this ledger id.
         final boolean devModeEnabled = stateProofManager.isDevModeEnabled();
         if (devModeEnabled) {
             // DevMode always sets the ledger configuration if it does not already exist.
@@ -115,9 +120,15 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         }
 
         // In production mode, we need to ensure that the local ledger ID is known before accepting new configurations.
+        // This is enforced above; if we reached here, the local ledger ID is present and non-empty.
+    }
+
+    private @NonNull org.hiero.hapi.interledger.state.clpr.ClprLedgerId getLocalLedgerIdOrThrow()
+            throws PreCheckException {
         final var localLedgerId = stateProofManager.getLocalLedgerId();
         validateTruePreCheck(localLedgerId != null, ResponseCodeEnum.WAITING_FOR_LEDGER_ID);
         validateTruePreCheck(localLedgerId.ledgerId() != Bytes.EMPTY, ResponseCodeEnum.WAITING_FOR_LEDGER_ID);
+        return localLedgerId;
     }
 
     @Override
@@ -178,22 +189,27 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         final var metadataLedgerId = existingMetadata != null && existingMetadata.ledgerId() != null
                 ? existingMetadata.ledgerId()
                 : newConfig.ledgerId();
-        if (existingMetadata != null
-                && existingMetadata.ledgerId() != null
-                && existingMetadata.rosterHash() != null
-                && existingMetadata.ledgerId().equals(newConfig.ledgerId())
-                && existingMetadata.rosterHash().equals(activeRosterHash)) {
-            return;
-        }
-        metadataStore.put(ClprLocalLedgerMetadata.newBuilder()
-                .ledgerId(metadataLedgerId)
-                .rosterHash(activeRosterHash)
-                .build());
 
         final var ledgerId = newConfig.ledgerIdOrThrow();
         final var configStore = context.storeFactory().writableStore(WritableClprLedgerConfigurationStore.class);
         final var existingConfig = configStore.get(ledgerId);
-        if (updatesConfig(existingConfig, newConfig)) {
+        final var endpointVisibilityChanged = endpointVisibilityChanged(existingConfig, newConfig);
+        final var shouldUpdateConfig = updatesConfig(existingConfig, newConfig) || endpointVisibilityChanged;
+        final var metadataChanged = existingMetadata == null
+                || existingMetadata.ledgerId() == null
+                || existingMetadata.rosterHash() == null
+                || !existingMetadata.ledgerId().equals(metadataLedgerId)
+                || !existingMetadata.rosterHash().equals(activeRosterHash);
+        if (!metadataChanged && !shouldUpdateConfig) {
+            return;
+        }
+        if (metadataChanged) {
+            metadataStore.put(ClprLocalLedgerMetadata.newBuilder()
+                    .ledgerId(metadataLedgerId)
+                    .rosterHash(activeRosterHash)
+                    .build());
+        }
+        if (shouldUpdateConfig) {
             // If the configuration is an update, we store it in the writable store.
             configStore.put(newConfig);
         }
@@ -217,6 +233,22 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         final var newTime = newConfig.timestampOrThrow();
         return newTime.seconds() > existingTime.seconds()
                 || (newTime.seconds() == existingTime.seconds() && newTime.nanos() > existingTime.nanos());
+    }
+
+    private static boolean endpointVisibilityChanged(
+            @Nullable final ClprLedgerConfiguration existingConfig, @NonNull final ClprLedgerConfiguration newConfig) {
+        if (existingConfig == null) {
+            return true;
+        }
+        return hasPublicizedEndpoints(existingConfig) != hasPublicizedEndpoints(newConfig);
+    }
+
+    private static boolean hasPublicizedEndpoints(@NonNull final ClprLedgerConfiguration config) {
+        final var endpoints = config.endpoints();
+        if (endpoints.isEmpty()) {
+            return false;
+        }
+        return endpoints.stream().allMatch(org.hiero.hapi.interledger.state.clpr.ClprEndpoint::hasEndpoint);
     }
 
     @NonNull

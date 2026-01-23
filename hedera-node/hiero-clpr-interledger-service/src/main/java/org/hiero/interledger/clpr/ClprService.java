@@ -50,6 +50,7 @@ public interface ClprService extends RpcService {
      * @param consensusTime the consensus time to stamp on the configuration
      * @param includeServiceEndpoint whether to include service endpoints in the configuration
      * @param endpointProvider resolves a service endpoint for a given node id when endpoints are included
+     * @param nodeAccountIdProvider resolves the node account id for a given node id
      * @return the transaction body ready for dispatch
      */
     static @NonNull TransactionBody buildLedgerConfigurationUpdateTransactionBody(
@@ -59,8 +60,10 @@ public interface ClprService extends RpcService {
             @NonNull final java.time.Instant consensusTime,
             final boolean includeServiceEndpoint,
             @NonNull
-                    final java.util.function.Function<Long, com.hedera.hapi.node.base.ServiceEndpoint>
-                            endpointProvider) {
+                    final java.util.function.Function<Long, com.hedera.hapi.node.base.ServiceEndpoint> endpointProvider,
+            @NonNull
+                    final java.util.function.Function<Long, com.hedera.hapi.node.base.AccountID>
+                            nodeAccountIdProvider) {
         final var endpoints = new java.util.ArrayList<org.hiero.hapi.interledger.state.clpr.ClprEndpoint>();
         // Sort roster entries by nodeId to guarantee deterministic endpoint ordering in the generated config.
         activeRoster.rosterEntries().stream()
@@ -68,6 +71,10 @@ public interface ClprService extends RpcService {
                 .forEach(rosterEntry -> {
                     final var endpointBuilder = org.hiero.hapi.interledger.state.clpr.ClprEndpoint.newBuilder();
                     endpointBuilder.signingCertificate(rosterEntry.gossipCaCertificate());
+                    final var nodeAccountId = nodeAccountIdProvider.apply(rosterEntry.nodeId());
+                    if (nodeAccountId != null) {
+                        endpointBuilder.nodeAccountId(nodeAccountId);
+                    }
                     if (includeServiceEndpoint) {
                         final var serviceEndpoint = endpointProvider.apply(rosterEntry.nodeId());
                         if (serviceEndpoint != null) {

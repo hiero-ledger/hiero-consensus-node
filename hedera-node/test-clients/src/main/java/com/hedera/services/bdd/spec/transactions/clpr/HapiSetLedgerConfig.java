@@ -140,6 +140,7 @@ public class HapiSetLedgerConfig extends HapiTxnOp<HapiSetLedgerConfig> {
                             .ipAddressV4(Bytes.wrap(addressBytes))
                             .port(node.getGrpcPort())
                             .build())
+                    .nodeAccountId(node.getAccountId())
                     .signingCertificate(Bytes.wrap("test-cert".getBytes()))
                     .build();
         } catch (final java.net.UnknownHostException e) {

@@ -338,6 +338,7 @@ public interface LifecycleTest {
                     final var subProcessNetwork = spec.subProcessNetworkOrThrow();
                     setCurrentConfigVersion(spec, subProcessNetwork.currentConfigVersion(sourceNodeId));
                     baselineSignedStateRound.set(subProcessNetwork.latestSignedStateRound(sourceNodeId));
+                    subProcessNetwork.clearOverrideNetworks();
                     subProcessNetwork.assertNoOverrideNetworks();
                 }),
                 beginUpgradeToNextConfigVersion(preRestartOps),
@@ -345,9 +346,16 @@ public interface LifecycleTest {
                 waitForActive(existingSelector, RESTART_TO_ACTIVE_TIMEOUT),
                 doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
                 postResumeOps,
-                doingContextual(spec -> spec.subProcessNetworkOrThrow()
-                        .awaitSignedStateAfterRoundWithRosterEntries(
-                                sourceNodeId, baselineSignedStateRound.get(), signedStateTimeout, deferredNodeIds)),
+                doingContextual(spec -> {
+                    final var subProcessNetwork = spec.subProcessNetworkOrThrow();
+                    subProcessNetwork.awaitSignedStateAfterRoundWithRosterEntries(
+                            sourceNodeId, baselineSignedStateRound.get(), signedStateTimeout, deferredNodeIds);
+                    final var firstRound = subProcessNetwork.latestSignedStateRound(sourceNodeId);
+                    // Recommended: wait for a second signed state so copied PCES has fewer events
+                    // from nodes removed from the roster.
+                    subProcessNetwork.awaitSignedStateAfterRoundWithRosterEntries(
+                            sourceNodeId, firstRound, signedStateTimeout, deferredNodeIds);
+                }),
                 doingContextual(spec -> {
                     final var subProcessNetwork = spec.subProcessNetworkOrThrow();
                     for (final var deferredNodeId : deferredNodeIds) {
@@ -577,6 +585,7 @@ public interface LifecycleTest {
         return blockingOrder(
                 doingContextual(spec -> {
                     if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                        subProcessNetwork.clearOverrideNetworks();
                         subProcessNetwork.assertNoOverrideNetworks();
                     }
                 }),

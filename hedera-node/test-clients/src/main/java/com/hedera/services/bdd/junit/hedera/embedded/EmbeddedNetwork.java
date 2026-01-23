@@ -232,9 +232,13 @@ public class EmbeddedNetwork extends AbstractNetwork {
     }
 
     private Map<Long, com.hedera.hapi.node.base.ServiceEndpoint> grpcServiceEndpoints() {
+        final var grpcPort = embeddedNode.getGrpcPort();
+        if (grpcPort <= 0) {
+            return Map.of();
+        }
         return Map.of(
                 embeddedNode.getNodeId(),
-                HapiPropertySource.asServiceEndpoint(embeddedNode.getHost() + ":" + embeddedNode.getGrpcPort()));
+                HapiPropertySource.asServiceEndpoint(embeddedNode.getHost() + ":" + grpcPort));
     }
 
     @Override

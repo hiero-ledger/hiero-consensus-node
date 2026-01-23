@@ -9,6 +9,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collections;
 import java.util.function.Consumer;
 
 /**
@@ -28,11 +29,23 @@ public class MutateStakingInfosOp extends UtilOp {
         requireNonNull(spec);
         final var nodes = spec.embeddedStakingInfosOrThrow();
         final var targetId = toPbj(TxnUtils.asNodeId(node, spec));
-        final var node = requireNonNull(nodes.get(targetId));
-        final var builder = node.copyBuilder();
+        final var existing = nodes.get(targetId);
+        final var builder = (existing != null ? existing : defaultStakingInfo(targetId.number(), spec)).copyBuilder();
         mutation.accept(builder);
         nodes.put(targetId, builder.build());
         spec.commitEmbeddedState();
         return false;
+    }
+
+    private static StakingNodeInfo defaultStakingInfo(final long nodeId, @NonNull final HapiSpec spec) {
+        final var props = spec.startupProperties();
+        final var rewardHistoryLen = props.getInteger("staking.rewardHistory.numStoredPeriods") + 1;
+        final var rewardSumHistory = Collections.nCopies(rewardHistoryLen, 0L);
+        return StakingNodeInfo.newBuilder()
+                .nodeNumber(nodeId)
+                .minStake(props.getLong("staking.minStake"))
+                .maxStake(props.getLong("staking.maxStake"))
+                .rewardSumHistory(rewardSumHistory)
+                .build();
     }
 }
