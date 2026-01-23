@@ -333,24 +333,6 @@ public class TopicSubmitMessageSimpleFeesTest {
             }
 
             @HapiTest
-            @DisplayName("SubmitMessage - message too large fails at handle - fee charged")
-            final Stream<DynamicTest> submitMessageTooLargeFailsAtHandle() {
-                final String message = "x".repeat(1025); // Over 1024 byte limit
-
-                return hapiTest(
-                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER).fee(ONE_HUNDRED_HBARS),
-                        submitMessageTo(TOPIC)
-                                .message(message)
-                                .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("submitMessageTxn")
-                                .hasPrecheckFrom(OK, TRANSACTION_OVERSIZE)
-                                .hasKnownStatus(MESSAGE_SIZE_TOO_LARGE));
-            }
-
-            @HapiTest
             @DisplayName("SubmitMessage - empty message fails on ingest - no fee charged")
             final Stream<DynamicTest> submitMessageEmptyFailsOnIngest() {
                 final AtomicLong initialBalance = new AtomicLong();
@@ -431,22 +413,72 @@ public class TopicSubmitMessageSimpleFeesTest {
         class SubmitMessageFailuresOnHandle {
 
             @HapiTest
-            @DisplayName("SubmitMessage - invalid topic fails - fee charged")
-            final Stream<DynamicTest> submitMessageInvalidTopicFails() {
+            @DisplayName("SubmitMessage - message too large fails at handle - fee charged")
+            final Stream<DynamicTest> submitMessageTooLargeFailsAtHandle() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+                final String message = "x".repeat(1025); // Over 1024 byte limit
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        submitMessageTo("0.0.99999999") // Invalid topic
-                                .message("test message")
+                        createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER).fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                        submitMessageTo(TOPIC)
+                                .message(message)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("submitMessageTxn")
-                                .hasKnownStatus(INVALID_TOPIC_ID));
+                                .hasPrecheckFrom(OK, TRANSACTION_OVERSIZE)
+                                .hasKnownStatus(MESSAGE_SIZE_TOO_LARGE),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsdWithTxnSize(
+                                "submitMessageTxn",
+                                initialBalance,
+                                afterBalance,
+                                txnSize -> expectedTopicSubmitMessageFullFeeUsd(1L, message.length(), txnSize),
+                                1.0));
+            }
+
+            @HapiTest
+            @DisplayName("SubmitMessage - invalid topic fails - fee charged")
+            final Stream<DynamicTest> submitMessageInvalidTopicFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+                final String message = "test message";
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                        submitMessageTo("0.0.99999999") // Invalid topic
+                                .message(message)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("submitMessageTxn")
+                                .hasKnownStatus(INVALID_TOPIC_ID),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsdWithTxnSize(
+                                "submitMessageTxn",
+                                initialBalance,
+                                afterBalance,
+                                txnSize -> expectedTopicSubmitMessageFullFeeUsd(1L, message.length(), txnSize),
+                                1.0));
             }
 
             @HapiTest
             @DisplayName("SubmitMessage - deleted topic fails - fee charged")
             final Stream<DynamicTest> submitMessageDeletedTopicFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
+                final String message = "test message";
+
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(ADMIN_KEY),
@@ -459,13 +491,24 @@ public class TopicSubmitMessageSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY)
                                 .fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         submitMessageTo(TOPIC)
-                                .message("test message")
+                                .message(message)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("submitMessageTxn")
-                                .hasKnownStatus(INVALID_TOPIC_ID));
+                                .hasKnownStatus(INVALID_TOPIC_ID),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsdWithTxnSize(
+                                "submitMessageTxn",
+                                initialBalance,
+                                afterBalance,
+                                txnSize -> expectedTopicSubmitMessageFullFeeUsd(1L, message.length(), txnSize),
+                                1.0));
             }
 
             @HapiTest
@@ -506,11 +549,14 @@ public class TopicSubmitMessageSimpleFeesTest {
             @HapiTest
             @DisplayName("SubmitMessage - invalid chunk number fails at handle - fee charged")
             final Stream<DynamicTest> submitMessageInvalidChunkNumberFails() {
+                final AtomicLong initialBalance = new AtomicLong();
+                final AtomicLong afterBalance = new AtomicLong();
                 final String message = "test message";
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER).fee(ONE_HUNDRED_HBARS),
+                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         submitMessageTo(TOPIC)
                                 .message(message)
                                 .chunkInfo(5, 10) // Invalid chunk info (chunk 5 of 10, but no initial txn ID)
@@ -518,7 +564,17 @@ public class TopicSubmitMessageSimpleFeesTest {
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("submitMessageTxn")
-                                .hasKnownStatus(INVALID_CHUNK_NUMBER));
+                                .hasKnownStatus(INVALID_CHUNK_NUMBER),
+                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                        withOpContext((spec, log) -> {
+                            assertTrue(initialBalance.get() > afterBalance.get());
+                        }),
+                        validateChargedFeeToUsdWithTxnSize(
+                                "submitMessageTxn",
+                                initialBalance,
+                                afterBalance,
+                                txnSize -> expectedTopicSubmitMessageFullFeeUsd(1L, message.length(), txnSize),
+                                1.0));
             }
         }
     }
