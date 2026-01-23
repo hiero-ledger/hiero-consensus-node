@@ -52,7 +52,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
- * Message based implementation of gossip; currently supporting sync and simplistic broadcast Responsible for
+ * Message based implementation of gossip; currently supporting sync and simplistic broadcast. Responsible for
  * communication with a single peer
  */
 public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
