@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.fees.FileServiceSimpleFeesTest.SINGLE_BYTE_FEE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -236,16 +237,19 @@ public class ConsensusServiceSimpleFeesSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> maxAllowedBytesIncludedInBaseFee() {
+    final Stream<DynamicTest> maxAllowedBytesChargesAdditionalNodeFee() {
         final var payload = "a".repeat(1024);
+        // 1153 is total transaction size - 1024 included bytes
+        final var feeFromNodeBytes = (1153 - 1024) * (10 * SINGLE_BYTE_FEE);
         return hapiTest(
                 cryptoCreate("payer"),
                 createTopic("customTopic"),
                 submitMessageTo("customTopic")
                         .message(payload)
                         .payingWith("payer")
+                        .memo("test")
                         .fee(ONE_HBAR)
                         .via("submitTxn"),
-                validateChargedUsd("submitTxn", EXPECTED_SUBMIT_MESSAGE_FEE));
+                validateChargedUsd("submitTxn", EXPECTED_SUBMIT_MESSAGE_FEE + feeFromNodeBytes));
     }
 }
