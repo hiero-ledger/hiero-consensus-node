@@ -15,9 +15,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.BYTES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BASE_USD;
 
@@ -239,17 +240,15 @@ public class ConsensusServiceSimpleFeesSuite {
     @HapiTest
     final Stream<DynamicTest> maxAllowedBytesChargesAdditionalNodeFee() {
         final var payload = "a".repeat(1024);
-        // 1153 is total transaction size - 1024 included bytes
-        final var feeFromNodeBytes = (1153 - 1024) * (10 * BYTES_FEE_USD);
         return hapiTest(
                 cryptoCreate("payer"),
                 createTopic("customTopic"),
                 submitMessageTo("customTopic")
                         .message(payload)
                         .payingWith("payer")
-                        .memo("test")
                         .fee(ONE_HBAR)
                         .via("submitTxn"),
-                validateChargedUsd("submitTxn", SUBMIT_MESSAGE_BASE_FEE_USD + feeFromNodeBytes));
+                withOpContext((spec, opLog) -> validateChargedUsd(
+                        "submitTxn", SUBMIT_MESSAGE_BASE_FEE_USD + expectedFeeFromBytesFor(spec, opLog, "submitTxn"))));
     }
 }

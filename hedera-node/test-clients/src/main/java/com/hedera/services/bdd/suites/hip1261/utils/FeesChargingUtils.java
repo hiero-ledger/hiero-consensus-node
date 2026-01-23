@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
 import static com.hedera.services.bdd.suites.fees.FileServiceSimpleFeesTest.SINGLE_BYTE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ACCOUNTS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_BASE_FEE_USD;
@@ -41,6 +42,7 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntToDoubleFunction;
+import org.apache.logging.log4j.Logger;
 
 public class FeesChargingUtils {
     private static final int NODE_INCLUDED_BYTES = 1024;
@@ -481,5 +483,22 @@ public class FeesChargingUtils {
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(chargedUsd, 4), txnId, allowedPercentDifference));
         });
+    }
+
+    public static double expectedFeeFromBytesFor(HapiSpec spec, Logger opLog, String txnName) {
+        // Get the transaction bytes from the registry
+        final var txnBytes = spec.registry().getBytes(txnName);
+        final var txnSize = txnBytes.length;
+
+        // Node fee BYTES extra: (txnBytes - 1024) * BYTES_FEE_USD * networkMultiplier
+        final var nodeBytesOverage = Math.max(0, txnSize - 1024);
+        double expectedFee = nodeBytesOverage * BYTES_FEE_USD * 10;
+
+        opLog.info(
+                "Transaction size: {} bytes, node bytes overage: {}, expected fee: {}",
+                txnSize,
+                nodeBytesOverage,
+                expectedFee);
+        return expectedFee;
     }
 }
