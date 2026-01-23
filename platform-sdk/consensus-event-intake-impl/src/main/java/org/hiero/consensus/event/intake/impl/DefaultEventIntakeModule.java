@@ -6,8 +6,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.auto.service.AutoService;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.transformers.WireTransformer;
@@ -31,6 +29,7 @@ import org.hiero.consensus.event.intake.impl.signature.DefaultEventSignatureVali
 import org.hiero.consensus.event.intake.impl.signature.EventSignatureValidator;
 import org.hiero.consensus.event.intake.impl.validation.DefaultInternalEventValidator;
 import org.hiero.consensus.event.intake.impl.validation.InternalEventValidator;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -80,7 +79,6 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             @NonNull final NodeId selfId,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits,
-            @NonNull final RecycleBin recycleBin,
             final long startingRound,
             @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
@@ -139,24 +137,28 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             pipelineTracker.registerMetric("hashing");
             this.eventHasherWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent));
+                    .solderForMonitoring(
+                            platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent.getTimeReceived()));
             pipelineTracker.registerMetric("validation");
             this.eventValidatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("validation", platformEvent));
+                    .solderForMonitoring(platformEvent ->
+                            pipelineTracker.recordEvent("validation", platformEvent.getTimeReceived()));
             pipelineTracker.registerMetric("deduplication");
             this.eventDeduplicatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("deduplication", platformEvent));
+                    .solderForMonitoring(platformEvent ->
+                            pipelineTracker.recordEvent("deduplication", platformEvent.getTimeReceived()));
             pipelineTracker.registerMetric("verification");
             this.eventSignatureValidatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("verification", platformEvent));
+                    .solderForMonitoring(platformEvent ->
+                            pipelineTracker.recordEvent("verification", platformEvent.getTimeReceived()));
             pipelineTracker.registerMetric("orphanBuffer");
             this.orphanBufferWiring
-                    .getOutputWire()
-                    .solderForMonitoring(
-                            platformEvents -> pipelineTracker.recordEvents("orphanBuffer", platformEvents));
+                    .getSplitOutput()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent(
+                            "orphanBuffer", ((PlatformEvent) platformEvent).getTimeReceived()));
         }
 
         // Force not soldered wires to be built

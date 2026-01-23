@@ -183,7 +183,7 @@ public class TransactionExecutorsTest {
 
     @Test
     void executesTransactionsAsExpected() {
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "false");
         // Construct a full implementation of the consensus node State API with all genesis accounts and files
         final var state = genesisState(overrides);
 
