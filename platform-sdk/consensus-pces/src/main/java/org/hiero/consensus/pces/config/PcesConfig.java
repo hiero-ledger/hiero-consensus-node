@@ -52,8 +52,7 @@ import java.time.Duration;
  *                                             events to be added to the hashgraph without their parents being added. Or
  *                                             Both. Use this with caution.
  * @param databaseDirectory                    the directory where preconsensus events will be stored, relative to
- *                                             {@link
- *                                             com.swirlds.common.config.StateCommonConfig#savedStateDirectory()}.
+ *                                             {@code StateCommonConfig#savedStateDirectory()}.
  * @param copyRecentStreamToStateSnapshots     if true, then copy recent PCES files into the saved state snapshot
  *                                             directories every time we take a state snapshot. The files copied are
  *                                             guaranteed to contain all non-ancient events w.r.t. the state snapshot.
