@@ -3,6 +3,9 @@
     "baseFee": 100000,
     "extras": [
       {
+        "name": "BYTES", "includedCount": 1024
+      },
+      {
         "name": "SIGNATURES", "includedCount": 1
       }
     ]
@@ -661,7 +664,8 @@
             },
             {
               "name": "KEYS",
-              "includedCount": 1}
+              "includedCount": 1
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 80000,
@@ -708,6 +712,25 @@
               }
             }
           }
+        },
+        {
+          "name": "ContractCallLocal",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "ContractGetBytecode",
+          "baseFee": 0,
+          "extras": [
+            {
+              "name": "BYTES", "includedCount": 1000
+            }
+          ]
+        },
+        {
+          "name": "ContractGetInfo",
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },

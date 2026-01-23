@@ -49,6 +49,7 @@ import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -89,12 +90,21 @@ class QueryCheckerTest extends AppTestBase {
     @Mock
     private Configuration configuration;
 
+    @Mock
+    private IngestChecker ingestChecker;
+
     private QueryChecker checker;
 
     @BeforeEach
     void setup() {
         checker = new QueryChecker(
-                authorizer, cryptoTransferHandler, solvencyPreCheck, expiryValidation, feeManager, dispatcher);
+                authorizer,
+                cryptoTransferHandler,
+                solvencyPreCheck,
+                expiryValidation,
+                feeManager,
+                dispatcher,
+                ingestChecker);
     }
 
     @AfterEach
@@ -108,78 +118,149 @@ class QueryCheckerTest extends AppTestBase {
     @Test
     void testConstructorWithIllegalArguments() {
         assertThatThrownBy(() -> new QueryChecker(
-                        null, cryptoTransferHandler, solvencyPreCheck, expiryValidation, feeManager, dispatcher))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() ->
-                        new QueryChecker(authorizer, null, solvencyPreCheck, expiryValidation, feeManager, dispatcher))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new QueryChecker(
-                        authorizer, cryptoTransferHandler, null, expiryValidation, feeManager, dispatcher))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new QueryChecker(
-                        authorizer, cryptoTransferHandler, solvencyPreCheck, null, feeManager, dispatcher))
+                        null,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                        authorizer, cryptoTransferHandler, solvencyPreCheck, expiryValidation, null, dispatcher))
+                        authorizer, null, solvencyPreCheck, expiryValidation, feeManager, dispatcher, ingestChecker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        null,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        ingestChecker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        null,
+                        feeManager,
+                        dispatcher,
+                        ingestChecker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        null,
+                        dispatcher,
+                        ingestChecker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        null,
+                        ingestChecker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        null))
                 .isInstanceOf(NullPointerException.class);
     }
 
-    @SuppressWarnings("ConstantConditions")
-    @Test
-    void testValidateCryptoTransferWithIllegalArguments() {
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(null)).isInstanceOf(NullPointerException.class);
-    }
+    @Nested
+    @DisplayName("Tests for validating crypto transfer")
+    class ValidateCryptoTransferTests {
 
-    @Test
-    void testValidateCryptoTransferSucceeds() {
-        // given
-        final var txBody = TransactionBody.newBuilder()
-                .transactionID(
-                        TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
-                .build();
-        final var signatureMap = SignatureMap.newBuilder().build();
-        final var transactionInfo = new TransactionInfo(
-                SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+        private ReadableAccountStore store;
 
-        // when
-        assertThatCode(() -> checker.validateCryptoTransfer(transactionInfo)).doesNotThrowAnyException();
-    }
+        @BeforeEach
+        void setup() {
+            setupStandardStates();
 
-    @Test
-    void testValidateCryptoTransferWithWrongTransactionType() {
-        // given
-        final var txBody = TransactionBody.newBuilder()
-                .transactionID(
-                        TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
-                .build();
-        final var signatureMap = SignatureMap.newBuilder().build();
-        final var transactionInfo = new TransactionInfo(
-                SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CONSENSUS_CREATE_TOPIC, null);
+            final var storeFactory = new ReadableStoreFactory(state);
+            store = storeFactory.getStore(ReadableAccountStore.class);
+        }
 
-        // then
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))
-                .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INSUFFICIENT_TX_FEE));
-    }
+        @SuppressWarnings("ConstantConditions")
+        @Test
+        void testValidateCryptoTransferWithIllegalArguments() {
+            final var txInfo = createPaymentInfo(ALICE.accountID());
 
-    @Test
-    void testValidateCryptoTransferWithFailingValidation() throws PreCheckException {
-        // given
-        final var txBody = TransactionBody.newBuilder()
-                .transactionID(
-                        TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
-                .build();
-        final var signatureMap = SignatureMap.newBuilder().build();
-        final var transactionInfo = new TransactionInfo(
-                SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CRYPTO_TRANSFER, null);
-        doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
-                .when(cryptoTransferHandler)
-                .pureChecks(any());
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(null, txInfo, configuration))
+                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, null, configuration))
+                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, txInfo, null))
+                    .isInstanceOf(NullPointerException.class);
+        }
 
-        // then
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))
-                .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
+        @Test
+        void testValidateCryptoTransferSucceeds() {
+            // given
+            final var txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.DEFAULT)
+                            .build())
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .transfers(TransferList.newBuilder().build())
+                            .build())
+                    .build();
+            final var signatureMap = SignatureMap.newBuilder().build();
+            final var transactionInfo = new TransactionInfo(
+                    SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+
+            // when
+            assertThatCode(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        void testValidateCryptoTransferWithWrongTransactionType() {
+            // given
+            final var txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.DEFAULT)
+                            .build())
+                    .build();
+            final var signatureMap = SignatureMap.newBuilder().build();
+            final var transactionInfo = new TransactionInfo(
+                    SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CONSENSUS_CREATE_TOPIC, null);
+
+            // then
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INSUFFICIENT_TX_FEE));
+        }
+
+        @Test
+        void testValidateCryptoTransferWithFailingValidation() throws PreCheckException {
+            // given
+            final var txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.DEFAULT)
+                            .build())
+                    .build();
+            final var signatureMap = SignatureMap.newBuilder().build();
+            final var transactionInfo = new TransactionInfo(
+                    SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+            doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
+                    .when(cryptoTransferHandler)
+                    .pureChecks(any());
+
+            // then
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
+        }
     }
 
     @SuppressWarnings("ConstantConditions")
