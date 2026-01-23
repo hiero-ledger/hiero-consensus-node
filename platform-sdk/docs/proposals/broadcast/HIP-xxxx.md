@@ -25,7 +25,7 @@ As a reliability measure, the standard gossip synchronization protocol continues
 
 - Temporary node disconnections
 - Network latency or congestion
-- Malicious nodes failing to selectively broadcast events
+- Nodes failing to broadcast events
 
 This dual approach - combining immediate broadcast with periodic gossip sync - helps ensure both speed and reliability in the network's event distribution system.
 
