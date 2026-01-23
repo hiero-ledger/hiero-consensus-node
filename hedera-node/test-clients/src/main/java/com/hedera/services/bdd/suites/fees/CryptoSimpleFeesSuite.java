@@ -16,6 +16,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.HapiSuite.*;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.util.List.*;
@@ -405,7 +408,7 @@ public class CryptoSimpleFeesSuite {
                         .payingWith(PAYER)
                         .addCryptoAllowance(PAYER, "spender", 100L)
                         .via("approveTxn"),
-                validateChargedUsd("approveTxn", 0.05));
+                validateChargedUsd("approveTxn", CRYPTO_APPROVE_ALLOWANCE_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -423,7 +426,7 @@ public class CryptoSimpleFeesSuite {
                         .addCryptoAllowance(PAYER, "spender2", 200L)
                         .addCryptoAllowance(PAYER, "spender3", 300L)
                         .via("approveMultipleTxn"),
-                validateChargedUsd("approveMultipleTxn", 0.151099999599999994));
+                validateChargedUsd("approveMultipleTxn", 3 * CRYPTO_APPROVE_ALLOWANCE_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -441,7 +444,7 @@ public class CryptoSimpleFeesSuite {
                         .payingWith(PAYER)
                         .addNftDeleteAllowance(PAYER, "nft1", of(1L))
                         .via("deleteTxn"),
-                validateChargedUsd("deleteTxn", 0.05));
+                validateChargedUsd("deleteTxn", CRYPTO_DELETE_ALLOWANCE_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -474,7 +477,7 @@ public class CryptoSimpleFeesSuite {
                         .addNftDeleteAllowance(PAYER, "nft2", of(1L))
                         .addNftDeleteAllowance(PAYER, "nft3", of(1L))
                         .via("deleteMultipleTxn"),
-                validateChargedUsd("deleteMultipleTxn", 0.151099999599999994));
+                validateChargedUsd("deleteMultipleTxn", 3 * CRYPTO_DELETE_ALLOWANCE_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -490,7 +493,8 @@ public class CryptoSimpleFeesSuite {
                         .addCryptoAllowance(PAYER, "spender", 100L)
                         .signedBy("payerKey", "spenderKey")
                         .via("approveMultiSigTxn"),
-                validateChargedUsd("approveMultiSigTxn", 0.0500999988));
+                validateChargedUsd(
+                        "approveMultiSigTxn", CRYPTO_APPROVE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -511,6 +515,6 @@ public class CryptoSimpleFeesSuite {
                         .addNftDeleteAllowance(PAYER, "nft1", of(1L))
                         .signedBy("payerKey", "extraKey")
                         .via("deleteMultiSigTxn"),
-                validateChargedUsd("deleteMultiSigTxn", 0.0500999988));
+                validateChargedUsd("deleteMultiSigTxn", CRYPTO_DELETE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
     }
 }

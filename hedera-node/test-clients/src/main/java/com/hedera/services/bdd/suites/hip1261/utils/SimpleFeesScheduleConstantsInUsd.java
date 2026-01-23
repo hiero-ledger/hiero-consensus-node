@@ -23,6 +23,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double KEYS_FEE_USD = 0.01;
     public static final double NFT_SERIALS_FEE_USD = 0.00089;
     public static final double ACCOUNTS_FEE_USD = 0.0001;
+    public static final double SIGNATURE_FEE_AFTER_MULTIPLIER = (NETWORK_MULTIPLIER + 1) * SIGNATURE_FEE_USD;
 
     public static final double FUNGIBLE_TOKENS_FEE_USD = 0.0001;
     public static final double NON_FUNGIBLE_TOKENS_FEE_USD = 0.0001;
@@ -62,6 +63,9 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long CRYPTO_TRANSFER_INCLUDED_ACCOUNTS = 2L;
     public static final long CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS = 1L;
     public static final long CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS = 1L;
+
+    public static final double CRYPTO_APPROVE_ALLOWANCE_FEE = 0.05;
+    public static final double CRYPTO_DELETE_ALLOWANCE_FEE = 0.05;
 
     /* ---------- Consensus service ---------- */
 
