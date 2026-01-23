@@ -86,7 +86,7 @@ public class AbstractShadowgraphSynchronizer {
     /**
      * For events that are self events or ancestors of self events, we must have had this event for at least this amount
      * of time before it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce
-     * the duplicate ration when using broadcast. Not active if broadcast is disabled.
+     * the duplicate ratio when using broadcast. Not active if broadcast is disabled.
      */
     private final Duration ancestorFilterThreshold;
 
