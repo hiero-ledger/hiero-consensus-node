@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees.util;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
@@ -54,5 +55,25 @@ public class FeeUtils {
             return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
         }
         return amount * hbarEquiv / rate.getCentEquiv();
+    }
+
+    /**
+     * Converts a `FeeResult` object to a `Fees` object using the provided exchange rate and
+     * applies a congestion multiplier to each fee component.
+     *
+     * @param feeResult The `FeeResult` object containing node, network, and service fees in tinycents.
+     * @param rate The `ExchangeRate` object used to convert tinycents to tinybars.
+     * @param congestionMultiplier The multiplier to apply for congestion pricing.
+     * @return A `Fees` object containing the converted and multiplied fees in tinybars.
+     */
+    public static Fees feeResultToFeesWithMultiplier(
+            FeeResult feeResult, ExchangeRate rate, long congestionMultiplier) {
+        final long unscaledNode = tinycentsToTinybars(feeResult.node, rate);
+        final long unscaledNetwork = tinycentsToTinybars(feeResult.network, rate);
+        final long unscaledService = tinycentsToTinybars(feeResult.service, rate);
+        return new Fees(
+                clampedMultiply(unscaledNode, congestionMultiplier),
+                clampedMultiply(unscaledNetwork, congestionMultiplier),
+                clampedMultiply(unscaledService, congestionMultiplier));
     }
 }

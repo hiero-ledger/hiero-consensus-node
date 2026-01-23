@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.dispatcher;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -170,6 +173,11 @@ class TransactionDispatcherTest {
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
             given(simpleFeeCalculator.calculateTxFee(txBody, feeContext)).willReturn(feeResult);
 
+            // And: No congestion (multiplier is 1)
+            given(feeManager.congestionMultiplierFor(
+                            eq(txBody), any(com.hedera.hapi.node.base.HederaFunctionality.class), eq(feeContext)))
+                    .willReturn(1L);
+
             // When
             final var result = subject.dispatchComputeFees(feeContext);
 
@@ -216,6 +224,95 @@ class TransactionDispatcherTest {
             verify(feeManager, never()).getSimpleFeeCalculator();
 
             assertThat(result).isEqualTo(handlerFees);
+        }
+    }
+
+    @Nested
+    @DisplayName("Congestion Multiplier Tests")
+    class CongestionMultiplierTests {
+
+        @Test
+        @DisplayName("Congestion multiplier is applied to simple fees")
+        void testCongestionMultiplierAppliedToSimpleFees() {
+            // Given: Simple fees are enabled
+            given(feeContext.configuration()).willReturn(configuration);
+            given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
+            given(feesConfig.simpleFeesEnabled()).willReturn(true);
+
+            // And: Transaction body is CryptoTransfer
+            final var txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.newBuilder().accountNum(1001).build())
+                            .transactionValidStart(
+                                    Timestamp.newBuilder().seconds(1234567L).build())
+                            .build())
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().build())
+                    .build();
+            given(feeContext.body()).willReturn(txBody);
+            given(feeContext.activeRate()).willReturn(testExchangeRate);
+
+            // And: Simple fee calculator returns a fee result
+            final var feeResult = new FeeResult();
+            feeResult.node = 12L; // With rate 1:12, this becomes 1 tinybar
+            feeResult.network = 24L; // With rate 1:12, this becomes 2 tinybars
+            feeResult.service = 36L; // With rate 1:12, this becomes 3 tinybars
+            given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
+            given(simpleFeeCalculator.calculateTxFee(txBody, feeContext)).willReturn(feeResult);
+
+            // And: Congestion multiplier is 7x
+            given(feeManager.congestionMultiplierFor(eq(txBody), eq(CRYPTO_TRANSFER), eq(feeContext)))
+                    .willReturn(7L);
+
+            // When
+            final var result = subject.dispatchComputeFees(feeContext);
+
+            // Then: Fees should be multiplied by 7
+            assertThat(result).isNotNull();
+            assertThat(result.nodeFee()).isEqualTo(7L); // 1 * 7
+            assertThat(result.networkFee()).isEqualTo(14L); // 2 * 7
+            assertThat(result.serviceFee()).isEqualTo(21L); // 3 * 7
+        }
+
+        @Test
+        @DisplayName("Congestion multiplier of 1 returns base fees")
+        void testCongestionMultiplierOfOneReturnsBaseFees() {
+            // Given: Simple fees are enabled
+            given(feeContext.configuration()).willReturn(configuration);
+            given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
+            given(feesConfig.simpleFeesEnabled()).willReturn(true);
+
+            // And: Transaction body is CryptoTransfer
+            final var txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.newBuilder().accountNum(1001).build())
+                            .transactionValidStart(
+                                    Timestamp.newBuilder().seconds(1234567L).build())
+                            .build())
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().build())
+                    .build();
+            given(feeContext.body()).willReturn(txBody);
+            given(feeContext.activeRate()).willReturn(testExchangeRate);
+
+            // And: Simple fee calculator returns a fee result
+            final var feeResult = new FeeResult();
+            feeResult.node = 12L; // With rate 1:12, this becomes 1 tinybar
+            feeResult.network = 24L; // With rate 1:12, this becomes 2 tinybars
+            feeResult.service = 36L; // With rate 1:12, this becomes 3 tinybars
+            given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
+            given(simpleFeeCalculator.calculateTxFee(txBody, feeContext)).willReturn(feeResult);
+
+            // And: No congestion (multiplier is 1)
+            given(feeManager.congestionMultiplierFor(eq(txBody), eq(CRYPTO_TRANSFER), eq(feeContext)))
+                    .willReturn(1L);
+
+            // When
+            final var result = subject.dispatchComputeFees(feeContext);
+
+            // Then: Fees should be unchanged (multiplied by 1)
+            assertThat(result).isNotNull();
+            assertThat(result.nodeFee()).isEqualTo(1L);
+            assertThat(result.networkFee()).isEqualTo(2L);
+            assertThat(result.serviceFee()).isEqualTo(3L);
         }
     }
 }

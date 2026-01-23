@@ -75,4 +75,65 @@ class FeeUtilsTest {
         long result = FeeUtils.tinycentsToTinybars(10, rate);
         assertEquals(25, result); // (10 * 5) / 2 = 25
     }
+
+    @Test
+    void feeResultToFeesWithMultiplier_appliesMultiplierCorrectly() {
+        ExchangeRate rate = mock(ExchangeRate.class);
+        when(rate.getHbarEquiv()).thenReturn(2);
+        when(rate.getCentEquiv()).thenReturn(1);
+
+        FeeResult feeResult = new FeeResult();
+        feeResult.node = 10;
+        feeResult.network = 20;
+        feeResult.service = 30;
+
+        long multiplier = 7L;
+        Fees fees = FeeUtils.feeResultToFeesWithMultiplier(feeResult, rate, multiplier);
+
+        // Without multiplier: node=20, network=40, service=60
+        // With 7x multiplier: node=140, network=280, service=420
+        assertEquals(140, fees.nodeFee());
+        assertEquals(280, fees.networkFee());
+        assertEquals(420, fees.serviceFee());
+    }
+
+    @Test
+    void feeResultToFeesWithMultiplier_handlesNoMultiplier() {
+        ExchangeRate rate = mock(ExchangeRate.class);
+        when(rate.getHbarEquiv()).thenReturn(2);
+        when(rate.getCentEquiv()).thenReturn(1);
+
+        FeeResult feeResult = new FeeResult();
+        feeResult.node = 10;
+        feeResult.network = 20;
+        feeResult.service = 30;
+
+        long multiplier = 1L;
+        Fees fees = FeeUtils.feeResultToFeesWithMultiplier(feeResult, rate, multiplier);
+
+        // With multiplier=1, should be same as without multiplier
+        assertEquals(20, fees.nodeFee());
+        assertEquals(40, fees.networkFee());
+        assertEquals(60, fees.serviceFee());
+    }
+
+    @Test
+    void feeResultToFeesWithMultiplier_clampsOnOverflow() {
+        ExchangeRate rate = mock(ExchangeRate.class);
+        when(rate.getHbarEquiv()).thenReturn(1);
+        when(rate.getCentEquiv()).thenReturn(1);
+
+        FeeResult feeResult = new FeeResult();
+        feeResult.node = Long.MAX_VALUE / 2;
+        feeResult.network = Long.MAX_VALUE / 2;
+        feeResult.service = Long.MAX_VALUE / 2;
+
+        long multiplier = 10L; // This will cause overflow
+        Fees fees = FeeUtils.feeResultToFeesWithMultiplier(feeResult, rate, multiplier);
+
+        // All values should be clamped to Long.MAX_VALUE
+        assertEquals(Long.MAX_VALUE, fees.nodeFee());
+        assertEquals(Long.MAX_VALUE, fees.networkFee());
+        assertEquals(Long.MAX_VALUE, fees.serviceFee());
+    }
 }
