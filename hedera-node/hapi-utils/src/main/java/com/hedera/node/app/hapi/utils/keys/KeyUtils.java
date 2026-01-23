@@ -114,7 +114,7 @@ public final class KeyUtils {
             if (pemBytes.length > MAX_PEM_BYTES) {
                 throw new IllegalArgumentException("PEM input too large");
             }
-            try (final var pemReader =
+            try (var pemReader =
                     new PemReader(new InputStreamReader(new ByteArrayInputStream(pemBytes), StandardCharsets.UTF_8))) {
                 final PemObject pemObject = pemReader.readPemObject();
                 if (pemObject == null) {

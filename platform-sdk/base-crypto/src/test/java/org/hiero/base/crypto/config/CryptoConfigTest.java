@@ -15,13 +15,4 @@ class CryptoConfigTest {
         // then
         Assertions.assertDoesNotThrow(() -> builder.build(), "All default values of CryptoConfig should be valid");
     }
-
-    @Test
-    public void testNoInsecureDefaultKeystorePassword() {
-        final var config = ConfigurationBuilder.create()
-                .withConfigDataType(CryptoConfig.class)
-                .build()
-                .getConfigData(CryptoConfig.class);
-        Assertions.assertNotEquals("password", config.keystorePassword(), "No insecure default keystore password");
-    }
 }

@@ -54,12 +54,12 @@ public final class KeystorePasswordPolicy {
         boolean hasSpecial = false;
 
         for (int i = 0; i < password.length(); i++) {
-            final char c = password.charAt(i);
-            if (Character.isUpperCase(c)) {
+            final char characterAt = password.charAt(i);
+            if (Character.isUpperCase(characterAt)) {
                 hasUpper = true;
-            } else if (Character.isLowerCase(c)) {
+            } else if (Character.isLowerCase(characterAt)) {
                 hasLower = true;
-            } else if (Character.isDigit(c)) {
+            } else if (Character.isDigit(characterAt)) {
                 hasDigit = true;
             } else {
                 hasSpecial = true;

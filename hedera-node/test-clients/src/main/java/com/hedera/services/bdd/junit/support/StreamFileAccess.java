@@ -179,7 +179,7 @@ public enum StreamFileAccess {
     public static RecordStreamFile ensurePresentRecordFile(final String f) {
         try {
             final var parent = new File(f).getParentFile();
-            final var authorizedDir = parent == null ? java.nio.file.Path.of("") : parent.toPath();
+            final var authorizedDir = parent == null ? Path.of("") : parent.toPath();
             final var contents = readMaybeCompressedRecordStreamFile(authorizedDir, f);
             if (contents.getRight().isEmpty()) {
                 throw new IllegalArgumentException("No record found in " + f);
@@ -193,7 +193,7 @@ public enum StreamFileAccess {
     public static SidecarFile ensurePresentSidecarFile(final String f) {
         try {
             final var parent = new File(f).getParentFile();
-            final var authorizedDir = parent == null ? java.nio.file.Path.of("") : parent.toPath();
+            final var authorizedDir = parent == null ? Path.of("") : parent.toPath();
             return RecordStreamingUtils.readMaybeCompressedSidecarFile(authorizedDir, f);
         } catch (IOException e) {
             throw new UncheckedIOException("Could not read record stream file " + f, e);

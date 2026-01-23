@@ -93,7 +93,7 @@ public class FileCompressionUtils {
                 final var byteArrayOutputStream = new ByteArrayOutputStream()) {
             validateGzipHeader(buffered, fileReal.toString());
             try (final var fin = new GZIPInputStream(buffered)) {
-                final var buffer = new byte[8192];
+                final var buffer = new byte[1024];
                 int len;
                 long total = 0L;
                 while ((len = fin.read(buffer)) > 0) {
@@ -112,13 +112,14 @@ public class FileCompressionUtils {
         }
     }
 
-    private static void validateGzipHeader(final BufferedInputStream in, final String fileLoc) throws IOException {
+    private static void validateGzipHeader(final BufferedInputStream bufferedInputStream, final String fileLoc)
+            throws IOException {
         // GZIP header: ID1=0x1f, ID2=0x8b, CM=0x08 (deflate)
-        in.mark(3);
-        final int id1 = in.read();
-        final int id2 = in.read();
-        final int cm = in.read();
-        in.reset();
+        bufferedInputStream.mark(3);
+        final int id1 = bufferedInputStream.read();
+        final int id2 = bufferedInputStream.read();
+        final int cm = bufferedInputStream.read();
+        bufferedInputStream.reset();
 
         if (id1 == -1 || id2 == -1 || cm == -1) {
             throw new IOException("File is empty or too short to be a valid GZIP file: " + fileLoc);
