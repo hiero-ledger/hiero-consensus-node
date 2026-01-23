@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.monitoring;
+package org.hiero.consensus.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 
 /**
  * Configuration for the {@link FallenBehindMonitor}.
