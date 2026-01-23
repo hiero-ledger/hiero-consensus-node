@@ -2,6 +2,8 @@
 package com.hedera.node.app.workflows.dispatcher;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -20,7 +22,6 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoCreateHandler;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.config.api.Configuration;
 import java.util.stream.Stream;
@@ -162,18 +163,17 @@ class TransactionDispatcherTest {
             // And: Transaction body is provided
             given(feeContext.body()).willReturn(txBody);
             given(feeContext.activeRate()).willReturn(testExchangeRate);
-            var simpleFeeContext = SimpleFeeContextUtil.fromFeeContext(feeContext);
 
             // And: Simple fee calculator returns a fee result
             final var feeResult = new FeeResult(498500000L, 100000L, 2);
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateTxFee(txBody, simpleFeeContext)).willReturn(feeResult);
+            given(simpleFeeCalculator.calculateTxFee(eq(txBody), any())).willReturn(feeResult);
 
             // When
             final var result = subject.dispatchComputeFees(feeContext);
 
             // Then: Should use simple fee calculator
-            verify(simpleFeeCalculator).calculateTxFee(txBody, simpleFeeContext);
+            verify(simpleFeeCalculator).calculateTxFee(eq(txBody), any());
 
             // Verify fees are converted from tinycents to tinybars (divide by 12)
             assertThat(result).isNotNull();
