@@ -69,6 +69,9 @@ env:
   #Release version from jFrog
   NLG_VERSION: 0.11.1
 
+  #JDK to use
+  JDK_PACKAGE: gs://performance-engineering-reports/permanent/OpenJDK25U-jdk_x64_linux_hotspot_25.0.2_10.tar.gz
+
 jobs:
   longevity-tests-start:
     name: Start
@@ -148,7 +151,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 21.0.6
+          java-version: 25.0.2
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
@@ -171,6 +174,7 @@ jobs:
           cat /etc/*elease
           sudo apt-get update
           sudo apt-get install -y net-tools iputils-ping node-typescript
+          java --version
 
       - name: Create report dir
         shell: bash
@@ -401,6 +405,35 @@ jobs:
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
+
+      - name: Download JDK25
+        run: |
+          gsutil cp "${{ env.NLG_VERSION }}" $HOME/jdk-linux-x64_bin.tar.gz
+
+      - name: Restart with JDK 25
+        run: |
+          set +x
+          set +e
+
+          for i in `seq 1 1 7`
+          do
+            echo "Restarting pod network-node${i}-0 ..."
+            node_id=`expr $i - 1`
+            kubectl -n "${{ env.namespace }}" cp $HOME/jdk-linux-x64_bin.tar.gz network-node${i}-0:/tmp/jdk-linux-x64_bin.tar.gz
+            kubectl -n "${{ env.namespace }}" cp "${{ github.workspace }}"/.github/workflows/support/citr/startPodJava.sh network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/
+            kubectl -n "${{ env.namespace }}" exec network-node${i}-0 -c root-container -- su - hedera -c bash -c "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -9"
+            kubectl -n "${{ env.namespace }}" exec network-node${i}-0 -c root-container -- bash -c "rm -rf /usr/local/java; cd /usr/local; tar xfz /tmp/jdk-linux-x64_bin.tar.gz; mv jdk-25 java; java --version"
+            kubectl -n "${{ env.namespace }}" exec network-node${i}-0 -c root-container -- su - hedera -c bash -c "sleep 30; cd /opt/hgcapp/services-hedera/HapiApp2.0; sh startPodJava.sh ${node_id} clean"
+            echo "Done restarting pod network-node${i}-0"
+          done
+
+      - name: Install JDK25 on NLG
+        run: |
+          set +x
+          set +e
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
+          kubectl -n "${{ env.namespace }}" cp $HOME/jdk-linux-x64_bin.tar.gz ${nlgpod}:/tmp/jdk-linux-x64_bin.tar.gz
+          kubectl -n "${{ env.namespace }}" exec ${nlgpod} -- bash -c "rm -rf /opt/java/openjdk; cd /opt/java; tar xfz /tmp/jdk-linux-x64_bin.tar.gz; mv jdk-25 openjdk; java --version"
 
       - name: Prepare NLG communication properties for CN
         env:
