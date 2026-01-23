@@ -11,15 +11,19 @@ import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata;
 import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema;
 
@@ -77,22 +81,50 @@ public class ClprStateProofManager {
         }
         final var state = snapshot.merkleState();
         final var readableStates = state.getReadableStates(ClprService.NAME);
-        if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
+        if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_METADATA_STATE_ID)) {
+            // TODO: Remove this throw once production bootstrapping (HistoryService-provided ledgerId + metadata init)
+            // is fully wired; at that point the metadata state should be provisioned by bootstrap flows instead of
+            // enforced here.
             throw new IllegalStateException("State is not configured for CLPR");
+        }
+        final ReadableSingletonState<ClprLocalLedgerMetadata> metadataState =
+                readableStates.getSingleton(V0700ClprSchema.CLPR_LEDGER_METADATA_STATE_ID);
+        final var metadata = metadataState.get();
+        if (metadata != null
+                && metadata.ledgerId() != null
+                && metadata.ledgerId().ledgerId() != Bytes.EMPTY) {
+            return metadata.ledgerId();
+        }
+        return emptyLedgerId();
+    }
+
+    /**
+     * Returns all ledger configurations currently stored in state, keyed by ledger id.
+     *
+     * <p>Dev-mode helper for maintenance loops that need to publish/pull remote configurations.</p>
+     */
+    public Map<ClprLedgerId, ClprLedgerConfiguration> readAllLedgerConfigurations() {
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return Map.of();
+        }
+        final var state = snapshot.merkleState();
+        final var readableStates = state.getReadableStates(ClprService.NAME);
+        if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
+            return Map.of();
         }
         final ReadableKVState<ClprLedgerId, ClprLedgerConfiguration> configsState =
                 readableStates.get(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
         final Iterator<ClprLedgerId> keys = configsState.keys();
+        final Map<ClprLedgerId, ClprLedgerConfiguration> configs = new LinkedHashMap<>();
         while (keys.hasNext()) {
-            final var candidateId = keys.next();
-            final var configuration = configsState.get(candidateId);
-            if (configuration != null && configuration.hasLedgerId()) {
-                // Dev-mode shortcut: any stored configuration reveals a ledger id. Replace with TSS-backed
-                // lookup once the history service integration is available.
-                return configuration.ledgerId();
+            final var ledgerId = keys.next();
+            final var configuration = configsState.get(ledgerId);
+            if (configuration != null) {
+                configs.put(ledgerId, configuration);
             }
         }
-        return emptyLedgerId();
+        return configs;
     }
 
     @Deprecated
@@ -119,6 +151,14 @@ public class ClprStateProofManager {
         if (!clprConfig.devModeEnabled()) {
             return null;
         }
+        ClprLedgerId resolvedLedgerId = ledgerId;
+        if (ledgerId.ledgerId() == Bytes.EMPTY) {
+            final var localLedgerId = getLocalLedgerId();
+            if (localLedgerId == null || localLedgerId.ledgerId() == Bytes.EMPTY) {
+                return null;
+            }
+            resolvedLedgerId = localLedgerId;
+        }
         final var snapshot = latestSnapshot().orElse(null);
         if (snapshot == null) {
             return null;
@@ -130,9 +170,10 @@ public class ClprStateProofManager {
             throw new IllegalStateException(
                     "CLPR ledger configurations state not found - service may not be properly initialized");
         }
-        // TODO: If the ledger id is blank, it's a query for the local ledger configuration. Add code to handle.
         return buildMerkleStateProof(
-                state, V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
+                state,
+                V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID,
+                ClprLedgerId.PROTOBUF.toBytes(resolvedLedgerId));
     }
 
     /**

@@ -36,7 +36,12 @@ tasks.jacocoTestReport {
 
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            // Allow access to test resources like hapi-test-gossip-certs.json.
+            .plus(sourceSets.test.get().output)
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
@@ -359,7 +364,12 @@ tasks.register<Test>("testSubprocess") {
 
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            // Allow access to pre-generated gossip keys in `src/test/resources`.
+            .plus(sourceSets.test.get().output)
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -449,7 +459,12 @@ tasks {
 // Runs tests against an embedded network that supports concurrent tests
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            // Allow access to pre-generated gossip keys in `src/test/resources`.
+            .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -523,7 +538,12 @@ tasks {
 // single thread
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            // Allow access to pre-generated gossip keys in `src/test/resources`.
+            .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
         gradle.startParameter.taskNames

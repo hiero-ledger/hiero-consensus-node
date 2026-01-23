@@ -33,7 +33,6 @@ module com.hedera.node.app.hapi.utils {
     requires transitive org.hyperledger.besu.nativelib.secp256k1;
     requires transitive tuweni.bytes;
     requires com.swirlds.base;
-    requires com.swirlds.state.impl;
     requires org.hiero.base.crypto;
     requires com.fasterxml.jackson.databind;
     requires com.google.common;

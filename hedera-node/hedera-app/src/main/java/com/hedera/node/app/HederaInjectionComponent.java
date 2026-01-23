@@ -65,6 +65,7 @@ import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
+import com.swirlds.state.StateLifecycleManager;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -76,7 +77,7 @@ import java.util.function.Supplier;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
-import org.hiero.interledger.clpr.impl.ClprEndpoint;
+import org.hiero.interledger.clpr.impl.ClprEndpointClient;
 import org.hiero.interledger.clpr.impl.ClprModule;
 
 /**
@@ -166,7 +167,7 @@ public interface HederaInjectionComponent {
 
     SelfNodeAccountIdManager selfNodeAccountIdManager();
 
-    ClprEndpoint clprEndpoint();
+    ClprEndpointClient clprEndpoint();
 
     @Component.Builder
     interface Builder {
@@ -208,6 +209,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder platform(Platform platform);
+
+        @BindsInstance
+        Builder stateLifecycleManager(StateLifecycleManager stateLifecycleManager);
 
         @BindsInstance
         Builder transactionPool(TransactionPoolNexus transactionPool);

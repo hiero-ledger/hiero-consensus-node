@@ -92,6 +92,18 @@
 	  ]
 	},
 	{
+	  "name": "ClprSetLedgerConfig (TODO: determine realistic throttle)",
+	  "burstPeriod": 1,
+	  "throttleGroups": [
+		{
+		  "opsPerSec": 20000,
+		  "operations": [
+			"ClprSetLedgerConfig"
+		  ]
+		}
+	  ]
+	},
+	{
 	  "name": "PriorityReservations",
 	  "burstPeriod": 1,
 	  "throttleGroups": [
