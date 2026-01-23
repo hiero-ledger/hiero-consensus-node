@@ -246,8 +246,10 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
 
     @Override
     public void reportCommunicationOverload(final boolean overloaded) {
-        communicationOverload = overloaded;
-        syncMetrics.disabledBroadcastDueToOverload(overloaded);
+        if ( communicationOverload != overloaded ) {
+            communicationOverload = overloaded;
+            syncMetrics.disabledBroadcastDueToOverload(overloaded);
+        }
     }
 
     /**
