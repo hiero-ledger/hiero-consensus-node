@@ -69,6 +69,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
         final var op = txnBody.cryptoTransferOrThrow();
         final long numAccounts = countUniqueAccounts(op);
+        addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
         final var hookInfo = getHookInfo(op);
         if (hookInfo.numHookInvocations() > 0) {
             final var config = simpleFeeContext.feeContext().configuration();
@@ -94,7 +95,6 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
                 addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
             }
 
-            addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
             final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
             addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
             final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();

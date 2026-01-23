@@ -226,7 +226,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         final var result = feeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromQueryContext(queryContext));
 
-        assertThat(result).isEqualTo(555);
+        assertThat(result.totalTinycents()).isEqualTo(555);
     }
 
     @Test
@@ -242,7 +242,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         final var result = feeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromQueryContext(queryContext));
 
-        assertThat(result).isEqualTo(666);
+        assertThat(result.totalTinycents()).isEqualTo(666);
     }
 
     @Test
@@ -252,7 +252,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         final var result = feeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromQueryContext(queryContext));
 
-        assertThat(result).isEqualTo(777);
+        assertThat(result.totalTinycents()).isEqualTo(777);
     }
 
     private static FeeSchedule createTestFeeSchedule() {

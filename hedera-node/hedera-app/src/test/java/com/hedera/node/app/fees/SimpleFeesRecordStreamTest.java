@@ -223,10 +223,11 @@ public class SimpleFeesRecordStreamTest {
 
         final var simpleFee = result.totalTinycents();
 
-
         long legacyFee = 0;
-        if(rate.getCurrentRate().getHbarEquiv() != 0) {
-            legacyFee = txnFee * rate.getCurrentRate().getCentEquiv() / rate.getCurrentRate().getHbarEquiv();
+        if (rate.getCurrentRate().getHbarEquiv() != 0) {
+            legacyFee = txnFee
+                    * rate.getCurrentRate().getCentEquiv()
+                    / rate.getCurrentRate().getHbarEquiv();
         }
 
         long diff = simpleFee - legacyFee;
@@ -239,8 +240,8 @@ public class SimpleFeesRecordStreamTest {
         json.key("simple_tc", simpleFee);
         csv.field(legacyFee);
         json.key("old_tc", legacyFee);
-//        csv.field(txnFee);
-//        json.key("txn_fee", txnFee);
+        //        csv.field(txnFee);
+        //        json.key("txn_fee", txnFee);
         csv.fieldPercentage(pctChange);
         json.key("diff", pctChange);
         csv.field(result.getServiceTotalTinycents());
