@@ -407,7 +407,7 @@ public class TokenServiceFeeCalculatorTests {
         final var result =
                 feeCalculator.calculateQueryFee(queryBody, SimpleFeeContextUtil.fromQueryContext(queryContext));
         ;
-        assertEquals(TOKEN_GET_INFO_BASE_FEE, result);
+        assertEquals(TOKEN_GET_INFO_BASE_FEE, result.getServiceTotalTinycents());
     }
 
     @Test
@@ -417,7 +417,7 @@ public class TokenServiceFeeCalculatorTests {
         final var result =
                 feeCalculator.calculateQueryFee(queryBody, SimpleFeeContextUtil.fromQueryContext(queryContext));
         ;
-        assertEquals(TOKEN_GET_NFT_INFO_BASE_FEE, result);
+        assertEquals(TOKEN_GET_NFT_INFO_BASE_FEE, result.getServiceTotalTinycents());
     }
 
     private FeeSchedule createTestFeeSchedule() {
