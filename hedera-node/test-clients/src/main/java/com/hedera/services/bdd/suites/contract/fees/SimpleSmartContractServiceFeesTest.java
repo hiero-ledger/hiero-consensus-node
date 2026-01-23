@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.fees;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -14,12 +15,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForGasOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithoutGas;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -36,6 +39,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -56,6 +60,8 @@ public class SimpleSmartContractServiceFeesTest {
     static final double EXTRA_HOOK_CREATE_FEE = 0.0049;
     static final double SINGLE_SIGNATURE_COST = 0.001;
     static final double SINGLE_BYTE_FEE = 0.000011;
+    static final int NODE_INCLUDED_BYTES = 1024;
+    static final int NETWORK_MULTIPLIER = 9;
     static final double EXPECTED_GAS_USED = 0.00184;
 
     @Contract(contract = "SmartContractsFees")
@@ -153,8 +159,8 @@ public class SimpleSmartContractServiceFeesTest {
                 overriding("contracts.evm.ethTransaction.zeroHapiFees.enabled", "false"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                ethereumCall(calldataContract.name(), "callme", (Object) jumboPayload)
-                        .fee(ONE_HBAR)
+                ethereumCall(calldataContract.name(), "callme", jumboPayload)
+                        .fee(ONE_HUNDRED_HBARS)
                         .memo("TESTT")
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signedBy(SECP_256K1_SOURCE_KEY)
@@ -163,9 +169,23 @@ public class SimpleSmartContractServiceFeesTest {
                         .nonce(0)
                         .via("ethCall"),
                 // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
-                validateChargedUsdWithin("ethCall", jumboGasUsed + ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes, 1),
-                validateChargedUsdForGasOnly("ethCall", jumboGasUsed, 1),
-                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes, 1));
+                withOpContext((spec, log) -> {
+                    final var txnBytes = spec.registry().getBytes("ethCall");
+                    final var transaction = Transaction.parseFrom(txnBytes);
+                    final var signedTxnBytes = serializedSignedTxFrom(transaction);
+                    final var nodeBytesOverage = Math.max(0, signedTxnBytes.length - NODE_INCLUDED_BYTES);
+                    final var nodeBytesFeeTotal = nodeBytesOverage * SINGLE_BYTE_FEE * (1 + NETWORK_MULTIPLIER);
+
+                    final var totalExpected =
+                            jumboGasUsed + ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes + nodeBytesFeeTotal;
+                    final var withoutGasExpected = ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes + nodeBytesFeeTotal;
+
+                    allRunFor(
+                            spec,
+                            validateChargedUsdWithin("ethCall", totalExpected, 1),
+                            validateChargedUsdForGasOnly("ethCall", jumboGasUsed, 1),
+                            validateChargedUsdWithoutGas("ethCall", withoutGasExpected, 1));
+                }));
     }
 
     @LeakyHapiTest(overrides = "hooks.hooksEnabled")
