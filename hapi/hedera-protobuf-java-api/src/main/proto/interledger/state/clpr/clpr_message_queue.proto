@@ -44,7 +44,7 @@ message ClprMessageQueueMetadata {
    *
    * Unsigned 64-bit id of the most recently received message from the remote
    * ledger. This value MUST be updated monotonically as new messages are
-   * received and SHOULD be used for deduplication and resume logic.
+   * received and MUST be used for deduplication and resume logic.
    */
   uint64 received_message_id = 2;
 
@@ -129,9 +129,11 @@ message ClprMessageValue {
   /**
    * Running hash after the message payload has been processed.
    *
-   * This field contains the running hash bytes resulting from processing this
-   * message. Implementations SHOULD use this hash to validate ordering and to
-   * support integrity checks when advancing ledger state.
+   * This is the cumulative running hash calculated from the prior running hash
+   * and this message's payload. When this message is the last one in a bundle,
+   * this hash MUST match the state-proven value in the bundle's state proof,
+   * enabling verification of message ordering and integrity without requiring
+   * the entire queue history.
    */
   bytes running_hash_after_processing = 3;
 }
@@ -159,6 +161,15 @@ message ClprMessage {
  * Represents a reply to a previously exchanged initiating message.
  */
 message ClprMessageReply {
+
+  /**
+   * Message Id
+   *
+   * References the original message that this reply is responding to.
+   * This MUST match the message_id of a previously sent initiating message.
+   */
+  uint64 message_id = 2;
+
   /**
    * Message Reply Data
    *
@@ -194,15 +205,28 @@ message ClprMessagePayload {
 
 /**
  * Bundle of messages.
+ *
+ * Contains messages from a sending ledger along with a state proof that allows
+ * the receiving ledger to verify the bundle's authenticity.
  */
 message ClprMessageBundle {
+
+  /**
+   * Ledger ID of the sender.
+   *
+   * Identifies the ledger sending this bundle.
+   * This value is used to verify the state proof and determine which queue
+   * metadata to apply
+   */
+  org.hiero.hapi.interledger.state.clpr.ClprLedgerId ledger_id = 1;
+
   /**
    * Messages
    */
-  repeated ClprMessagePayload messages = 3;
+  repeated ClprMessagePayload messages = 2;
 
   /**
    * State Proof
    */
-  com.hedera.hapi.block.stream.StateProof state_proof = 5;
+  com.hedera.hapi.block.stream.StateProof state_proof = 3;
 }
