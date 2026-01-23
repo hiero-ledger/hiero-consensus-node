@@ -206,10 +206,20 @@ jobs:
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
 
-            CLEANED_COMMIT_LIST="${COMMIT_LIST//\`/}"
-            ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${CLEANED_COMMIT_LIST}")
-            ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
-            echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
+            COMMIT_COUNT=$(echo "$COMMIT_LIST" | wc -l)
+            COMMIT_LIST_STR=""
+            if [[ -z "${COMMIT_LIST//[[:space:]]/}" ]]; then
+              # should never get here.
+              echo "::error file=zxcron-extended-test-suite.yaml,line=213::No commits associated with this release; exiting."
+              exit 1
+            elif [[ $COMMIT_COUNT -gt 15 ]]; then
+              COMMIT_LIST_STR="Please refer to the workflow summary for the full list of associated commits."
+            else
+              PARSED_COMMIT_LIST="${COMMIT_LIST//\`/}"
+              ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${PARSED_COMMIT_LIST}")
+              COMMIT_LIST_STR=${ESCAPED_COMMIT_LIST:1:-1}
+            fi
+            echo "commit-list=${COMMIT_LIST_STR}" >> "${GITHUB_OUTPUT}"
 
             # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
@@ -230,6 +240,15 @@ jobs:
           fi
           echo "::endgroup::" # Set Outputs
 
+  state-validator-uberjar:
+    name: Build & Publish Hedera State Validator Uber JAR
+    needs:
+      - fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+
   xts-execution:
     name: Execute XTS
     needs:
@@ -238,7 +257,7 @@ jobs:
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      commit_sha: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch_name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
@@ -272,7 +291,7 @@ jobs:
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
-      commit_sha: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch_name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}

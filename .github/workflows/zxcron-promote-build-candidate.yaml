@@ -28,6 +28,7 @@ jobs:
     outputs:
       build-candidate-exists: ${{ steps.find-build-candidates.outputs.build-candidate-exists }}
       build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
+    if: ${{ github.event.repository.private == false }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0

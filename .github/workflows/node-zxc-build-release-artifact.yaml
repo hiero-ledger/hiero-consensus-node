@@ -909,7 +909,7 @@ jobs:
 
   create-github-release:
     name: Create GitHub Release
-    if: ${{ needs.publish.outputs.create-release == 'true' }}
+    if: ${{ github.event.repository.private == false && needs.publish.outputs.create-release == 'true' }}
     uses: ./.github/workflows/zxc-create-github-release.yaml
     needs:
       - publish
