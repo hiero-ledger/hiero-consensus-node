@@ -50,6 +50,7 @@ import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
 @Singleton
@@ -78,8 +79,9 @@ public class HookStoreHandler implements TransactionHandler {
             requireNonNull(feeSchedule);
             final var fee = lookupServiceFee(feeSchedule, HederaFunctionality.HOOK_STORE);
             requireNonNull(fee);
+            feeResult.setServiceBaseFeeTinycents(fee.baseFee());
             final var op = txnBody.hookStoreOrThrow();
-            feeResult.addServiceFee(slotCount(op.storageUpdates()), fee.baseFee());
+            addExtraFee(feeResult, fee, Extra.HOOK_SLOT_UPDATE, feeSchedule, slotCount(op.storageUpdates()));
         }
     }
 

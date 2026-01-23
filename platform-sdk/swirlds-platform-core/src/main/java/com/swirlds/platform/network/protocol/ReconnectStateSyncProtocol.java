@@ -4,7 +4,6 @@ package com.swirlds.platform.network.protocol;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.reconnect.ReconnectStatePeerProtocol;
 import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -18,6 +17,7 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 
 /**
  * This protocol is responsible for synchronizing a current state either local acting as lerner or remote acting as teacher.
