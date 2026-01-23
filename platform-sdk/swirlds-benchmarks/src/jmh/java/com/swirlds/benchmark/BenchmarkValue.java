@@ -9,8 +9,6 @@ import java.util.function.LongUnaryOperator;
 
 public class BenchmarkValue implements VirtualValue {
 
-    static final int VERSION = 1;
-
     private static int valueSize = 16;
     private byte[] valueBytes;
 

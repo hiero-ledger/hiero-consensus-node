@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.VirtualKey;
@@ -30,20 +28,6 @@ public class BenchmarkKey implements VirtualKey {
 
     public BenchmarkKey() {
         // default constructor for deserialize
-    }
-
-    public BenchmarkKey(long seed) {
-        keyBytes = new byte[keySize];
-        Utils.toBytes(seed, keyBytes);
-    }
-
-    void serialize(final WritableSequentialData out) {
-        out.writeBytes(keyBytes);
-    }
-
-    void deserialize(final ReadableSequentialData in) {
-        keyBytes = new byte[keySize];
-        in.readBytes(keyBytes);
     }
 
     @Override
