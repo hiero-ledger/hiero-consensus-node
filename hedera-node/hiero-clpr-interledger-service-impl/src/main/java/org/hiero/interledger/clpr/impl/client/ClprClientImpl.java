@@ -48,7 +48,6 @@ import org.hiero.hapi.interledger.clpr.ClprProcessMessageBundleTransactionBody;
 import org.hiero.hapi.interledger.clpr.ClprServiceInterface;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.clpr.ClprUpdateMessageQueueMetadataTransactionBody;
-import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
@@ -115,10 +114,21 @@ public class ClprClientImpl implements ClprClient {
         signer = DevTransactionSignerHolder.signer();
     }
 
+    /**
+     * Constructs a ClprClientImpl instance with the specified CLPR service client.
+     *
+     * @param clprServiceClient the CLPR service client
+     */
     ClprClientImpl(@NonNull final ClprServiceInterface.ClprServiceClient clprServiceClient) {
         this(clprServiceClient, DevTransactionSignerHolder.signer());
     }
 
+    /**
+     * Constructs a ClprClientImpl instance with the specified CLPR service client and transaction signer.
+     *
+     * @param clprServiceClient the CLPR service client
+     * @param signer the transaction signer
+     */
     ClprClientImpl(
             @NonNull final ClprServiceInterface.ClprServiceClient clprServiceClient,
             @NonNull final TransactionSigner signer) {
@@ -170,6 +180,11 @@ public class ClprClientImpl implements ClprClient {
      * transaction, signs it (using a dev-mode key when available), and synchronously invokes the
      * gRPC method. Any exception is converted into {@link ResponseCodeEnum#FAIL_INVALID} so callers
      * can retry without crashing the endpoint loop.
+     *
+     * @param payerAccountId the ID of the account paying for the transaction
+     * @param nodeAccountId the ID of the node to which the transaction is submitted
+     * @param ledgerConfigurationProof the state proof of the ledger configuration
+     * @return the response code from the node
      */
     @Override
     public @NonNull ResponseCodeEnum setConfiguration(
@@ -206,22 +221,29 @@ public class ClprClientImpl implements ClprClient {
         }
     }
 
+    /**
+     * Builds and submits a CLPR update-message-queue-metadata transaction. The method fabricates a PBJ
+     * transaction, signs it (using a dev-mode key when available), and synchronously invokes the
+     * gRPC method. Any exception is converted into {@link ResponseCodeEnum#FAIL_INVALID}.
+     *
+     * @param payerAccountId the ID of the account paying for the transaction
+     * @param nodeAccountId the ID of the node to which the transaction is submitted
+     * @param ledgerId the ID of the ledger
+     * @param messageQueueMetadataProof the state proof of the message queue metadata
+     * @return the response code from the node
+     */
     @Override
     public @NonNull ResponseCodeEnum updateMessageQueueMetadata(
             @NonNull AccountID payerAccountId,
             @NonNull AccountID nodeAccountId,
             @NonNull ClprLedgerId ledgerId,
-            @NonNull ClprMessageQueueMetadata clprMessageQueueMetadata) {
+            @NonNull StateProof messageQueueMetadataProof) {
         try {
-            var stateProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(ledgerId, clprMessageQueueMetadata);
-            if (stateProof.paths().isEmpty()) {
-                stateProof = devModeMsgQueueMetadataStateProof(clprMessageQueueMetadata);
-            }
             final var txnBody = TransactionBody.newBuilder()
                     .transactionID(newTransactionId(payerAccountId))
                     .clprUpdateMessageQueueMetadata(ClprUpdateMessageQueueMetadataTransactionBody.newBuilder()
                             .ledgerId(ledgerId)
-                            .messageQueueMetadataProof(stateProof)
+                            .messageQueueMetadataProof(messageQueueMetadataProof)
                             .build())
                     .transactionFee(1L)
                     .transactionValidDuration(com.hedera.hapi.node.base.Duration.newBuilder()
@@ -266,7 +288,7 @@ public class ClprClientImpl implements ClprClient {
             final var stateProof =
                     Objects.requireNonNull(response.clprMessageQueueMetadata()).messageQueueMetadataProof();
             if (stateProof != null && ClprStateProofUtils.validateStateProof(stateProof)) {
-                return org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageQueueMetadata(stateProof);
+                return ClprStateProofUtils.extractMessageQueueMetadata(stateProof);
             } else {
                 log.warn("State proof {} is invalid", stateProof);
             }
@@ -274,6 +296,15 @@ public class ClprClientImpl implements ClprClient {
         return null;
     }
 
+    /**
+     * Submits a CLPR process-message-bundle transaction.
+     *
+     * @param payerAccountId the ID of the account paying for the transaction
+     * @param nodeAccountId the ID of the node to which the transaction is submitted
+     * @param ledgerId the ID of the ledger
+     * @param messageBundle the bundle of messages to process
+     * @return the response code from the node
+     */
     @Override
     public @NonNull ResponseCodeEnum submitProcessMessageBundleTxn(
             @NonNull AccountID payerAccountId,
@@ -313,6 +344,14 @@ public class ClprClientImpl implements ClprClient {
         }
     }
 
+    /**
+     * Retrieves a bundle of messages from the ledger.
+     *
+     * @param ledgerId the ID of the ledger
+     * @param maxNumMsg the maximum number of messages to retrieve
+     * @param maxNumBytes the maximum number of bytes to retrieve
+     * @return the bundle of messages, or null if not available
+     */
     @Override
     public @Nullable ClprMessageBundle getMessages(@NonNull ClprLedgerId ledgerId, int maxNumMsg, int maxNumBytes) {
         // create query payload with header and specified ledger id
@@ -329,46 +368,6 @@ public class ClprClientImpl implements ClprClient {
             return response.clprMessages().messageBundle();
         }
         return null;
-    }
-
-    private StateProof devModeLedgerConfigStateProof(@NonNull final ClprLedgerConfiguration configuration) {
-        final var stateItemBytes =
-                org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(configuration);
-        return devModeStateProof(stateItemBytes);
-    }
-
-    private StateProof devModeMsgQueueMetadataStateProof(@NonNull final ClprMessageQueueMetadata messageQueueMetadata) {
-        final var stateItemBytes =
-                org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata.PROTOBUF.toBytes(messageQueueMetadata);
-        return devModeStateProof(stateItemBytes);
-    }
-
-    private com.hedera.hapi.block.stream.StateProof devModeStateProof(@NonNull final Bytes stateItemBytes) {
-        final var leaf = com.hedera.hapi.node.state.blockstream.MerkleLeaf.newBuilder()
-                .stateItem(stateItemBytes)
-                .build();
-        final var pathBuilder = new com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder();
-        pathBuilder.setLeaf(leaf).setNextPathIndex(-1);
-        final var rootHash = pathBuilder.getRootHash();
-
-        final var proofLeaf = com.hedera.hapi.node.state.blockstream.MerkleLeaf.newBuilder()
-                .stateItem(stateItemBytes)
-                .build();
-
-        final var merklePath = com.hedera.hapi.block.stream.MerklePath.newBuilder()
-                .leaf(proofLeaf)
-                .siblings(java.util.List.of())
-                .nextPathIndex(-1)
-                .build();
-
-        final var signedProof = com.hedera.hapi.block.stream.TssSignedBlockProof.newBuilder()
-                .blockSignature(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(rootHash))
-                .build();
-
-        return com.hedera.hapi.block.stream.StateProof.newBuilder()
-                .paths(java.util.List.of(merklePath))
-                .signedBlockProof(signedProof)
-                .build();
     }
 
     @Override

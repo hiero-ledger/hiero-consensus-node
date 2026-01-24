@@ -49,7 +49,7 @@ public interface ClprClient extends AutoCloseable {
             @NonNull AccountID payerAccountId,
             @NonNull AccountID nodeAccountId,
             @NonNull ClprLedgerId ledgerId,
-            @NonNull ClprMessageQueueMetadata clprMessageQueueMetadata);
+            @NonNull StateProof messageQueueMetadataProof);
 
     @Nullable
     ClprMessageQueueMetadata getMessageQueueMetadata(@NonNull ClprLedgerId ledgerId);

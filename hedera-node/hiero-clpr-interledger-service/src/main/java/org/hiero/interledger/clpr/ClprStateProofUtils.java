@@ -119,6 +119,14 @@ public final class ClprStateProofUtils {
                 .build();
     }
 
+    /**
+     * Builds a local synthetic state proof that contains the supplied message queue metadata as the single leaf.
+     * <p>This is a convenience for dev/local bootstrap; it does not produce a fully validated,
+     * network-signed proof.</p>
+     *
+     * @param messageQueueMetadata the message queue metadata to embed
+     * @return a state proof for the message queue metadata
+     */
     public static StateProof buildLocalClprStateProofWrapper(
             @NonNull final ClprLedgerId ledgerId, @NonNull final ClprMessageQueueMetadata messageQueueMetadata) {
         requireNonNull(messageQueueMetadata, "message queue metadata must not be null");
@@ -136,6 +144,18 @@ public final class ClprStateProofUtils {
         return StateProofBuilder.newBuilder().addMerklePath(pathBuilder).build();
     }
 
+    /**
+     * Extracts {@link ClprMessageQueueMetadata} from a {@link StateProof}.
+     *
+     * <p>This method extracts and deserializes the leaf bytes from the state proof
+     * into a {@link ClprMessageQueueMetadata}. The caller is responsible for validating
+     * the state proof before trusting the extracted metadata.
+     *
+     * @param stateProof the state proof containing the message queue metadata
+     * @return the extracted message queue metadata
+     * @throws IllegalArgumentException if the state proof is invalid or malformed
+     * @throws IllegalStateException if the leaf cannot be parsed as ClprMessageQueueMetadata
+     */
     @NonNull
     public static ClprMessageQueueMetadata extractMessageQueueMetadata(@NonNull final StateProof stateProof) {
         requireNonNull(stateProof, "stateProof must not be null");
@@ -156,7 +176,7 @@ public final class ClprStateProofUtils {
             throw new IllegalArgumentException("Leaf does not contain a state item");
         }
 
-        // Deserialize the state item bytes into a ClprLedgerConfiguration
+        // Deserialize the state item bytes into a ClprMessageQueueMetadata
         final Bytes stateItemBytes = requireNonNull(leaf.stateItem());
         try {
             final var stateItem = StateItem.PROTOBUF.parse(stateItemBytes);
