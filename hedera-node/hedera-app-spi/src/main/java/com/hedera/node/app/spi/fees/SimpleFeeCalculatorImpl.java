@@ -59,24 +59,30 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @param signatures the number of signatures
      */
     private void addNodeExtras(
-            @NonNull final FeeResult result, @NonNull final Iterable<ExtraFeeReference> extras, final long signatures) {
+            @NonNull final FeeResult result,
+            @NonNull final Iterable<ExtraFeeReference> extras,
+            final long signatures,
+            final long bytes) {
         for (final ExtraFeeReference ref : extras) {
-            final long used = ref.name() == SIGNATURES ? signatures : 0;
-            if (used > ref.includedCount()) {
-                final long overage = used - ref.includedCount();
-                final long unitFee = getExtraFee(ref.name());
-
-                result.addNodeFee(overage, unitFee);
-            }
+            final long used =
+                    switch (ref.name()) {
+                        case SIGNATURES -> signatures;
+                        case BYTES -> bytes;
+                        default -> 0;
+                    };
+            final long unitFee = getExtraFee(ref.name());
+            result.addNodeExtraFeeTinycents(ref.name().name(), unitFee, used, ref.includedCount());
         }
     }
 
     /**
      * Calculates fees for transactions per HIP-1261.
+     * Node fee includes BYTES (full transaction size) and SIGNATURES extras.
+     * Service fee is transaction-specific.
      * For high-volume transactions (HIP-1313), applies a dynamic multiplier based on throttle utilization.
      *
      * @param txnBody the transaction body
-     * @param feeContext the fee context containing signature count
+     * @param feeContext the fee context containing signature count and full transaction bytes
      * @return the calculated fee result
      */
     @NonNull
@@ -84,14 +90,16 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
         // Extract primitive counts (no allocations)
         final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
+        // Get full transaction size in bytes (includes body, signatures, and all transaction data)
+        final long bytes = feeContext != null ? feeContext.numTxnBytes() : 0;
         final var result = new FeeResult();
 
-        // Add node base and extras
-        result.addNodeFee(1, feeSchedule.node().baseFee());
-        addNodeExtras(result, feeSchedule.node().extras(), signatures);
+        // Add node base and extras (bytes and payer signatures)
+        result.setNodeBaseFeeTinycents(feeSchedule.node().baseFee());
+        addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
-        result.addNetworkFee(result.node * multiplier);
+        result.setNetworkMultiplier(multiplier);
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
@@ -219,6 +227,6 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
         queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
-        return result.total();
+        return result.totalTinycents();
     }
 }

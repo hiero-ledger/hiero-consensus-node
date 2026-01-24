@@ -38,9 +38,9 @@ class NetworkAdminFeeCalculatorsTest {
         calculator.accumulateNodePayment(
                 Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
 
-        assertThat(feeResult.node).isEqualTo(0L);
-        assertThat(feeResult.network).isEqualTo(0L);
-        assertThat(feeResult.service).isEqualTo(GET_VERSION_INFO_FEE);
+        assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(GET_VERSION_INFO_FEE);
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.NETWORK_GET_VERSION_INFO);
     }
 
@@ -54,9 +54,9 @@ class NetworkAdminFeeCalculatorsTest {
         calculator.accumulateNodePayment(
                 Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
 
-        assertThat(feeResult.node).isEqualTo(0L);
-        assertThat(feeResult.network).isEqualTo(0L);
-        assertThat(feeResult.service).isEqualTo(GET_BY_KEY_FEE);
+        assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(GET_BY_KEY_FEE);
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.GET_BY_KEY);
     }
 
@@ -70,9 +70,9 @@ class NetworkAdminFeeCalculatorsTest {
         calculator.accumulateNodePayment(
                 Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
 
-        assertThat(feeResult.node).isEqualTo(0L);
-        assertThat(feeResult.network).isEqualTo(0L);
-        assertThat(feeResult.service).isEqualTo(TRANSACTION_GET_RECEIPT_FEE);
+        assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(TRANSACTION_GET_RECEIPT_FEE);
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.TRANSACTION_GET_RECEIPT);
     }
 
@@ -86,9 +86,9 @@ class NetworkAdminFeeCalculatorsTest {
         calculator.accumulateNodePayment(
                 Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
 
-        assertThat(feeResult.node).isEqualTo(0L);
-        assertThat(feeResult.network).isEqualTo(0L);
-        assertThat(feeResult.service).isEqualTo(TRANSACTION_GET_RECORD_FEE);
+        assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(TRANSACTION_GET_RECORD_FEE);
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.TRANSACTION_GET_RECORD);
     }
 
