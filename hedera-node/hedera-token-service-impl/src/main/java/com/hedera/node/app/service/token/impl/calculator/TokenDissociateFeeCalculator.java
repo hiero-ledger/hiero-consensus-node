@@ -22,7 +22,7 @@ public class TokenDissociateFeeCalculator implements ServiceFeeCalculator {
             @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_DISSOCIATE_FROM_ACCOUNT);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {
