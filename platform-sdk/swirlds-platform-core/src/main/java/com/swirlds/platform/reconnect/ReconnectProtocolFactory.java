@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 
 /**
  * Factory for creating the {@link ReconnectStateSyncProtocol}.
