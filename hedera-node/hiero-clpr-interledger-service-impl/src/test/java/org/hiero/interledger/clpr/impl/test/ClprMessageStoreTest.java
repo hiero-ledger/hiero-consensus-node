@@ -12,6 +12,7 @@ import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.util.HashMap;
 import java.util.Map;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessage;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
 import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
@@ -32,8 +33,10 @@ class ClprMessageStoreTest {
         final var writableStore = new WritableClprMessageStoreImpl(new MapWritableStates(mapOfStates));
         final var readableStore = new ReadableClprMessageStoreImpl(new MapReadableStates(mapOfStates));
 
-        final var messageKey =
-                ClprMessageKey.newBuilder().messageId(11).ledgerShortId(12).build();
+        final var messageKey = ClprMessageKey.newBuilder()
+                .messageId(11)
+                .ledgerId(ClprLedgerId.DEFAULT)
+                .build();
         Bytes msgData = Bytes.wrap("Hello CLPR".getBytes());
         ClprMessage msg = ClprMessage.newBuilder().messageData(msgData).build();
         final var payload = ClprMessagePayload.newBuilder().message(msg).build();

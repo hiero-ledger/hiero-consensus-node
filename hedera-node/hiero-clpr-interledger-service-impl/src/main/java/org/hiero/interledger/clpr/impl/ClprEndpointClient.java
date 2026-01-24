@@ -3,7 +3,9 @@ package org.hiero.interledger.clpr.impl;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageQueueMetadata;
 
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -20,6 +22,7 @@ import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,6 +34,11 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.client.ClprClient;
 import org.hiero.interledger.clpr.impl.client.ClprConnectionManager;
@@ -58,7 +66,7 @@ public class ClprEndpointClient {
 
     private record RemoteEndpoint(ServiceEndpoint endpoint, @Nullable AccountID nodeAccountId) {}
 
-    private record QueueMetadata(boolean hasMessages) {}
+    private record QueueMetadata(boolean hasMessages, ClprMessageQueueMetadata nextMessageId) {}
 
     @Inject
     public ClprEndpointClient(
@@ -217,7 +225,13 @@ public class ClprEndpointClient {
                     attempt + 1,
                     maxAttempts);
             if (exchangeWithRemoteEndpoint(
-                    remoteEndpoint, selfNodeInfo, localEndpoint, localProof, remoteLedgerId, storedRemoteConfig)) {
+                    localConfig.ledgerId(),
+                    remoteEndpoint,
+                    selfNodeInfo,
+                    localEndpoint,
+                    localProof,
+                    remoteLedgerId,
+                    storedRemoteConfig)) {
                 cursor.set(Math.floorMod(index + 1, size));
                 return;
             }
@@ -226,6 +240,7 @@ public class ClprEndpointClient {
     }
 
     private boolean exchangeWithRemoteEndpoint(
+            final ClprLedgerId localLedgerId,
             final RemoteEndpoint remoteEndpoint,
             final com.hedera.node.app.spi.info.NodeInfo selfNodeInfo,
             final ServiceEndpoint localEndpoint,
@@ -238,6 +253,7 @@ public class ClprEndpointClient {
                     remoteEndpoint.nodeAccountId() != null ? remoteEndpoint.nodeAccountId() : selfAccount;
             final var protocolOutcome = runProtocolWithRemote(
                     remoteClient,
+                    localLedgerId,
                     selfAccount,
                     nodeAccountId,
                     localEndpoint,
@@ -271,6 +287,7 @@ public class ClprEndpointClient {
 
     private boolean runProtocolWithRemote(
             @NonNull final ClprClient remoteClient,
+            @NonNull final ClprLedgerId localLedgerId,
             @NonNull final AccountID selfAccount,
             @NonNull final AccountID nodeAccountId,
             @NonNull final ServiceEndpoint localEndpoint,
@@ -278,6 +295,7 @@ public class ClprEndpointClient {
             @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
             @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration storedRemoteConfig,
             @NonNull final ServiceEndpoint remoteServiceEndpoint) {
+        // exchange ledger configs
         final var ledgerSucceeded = pushPullLedgerConfiguration(
                 remoteClient,
                 selfAccount,
@@ -291,16 +309,42 @@ public class ClprEndpointClient {
             return false;
         }
 
-        final var queueMetadata = pushPullQueueMetadata(remoteClient, remoteLedgerId, remoteServiceEndpoint);
-        if (queueMetadata == null) {
+        final var localMessageQueueMetadataProof = stateProofManager.getMessageQueueMetadataProof();
+        final var localMessageQueueMetadata = stateProofManager.getMessageQueueMetadata(localLedgerId);
+        final var storedRemoteMetadata = stateProofManager.getMessageQueueMetadata(remoteLedgerId);
+
+        if (localMessageQueueMetadataProof == null) {
+            log.warn("Local CLPR message queue metadata not found!");
             return false;
         }
-        if (!queueMetadata.hasMessages()) {
+
+        // exchange queue
+        final var queueMetadata = pushPullQueueMetadata(
+                localLedgerId,
+                remoteClient,
+                selfAccount,
+                nodeAccountId,
+                localEndpoint,
+                localMessageQueueMetadataProof,
+                remoteLedgerId,
+                storedRemoteMetadata,
+                remoteServiceEndpoint);
+
+        if (!queueMetadata.hasMessages()
+                && localMessageQueueMetadata.sentMessageId() == localMessageQueueMetadata.nextMessageId() - 1) {
+            log.info("CLPR: No new messages to pull or push");
             return true;
         }
 
-        final var queueContentSucceeded =
-                pushPullQueueContent(remoteClient, remoteLedgerId, queueMetadata, remoteServiceEndpoint);
+        final var queueContentSucceeded = pushPullQueueContent(
+                selfAccount,
+                nodeAccountId,
+                localMessageQueueMetadata,
+                remoteClient,
+                remoteLedgerId,
+                queueMetadata,
+                remoteServiceEndpoint);
+
         return queueContentSucceeded;
     }
 
@@ -352,51 +396,157 @@ public class ClprEndpointClient {
     }
 
     private @Nullable QueueMetadata pushPullQueueMetadata(
+            @NonNull final ClprLedgerId localLedgerId,
             @NonNull final ClprClient remoteClient,
-            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final AccountID selfAccount,
+            @NonNull final AccountID nodeAccount,
+            @NonNull final ServiceEndpoint localEndpoint,
+            @NonNull final StateProof localMessageQueueMetadataProof,
+            @NonNull final ClprLedgerId remoteLedgerId,
+            @Nullable final ClprMessageQueueMetadata storedRemoteMessageQueueMetadata,
             @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-        final var pushSuccess = pushQueueMetadata(remoteClient, remoteLedgerId, remoteServiceEndpoint);
-        if (!pushSuccess) {
-            return null;
+
+        // TRY TO PUSH THE LOCAL QUEUE IF NEEDED
+        // 1 First check if remote ledger has the latest message queue of this ledger!
+        // 1.1 Fetch this ledger message queue from the remote
+        final var localMessageQueueFromRemote = remoteClient.getMessageQueueMetadata(localLedgerId);
+        // 1.2 Compare remote version with local version
+        final var localMessageQueue = extractMessageQueueMetadata(localMessageQueueMetadataProof);
+        // TODO: check how to compare message queue objects!
+        if (!localMessageQueue.equals(localMessageQueueFromRemote)) {
+            // 1.3 Push local message queue state proof to the remote
+            final var pushStatus = pushQueueMetadata(
+                    localLedgerId, selfAccount, nodeAccount, remoteClient, localMessageQueueMetadataProof);
+            if (!isSuccessful(pushStatus)) {
+                log.warn(
+                        "CLPR Endpoint: Publish message queue metadata failed for remote ledger {} via endpoint {} (status {})",
+                        remoteLedgerId,
+                        remoteServiceEndpoint,
+                        pushStatus);
+            }
         }
-        return pullQueueMetadata(remoteClient, remoteLedgerId, remoteServiceEndpoint);
+
+        // TRY TO PULL THE REMOTE QUEUE AND STORE IF NEEDED
+        // 2. pull remote queue
+        final var remoteMessageQueueProof = remoteClient.getMessageQueueMetadata(remoteLedgerId);
+        if (remoteMessageQueueProof == null) {
+            log.warn("CLPR Endpoint: No remote message queue!");
+            // no messages to exchange
+            return new QueueMetadata(false, null);
+        }
+        final var fetchedMessageQueue = extractMessageQueueMetadata(remoteMessageQueueProof);
+
+        // TODO: maybe compare the next outgoing id
+        var shouldUpdate = !fetchedMessageQueue.equals(storedRemoteMessageQueueMetadata);
+        if (shouldUpdate) {
+            // update local version of the remote queue
+            final var localClient = createLocalClient(localServiceEndpoint());
+            localClient.updateMessageQueueMetadata(selfAccount, nodeAccount, remoteLedgerId, remoteMessageQueueProof);
+        }
+        return new QueueMetadata(
+                fetchedMessageQueue.receivedMessageId() < fetchedMessageQueue.nextMessageId() - 1,
+                fetchedMessageQueue);
     }
 
     private boolean pushPullQueueContent(
+            @NonNull final AccountID selfAccount,
+            @NonNull final AccountID nodeAccount,
+            @NonNull final ClprMessageQueueMetadata localMessageQueueMetadata,
             @NonNull final ClprClient remoteClient,
             @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
             @NonNull final QueueMetadata queueMetadata,
             @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-        final var pushSuccess = pushQueueContent(remoteClient, remoteLedgerId, queueMetadata, remoteServiceEndpoint);
-        if (!pushSuccess) {
+
+        // TRY TO PUSH MSG FROM LOCAL QUEUE TO REMOTE LEDGER
+        final var pushStatus = pushQueueContent(
+                selfAccount,
+                nodeAccount,
+                remoteClient,
+                remoteLedgerId,
+                localMessageQueueMetadata,
+                queueMetadata,
+                remoteServiceEndpoint);
+
+        if (!isSuccessful(pushStatus)) {
             return false;
         }
+
         return pullQueueContent(remoteClient, remoteLedgerId, queueMetadata, remoteServiceEndpoint);
     }
 
-    private boolean pushQueueMetadata(
-            @NonNull final ClprClient remoteClient,
-            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
-            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-        // TODO: implement queue metadata publish/pull protocol.
-        return true;
+    private ResponseCodeEnum pushQueueMetadata(
+            @NonNull final ClprLedgerId ledgerId,
+            @NonNull final AccountID payerAccount,
+            @NonNull final AccountID nodeAccountId,
+            @NonNull final ClprClient clprClient,
+            @NonNull final StateProof messageQueueMetadataProof) {
+        return clprClient.updateMessageQueueMetadata(payerAccount, nodeAccountId, ledgerId, messageQueueMetadataProof);
     }
 
-    private @Nullable QueueMetadata pullQueueMetadata(
-            @NonNull final ClprClient remoteClient,
-            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
-            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-        // TODO: implement queue metadata publish/pull protocol.
-        return new QueueMetadata(false);
+    private @Nullable StateProof pullQueueMetadata(
+            @NonNull final ClprClient clprClient, @NonNull final ClprLedgerId ledgerId) {
+        return clprClient.getMessageQueueMetadata(ledgerId);
     }
 
-    private boolean pushQueueContent(
+    private ResponseCodeEnum pushQueueContent(
+            @NonNull final AccountID selfAccount,
+            @NonNull final AccountID nodeAccount,
             @NonNull final ClprClient remoteClient,
-            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
+            @NonNull final ClprLedgerId remoteLedgerId,
+            @NonNull final ClprMessageQueueMetadata localMessageQueueMetadata,
             @NonNull final QueueMetadata queueMetadata,
             @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-        // TODO: implement queue content publish/pull protocol.
-        return true;
+
+        final var lastPendingMessageId = localMessageQueueMetadata.nextMessageId() - 1;
+        final var sentMessageId = localMessageQueueMetadata.sentMessageId();
+        if (lastPendingMessageId - 1 > sentMessageId) {
+            // get bundle for current remote ledger
+            final var maxMessagesInBundle = 1;
+
+            // find first and last message id in the bundle
+            final var firstPendingMsgId = sentMessageId + 1;
+            final var lastMsgIdInBundle = Math.min(firstPendingMsgId + maxMessagesInBundle, lastPendingMessageId);
+            final var messagePayloadList = new ArrayList<ClprMessagePayload>();
+            final var updateLocalQueueBuilder = localMessageQueueMetadata.copyBuilder();
+            for (long i = firstPendingMsgId; i <= lastMsgIdInBundle; i++) {
+                // check if this is the last messag in the bundle
+                if (i == lastMsgIdInBundle) {
+                    // TODO: build State Proof insted of adding the data directly into the bundle!!
+                }
+
+                final var messageKey = ClprMessageKey.newBuilder()
+                        .messageId(i)
+                        .ledgerId(remoteLedgerId)
+                        .build();
+                final var messageValue = stateProofManager.getMessage(messageKey);
+                if (messageValue.payloadOrThrow().hasMessage()) {
+                    final var payload = ClprMessagePayload.newBuilder()
+                            .message(messageValue.payload().message())
+                            .build();
+                    messagePayloadList.add(payload);
+                } else {
+                    final var payload = ClprMessagePayload.newBuilder()
+                            .messageReply(messageValue.payload().messageReply())
+                            .build();
+                    messagePayloadList.add(payload);
+                }
+            }
+            // update local queue
+            updateLocalQueueBuilder.sentMessageId(localMessageQueueMetadata.sentMessageId() + messagePayloadList.size());
+            // TODO: update the running hash
+
+            if (messagePayloadList.size() > 0) {
+                log.info("CLPR: Now sending messages");
+                final var bundle = ClprMessageBundle.newBuilder()
+                        .messages(messagePayloadList)
+                        .build();
+                return remoteClient.submitProcessMessageBundleTxn(selfAccount, nodeAccount, remoteLedgerId, bundle);
+            }
+        } else {
+            log.info("CLPR: No messages to send");
+        }
+
+        return null;
     }
 
     private boolean pullQueueContent(
@@ -405,6 +555,7 @@ public class ClprEndpointClient {
             @NonNull final QueueMetadata queueMetadata,
             @NonNull final ServiceEndpoint remoteServiceEndpoint) {
         // TODO: implement queue content publish/pull protocol.
+        log.info("CLPR: Now pulling messages (not implemented yet)");
         return true;
     }
 
@@ -448,5 +599,18 @@ public class ClprEndpointClient {
                     return new RemoteEndpoint(endpoint.endpoint(), resolvedAccountId);
                 })
                 .toArray(RemoteEndpoint[]::new);
+    }
+
+    private ClprClient createLocalClient(@NonNull ServiceEndpoint localEndpoint) {
+        requireNonNull(localEndpoint);
+        try {
+            return connectionManager.createClient(localEndpoint);
+        } catch (final UnknownHostException e) {
+            log.warn(
+                    "CLPR Endpoint: Unable to resolve local endpoint {} while storing data for remote ledger",
+                    localEndpoint,
+                    e);
+            return null;
+        }
     }
 }

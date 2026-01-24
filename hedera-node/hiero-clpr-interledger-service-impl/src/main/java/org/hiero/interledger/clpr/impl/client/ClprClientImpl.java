@@ -51,7 +51,6 @@ import org.hiero.hapi.interledger.clpr.ClprUpdateMessageQueueMetadataTransaction
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
-import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.client.ClprClient;
 
 /**
@@ -264,7 +263,7 @@ public class ClprClientImpl implements ClprClient {
     }
 
     @Override
-    public @Nullable ClprMessageQueueMetadata getMessageQueueMetadata(@NonNull ClprLedgerId ledgerId) {
+    public @Nullable StateProof getMessageQueueMetadata(@NonNull ClprLedgerId ledgerId) {
         // create query payload with header and specified ledger id
         final var queryBody = ClprGetMessageQueueMetadataQuery.newBuilder()
                 .header(QueryHeader.newBuilder().build())
@@ -275,11 +274,13 @@ public class ClprClientImpl implements ClprClient {
                 Query.newBuilder().getClprMessageQueueMetadata(queryBody).build();
         final var response = clprServiceClient.getMessageQueueMetadata(queryTxn);
         if (response.hasClprMessageQueueMetadata()) {
+            return Objects.requireNonNull(response.clprMessageQueueMetadata()).messageQueueMetadataProof();
+
             // extract configuration from state proof
             final var stateProof =
                     Objects.requireNonNull(response.clprMessageQueueMetadata()).messageQueueMetadataProof();
             if (stateProof != null && ClprStateProofUtils.validateStateProof(stateProof)) {
-                return ClprStateProofUtils.extractMessageQueueMetadata(stateProof);
+                return org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageQueueMetadata(stateProof);
             } else {
                 log.warn("State proof {} is invalid", stateProof);
             }
@@ -306,6 +307,7 @@ public class ClprClientImpl implements ClprClient {
             final var txnBody = TransactionBody.newBuilder()
                     .transactionID(newTransactionId(payerAccountId))
                     .clprProcessMessageBundle(ClprProcessMessageBundleTransactionBody.newBuilder()
+                            .ledgerId(ledgerId)
                             .messageBundle(messageBundle)
                             .build())
                     .transactionFee(1L)
@@ -327,7 +329,7 @@ public class ClprClientImpl implements ClprClient {
             return response.nodeTransactionPrecheckCode();
         } catch (final Exception e) {
             log.error(
-                    "CLPR client failed to submit message queue metadata for payer {} and ledger {}",
+                    "CLPR client failed to submit message bundle for payer {} and ledger {}",
                     payerAccountId,
                     ledgerId,
                     e);

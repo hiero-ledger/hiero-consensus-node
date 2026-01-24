@@ -56,21 +56,17 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
     public void handle(@NonNull HandleContext context) throws HandleException {
         final var writableMessagesStore = context.storeFactory().writableStore(WritableClprMessageStore.class);
         final var txn = context.body();
-        final var messageQBundle = txn.clprProcessMessageBundle();
-        // TODO: Implement handle!
-        //  The full semantics of the handler will be specified in later issues.
-        //  For now just save messages in state
+        final var ledgerId = txn.clprProcessMessageBundleOrThrow().ledgerId();
+        final var messageBundle = txn.clprProcessMessageBundleOrThrow().messageBundle();
+
         final var messageId = new AtomicInteger(0);
-        final var ledgerShortId = new AtomicInteger(0);
-        messageQBundle.ifMessageBundle(messageBundle -> {
-            messageBundle.messages().forEach(msg -> {
-                final var key = ClprMessageKey.newBuilder()
-                        .messageId(messageId.getAndIncrement())
-                        .ledgerShortId(ledgerShortId.get())
-                        .build();
-                final var value = ClprMessageValue.newBuilder().payload(msg).build();
-                writableMessagesStore.put(key, value);
-            });
+        messageBundle.messages().forEach(msg -> {
+            final var key = ClprMessageKey.newBuilder()
+                    .messageId(messageId.getAndIncrement())
+                    .ledgerId(ledgerId)
+                    .build();
+            final var value = ClprMessageValue.newBuilder().payload(msg).build();
+            writableMessagesStore.put(key, value);
         });
     }
 }

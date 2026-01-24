@@ -19,6 +19,7 @@ option java_package = "org.hiero.hapi.interledger.clpr.protoc";
 option java_multiple_files = true;
 
 import "interledger/state/clpr/clpr_message_queue.proto";
+import "interledger/state/clpr/clpr_ledger.proto";
 
 
 /**
@@ -35,10 +36,15 @@ import "interledger/state/clpr/clpr_message_queue.proto";
  */
 message ClprProcessMessageBundleTransactionBody {
   /**
+   * TODO
+   */
+  org.hiero.hapi.interledger.state.clpr.ClprLedgerId ledger_id = 1;
+
+  /**
    * The CLPR message bundle to be processed.
    * <p>
    * This field contains the messages that the transaction submits for
    * processing.
    */
-  org.hiero.hapi.interledger.state.clpr.ClprMessageBundle message_bundle = 1;
+  org.hiero.hapi.interledger.state.clpr.ClprMessageBundle message_bundle = 2;
 }
