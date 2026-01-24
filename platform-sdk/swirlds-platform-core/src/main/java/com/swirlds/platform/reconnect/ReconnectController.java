@@ -42,6 +42,7 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterRetriever;
 
 /**

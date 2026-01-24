@@ -17,6 +17,7 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 
 /**
  * This protocol is responsible for synchronizing a current state either local acting as lerner or remote acting as teacher.
