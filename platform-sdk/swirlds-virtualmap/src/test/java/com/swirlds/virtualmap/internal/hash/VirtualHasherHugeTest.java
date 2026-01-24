@@ -43,10 +43,6 @@ class VirtualHasherHugeTest extends VirtualHasherTestBase {
         final LongFunction<VirtualLeafBytes> leafGetter = (path) ->
                 new VirtualLeafBytes(path, TestKey.longToKey(path), new TestValue("" + path), TestValueCodec.INSTANCE);
 
-        // Since we're hashing every internal node, we can generate new ones with null hashes. None are ever
-        // asked for twice.
-        final LongFunction<VirtualHashRecord> internalGetter = VirtualHashRecord::new;
-
         // Go ahead and hash. I'm just going to check that the root hash produces *something*. I'm not worried
         // in this test as to the validity of this root hash since correctness is validated heavily in other
         // tests. In this test, I just want to be sure that we complete, and that we don't run out of memory.
@@ -61,6 +57,7 @@ class VirtualHasherHugeTest extends VirtualHasherTestBase {
                 lastLeafPath,
                 null,
                 CONFIGURATION.getConfigData(VirtualMapConfig.class));
+        System.err.println("Root hash: " + rootHash);
         assertNotNull(rootHash, "No hash produced");
     }
 }

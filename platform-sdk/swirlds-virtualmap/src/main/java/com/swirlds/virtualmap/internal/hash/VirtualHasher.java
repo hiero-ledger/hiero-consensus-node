@@ -23,7 +23,6 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -145,20 +144,12 @@ public final class VirtualHasher {
             super(pool, dependencyCount);
         }
 
-        boolean hasOut() {
-            return out != null;
-        }
-
         void setOut(final ChunkHashTask out) {
             this.out = out;
             if (out != null) {
-                out.initInputs();
+                out.taskInput();
             }
             send();
-        }
-
-        void complete() {
-            out.send();
         }
 
         @Override
@@ -186,26 +177,40 @@ public final class VirtualHasher {
         private final int height;
 
         // Hash inputs, at least two
-        private Hash[] ins;
+        private final Hash[] ins;
 
-        private final AtomicInteger insProvided = new AtomicInteger(0);
+        // Number of input dependencies set for this task, either other tasks, or
+        // nulls, which indicate the hash will be loaded from disk. No synchronization,
+        // since this field is only used on the task submission thread
+        private int inputs = 0;
 
         ChunkHashTask(final ForkJoinPool pool, final long path, final int height) {
             super(pool, 1 + (1 << height));
             this.path = path;
             this.height = height;
+            this.ins = new Hash[1 << height];
         }
 
-        @Override
-        public void complete() {
-            assert (ins == null) || Arrays.stream(ins).allMatch(Objects::isNull);
-            super.complete();
+        public void taskInput() {
+            inputs++;
         }
 
-        void initInputs() {
-            if (ins == null) {
-                ins = new Hash[1 << height];
+        public void noInput() {
+            inputs++;
+            send();
+        }
+
+        public void noMoreInputs() {
+            final int numInputs = 1 << height;
+            assert inputs <= numInputs;
+            for (int i = inputs; i < numInputs; i++) {
+                inputs++;
+                send();
             }
+        }
+
+        public boolean allInputsInitialized() {
+            return inputs == (1 << height);
         }
 
         void setHash(final long path, final Hash hash) {
@@ -215,9 +220,6 @@ public final class VirtualHasher {
             final int index = Math.toIntExact(path - firstPathInPathRank);
             assert (index >= 0) && (index < ins.length);
             ins[index] = hash;
-            if (hash != null) {
-                insProvided.incrementAndGet();
-            }
             send();
         }
 
@@ -240,10 +242,19 @@ public final class VirtualHasher {
             }
             final int chunkRank = Path.getRank(chunkPath);
             VirtualHashChunk hashChunk = null;
-            if ((insProvided.get() == len) && (chunkPath == path)) {
-                if ((height == defaultChunkHeight) || (Path.getLeftGrandChildPath(path, height) >= firstLeafPath)) {
-                    // All inputs provided, no need to load the chunk from disk using hashChunkPreloader
-                    hashChunk = new VirtualHashChunk(chunkPath, defaultChunkHeight);
+            if ((height == defaultChunkHeight) || (Path.getLeftGrandChildPath(path, height) >= firstLeafPath)) {
+                if (chunkPath == path) {
+                    boolean allInputhashesAvailable = true;
+                    for (int i = 0; i < len; i++) {
+                        if (ins[i] == null) {
+                            allInputhashesAvailable = false;
+                            break;
+                        }
+                    }
+                    if (allInputhashesAvailable) {
+                        // All inputs provided, no need to load the chunk from disk using hashChunkPreloader
+                        hashChunk = new VirtualHashChunk(chunkPath, defaultChunkHeight);
+                    }
                 }
             }
             if (hashChunk == null) {
@@ -284,7 +295,11 @@ public final class VirtualHasher {
                     final long rightPath = rankPath + i * 2 + 1;
                     assert (rightPath <= lastLeafPath) || (lastLeafPath == 1);
                     final boolean rightIsLeaf = rightPath >= firstLeafPath;
-                    if (right == null) {
+                    if (rightPath > lastLeafPath) {
+                        assert rightPath == 2;
+                        assert right == null;
+                        right = NO_PATH2_HASH;
+                    } else if (right == null) {
                         assert currentRank == taskRank + height;
                         // Need to load the hash from hashChunk
                         if ((height == defaultChunkHeight) || rightIsLeaf) {
@@ -332,12 +347,6 @@ public final class VirtualHasher {
         LeafHashTask(final ForkJoinPool pool, final long path) {
             super(pool, 2);
             this.path = path;
-        }
-
-        @Override
-        public void complete() {
-            assert leaf == null;
-            super.complete();
         }
 
         void setLeaf(final VirtualLeafBytes<?> leaf) {
@@ -583,7 +592,7 @@ public final class VirtualHasher {
         int lastLeafRank = Path.getRank(lastLeafPath);
 
         // This map contains all tasks created, but not scheduled for execution yet
-        final HashMap<Long, HashProducingTask> allTasks = new HashMap<>();
+        final HashMap<Long, ChunkHashTask> allTasks = new HashMap<>();
 
         final int rootTaskHeight = Math.min(firstLeafRank, defaultChunkHeight);
         final ChunkHashTask rootTask = new ChunkHashTask(pool, ROOT_PATH, rootTaskHeight);
@@ -591,25 +600,21 @@ public final class VirtualHasher {
         rootTask.setOut(null);
         allTasks.put(ROOT_PATH, rootTask);
 
-        boolean firstLeaf = true;
         final long[] stack = new long[lastLeafRank + 1];
         Arrays.fill(stack, INVALID_PATH);
+        stack[0] = ROOT_PATH;
 
         // Iterate over all dirty leaves one by one. For every leaf, create a new task, if not
         // created. Then look up for a parent task. If it's created, it must not be executed yet,
         // as one of the inputs is this dirty leaf task. If the parent task is not created,
         // create it here.
 
-        // For the created leaf task, set the leaf as an input. Together with the parent task
-        // it completes all task dependencies, so the task is executed.
-
         while (sortedDirtyLeaves.hasNext()) {
             VirtualLeafBytes<?> leaf = sortedDirtyLeaves.next();
             long curPath = leaf.path();
-            LeafHashTask leafTask = (LeafHashTask) allTasks.remove(curPath);
-            if (leafTask == null) {
-                leafTask = new LeafHashTask(pool, curPath);
-            }
+            // For the created leaf task, set the leaf as an input. Together with the parent task
+            // below it completes all task dependencies, so the task is executed
+            final LeafHashTask leafTask = new LeafHashTask(pool, curPath);
             leafTask.setLeaf(leaf);
 
             // The next step is to iterate over parent tasks, until an already created task
@@ -622,105 +627,59 @@ public final class VirtualHasher {
             HashProducingTask curTask = leafTask;
             while (true) {
                 final int curRank = Path.getRank(curPath);
+                assert curRank > 0; // there is parent task
+
+                final long lastPathAtRank = stack[curRank];
+                if (lastPathAtRank != INVALID_PATH) {
+                    final int lastTaskAtRankParentChunkHeight =
+                            getChunkHeightForInputRank(lastPathAtRank, curRank, firstLeafRank, lastLeafRank,
+                                    defaultChunkHeight);
+                    final long lastTaskAtRankParentPath = Path.getGrandParentPath(lastPathAtRank,
+                            lastTaskAtRankParentChunkHeight);
+                    final ChunkHashTask lastTaskAtRankParentTask = allTasks.get(lastTaskAtRankParentPath);
+                    assert lastTaskAtRankParentTask != null;
+                    final long lastTaskAtRankParentLastInputPath = Path.getRightGrandChildPath(lastTaskAtRankParentPath,
+                            lastTaskAtRankParentChunkHeight);
+                    if (curPath > lastTaskAtRankParentLastInputPath) {
+                        for (long l = lastPathAtRank + 1; l <= lastTaskAtRankParentLastInputPath; l++) {
+                            lastTaskAtRankParentTask.noInput();
+                        }
+                        if (lastTaskAtRankParentTask.allInputsInitialized()) {
+                            allTasks.remove(lastTaskAtRankParentPath);
+                        }
+                    } else {
+                        // curPath is in the same parent chunk as the stack path, all paths between
+                        // the stack path and curPath will be handled below
+                    }
+                }
+                stack[curRank] = curPath;
+
                 final int parentChunkHeight =
                         getChunkHeightForInputRank(curPath, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
-                final int chunkWidth = 1 << parentChunkHeight;
-                // If some tasks have been created at this rank, they can now be marked as
-                // clean. No dirty leaves in the remaining stream may affect these tasks
-                long curStackPath = stack[curRank];
-                if (curStackPath != INVALID_PATH) {
-                    stack[curRank] = INVALID_PATH;
-                    final long firstPathInRank = Path.getPathForRankAndIndex(curRank, 0);
-                    final long curStackChunkNoInRank = (curStackPath - firstPathInRank) / chunkWidth;
-                    final long firstPathInNextChunk = firstPathInRank + (curStackChunkNoInRank + 1) * chunkWidth;
-                    // Process all tasks starting from "stack" path to the end of the chunk
-                    for (; curStackPath < firstPathInNextChunk; ++curStackPath) {
-                        // It may happen that curPath is actually in the same chunk as stack[curRank].
-                        // In this case, stack[curRank] should be set to curPath + 1 to prevent a situation in which
-                        // all existing tasks between curPath and the end of the chunk hang in the tasks map and
-                        // are processed only after the last leaf (in the loop to set null data for all tasks
-                        // remaining in the map), despite these tasks being known to be clear.
-                        if (curStackPath == curPath) {
-                            if (curPath + 1 < firstPathInNextChunk) {
-                                stack[curRank] = curPath + 1;
-                            }
-                            break;
-                        }
-                        final HashProducingTask t = allTasks.remove(curStackPath);
-                        assert t != null;
-                        t.complete();
-                    }
-                }
-
-                // If the out is already set at this rank, all parent tasks and siblings are already
-                // processed, so break the loop
-                if (curTask.hasOut() || curTask == rootTask) {
-                    break;
-                }
-
                 final long parentPath = Path.getGrandParentPath(curPath, parentChunkHeight);
-                // Parent task is always a chunk task
-                ChunkHashTask parentTask = (ChunkHashTask) allTasks.remove(parentPath);
+                ChunkHashTask parentTask = allTasks.get(parentPath);
+                final boolean parentTaskExists = parentTask != null;
                 if (parentTask == null) {
                     parentTask = new ChunkHashTask(pool, parentPath, parentChunkHeight);
+                    allTasks.put(parentPath, parentTask);
                 }
-                // If curTask is a leaf task, it will be scheduled for execution here
                 curTask.setOut(parentTask);
 
-                // For every task on the route to the root, check its siblings within the same
-                // chunk. If a sibling is to the right, create a task for it, but not schedule yet
-                // (there may be a dirty leaf for it later in the stream). If a sibling is to the
-                // left, it may be marked as clean unless this is the very first dirty leaf. For
-                // this very first dirty leaf siblings to the left may not be marked clean, there
-                // may be dirty leaves on the last leaf rank that would contribute to these
-                // siblings. In this case, just create the tasks and store them to the map
-
-                final long firstPathInRank = Path.getPathForRankAndIndex(curRank, 0);
-                final long chunkNoInRank = (curPath - firstPathInRank) / chunkWidth;
-                final long firstSiblingPath = firstPathInRank + chunkNoInRank * chunkWidth;
-                final long lastSiblingPath = firstSiblingPath + chunkWidth - 1;
-                for (long siblingPath = firstSiblingPath; siblingPath <= lastSiblingPath; siblingPath++) {
-                    if (siblingPath == curPath) {
-                        continue;
-                    }
-                    if (siblingPath > lastLeafPath) {
-                        // Special case for a tree with one leaf at path 1
-                        assert siblingPath == 2;
-                        parentTask.setHash(siblingPath, NO_PATH2_HASH);
-                    } else if ((siblingPath < curPath) && !firstLeaf) {
-                        assert !allTasks.containsKey(siblingPath);
-                        // Mark the sibling as clean, reducing the number of parent task dependencies
-                        parentTask.send();
-                    } else {
-                        // Get or create a sibling task
-                        final HashProducingTask siblingTask;
-                        if (siblingPath >= firstLeafPath) {
-                            // Leaf sibling
-                            assert !allTasks.containsKey(siblingPath);
-                            siblingTask = allTasks.computeIfAbsent(siblingPath, p -> new LeafHashTask(pool, p));
-                        } else {
-                            // Chunk sibling
-                            final int taskChunkHeight = getChunkHeightForOutputRank(
-                                    siblingPath, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
-                            siblingTask = allTasks.computeIfAbsent(
-                                    siblingPath, path -> new ChunkHashTask(pool, path, taskChunkHeight));
-                        }
-                        // Set sibling task output to the same parent
-                        siblingTask.setOut(parentTask);
+                final long parentTaskFirstInputPath = Path.getLeftGrandChildPath(parentPath, parentChunkHeight);
+                if (lastPathAtRank != INVALID_PATH) {
+                    for (long l = Math.max(parentTaskFirstInputPath, lastPathAtRank + 1); l < curPath; l++) {
+                        parentTask.noInput();
                     }
                 }
-                // Now update the stack to the first sibling to the right. When the next node
-                // at the same rank is processed, all tasks starting from this sibling are
-                // guaranteed to be clean
-                if ((curPath != lastSiblingPath) && !firstLeaf) {
-                    stack[curRank] = curPath + 1;
-                }
 
+                if (parentTaskExists) {
+                    break;
+                }
                 curPath = parentPath;
                 curTask = parentTask;
             }
-            firstLeaf = false;
         }
+
         // After all dirty nodes are processed along with routes to the root, there may still be
         // tasks in the map. These tasks were created, but not scheduled as their input dependencies
         // aren't set yet. Examples are: tasks to the right of the sibling in "stack" created as a
@@ -728,7 +687,7 @@ public final class VirtualHasher {
         // created during walking from the last leaf on the last leaf rank to the root; sibling
         // tasks to the left of the very first route to the root. There are no more dirty leaves,
         // all these tasks may be marked as clean now
-        allTasks.forEach((path, task) -> task.complete());
+        allTasks.forEach((path, task) -> task.noMoreInputs());
         allTasks.clear();
 
         return rootTask;
