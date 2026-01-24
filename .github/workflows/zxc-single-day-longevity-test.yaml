@@ -71,6 +71,7 @@ env:
 
   #JDK to use
   JDK_PACKAGE: gs://performance-engineering-reports/permanent/OpenJDK25U-jdk_x64_linux_hotspot_25.0.2_10.tar.gz
+  JDK_ORIG_DIR: jdk-25.0.2+10
 
 jobs:
   longevity-tests-start:
@@ -419,11 +420,11 @@ jobs:
           do
             echo "Restarting pod network-node${i}-0 ..."
             node_id=`expr $i - 1`
-            kubectl -n "${{ env.namespace }}" cp $HOME/jdk-linux-x64_bin.tar.gz network-node${i}-0:/tmp/jdk-linux-x64_bin.tar.gz
-            kubectl -n "${{ env.namespace }}" cp "${{ github.workspace }}"/.github/workflows/support/citr/startPodJava.sh network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/
-            kubectl -n "${{ env.namespace }}" exec network-node${i}-0 -c root-container -- su - hedera -c bash -c "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -9"
-            kubectl -n "${{ env.namespace }}" exec network-node${i}-0 -c root-container -- bash -c "rm -rf /usr/local/java; cd /usr/local; tar xfz /tmp/jdk-linux-x64_bin.tar.gz; mv jdk-25 java; java --version"
-            kubectl -n "${{ env.namespace }}" exec network-node${i}-0 -c root-container -- su - hedera -c bash -c "sleep 30; cd /opt/hgcapp/services-hedera/HapiApp2.0; sh startPodJava.sh ${node_id} clean"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp $HOME/jdk-linux-x64_bin.tar.gz network-node${i}-0:/tmp/jdk-linux-x64_bin.tar.gz
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/.github/workflows/support/citr/startPodJava.sh network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -c root-container -- su - hedera -c bash -c "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -9"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -c root-container -- bash -c "rm -rf /usr/local/java; cd /usr/local; tar xfz /tmp/jdk-linux-x64_bin.tar.gz; mv ${{ env.JDK_ORIG_DIR }} java; java --version"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -c root-container -- su - hedera -c bash -c "sleep 30; cd /opt/hgcapp/services-hedera/HapiApp2.0; sh startPodJava.sh ${node_id} clean"
             echo "Done restarting pod network-node${i}-0"
           done
 
@@ -432,8 +433,8 @@ jobs:
           set +x
           set +e
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
-          kubectl -n "${{ env.namespace }}" cp $HOME/jdk-linux-x64_bin.tar.gz ${nlgpod}:/tmp/jdk-linux-x64_bin.tar.gz
-          kubectl -n "${{ env.namespace }}" exec ${nlgpod} -- bash -c "rm -rf /opt/java/openjdk; cd /opt/java; tar xfz /tmp/jdk-linux-x64_bin.tar.gz; mv jdk-25 openjdk; java --version"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp $HOME/jdk-linux-x64_bin.tar.gz ${nlgpod}:/tmp/jdk-linux-x64_bin.tar.gz
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -- bash -c "rm -rf /opt/java/openjdk; cd /opt/java; tar xfz /tmp/jdk-linux-x64_bin.tar.gz; mv ${{ env.JDK_ORIG_DIR }} openjdk; java --version"
 
       - name: Prepare NLG communication properties for CN
         env:
