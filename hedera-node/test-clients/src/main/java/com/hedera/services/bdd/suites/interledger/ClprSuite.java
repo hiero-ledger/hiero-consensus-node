@@ -449,8 +449,9 @@ public class ClprSuite implements LifecycleTest {
                 final var config = tryFetchLedgerConfiguration(node.get());
                 final var payer = asAccount(spec, 2);
                 final var ledgerId = config.ledgerId();
-                client.updateMessageQueueMetadata(
-                        toPbj(payer), node.get().getAccountId(), ledgerId, clprMessageQueueMetadata);
+                final var proof =
+                        ClprStateProofUtils.buildLocalClprStateProofWrapper(ledgerId, clprMessageQueueMetadata);
+                client.updateMessageQueueMetadata(toPbj(payer), node.get().getAccountId(), ledgerId, proof);
             }
         });
     }
