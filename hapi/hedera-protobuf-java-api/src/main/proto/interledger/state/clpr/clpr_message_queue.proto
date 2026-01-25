@@ -27,8 +27,7 @@ option java_multiple_files = true;
  *
  * There MUST be exactly one instance of this metadata per remote ledger that the
  * local ledger is connected to when that connection exists. This message is
- * intended to be stored in state as a map keyed by the ledger identifier
- * (for example, the short ledger id).
+ * intended to be stored in state as a map keyed by the ledger identifier.
  */
 message ClprMessageQueueMetadata {
   /**
@@ -89,7 +88,7 @@ message ClprMessageQueueMetadata {
 /**
  * Key for an individual queued message.
  *
- * The key is a tuple comprising the remote ledger short id and the message id.
+ * The key is a tuple comprising the remote ledger id and the message id.
  * The tuple uniquely identifies a message in the queue for a given ledger.
  */
 message ClprMessageKey {
@@ -218,7 +217,7 @@ message ClprMessageBundle {
    * This value is used to verify the state proof and determine which queue
    * metadata to apply
    */
-  org.hiero.hapi.interledger.state.clpr.ClprLedgerId ledger_id = 1;
+  ClprLedgerId ledger_id = 1;
 
   /**
    * Messages
