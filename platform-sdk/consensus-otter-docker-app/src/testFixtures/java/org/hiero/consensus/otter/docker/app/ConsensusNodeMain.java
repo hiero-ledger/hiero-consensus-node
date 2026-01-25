@@ -4,8 +4,9 @@ package org.hiero.consensus.otter.docker.app;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
+import com.hedera.pbj.grpc.helidon.PbjRouting;
+import com.hedera.pbj.grpc.helidon.config.PbjConfig;
+import io.helidon.webserver.WebServer;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -17,24 +18,24 @@ import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
 
 /**
  * Main entry point for the Consensus Node application. This application provides the
- * {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc} which runs the consensus node.
+ * {@link NodeCommunicationService} which runs the consensus node.
  */
 public class ConsensusNodeMain {
 
     /**
      * The name of the marker file to write when the
-     * {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc} is ready to accept requests.
+     * {@link NodeCommunicationService} is ready to accept requests.
      */
     public static final String STARTED_MARKER_FILE_NAME = "consensus-node-started.marker";
 
     /**
-     * The marker file to write when the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc}
+     * The marker file to write when the {@link NodeCommunicationService}
      * is ready to accept requests.
      */
     public static final Path STARTED_MARKER_FILE =
             Path.of(CONTAINER_APP_WORKING_DIR).resolve(STARTED_MARKER_FILE_NAME);
 
-    /** Port on which the {@link org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc} listens. */
+    /** Port on which the {@link NodeCommunicationService} listens. */
     private static final int NODE_COMM_SERVICE_PORT = 8081;
 
     /** Logger */
@@ -57,20 +58,26 @@ public class ConsensusNodeMain {
         final NodeCommunicationService nodeCommunicationService = new NodeCommunicationService(selfId);
 
         log.info(STARTUP.getMarker(), "Starting ConsensusNodeMain");
-        // Start the consensus node manager gRPC server
-        final Server nodeGrpcServer = ServerBuilder.forPort(NODE_COMM_SERVICE_PORT)
-                .addService(nodeCommunicationService)
+
+        final PbjConfig pbjConfig =
+                PbjConfig.builder().name("node-communication").build();
+
+        // Start the consensus node manager WebServer
+        final WebServer nodeWebServer = WebServer.builder()
+                .port(NODE_COMM_SERVICE_PORT)
+                .addRouting(PbjRouting.builder().service(nodeCommunicationService))
+                .addProtocol(pbjConfig)
                 .build();
+
+        nodeWebServer.start();
+        writeStartedMarkerFile();
+
+        // Block until the server is shut down
         try {
-            nodeGrpcServer.start();
-            writeStartedMarkerFile();
-            nodeGrpcServer.awaitTermination();
-        } catch (final IOException ie) {
-            log.error(STARTUP.getMarker(), "Failed to start the gRPC server for the consensus node manager", ie);
-            System.exit(-1);
+            Thread.currentThread().join();
         } catch (final InterruptedException e) {
             // Only warn, because we expect this exception when we interrupt the thread on a kill request
-            log.warn(STARTUP.getMarker(), "Interrupted while running the consensus node manager gRPC server", e);
+            log.warn(STARTUP.getMarker(), "Interrupted while running the consensus node manager server", e);
             Thread.currentThread().interrupt();
             System.exit(-1);
         }

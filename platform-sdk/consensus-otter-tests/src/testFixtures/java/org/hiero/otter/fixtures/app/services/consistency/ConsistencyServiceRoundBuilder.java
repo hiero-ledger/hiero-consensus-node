@@ -32,7 +32,7 @@ public class ConsistencyServiceRoundBuilder {
      * @param transaction the transaction to add
      */
     public void addTransaction(@NonNull final OtterTransaction transaction) {
-        transactionNonceList.add(transaction.getNonce());
+        transactionNonceList.add(transaction.nonce());
     }
 
     /**

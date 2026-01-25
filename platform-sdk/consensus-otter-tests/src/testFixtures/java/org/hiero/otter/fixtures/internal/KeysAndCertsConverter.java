@@ -3,7 +3,7 @@ package org.hiero.otter.fixtures.internal;
 
 import static java.util.Objects.requireNonNull;
 
-import com.google.protobuf.ByteString;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.security.KeyFactory;
@@ -40,22 +40,20 @@ public class KeysAndCertsConverter {
         requireNonNull(keysAndCerts, "keysAndCerts must not be null");
         try {
             return ProtoKeysAndCerts.newBuilder()
-                    .setSigKeyType(keysAndCerts.sigKeyPair().getPrivate().getAlgorithm())
-                    .setSigPrivateKey(ByteString.copyFrom(
-                            keysAndCerts.sigKeyPair().getPrivate().getEncoded()))
-                    .setSigPublicKey(ByteString.copyFrom(
-                            keysAndCerts.sigKeyPair().getPublic().getEncoded()))
-                    .setAgrKeyType(keysAndCerts.agrKeyPair().getPrivate().getAlgorithm())
-                    .setAgrPrivateKey(ByteString.copyFrom(
-                            keysAndCerts.agrKeyPair().getPrivate().getEncoded()))
-                    .setAgrPublicKey(ByteString.copyFrom(
-                            keysAndCerts.agrKeyPair().getPublic().getEncoded()))
-                    .setSigCertType(keysAndCerts.sigCert().getType())
-                    .setSigCertificate(
-                            ByteString.copyFrom(keysAndCerts.sigCert().getEncoded()))
-                    .setAgrCertType(keysAndCerts.agrCert().getType())
-                    .setAgrCertificate(
-                            ByteString.copyFrom(keysAndCerts.agrCert().getEncoded()))
+                    .sigKeyType(keysAndCerts.sigKeyPair().getPrivate().getAlgorithm())
+                    .sigPrivateKey(
+                            Bytes.wrap(keysAndCerts.sigKeyPair().getPrivate().getEncoded()))
+                    .sigPublicKey(
+                            Bytes.wrap(keysAndCerts.sigKeyPair().getPublic().getEncoded()))
+                    .agrKeyType(keysAndCerts.agrKeyPair().getPrivate().getAlgorithm())
+                    .agrPrivateKey(
+                            Bytes.wrap(keysAndCerts.agrKeyPair().getPrivate().getEncoded()))
+                    .agrPublicKey(
+                            Bytes.wrap(keysAndCerts.agrKeyPair().getPublic().getEncoded()))
+                    .sigCertType(keysAndCerts.sigCert().getType())
+                    .sigCertificate(Bytes.wrap(keysAndCerts.sigCert().getEncoded()))
+                    .agrCertType(keysAndCerts.agrCert().getType())
+                    .agrCertificate(Bytes.wrap(keysAndCerts.agrCert().getEncoded()))
                     .build();
         } catch (CertificateEncodingException e) {
             throw new RuntimeException(e);
@@ -72,26 +70,26 @@ public class KeysAndCertsConverter {
     public static KeysAndCerts fromProto(@NonNull final ProtoKeysAndCerts proto) {
         requireNonNull(proto, "proto cannot be null");
         try {
-            final KeyFactory sigKeyFactory = KeyFactory.getInstance(proto.getSigKeyType());
+            final KeyFactory sigKeyFactory = KeyFactory.getInstance(proto.sigKeyType());
             final PrivateKey sigPriv = sigKeyFactory.generatePrivate(
-                    new PKCS8EncodedKeySpec(proto.getSigPrivateKey().toByteArray()));
+                    new PKCS8EncodedKeySpec(proto.sigPrivateKey().toByteArray()));
             final PublicKey sigPub = sigKeyFactory.generatePublic(
-                    new X509EncodedKeySpec(proto.getSigPublicKey().toByteArray()));
+                    new X509EncodedKeySpec(proto.sigPublicKey().toByteArray()));
             final KeyPair sigPair = new KeyPair(sigPub, sigPriv);
 
-            final KeyFactory agrKeyFactory = KeyFactory.getInstance(proto.getAgrKeyType());
+            final KeyFactory agrKeyFactory = KeyFactory.getInstance(proto.agrKeyType());
             final PrivateKey agrPriv = agrKeyFactory.generatePrivate(
-                    new PKCS8EncodedKeySpec(proto.getAgrPrivateKey().toByteArray()));
+                    new PKCS8EncodedKeySpec(proto.agrPrivateKey().toByteArray()));
             final PublicKey agrPub = agrKeyFactory.generatePublic(
-                    new X509EncodedKeySpec(proto.getAgrPublicKey().toByteArray()));
+                    new X509EncodedKeySpec(proto.agrPublicKey().toByteArray()));
             final KeyPair agrPair = new KeyPair(agrPub, agrPriv);
 
-            final CertificateFactory certFactory = CertificateFactory.getInstance(proto.getSigCertType());
+            final CertificateFactory certFactory = CertificateFactory.getInstance(proto.sigCertType());
             final X509Certificate sigCert = (X509Certificate) certFactory.generateCertificate(
-                    new ByteArrayInputStream(proto.getSigCertificate().toByteArray()));
+                    new ByteArrayInputStream(proto.sigCertificate().toByteArray()));
 
             final X509Certificate agrCert = (X509Certificate) certFactory.generateCertificate(
-                    new ByteArrayInputStream(proto.getAgrCertificate().toByteArray()));
+                    new ByteArrayInputStream(proto.agrCertificate().toByteArray()));
 
             return new KeysAndCerts(sigPair, agrPair, sigCert, agrCert);
         } catch (CertificateException | NoSuchAlgorithmException | InvalidKeySpecException e) {

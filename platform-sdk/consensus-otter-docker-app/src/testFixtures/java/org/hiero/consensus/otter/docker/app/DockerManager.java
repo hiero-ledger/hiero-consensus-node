@@ -7,9 +7,7 @@ import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MAR
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
-import com.google.protobuf.Empty;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -24,7 +22,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
-import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
+import org.hiero.otter.fixtures.container.proto.ContainerControlServiceInterface;
+import org.hiero.otter.fixtures.container.proto.Empty;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PingResponse;
@@ -36,7 +35,7 @@ import org.hiero.otter.fixtures.container.proto.PingResponse;
  * This service handles incoming messages to initialize the {@link NodeCommunicationService} which handles communication
  * with the consensus node itself.
  */
-public final class DockerManager extends ContainerControlServiceGrpc.ContainerControlServiceImplBase {
+public final class DockerManager implements ContainerControlServiceInterface {
 
     /** Logger */
     private static final Logger log = LogManager.getLogger(DockerManager.class);
@@ -73,20 +72,21 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
      * node manager gRPC service is available to receive requests from the test framework.
      *
      * @param request the initialization request containing the self node ID
-     * @param responseObserver The observer used to confirm termination.
+     * @return Empty response confirming initialization
+     * @throws IllegalStateException if attempting to change the node ID after initialization
+     * @throws RuntimeException if an error occurs during initialization
      */
     @Override
-    public synchronized void init(
-            @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+    @NonNull
+    public synchronized Empty Init(@NonNull final InitRequest request) {
         log.info("Init request received");
-        final NodeId requestSelfId = NodeId.of(request.getSelfId().getId());
+        final NodeId requestSelfId = NodeId.of(request.selfId().id());
         if (attemptingToChangeSelfId(requestSelfId)) {
             log.error(
                     "Node ID cannot be changed after initialization. Current ID: {}, requested ID: {}",
                     selfId.id(),
                     requestSelfId.id());
-            responseObserver.onError(new IllegalStateException("Node ID cannot be changed after initialization."));
-            return;
+            throw new IllegalStateException("Node ID cannot be changed after initialization.");
         }
 
         this.selfId = requestSelfId;
@@ -111,35 +111,31 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
             process = processBuilder.start();
         } catch (final IOException e) {
             log.error("Failed to start the consensus node process", e);
-            responseObserver.onError(e);
-            return;
+            throw new RuntimeException("Failed to start the consensus node process", e);
         }
         log.info("NodeCommunicationService started. Waiting for gRPC service to initialize...");
 
         try {
             if (waitForStartedMarkerFile()) {
                 log.info("NodeCommunicationService initialized");
-                responseObserver.onNext(Empty.getDefaultInstance());
-                responseObserver.onCompleted();
+                return Empty.DEFAULT;
             } else {
                 if (!process.isAlive()) {
                     log.error("Consensus node stopped prematurely. Errorcode: {}", process.exitValue());
                 } else {
                     log.error("Consensus node process started, but marker file was not detected in the allowed time");
                 }
-                responseObserver.onError(new IllegalStateException(
-                        "Consensus node process started, but marker file was not detected in the allowed time"));
+                throw new IllegalStateException(
+                        "Consensus node process started, but marker file was not detected in the allowed time");
             }
         } catch (final IOException e) {
             log.error("Failed to delete the started marker file", e);
-            responseObserver.onError(e);
+            throw new RuntimeException("Failed to delete the started marker file", e);
         } catch (final InterruptedException e) {
             log.warn("Interrupted while waiting for the started marker file", e);
             Thread.currentThread().interrupt();
-            responseObserver.onError(e);
+            throw new RuntimeException("Interrupted while waiting for the started marker file", e);
         }
-
-        log.info("Init request completed.");
     }
 
     /**
@@ -186,49 +182,45 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
      * for verification.
      *
      * @param request The request to terminate the platform.
-     * @param responseObserver The observer used to confirm termination.
+     * @return Empty response confirming termination
      */
     @Override
-    public synchronized void killImmediately(
-            @NonNull final KillImmediatelyRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+    @NonNull
+    public synchronized Empty KillImmediately(@NonNull final KillImmediatelyRequest request) {
         log.info("Received kill request: {}", request);
         if (process != null) {
             process.destroyForcibly();
             try {
-                if (process.waitFor(request.getTimeoutSeconds(), TimeUnit.SECONDS)) {
-                    responseObserver.onNext(Empty.getDefaultInstance());
-                    responseObserver.onCompleted();
+                if (process.waitFor(request.timeoutSeconds(), TimeUnit.SECONDS)) {
+                    log.info("Kill request completed.");
+                    return Empty.DEFAULT;
                 } else {
                     log.error("Failed to terminate the consensus node process within the timeout period.");
-                    responseObserver.onError(new IllegalStateException(
-                            "Failed to terminate the consensus node process within the timeout period."));
+                    throw new IllegalStateException(
+                            "Failed to terminate the consensus node process within the timeout period.");
                 }
             } catch (final InterruptedException e) {
                 log.error("Interrupted while waiting for the consensus node process to terminate.", e);
                 Thread.currentThread().interrupt();
-                responseObserver.onError(new InterruptedException(
-                        "Interrupted while waiting for the consensus node process to terminate."));
+                throw new RuntimeException("Interrupted while waiting for the consensus node process to terminate.", e);
             }
-        } else {
-            responseObserver.onNext(Empty.getDefaultInstance());
-            responseObserver.onCompleted();
         }
         log.info("Kill request completed.");
+        return Empty.DEFAULT;
     }
 
     /**
      * Pings the node communication service to check if it is alive.
      *
      * @param request An empty request.
-     * @param responseObserver The observer used to receive the ping response.
+     * @return The ping response indicating if the process is alive.
      */
     @Override
-    public void nodePing(@NonNull final Empty request, @NonNull final StreamObserver<PingResponse> responseObserver) {
+    @NonNull
+    public synchronized PingResponse NodePing(@NonNull final Empty request) {
         log.info("Received ping request");
-        responseObserver.onNext(PingResponse.newBuilder()
-                .setAlive(process != null && process.isAlive())
-                .build());
-        responseObserver.onCompleted();
-        log.debug("Ping response sent");
+        final boolean alive = process != null && process.isAlive();
+        log.debug("Ping response sent: alive={}", alive);
+        return new PingResponse(alive);
     }
 }

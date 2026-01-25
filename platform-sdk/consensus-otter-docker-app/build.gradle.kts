@@ -7,13 +7,20 @@ plugins {
 
 description = "Otter Docker App"
 
+dependencies {
+    testFixturesImplementation(platform(project(":hiero-dependency-versions")))
+    testFixturesImplementation("com.hedera.pbj:pbj-grpc-helidon")
+    testFixturesImplementation("io.helidon.webserver:helidon-webserver")
+    testFixturesRuntimeOnly("io.helidon.webserver:helidon-webserver-http2")
+}
+
 testFixturesModuleInfo {
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
-    runtimeOnly("io.grpc.netty.shaded")
+    runtimeOnly("io.helidon.webserver.http2")
 }
 
 // This should probably not be necessary (Log4j issue?)

@@ -7,8 +7,6 @@ import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
@@ -80,11 +78,11 @@ public class PlatformStateService implements OtterService {
             @NonNull final OtterTransaction transaction,
             @NonNull final Instant transactionTimestamp,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        switch (transaction.getDataCase()) {
-            case FREEZETRANSACTION -> handleFreeze(writableStates, transaction.getFreezeTransaction());
-            case STATESIGNATURETRANSACTION ->
-                handleStateSignature(event, transaction.getStateSignatureTransaction(), callback);
-            case EMPTYTRANSACTION, DATA_NOT_SET -> {
+        switch (transaction.data().kind()) {
+            case FREEZE_TRANSACTION -> handleFreeze(writableStates, transaction.freezeTransaction());
+            case STATE_SIGNATURE_TRANSACTION ->
+                handleStateSignature(event, transaction.stateSignatureTransaction(), callback);
+            case EMPTY_TRANSACTION, UNSET -> {
                 // No action needed for empty transactions
             }
         }
@@ -98,7 +96,7 @@ public class PlatformStateService implements OtterService {
      */
     private static void handleFreeze(
             @NonNull final WritableStates writableStates, @NonNull final OtterFreezeTransaction freezeTransaction) {
-        final Timestamp freezeTime = CommonPbjConverters.toPbj(freezeTransaction.getFreezeTime());
+        final Timestamp freezeTime = freezeTransaction.freezeTime();
         final WritablePlatformStateStore store = new WritablePlatformStateStore(writableStates);
         store.setFreezeTime(fromPbjTimestamp(freezeTime));
     }
@@ -112,13 +110,9 @@ public class PlatformStateService implements OtterService {
      */
     private static void handleStateSignature(
             @NonNull final Event event,
-            @NonNull final com.hedera.hapi.platform.event.legacy.StateSignatureTransaction transaction,
+            @NonNull final StateSignatureTransaction transaction,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        final StateSignatureTransaction newTransaction = new StateSignatureTransaction(
-                transaction.getRound(),
-                Bytes.wrap(transaction.getSignature().toByteArray()),
-                Bytes.wrap(transaction.getHash().toByteArray()));
-        callback.accept(new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), newTransaction));
+        callback.accept(new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), transaction));
     }
 
     /**

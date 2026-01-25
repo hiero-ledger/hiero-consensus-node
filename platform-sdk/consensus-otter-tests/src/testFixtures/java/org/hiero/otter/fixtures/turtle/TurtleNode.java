@@ -393,7 +393,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 return;
             }
 
-            transactions.forEach(tx -> executionLayer.submitApplicationTransaction(tx.toByteArray()));
+            transactions.forEach(tx -> executionLayer.submitApplicationTransaction(
+                    OtterTransaction.PROTOBUF.toBytes(tx).toByteArray()));
         }
     }
 

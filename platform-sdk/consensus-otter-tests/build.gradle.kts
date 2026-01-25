@@ -5,10 +5,19 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.test-fixtures")
     id("org.hiero.gradle.feature.test-integration")
-    id("org.hiero.gradle.feature.protobuf")
+    id("com.hedera.pbj.pbj-compiler")
 }
 
 description = "Consensus Otter Test Framework"
+
+dependencies {
+    testFixturesImplementation(platform(project(":hiero-dependency-versions")))
+    testFixturesImplementation("com.hedera.pbj:pbj-grpc-client-helidon")
+    testFixturesRuntimeOnly("io.helidon.webclient:helidon-webclient")
+    testFixturesRuntimeOnly("io.helidon.webclient:helidon-webclient-grpc")
+    testFixturesRuntimeOnly("io.helidon.webclient:helidon-webclient-http2")
+    testFixturesImplementation("io.helidon.common:helidon-common-tls")
+}
 
 @Suppress("UnstableApiUsage")
 testing {
@@ -50,10 +59,6 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requiresStatic("com.github.spotbugs.annotations")
-}
-
-testIntegrationModuleInfo { //
-    runtimeOnly("io.grpc.netty.shaded")
 }
 
 extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {

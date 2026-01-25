@@ -161,9 +161,9 @@ class LargeStateTests {
         final List<OtterTransaction> transactions = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             final CreateAccountTransaction createAccountTransaction =
-                    CreateAccountTransaction.newBuilder().setName("Test" + i).build();
+                    CreateAccountTransaction.newBuilder().name("Test" + i).build();
             final OtterTransaction createOtterTransaction = OtterTransaction.newBuilder()
-                    .setCreateAccountTransaction(createAccountTransaction)
+                    .createAccountTransaction(createAccountTransaction)
                     .build();
             transactions.add(createOtterTransaction);
             if (i % BATCH == BATCH - 1) {
@@ -184,9 +184,9 @@ class LargeStateTests {
         final List<OtterTransaction> transactions = new ArrayList<>();
         for (int i = 1; i <= count; i++) {
             final DeleteAccountTransaction deleteAccountTransaction =
-                    DeleteAccountTransaction.newBuilder().setId(i).build();
+                    DeleteAccountTransaction.newBuilder().id(i).build();
             final OtterTransaction deleteOtterTransaction = OtterTransaction.newBuilder()
-                    .setDeleteAccountTransaction(deleteAccountTransaction)
+                    .deleteAccountTransaction(deleteAccountTransaction)
                     .build();
             transactions.add(deleteOtterTransaction);
             if (i % BATCH == 0) {
@@ -203,9 +203,9 @@ class LargeStateTests {
 
     private static void deleteAccount(final int id, @NonNull final Network network) {
         final DeleteAccountTransaction deleteAccountTransaction =
-                DeleteAccountTransaction.newBuilder().setId(id).build();
+                DeleteAccountTransaction.newBuilder().id(id).build();
         final OtterTransaction deleteOtterTransaction = OtterTransaction.newBuilder()
-                .setDeleteAccountTransaction(deleteAccountTransaction)
+                .deleteAccountTransaction(deleteAccountTransaction)
                 .build();
         network.submitTransaction(deleteOtterTransaction);
     }

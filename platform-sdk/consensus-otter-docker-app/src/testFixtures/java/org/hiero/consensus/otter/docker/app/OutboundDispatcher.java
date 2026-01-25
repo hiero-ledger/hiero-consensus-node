@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
+import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import io.grpc.stub.ServerCallStreamObserver;
-import io.grpc.stub.StreamObserver;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -14,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 
 /**
- * Handles queuing {@link EventMessage}s and delivering them to a gRPC {@link StreamObserver} on a
+ * Handles queuing {@link EventMessage}s and delivering them to a gRPC {@link Pipeline} on a
  * single background thread.
  */
 public final class OutboundDispatcher {
@@ -34,19 +33,13 @@ public final class OutboundDispatcher {
      * Creates a new dispatcher instance and immediately starts the background task.
      *
      * @param executor the executor used to run the background task
-     * @param responseObserver the gRPC stream to which messages will be delivered
+     * @param pipeline the gRPC pipeline to which messages will be delivered
      */
     public OutboundDispatcher(
-            @NonNull final ExecutorService executor, @NonNull final StreamObserver<EventMessage> responseObserver) {
-
-        // Register a cancellation callback if possible so that we stop delivering messages once the
-        // client has canceled the stream.
-        if (responseObserver instanceof ServerCallStreamObserver<?> serverObserver) {
-            serverObserver.setOnCancelHandler(this::shutdown);
-        }
+            @NonNull final ExecutorService executor, @NonNull final Pipeline<? super EventMessage> pipeline) {
 
         // Submit the dispatcher loop.
-        dispatchFuture = executor.submit(() -> runDispatchLoop(responseObserver));
+        dispatchFuture = executor.submit(() -> runDispatchLoop(pipeline));
     }
 
     /**
@@ -80,14 +73,14 @@ public final class OutboundDispatcher {
     }
 
     /**
-     * Continuously takes messages from the queue and delivers them to the gRPC stream.
+     * Continuously takes messages from the queue and delivers them to the gRPC pipeline.
      */
-    private void runDispatchLoop(@NonNull final StreamObserver<EventMessage> observer) {
+    private void runDispatchLoop(@NonNull final Pipeline<? super EventMessage> pipeline) {
         try {
             while (!cancelled.get()) {
                 final EventMessage msg = outboundQueue.take();
                 try {
-                    observer.onNext(msg);
+                    pipeline.onNext(msg);
                 } catch (final RuntimeException e) {
                     // Any exception here implies that the stream is no longer writable.
                     log.error("Unexpected error while sending event message", e);

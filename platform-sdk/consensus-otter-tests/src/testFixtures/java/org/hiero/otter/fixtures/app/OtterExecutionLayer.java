@@ -16,6 +16,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.otter.fixtures.TransactionFactory;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * An implementation of the {@link ExecutionLayer} for the Otter tests.
@@ -46,9 +47,8 @@ public class OtterExecutionLayer implements ExecutionLayer {
      */
     @Override
     public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
-        transactionPool.submitPriorityTransaction(
-                Bytes.wrap(TransactionFactory.createStateSignatureTransaction(random.nextLong(), transaction)
-                        .toByteArray()));
+        transactionPool.submitPriorityTransaction(OtterTransaction.PROTOBUF.toBytes(
+                TransactionFactory.createStateSignatureTransaction(random.nextLong(), transaction)));
     }
 
     /**

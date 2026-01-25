@@ -146,7 +146,7 @@ public class ConsistencyService implements OtterService {
             @NonNull final OtterTransaction transaction,
             @NonNull final Instant transactionTimestamp,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        final long transactionNonce = transaction.getNonce();
+        final long transactionNonce = transaction.nonce();
         new WritableConsistencyStateStore(writableStates).accumulateRunningChecksum(transactionNonce);
         if (!transactionsAwaitingHandle.remove(transactionNonce)) {
             log.error(EXCEPTION.getMarker(), "Transaction {} was not pre-handled.", transactionNonce);
@@ -167,7 +167,7 @@ public class ConsistencyService implements OtterService {
             @NonNull final Event event,
             @NonNull final OtterTransaction transaction,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        final long transactionNonce = transaction.getNonce();
+        final long transactionNonce = transaction.nonce();
         if (!transactionsAwaitingHandle.add(transactionNonce)) {
             log.error(EXCEPTION.getMarker(), "Transaction {} was pre-handled more than once.", transactionNonce);
         }

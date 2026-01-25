@@ -72,10 +72,10 @@ public class IssService implements OtterService {
             return;
         }
 
-        final OtterIssTransaction issTransaction = transaction.getIssTransaction();
+        final OtterIssTransaction issTransaction = transaction.issTransaction();
 
-        for (int i = 0; i < issTransaction.getPartitionCount(); i++) {
-            final HashPartition partition = issTransaction.getPartition(i);
+        for (int i = 0; i < issTransaction.partition().size(); i++) {
+            final HashPartition partition = issTransaction.partition().get(i);
 
             /*
              * If this node is in the partition, trigger an ISS by increasing
@@ -84,12 +84,12 @@ public class IssService implements OtterService {
              * a partition will apply the same value and will disagree on
              * the value with all other nodes.
              */
-            if (partition.getNodeIdList().contains(selfId.id()) && !previouslyTriggered(transactionTimestamp)) {
+            if (partition.nodeId().contains(selfId.id()) && !previouslyTriggered(transactionTimestamp)) {
                 log.info(
                         "Triggering ISS - selfId: {}, partition index: {}, partition nodes: {}",
                         selfId.id(),
                         i,
-                        partition.getNodeIdList());
+                        partition.nodeId());
                 final WritableIssStateStore store = new WritableIssStateStore(writableStates);
                 store.setStateValue(i + 1);
 

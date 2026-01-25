@@ -9,14 +9,13 @@ import "platform/state/platform_state.proto";
 import "platform/event/gossip_event.proto";
 import "platform/event/event_consensus_data.proto";
 import "platform/event/event_descriptor.proto";
-import "google/protobuf/empty.proto";
 
 option java_multiple_files = true;
 
 // Request to start the remote platform.
 message StartRequest {
   // Semantic version of the platform.
-  .proto.SemanticVersion version = 1;
+  proto.SemanticVersion version = 1;
   // Roster of nodes participating in the platform.
   com.hedera.hapi.node.state.roster.Roster roster = 2;
   // Cryptographic keys and certificates for the platform.
@@ -24,6 +23,8 @@ message StartRequest {
   // Properties overridden for the platform.
   map<string, string> overridden_properties = 4;
 }
+
+message Empty{}
 
 // Represents a set of cryptographic keys and certificates used for signing and agreement.
 message ProtoKeysAndCerts {
@@ -216,8 +217,8 @@ service NodeCommunicationService {
   rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
 
   // RPC to change the synthetic bottleneck of the handle thread.
-  rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
+  rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (Empty);
 
   // RPC to control quiescence of the node.
-  rpc QuiescenceCommandUpdate(QuiescenceRequest) returns (google.protobuf.Empty);
+  rpc QuiescenceCommandUpdate(QuiescenceRequest) returns (Empty);
 }
