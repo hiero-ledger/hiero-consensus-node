@@ -21,7 +21,11 @@ public final class ClprServiceDefinition implements RpcServiceDefinition {
 
     private static final Set<RpcMethodDefinition<?, ?>> methods = Set.of(
             new RpcMethodDefinition<>("setLedgerConfiguration", Transaction.class, TransactionResponse.class),
-            new RpcMethodDefinition<>("getLedgerConfiguration", Query.class, Response.class));
+            new RpcMethodDefinition<>("getLedgerConfiguration", Query.class, Response.class),
+            new RpcMethodDefinition<>("updateMessageQueueMetadata", Transaction.class, TransactionResponse.class),
+            new RpcMethodDefinition<>("getMessageQueueMetadata", Query.class, Response.class),
+            new RpcMethodDefinition<>("processMessageBundle", Transaction.class, TransactionResponse.class),
+            new RpcMethodDefinition<>("getMessageBundle", Query.class, Response.class));
 
     private ClprServiceDefinition() {
         // Forbid instantiation

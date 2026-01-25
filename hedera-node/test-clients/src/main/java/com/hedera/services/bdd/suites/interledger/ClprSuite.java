@@ -1,19 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.interledger;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.gossipCaCertificateForNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -21,10 +27,10 @@ import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.utilops.ContextualActionOp;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
-import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
@@ -34,9 +40,15 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
-import org.hiero.hapi.interledger.state.clpr.protoc.ClprEndpoint;
-import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
+import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessage;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
+import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.interledger.clpr.ClprStateProofUtils;
+import org.hiero.interledger.clpr.client.ClprClient;
 import org.hiero.interledger.clpr.impl.client.ClprClientImpl;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -79,15 +91,15 @@ public class ClprSuite implements LifecycleTest {
                     .isNotEmpty();
             final var node = nodes.get(0);
             final var config = fetchLedgerConfiguration(List.of(node));
-            assertThat(config.getLedgerId().getLedgerId())
+            assertThat(config.ledgerId().ledgerId())
                     .as("Genesis CLPR ledger id must be populated")
-                    .isNotEmpty();
-            assertThat(config.getEndpointsList())
+                    .isNotNull();
+            assertThat(config.endpoints())
                     .as("Genesis CLPR ledger configuration must include endpoints")
                     .isNotEmpty()
-                    .allSatisfy(endpoint -> assertThat(endpoint.getSigningCertificate())
+                    .allSatisfy(endpoint -> assertThat(endpoint.signingCertificate())
                             .as("CLPR endpoints must advertise signing certificates")
-                            .isNotEmpty());
+                            .isNotNull());
         }));
     }
 
@@ -132,7 +144,7 @@ public class ClprSuite implements LifecycleTest {
                     final var config = fetchLedgerConfiguration(nodes);
                     baselineConfig.set(config);
                     latestConfig.set(config);
-                    final var endpoints = config.getEndpointsList();
+                    final var endpoints = config.endpoints();
                     assertThat(endpoints)
                             .as("CLPR ledger configuration should expose one endpoint per node")
                             .hasSize(nodes.size());
@@ -154,13 +166,13 @@ public class ClprSuite implements LifecycleTest {
                             "advance after publicize toggle");
                     assertLedgerIdStable(baseline, config);
                     assertTimestampAdvanced(baseline, config);
-                    assertThat(config.getEndpointsList())
+                    assertThat(config.endpoints())
                             .as("CLPR endpoints should omit network addresses when publicize=false")
                             .hasSize(nodes.size())
                             .allSatisfy(endpoint -> {
-                                assertThat(endpoint.getSigningCertificate())
+                                assertThat(endpoint.signingCertificate())
                                         .as("CLPR endpoints must retain certificates")
-                                        .isNotEmpty();
+                                        .isNotNull();
                                 assertThat(endpoint.hasEndpoint())
                                         .as("publicize=false should omit service endpoints")
                                         .isFalse();
@@ -202,13 +214,13 @@ public class ClprSuite implements LifecycleTest {
                             "advance after roster change");
                     assertLedgerIdStable(priorConfig, config);
                     assertTimestampAdvanced(priorConfig, config);
-                    assertThat(config.getEndpointsList())
+                    assertThat(config.endpoints())
                             .as("CLPR endpoints should omit network addresses when publicize=false")
                             .hasSize(nodes.size())
                             .allSatisfy(endpoint -> {
-                                assertThat(endpoint.getSigningCertificate())
+                                assertThat(endpoint.signingCertificate())
                                         .as("CLPR endpoints must retain certificates")
-                                        .isNotEmpty();
+                                        .isNotNull();
                                 assertThat(endpoint.hasEndpoint())
                                         .as("publicize=false should omit service endpoints")
                                         .isFalse();
@@ -238,7 +250,7 @@ public class ClprSuite implements LifecycleTest {
                             "advance after roster change");
                     assertLedgerIdStable(priorConfig, config);
                     assertTimestampAdvanced(priorConfig, config);
-                    final var endpoints = config.getEndpointsList();
+                    final var endpoints = config.endpoints();
                     assertThat(endpoints)
                             .as("publicize=true should expose endpoint metadata for each node")
                             .hasSize(nodes.size());
@@ -246,6 +258,82 @@ public class ClprSuite implements LifecycleTest {
                             .as("Expected CLPR endpoint with network address for node {}", node.getNodeId())
                             .anySatisfy(endpoint -> assertEndpointMatchesNode(endpoint, node)));
                     latestConfig.set(config);
+                }));
+    }
+
+    @DisplayName("Update message queue metadata works")
+    @Order(3)
+    @HapiTest
+    final Stream<DynamicTest> handleMessageQueue() {
+        /*
+         * This test verify that `update` and `get` massage queue metadata endpoints are working.
+         * Since the transaction handler doesn't have any validations yet, it will simply store the metadata in to sate.
+         */
+        AtomicReference<HederaNode> targetNode = new AtomicReference<>();
+        AtomicReference<ClprMessageQueueMetadata> fetchResult = new AtomicReference<>();
+        ClprMessageQueueMetadata localMessageQueueMetadata = ClprMessageQueueMetadata.newBuilder()
+                .receivedMessageId(0)
+                .sentMessageId(0)
+                .nextMessageId(1)
+                .ledgerId(ClprLedgerId.DEFAULT)
+                .build();
+        return hapiTest(
+                // Specify node 0 as the target node to illicit local ledger responses
+                doingContextual(spec -> {
+                    final var tNode = spec.getNetworkNodes().getFirst();
+                    assertThat(tNode).isNotNull();
+                    targetNode.set(tNode);
+                }),
+                // send update local message queue metadata transaction
+                updateMessageQueueMetadata(targetNode, localMessageQueueMetadata),
+                // try to fetch local message queue metadata
+                sleepFor(5000),
+                fetchMessageQueueMetadata(targetNode, fetchResult),
+
+                // validate the result
+                doingContextual(spec -> {
+                    assertThat(fetchResult.get()).isEqualTo(localMessageQueueMetadata);
+                }));
+    }
+
+    @DisplayName("Process message bundle works")
+    @Order(4)
+    @HapiTest
+    final Stream<DynamicTest> handleProcessMessageBundle() {
+        /*
+         * This test verify that `process` and `get` massages endpoints are working.
+         * Since the transaction handler doesn't have any validations yet, it will simply store the messages in to sate.
+         */
+        AtomicReference<HederaNode> targetNode = new AtomicReference<>();
+        AtomicReference<ClprMessageBundle> fetchResult = new AtomicReference<>();
+        Bytes msgData = Bytes.wrap("Hello CLPR".getBytes());
+        ClprMessage msg = ClprMessage.newBuilder().messageData(msgData).build();
+        ClprMessageBundle bundleToProcess = ClprMessageBundle.newBuilder()
+                .messages(List.of(ClprMessagePayload.newBuilder().message(msg).build()))
+                .build();
+        return hapiTest(
+                // set target node
+                doingContextual(spec -> {
+                    final var tNode = spec.getNetworkNodes().getFirst();
+                    assertThat(tNode).isNotNull();
+                    targetNode.set(tNode);
+                }),
+
+                // send process message bundle transaction
+                processMessageBundle(targetNode, bundleToProcess),
+
+                // try to fetch message bundle
+                sleepFor(5000),
+                fetchMessageBundle(targetNode, fetchResult),
+
+                // validate the result
+                doingContextual(spec -> {
+                    assertThat(fetchResult.get()).isEqualTo(bundleToProcess);
+                    final var firstMsg = fetchResult.get().messages().getFirst();
+                    assertThat(firstMsg).isNotNull();
+                    final var resultMsgData = firstMsg.message().messageData();
+                    assertThat(resultMsgData.asUtf8String(0, resultMsgData.length()))
+                            .isEqualTo("Hello CLPR");
                 }));
     }
 
@@ -283,8 +371,8 @@ public class ClprSuite implements LifecycleTest {
     private static void assertLedgerIdStable(
             final ClprLedgerConfiguration baseline, final ClprLedgerConfiguration candidate) {
         requireNonNull(candidate);
-        final var expectedLedgerId = baseline.getLedgerId().getLedgerId();
-        assertThat(candidate.getLedgerId().getLedgerId())
+        final var expectedLedgerId = baseline.ledgerId().ledgerId();
+        assertThat(candidate.ledgerId().ledgerId())
                 .as("LedgerId must remain stable across roster changes")
                 .isEqualTo(expectedLedgerId);
     }
@@ -298,30 +386,19 @@ public class ClprSuite implements LifecycleTest {
 
     private static Instant configTimestamp(final ClprLedgerConfiguration config) {
         return Instant.ofEpochSecond(
-                config.getTimestamp().getSeconds(), config.getTimestamp().getNanos());
+                config.timestamp().seconds(), config.timestamp().nanos());
     }
 
     private static ClprLedgerConfiguration tryFetchLedgerConfiguration(final HederaNode node) {
         try {
-            final var pbjEndpoint = com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
-                    .ipAddressV4(
-                            Bytes.wrap(InetAddress.getByName(node.getHost()).getAddress()))
-                    .port(node.getGrpcPort())
-                    .build();
-            try (final var client = new ClprClientImpl(pbjEndpoint)) {
+            try (final var client = createClient(node)) {
                 final var proof = client.getConfiguration();
                 if (proof == null) {
                     return null;
                 }
-                final var pbjConfig = ClprStateProofUtils.extractConfiguration(proof);
-                final var configBytes =
-                        org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(pbjConfig);
-                return ClprLedgerConfiguration.parseFrom(configBytes.toByteArray());
+                return ClprStateProofUtils.extractConfiguration(proof);
             }
-        } catch (UnknownHostException
-                | com.google.protobuf.InvalidProtocolBufferException
-                | IllegalArgumentException
-                | IllegalStateException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             throw new IllegalStateException("Unable to fetch CLPR ledger configuration", e);
         }
     }
@@ -330,11 +407,11 @@ public class ClprSuite implements LifecycleTest {
         assertThat(endpoint.hasEndpoint())
                 .as("Endpoint metadata should include a service endpoint")
                 .isTrue();
-        final var serviceEndpoint = endpoint.getEndpoint();
-        assertThat(endpoint.getSigningCertificate().isEmpty())
+        final var serviceEndpoint = endpoint.endpoint();
+        assertThat(endpoint.signingCertificate() == null)
                 .as("CLPR endpoints must advertise a signing certificate for node {}", node.getNodeId())
                 .isFalse();
-        assertThat(serviceEndpoint.getPort())
+        assertThat(serviceEndpoint.port())
                 .as("CLPR endpoint should use node {} gRPC port", node.getNodeId())
                 .isEqualTo(node.getGrpcPort());
         assertThat(ipV4Of(serviceEndpoint))
@@ -344,10 +421,74 @@ public class ClprSuite implements LifecycleTest {
 
     private static String ipV4Of(final ServiceEndpoint endpoint) {
         try {
-            return InetAddress.getByAddress(endpoint.getIpAddressV4().toByteArray())
+            return InetAddress.getByAddress(endpoint.ipAddressV4().toByteArray())
                     .getHostAddress();
         } catch (UnknownHostException e) {
             throw new IllegalStateException("CLPR endpoint carried an invalid IPv4 address", e);
         }
+    }
+
+    private static ClprClient createClient(final HederaNode node) {
+        try {
+            final var pbjEndpoint = ServiceEndpoint.newBuilder()
+                    .ipAddressV4(
+                            Bytes.wrap(InetAddress.getByName(node.getHost()).getAddress()))
+                    .port(node.getGrpcPort())
+                    .build();
+            return new ClprClientImpl(pbjEndpoint);
+        } catch (UnknownHostException e) {
+            throw new IllegalStateException("Failed to create CLPR client", e);
+        }
+    }
+
+    private static ContextualActionOp updateMessageQueueMetadata(
+            final AtomicReference<HederaNode> node, final ClprMessageQueueMetadata clprMessageQueueMetadata) {
+
+        return doingContextual(spec -> {
+            try (final var client = createClient(node.get())) {
+                final var config = tryFetchLedgerConfiguration(node.get());
+                final var payer = asAccount(spec, 2);
+                final var ledgerId = config.ledgerId();
+                final var proof =
+                        ClprStateProofUtils.buildLocalClprStateProofWrapper(ledgerId, clprMessageQueueMetadata);
+                client.updateMessageQueueMetadata(toPbj(payer), node.get().getAccountId(), ledgerId, proof);
+            }
+        });
+    }
+
+    private static ContextualActionOp processMessageBundle(
+            final AtomicReference<HederaNode> node, final ClprMessageBundle messageBundle) {
+
+        return doingContextual(spec -> {
+            try (final var client = createClient(node.get())) {
+                final var config = tryFetchLedgerConfiguration(node.get());
+                final var payer = asAccount(spec, 2);
+                client.submitProcessMessageBundleTxn(
+                        toPbj(payer), node.get().getAccountId(), config.ledgerId(), messageBundle);
+            }
+        });
+    }
+
+    private static ContextualActionOp fetchMessageBundle(
+            final AtomicReference<HederaNode> node, final AtomicReference<ClprMessageBundle> exposingMessageBundle) {
+        return doingContextual(spec -> {
+            try (final var client = createClient(node.get())) {
+                final var config = tryFetchLedgerConfiguration(node.get());
+                final var messageBundle = client.getMessages(config.ledgerId(), 10, 1000);
+                exposingMessageBundle.set(messageBundle);
+            }
+        });
+    }
+
+    private static ContextualActionOp fetchMessageQueueMetadata(
+            final AtomicReference<HederaNode> node,
+            final AtomicReference<ClprMessageQueueMetadata> exposingMessageQueueMetadata) {
+        return doingContextual(spec -> {
+            try (final var client = createClient(node.get())) {
+                final var config = tryFetchLedgerConfiguration(node.get());
+                final var messageQueueMetadata = client.getMessageQueueMetadata(config.ledgerId());
+                exposingMessageQueueMetadata.set(messageQueueMetadata);
+            }
+        });
     }
 }

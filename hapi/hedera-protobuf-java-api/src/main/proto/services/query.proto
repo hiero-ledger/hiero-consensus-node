@@ -58,6 +58,8 @@ import "services/token_get_nft_infos.proto";
 import "services/get_account_details.proto";
 
 import "interledger/clpr_get_ledger_configuration.proto";
+import "interledger/clpr_get_message_queue_metadata.proto";
+import "interledger/clpr_get_messages.proto";
 
 /**
  * A query transaction.<br/>
@@ -234,5 +236,15 @@ message Query {
          * Get CLPR ledger configuration for the given ledger id.
          */
         org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationQuery get_clpr_ledger_configuration = 59;
+
+        /**
+         * Get a CLPR message queue metadata for the given ledger id.
+         */
+        org.hiero.hapi.interledger.clpr.ClprGetMessageQueueMetadataQuery get_clpr_message_queue_metadata = 60;
+
+        /**
+         * Get a CLPR bundle of messages from a remote CLPR ledger.
+         */
+        org.hiero.hapi.interledger.clpr.ClprGetMessagesQuery get_clpr_messages = 61;
     }
 }
