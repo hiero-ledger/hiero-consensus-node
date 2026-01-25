@@ -297,7 +297,6 @@ public class ClprClientImpl implements ClprClient {
             final var txnBody = TransactionBody.newBuilder()
                     .transactionID(newTransactionId(payerAccountId))
                     .clprProcessMessageBundle(ClprProcessMessageBundleTransactionBody.newBuilder()
-                            .ledgerId(ledgerId)
                             .messageBundle(messageBundle)
                             .build())
                     .transactionFee(1L)

@@ -56,8 +56,8 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
     public void handle(@NonNull HandleContext context) throws HandleException {
         final var writableMessagesStore = context.storeFactory().writableStore(WritableClprMessageStore.class);
         final var txn = context.body();
-        final var ledgerId = txn.clprProcessMessageBundleOrThrow().ledgerId();
         final var messageBundle = txn.clprProcessMessageBundleOrThrow().messageBundle();
+        final var ledgerId = messageBundle.ledgerIdOrThrow();
 
         final var messageId = new AtomicInteger(0);
         messageBundle.messages().forEach(msg -> {

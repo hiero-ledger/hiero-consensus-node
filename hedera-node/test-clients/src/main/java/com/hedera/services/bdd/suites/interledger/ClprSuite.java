@@ -307,8 +307,10 @@ public class ClprSuite implements LifecycleTest {
         AtomicReference<HederaNode> targetNode = new AtomicReference<>();
         AtomicReference<ClprMessageBundle> fetchResult = new AtomicReference<>();
         Bytes msgData = Bytes.wrap("Hello CLPR".getBytes());
+        Bytes ledgerIdBytes = Bytes.wrap("Mock ledger ID".getBytes());
         ClprMessage msg = ClprMessage.newBuilder().messageData(msgData).build();
         ClprMessageBundle bundleToProcess = ClprMessageBundle.newBuilder()
+                .ledgerId(ClprLedgerId.newBuilder().ledgerId(ledgerIdBytes))
                 .messages(List.of(ClprMessagePayload.newBuilder().message(msg).build()))
                 .build();
         return hapiTest(
