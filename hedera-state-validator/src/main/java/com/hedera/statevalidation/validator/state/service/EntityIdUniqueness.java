@@ -123,8 +123,8 @@ public class EntityIdUniqueness {
                             return;
                         }
 
-                        final String errorMessage =
-                                String.format("""
+                        final String errorMessage = String.format(
+                                """
                         Entity ID %d is not unique, found %d entities.\s
                          Token = %s, \
                         \s
@@ -133,7 +133,8 @@ public class EntityIdUniqueness {
                          Topic = %s,\s
                          File = %s,\s
                          Schedule = %s
-                        """, number, counter, token, account, contract, topic, file, schedule);
+                        """,
+                                number, counter, token, account, contract, topic, file, schedule);
                         log.info(errorMessage);
                         issuesFound.incrementAndGet();
                     }

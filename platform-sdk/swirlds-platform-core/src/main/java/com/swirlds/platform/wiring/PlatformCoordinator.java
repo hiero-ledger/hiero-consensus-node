@@ -46,8 +46,7 @@ import org.hiero.consensus.round.EventWindowUtils;
  *
  * @param components
  */
-public record PlatformCoordinator(
-        @NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
+public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
         implements StatusActionSubmitter {
 
     /**

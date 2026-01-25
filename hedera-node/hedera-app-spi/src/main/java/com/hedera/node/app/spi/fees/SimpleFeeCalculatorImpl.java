@@ -2,7 +2,6 @@
 package com.hedera.node.app.spi.fees;
 
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
-import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
