@@ -1,0 +1,231 @@
+/**
+ * # CLPR Message Queue
+ * Cross Ledger message queue and message format.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119)
+ * and clarified in [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package org.hiero.hapi.interledger.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/basic_types.proto";
+import "services/timestamp.proto";
+import "block/stream/state_proof.proto";
+import "interledger/state/clpr/clpr_ledger.proto";
+
+option java_package = "org.hiero.hapi.interledger.state.clpr.protoc";
+// <<<pbj.java_package = "org.hiero.hapi.interledger.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Per-ledger metadata for the CLPR message queue.
+ *
+ * There MUST be exactly one instance of this metadata per remote ledger that the
+ * local ledger is connected to when that connection exists. This message is
+ * intended to be stored in state as a map keyed by the ledger identifier.
+ */
+message ClprMessageQueueMetadata {
+  /**
+   * Ledger Id
+   *
+   * An identifier for the remote ledger. This field
+   * MUST be used as the map key when storing `ClprMessageQueueMetadata` in state.
+   */
+  ClprLedgerId ledger_id = 1;
+
+  /**
+   * Received Message Id
+   *
+   * Unsigned 64-bit id of the most recently received message from the remote
+   * ledger. This value MUST be updated monotonically as new messages are
+   * received and MUST be used for deduplication and resume logic.
+   */
+  uint64 received_message_id = 2;
+
+  /**
+   * Sent Message Id
+   *
+   * Unsigned 64-bit id of the most recently sent message to the remote ledger.
+   * This value MUST be updated monotonically for each outgoing message to the
+   * corresponding remote ledger.
+   */
+  uint64 sent_message_id = 3;
+
+  /**
+   * Received Running Hash
+   *
+   * The running hash bytes provided or computed for the remote ledger state
+   * after processing the most recently received message. Implementations MUST
+   * persist this value for verification and auditing of received messages.
+   */
+  bytes received_running_hash = 4;
+
+  /**
+   * Sent Running Hash
+   *
+   * The running hash bytes for the local ledger (or the agreed interledger
+   * running hash) after processing the most recently sent message to the
+   * remote ledger. Implementations MUST persist this value for verification
+   * and auditing of sent messages.
+   */
+  bytes sent_running_hash = 5;
+
+  /**
+   * Next available message ID.
+   *
+   * MUST be used to assign the ID for the next outgoing message added to
+   * this queue. This value MUST be strictly increasing for successive
+   * outgoing messages to the same ledger.
+   */
+  uint64 next_message_id = 6;
+}
+
+/**
+ * Key for an individual queued message.
+ *
+ * The key is a tuple comprising the remote ledger id and the message id.
+ * The tuple uniquely identifies a message in the queue for a given ledger.
+ */
+message ClprMessageKey {
+  /**
+   * Ledger Id
+   *
+   * An identifier for the remote ledger. This field MUST match the
+   * `ledger_id` used as the map key in `ClprMessageQueueMetadata`.
+   */
+  ClprLedgerId ledger_id = 1;
+
+  /**
+   * Message Id
+   *
+   * Unsigned 64-bit id assigned to the message. This id MUST be used to order
+   * messages for a specific ledger and MUST be unique for messages sent to that
+   * ledger.
+   */
+  uint64 message_id = 2;
+}
+
+/**
+ * Value stored for an individual queued message.
+ *
+ * The value contains the message payload and the running hash after the payload
+ * has been processed. Exactly one variant of the payload MUST be set using the
+ * `oneof` below.
+ */
+message ClprMessageValue {
+  /**
+   * The message payload stored in the queue.
+   *
+   * Exactly one of the following payload variants MUST be set.
+   */
+  ClprMessagePayload payload = 1;
+
+  /**
+   * Running hash after the message payload has been processed.
+   *
+   * This is the cumulative running hash calculated from the prior running hash
+   * and this message's payload. When this message is the last one in a bundle,
+   * this hash MUST match the state-proven value in the bundle's state proof,
+   * enabling verification of message ordering and integrity without requiring
+   * the entire queue history.
+   */
+  bytes running_hash_after_processing = 3;
+}
+
+/**
+ * Initiating message payload stored in the queue.
+ *
+ * Represents an initial (non-reply) message sent to or received from a remote
+ * ledger. The raw message bytes are carried in `message_data`.
+ */
+message ClprMessage {
+  /**
+   * Message Data
+   *
+   * Opaque bytes of the initiating message payload. The encoding and semantic
+   * contents of these bytes are out of scope for this proto and MUST be defined
+   * by higher-level protocol rules.
+   */
+  bytes message_data = 1;
+}
+
+/**
+ * Reply message payload stored in the queue.
+ *
+ * Represents a reply to a previously exchanged initiating message.
+ */
+message ClprMessageReply {
+
+  /**
+   * Message Id
+   *
+   * References the original message that this reply is responding to.
+   * This MUST match the message_id of a previously sent initiating message.
+   */
+  uint64 message_id = 2;
+
+  /**
+   * Message Reply Data
+   *
+   * Opaque bytes of the reply payload. The encoding and semantic contents of
+   * these bytes are out of scope for this proto and MUST be defined by
+   * higher-level protocol rules.
+   */
+  bytes message_reply_data = 1;
+}
+
+/**
+ * Single message payload.
+ */
+message ClprMessagePayload {
+    /**
+     * The message payload stored in the queue.
+     *
+     * Exactly one of the following payload variants MUST be set.
+     */
+    oneof payload {
+        /**
+         * An initiating message.
+         */
+        ClprMessage message = 1;
+
+        /**
+         * A reply to a previously received message.
+         */
+        ClprMessageReply message_reply = 2;
+    }
+}
+
+
+/**
+ * Bundle of messages.
+ *
+ * Contains messages from a sending ledger along with a state proof that allows
+ * the receiving ledger to verify the bundle's authenticity.
+ */
+message ClprMessageBundle {
+
+  /**
+   * Ledger ID of the sender.
+   *
+   * Identifies the ledger sending this bundle.
+   * This value is used to verify the state proof and determine which queue
+   * metadata to apply
+   */
+  ClprLedgerId ledger_id = 1;
+
+  /**
+   * Messages
+   */
+  repeated ClprMessagePayload messages = 2;
+
+  /**
+   * State Proof
+   */
+  com.hedera.hapi.block.stream.StateProof state_proof = 3;
+}
