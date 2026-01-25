@@ -444,8 +444,7 @@ public class ClprEndpointClient {
             localClient.updateMessageQueueMetadata(selfAccount, nodeAccount, remoteLedgerId, remoteMessageQueueProof);
         }
         return new QueueMetadata(
-                fetchedMessageQueue.receivedMessageId() < fetchedMessageQueue.nextMessageId() - 1,
-                fetchedMessageQueue);
+                fetchedMessageQueue.receivedMessageId() < fetchedMessageQueue.nextMessageId() - 1, fetchedMessageQueue);
     }
 
     private boolean pushPullQueueContent(
@@ -532,7 +531,8 @@ public class ClprEndpointClient {
                 }
             }
             // update local queue
-            updateLocalQueueBuilder.sentMessageId(localMessageQueueMetadata.sentMessageId() + messagePayloadList.size());
+            updateLocalQueueBuilder.sentMessageId(
+                    localMessageQueueMetadata.sentMessageId() + messagePayloadList.size());
             // TODO: update the running hash
 
             if (messagePayloadList.size() > 0) {

@@ -428,7 +428,7 @@ public class ClprSuite implements LifecycleTest {
         }
     }
 
-    private static ClprClient createClient(final HederaNode node) {
+    static ClprClient createClient(final HederaNode node) {
         try {
             final var pbjEndpoint = ServiceEndpoint.newBuilder()
                     .ipAddressV4(
@@ -486,7 +486,9 @@ public class ClprSuite implements LifecycleTest {
         return doingContextual(spec -> {
             try (final var client = createClient(node.get())) {
                 final var config = tryFetchLedgerConfiguration(node.get());
-                final var messageQueueMetadata = client.getMessageQueueMetadata(config.ledgerId());
+                final var messageQueueMetadataProof = client.getMessageQueueMetadata(config.ledgerId());
+                final var messageQueueMetadata =
+                        ClprStateProofUtils.extractMessageQueueMetadata(messageQueueMetadataProof);
                 exposingMessageQueueMetadata.set(messageQueueMetadata);
             }
         });

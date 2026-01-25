@@ -50,7 +50,6 @@ import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody
 import org.hiero.hapi.interledger.clpr.ClprUpdateMessageQueueMetadataTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
-import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.interledger.clpr.client.ClprClient;
 
 /**
@@ -275,15 +274,6 @@ public class ClprClientImpl implements ClprClient {
         final var response = clprServiceClient.getMessageQueueMetadata(queryTxn);
         if (response.hasClprMessageQueueMetadata()) {
             return Objects.requireNonNull(response.clprMessageQueueMetadata()).messageQueueMetadataProof();
-
-            // extract configuration from state proof
-            final var stateProof =
-                    Objects.requireNonNull(response.clprMessageQueueMetadata()).messageQueueMetadataProof();
-            if (stateProof != null && ClprStateProofUtils.validateStateProof(stateProof)) {
-                return org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageQueueMetadata(stateProof);
-            } else {
-                log.warn("State proof {} is invalid", stateProof);
-            }
         }
         return null;
     }
