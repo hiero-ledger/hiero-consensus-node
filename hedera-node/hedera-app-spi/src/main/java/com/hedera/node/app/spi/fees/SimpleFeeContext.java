@@ -2,7 +2,7 @@
 package com.hedera.node.app.spi.fees;
 
 import com.hedera.node.app.spi.workflows.QueryContext;
-import org.jspecify.annotations.Nullable;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 public interface SimpleFeeContext {
     int numTxnSignatures(); // number of signatures in the transaction
