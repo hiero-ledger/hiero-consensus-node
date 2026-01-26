@@ -24,6 +24,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
@@ -312,11 +313,9 @@ public class FileSignTool {
                 final SerializableDataOutputStream dos = new SerializableDataOutputStream(
                         new BufferedOutputStream(new HashingOutputStream(streamDigest)))) {
             // parse record file
-            final var recordPath =
-                    java.nio.file.Path.of(recordFile).toAbsolutePath().normalize();
-            final var authorizedDir = recordPath.getParent() == null
-                    ? java.nio.file.Path.of("").toAbsolutePath()
-                    : recordPath.getParent();
+            final var recordPath = Path.of(recordFile).toAbsolutePath().normalize();
+            final var authorizedDir =
+                    recordPath.getParent() == null ? Path.of("").toAbsolutePath() : recordPath.getParent();
             final Pair<Integer, Optional<RecordStreamFile>> recordResult =
                     readMaybeCompressedRecordStreamFile(authorizedDir, recordFile);
 

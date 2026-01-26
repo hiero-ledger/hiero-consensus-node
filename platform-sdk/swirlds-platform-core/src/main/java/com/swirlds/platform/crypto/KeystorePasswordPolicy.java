@@ -40,10 +40,6 @@ public final class KeystorePasswordPolicy {
     private static List<String> issues(@NonNull final String password) {
         final List<String> issues = new ArrayList<>();
 
-        if (password.equalsIgnoreCase("password")) {
-            issues.add("default-password");
-        }
-
         if (password.length() < MIN_LENGTH) {
             issues.add("minLength>=" + MIN_LENGTH);
         }
