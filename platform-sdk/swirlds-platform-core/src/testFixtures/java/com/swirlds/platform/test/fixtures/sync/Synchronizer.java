@@ -9,9 +9,9 @@ import com.swirlds.common.test.fixtures.threading.SyncPhaseParallelExecutor;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
-import com.swirlds.platform.gossip.sync.config.SyncConfig_;
 import com.swirlds.platform.network.Connection;
 import org.hiero.consensus.concurrent.pool.ParallelExecutor;
+import org.hiero.consensus.gossip.config.SyncConfig_;
 
 /**
  * This class initiates a sync between a caller and listener node.
