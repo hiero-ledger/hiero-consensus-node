@@ -1,15 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261.utils;
 
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.HapiSpecOperation;
-import com.hederahashgraph.api.proto.java.Transaction;
-import org.apache.logging.log4j.Logger;
-
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.IntToDoubleFunction;
-
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -70,6 +61,14 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_BASE_FEE_USD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hederahashgraph.api.proto.java.Transaction;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntToDoubleFunction;
+import org.apache.logging.log4j.Logger;
 
 public class FeesChargingUtils {
     private static final int NODE_INCLUDED_BYTES = 1024;
