@@ -284,9 +284,6 @@ public final class Hedera
 
     private final AddressBookServiceImpl addressBookServiceImpl;
 
-    private final RosterServiceImpl rosterServiceImpl;
-    private final PlatformStateService platformStateService;
-
     /**
      * The block stream service singleton, kept as a field here to reuse information learned
      * during the state migration phase in the later initialization phase.
@@ -531,9 +528,9 @@ public final class Hedera
         networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
-        rosterServiceImpl = new RosterServiceImpl(
+        final var rosterServiceImpl = new RosterServiceImpl(
                 this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState), this::startupNetworks);
-        platformStateService = new PlatformStateService(
+        final var platformStateService = new PlatformStateService(
                 config -> config.getConfigData(VersionConfig.class).servicesVersion());
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
@@ -658,15 +655,7 @@ public final class Hedera
                 .getConfigData(BlockStreamConfig.class)
                 .streamToBlockNodes();
         switch (platformStatus) {
-            case ACTIVE -> {
-                startGrpcServer();
-                if (initState != null) {
-                    // Disabling start up mode, so since now singletons will be commited only on block close
-                    if (initState instanceof VirtualMapState virtualMapState) {
-                        virtualMapState.disableStartupMode();
-                    }
-                }
-            }
+            case ACTIVE -> startGrpcServer();
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
