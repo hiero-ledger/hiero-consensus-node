@@ -427,10 +427,8 @@ public final class PlatformBuilder {
                 platformContext.getMetrics(),
                 platformContext.getTime(),
                 rosterHistory,
-                selfId,
                 intakeEventCounter,
                 execution.getTransactionLimits(),
-                initialState.get().getRound(),
                 pipelineTracker);
     }
 
