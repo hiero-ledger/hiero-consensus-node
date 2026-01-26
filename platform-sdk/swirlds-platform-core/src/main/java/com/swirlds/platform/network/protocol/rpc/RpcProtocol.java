@@ -17,7 +17,6 @@ import com.swirlds.platform.network.NetworkMetrics;
 import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
@@ -31,6 +30,7 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 
 /**
  * Implementation of a factory for rpc protocol, encompassing new sync

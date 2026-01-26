@@ -7,8 +7,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
-import com.swirlds.platform.network.Connection;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -27,7 +25,6 @@ import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
-import org.hiero.consensus.monitoring.FallenBehindStatus;
 
 /**
  * The goal of the GossipRpcShadowgraphSynchronizer is to compare graphs with a remote node, and update them so both
