@@ -3,6 +3,7 @@ import com.swirlds.config.api.ConfigurationExtension;
 import org.hiero.consensus.config.UtilityConfigurationExtension;
 
 module org.hiero.consensus.utility {
+    exports org.hiero.consensus.monitoring;
     exports org.hiero.consensus.config;
     exports org.hiero.consensus.crypto;
     exports org.hiero.consensus.event;
