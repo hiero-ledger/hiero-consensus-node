@@ -242,15 +242,14 @@ jobs:
     if: ${{ needs.build.result == 'success' && inputs.enable-extended-test-suite == 'true' && contains(inputs.custom-job-label, 'Dry Run') }}
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
+      custom-job-label: "${{ inputs.custom-job-label }} Chaos Otter Tests"
+      enable-full-otter-tests: true
       enable-network-log-capture: true
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.platform-access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
-      slack-api-token: ${{ secrets.slack-api-token }}
-      grafana-agent-username: ${{ secrets.grafana-agent-username }}
-      grafana-agent-password: ${{ secrets.grafana-agent-password }}
 
   hedera-node-jrs-panel:
     name: Hedera Node JRS Panel
@@ -268,6 +267,10 @@ jobs:
       panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
     secrets:
       access-token: ${{ secrets.platform-access-token }}
+      jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
+      jrs-ssh-key-file: ${{ secrets.jrs-ssh-key-file }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
+      gcp-sa-key-contents: ${{ secrets.gcp-sa-key-contents }}
       slack-api-token: ${{ secrets.slack-api-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}

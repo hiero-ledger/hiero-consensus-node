@@ -119,8 +119,5 @@ jobs:
       regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
