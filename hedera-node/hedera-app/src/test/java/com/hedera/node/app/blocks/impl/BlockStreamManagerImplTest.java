@@ -131,8 +131,6 @@ class BlockStreamManagerImplTest {
             .build();
     private static final BlockItem FAKE_RECORD_FILE_ITEM =
             BlockItem.newBuilder().recordFile(RecordFileItem.DEFAULT).build();
-    private static final Bytes EMPTY_BYTES_HASH = Bytes.fromHex(
-            "bbed42a5f3fb8e40e65aaf7759fe54b4021f70f09bbb80d6f8cb06aea4205b378942f934c1e503ce091d61166faefb75");
     private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(ZERO_BLOCK_HASH), 0);
 
     @Mock
@@ -359,7 +357,6 @@ class BlockStreamManagerImplTest {
                 ZERO_BLOCK_HASH,
                 2,
                 List.of(
-                        Bytes.EMPTY,
                         Bytes.fromHex(
                                 "41c6949285489fa59ddf82402a2670489ba298a235e2963d5594f952620cb91254aacdea53f97d0d6b46259392aeb198")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
@@ -367,10 +364,10 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
-                EMPTY_BYTES_HASH,
+                ZERO_BLOCK_HASH,
                 Bytes.fromHex(
                         "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
-                EMPTY_BYTES_HASH,
+                ZERO_BLOCK_HASH,
                 List.of(FAKE_RESTART_BLOCK_HASH_AS_LEAF),
                 1);
 
@@ -586,7 +583,6 @@ class BlockStreamManagerImplTest {
                 ZERO_BLOCK_HASH,
                 2,
                 List.of(
-                        Bytes.EMPTY,
                         Bytes.fromHex(
                                 "41c6949285489fa59ddf82402a2670489ba298a235e2963d5594f952620cb91254aacdea53f97d0d6b46259392aeb198")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
@@ -594,10 +590,10 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
-                EMPTY_BYTES_HASH,
+                ZERO_BLOCK_HASH,
                 Bytes.fromHex(
                         "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
-                EMPTY_BYTES_HASH,
+                ZERO_BLOCK_HASH,
                 List.of(FAKE_RESTART_BLOCK_HASH_AS_LEAF),
                 1);
         final var actualBlockInfo = infoRef.get();
@@ -1272,6 +1268,52 @@ class BlockStreamManagerImplTest {
         final var finalInfoState = blockStreamInfoState.get();
         // And have a block starting timestamp equal to the second event's timestamp (instead of the round's timestamp)
         assertEquals(CONSENSUS_THEN, finalInfoState.blockTime());
+    }
+
+    @Test
+    void zeroHashNotAddedOnInit() {
+        // Given a 2-second block period
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(blockHashSigner.isReady()).willReturn(true);
+        // Set up the async signature to return control to this test immediately upon completion
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        // Initialize the subject
+        subject.init(state, ZERO_BLOCK_HASH);
+
+        // Start the round at t=0 with an event timestamp, and end the round at t=2 (the block's next 2-second boundary)
+        // with the round timestamp
+        final var roundStart = asInstant(CONSENSUS_THEN);
+        final var roundEnd = asInstant(CONSENSUS_THEN).plusSeconds(2);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(roundEnd);
+        given(mockEvent.getConsensusTimestamp()).willReturn(roundStart);
+        given(mockEvent.consensusTransactionIterator()).willReturn(Collections.emptyIterator());
+        given(round.iterator()).willReturn(List.of(mockEvent).iterator());
+
+        subject.startRound(round, state);
+        subject.endRound(state, 1L);
+
+        // Verify the block was closed
+        verify(aWriter).closeCompleteBlock();
+        // And that no zero hash was added to the BlockStreamInfo
+        final var actualBlockInfo = infoRef.get();
+        assertEquals(Collections.emptyList(), actualBlockInfo.intermediatePreviousBlockRootHashes());
+        assertEquals(0, actualBlockInfo.intermediateBlockRootsLeafCount());
     }
 
     private void givenSubjectWith(
