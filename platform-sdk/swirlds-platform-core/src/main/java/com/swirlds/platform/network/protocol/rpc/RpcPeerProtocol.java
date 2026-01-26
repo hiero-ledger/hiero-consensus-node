@@ -177,6 +177,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private static final Runnable POISON_PILL =
             () -> logger.error(EXCEPTION.getMarker(), "Poison pill should never be executed");
 
+    private long lastCommunicationOverloadReported = -1;
+
     /**
      * Constructs a new rpc protocol
      *
@@ -340,7 +342,15 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     // handler told us we are ok to stop processing messages right now due to platform not being healthy
                     processMessages = false;
                 }
-                rpcPeerHandler.reportCommunicationOverload(outputQueue.size() > 1000); // TODO: make configurable
+                // TODO: make configurable
+                if ( outputQueue.size() > 200 ) {
+                    rpcPeerHandler.reportCommunicationOverload(true);
+                    lastCommunicationOverloadReported = time.currentTimeMillis();
+                } else {
+                    if (time.currentTimeMillis()-lastCommunicationOverloadReported > 10_000 ) {
+                        rpcPeerHandler.reportCommunicationOverload(false);
+                    }
+                }
             }
         } finally {
             syncMetrics.rpcDispatchThreadRunning(-1);
