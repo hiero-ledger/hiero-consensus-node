@@ -2068,7 +2068,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     tokenAirdrop(moving(10, FUNGIBLE_TOKEN_A).between(ALICE, BOB))
                             .payingWith(ALICE)
                             .signedByPayerAnd(ALICE)
-                            .hasPrecheck(INVALID_TOKEN_ID));
+                            .hasKnownStatus(TOKEN_IS_PAUSED));
         }
 
         @HapiTest

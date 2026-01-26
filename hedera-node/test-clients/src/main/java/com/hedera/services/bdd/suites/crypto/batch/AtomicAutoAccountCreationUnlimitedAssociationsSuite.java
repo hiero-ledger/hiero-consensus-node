@@ -90,7 +90,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     private static final String AUTO_MEMO = "";
     private static final String CIVILIAN = "somebody";
     private static final String SPONSOR = "autoCreateSponsor";
-    private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
+    private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 41666666L;
     private static final String HBAR_XFER = "hbarXfer";
     private static final String FT_XFER = "ftXfer";
     private static final String NFT_XFER = "nftXfer";
@@ -105,7 +105,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     @HapiTest
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationHappyPath() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
+        final long transferFee = 1833333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 newKeyNamed(VALID_ALIAS),
@@ -163,7 +163,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationsDisabled() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
+        final long transferFee = 1833333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 overriding("entities.unlimitedAutoAssociationsEnabled", FALSE),

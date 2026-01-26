@@ -42,14 +42,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 public class CryptoGetInfoRegression {
-    static final Logger log = LogManager.getLogger(CryptoGetInfoRegression.class);
     private static final String TARGET_ACC = "targetAcc";
     private static final int NUM_ASSOCIATIONS = 10;
 
