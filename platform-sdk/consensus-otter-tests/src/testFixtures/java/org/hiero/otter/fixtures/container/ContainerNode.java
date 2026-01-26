@@ -2,7 +2,7 @@
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.pces.PcesUtilities.getDatabaseDirectory;
+import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDirectory;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;

@@ -9,6 +9,7 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
@@ -56,6 +57,7 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.HookEntityId;
@@ -73,13 +75,13 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -279,8 +281,17 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(ONE_HUNDRED_HBARS),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("senderWithHook", "receiverAccount"))
                         .withPreHookFor("senderWithHook", 224L, HOOK_GAS_LIMIT, "")
-                        .payingWith("payer"),
-                getAccountBalance("receiverAccount").hasTinyBars(ONE_HUNDRED_HBARS + (10 * ONE_HBAR)));
+                        .payingWith("payer")
+                        .via("transferTxn"),
+                getAccountBalance("receiverAccount").hasTinyBars(ONE_HUNDRED_HBARS + (10 * ONE_HBAR)),
+                getTxnRecord("transferTxn").andAllChildRecords().exposingAllTo(txRecords -> {
+                    final var callTxRecord = txRecords.stream()
+                            .filter(TransactionRecord::hasContractCallResult)
+                            .findFirst();
+                    assertTrue(callTxRecord.isPresent());
+                    final var logs = callTxRecord.get().getContractCallResult().getLogInfoList();
+                    assertEquals(1, logs.size());
+                }));
     }
 
     @HapiTest
@@ -528,7 +539,7 @@ public class Hip1195BasicTests {
                         .via("txWithNonExistentHook"),
                 getTxnRecord("txWithNonExistentHook")
                         .andAllChildRecords()
-                        .hasChildRecords(TransactionRecordAsserts.recordWith().status(HOOK_NOT_FOUND)));
+                        .hasChildRecords(recordWith().status(HOOK_NOT_FOUND)));
     }
 
     @HapiTest
@@ -1112,7 +1123,7 @@ public class Hip1195BasicTests {
                         .via("failedTxn"),
                 getTxnRecord("failedTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(TransactionRecordAsserts.recordWith().status(CONTRACT_REVERT_EXECUTED)),
+                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED)),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
                         .withPrePostHookFor(PAYER, 124L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER));
@@ -1173,8 +1184,8 @@ public class Hip1195BasicTests {
                         .via("failedTxn"),
                 getTxnRecord("failedTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(TransactionRecordAsserts.recordWith()
-                                .contractCallResult(resultWith().error("INVALID_OPERATION")))
+                        .hasChildRecords(
+                                recordWith().contractCallResult(resultWith().error("INVALID_OPERATION")))
                         .logged());
     }
 

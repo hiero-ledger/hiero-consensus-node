@@ -62,9 +62,9 @@ import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.PcesConfig;
-import org.hiero.consensus.pces.PcesFileManager;
-import org.hiero.consensus.pces.PcesUtilities;
+import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.pces.impl.common.PcesFileManager;
+import org.hiero.consensus.pces.impl.common.PcesUtilities;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
