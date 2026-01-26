@@ -4,15 +4,15 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: "The branch, tag, or SHA to checkout:"
+        description: "The branch, tag, or SHA to checkout"
         required: false
         type: string
       custom-job-name:
-        description: "The custom job name to use for the job:"
+        description: "The custom job name to use for the job"
         required: false
         type: string
       solo-version:
-        description: "The version of solo to install (if not specified, latest will be used):"
+        description: "The version of solo to install (if not specified, latest will be used)"
         required: false
         type: string
       mirror-node-version:
@@ -23,12 +23,16 @@ on:
         description: "The Helm release name to use for the mirror node deployment"
         required: false
         type: string
+      mirror-node-version:
+        description: "The version of the mirror node to deploy (if not specified, '0.145.2' will be used)"
+        required: false
+        type: string
     secrets:
       access-token:
-        description: "GitHub Access Token with write permissions to the repository."
+        description: "GitHub Access Token with write permissions to the repository"
         required: true
       slack-detailed-report-webhook:
-        description: "Slack Webhook URL for TCK Monitoring."
+        description: "Slack Webhook URL for TCK Monitoring"
         required: true
 
 defaults:
@@ -100,7 +104,7 @@ jobs:
       - name: Configure and run solo
         id: run-solo
         env:
-          MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.142.2' }}
+          MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.145.2' }}
         run: |
           set -ex
           cat <<EOF > mirror.yml
@@ -121,6 +125,7 @@ jobs:
           version=$(solo --version | grep Version | awk '{print $3}')
           solo_ge_0440=$([[ "$(printf '%s\n' "${version}" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]] && echo "true" || echo "false")
           echo "::debug::solo_ge_0440=${solo_ge_0440}"
+          echo "::debug::MIRROR_NODE_VERSION=${MIRROR_NODE_VERSION}"
           if [[ "${solo_ge_0440}" == "true" ]]; then
             echo "::debug::Solo version ($version) is >= 0.44.0"
             solo cluster-ref config connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"

@@ -393,6 +393,16 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Upload HAPI Test (Misc) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-misc && steps.gradle-hapi-misc.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Misc) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+          retention-days: 7
+
       - name: HAPI Testing (Misc Records)
         id: gradle-hapi-misc-records
         if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-build.conclusion == 'success' && !cancelled() }}
@@ -427,6 +437,16 @@ jobs:
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
             hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Misc Records) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-hapi-misc-records.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Misc Records) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
           retention-days: 7
 
       - name: HAPI Testing (Crypto)
@@ -465,6 +485,62 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Upload HAPI Test (Crypto) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-crypto && steps.gradle-hapi-crypto.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Crypto) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+          retention-days: 7
+
+      - name: HAPI Testing (Simple Fees)
+        id: gradle-hapi-simplefees
+        if: ${{ inputs.enable-hapi-tests-simplefees && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiTestSimpleFees${{ inputs.mats-suffix || '' }}
+
+      - name: Publish HAPI Test (Simple Fees) Report
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        if: ${{ inputs.enable-hapi-tests-simplefees && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          check_name: "Node: HAPI Test (Simple Fees) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload HAPI Test (Simple Fees) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-simplefees && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          name: HAPI Test (Simple Fees) Report
+          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload HAPI Test (Simple Fees) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-simplefees && inputs.enable-network-log-capture && steps.gradle-hapi-simplefees.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Simple Fees) Network Logs
+          path: |
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Simple Fees) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-simplefees && steps.gradle-hapi-simplefees.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Simple Fees) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+          retention-days: 7
+
       - name: HAPI Testing (Token)
         id: gradle-hapi-token
         if: ${{ inputs.enable-hapi-tests-token && steps.gradle-build.conclusion == 'success' && !cancelled() }}
@@ -499,6 +575,16 @@ jobs:
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
             hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Token) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-token && steps.gradle-hapi-token.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Token) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
           retention-days: 7
 
       - name: HAPI Testing (Smart Contract)
@@ -537,6 +623,16 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Upload HAPI Test (Smart Contract) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-smart-contract && steps.gradle-hapi-smart-contract.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Smart Contract) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+          retention-days: 7
+
       - name: HAPI Testing (Time Consuming)
         id: gradle-hapi-time-consuming
         if: ${{ inputs.enable-hapi-tests-time-consuming && steps.gradle-build.conclusion == 'success' && !cancelled() }}
@@ -571,6 +667,16 @@ jobs:
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
             hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Time Consuming) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-time-consuming && steps.gradle-hapi-time-consuming.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Time Consuming) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
           retention-days: 7
 
       - name: HAPI Testing (Restart)
@@ -609,6 +715,16 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Upload HAPI Test (Restart) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-restart && steps.gradle-hapi-restart.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Restart) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+          retention-days: 7
+
       - name: HAPI Testing (Node Death Reconnect)
         id: gradle-hapi-nd-reconnect
         if: ${{ inputs.enable-hapi-tests-nd-reconnect && steps.gradle-build.conclusion == 'success' && !cancelled() }}
@@ -643,6 +759,16 @@ jobs:
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
             hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Node Death Reconnect) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-nd-reconnect && steps.gradle-hapi-nd-reconnect.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Node Death Reconnect) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
           retention-days: 7
 
       - name: HAPI Testing (ISS)
@@ -681,6 +807,16 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Upload HAPI Test (ISS) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-iss && steps.gradle-hapi-iss.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (ISS) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+          retention-days: 7
+
       - name: HAPI Testing (Block Node Communication)
         id: gradle-hapi-bn-communication
         if: ${{ inputs.enable-hapi-tests-bn-communication && steps.gradle-build.conclusion == 'success' && !cancelled() }}
@@ -713,6 +849,16 @@ jobs:
           name: HAPI Test (Block Node Communication) Network Logs
           path: |
             hedera-node/test-clients/build/*-test/**/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Block Node Communication) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-bn-communication && steps.gradle-hapi-bn-communication.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Block Node Communication) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
           retention-days: 7
 
       - name: Publish To Codecov
