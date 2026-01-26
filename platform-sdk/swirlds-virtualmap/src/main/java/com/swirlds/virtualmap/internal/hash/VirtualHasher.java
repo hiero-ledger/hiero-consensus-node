@@ -38,6 +38,7 @@ import org.hiero.base.crypto.Hash;
  * <p>There should be one {@link VirtualHasher} shared across all copies of a {@link VirtualMap}
  * "family".
  */
+@SuppressWarnings("rawtypes")
 public final class VirtualHasher {
 
     // When virtual tree is of size 1 (only the root node and a single leaf), root hash should
@@ -120,8 +121,10 @@ public final class VirtualHasher {
     }
 
     public static Hash hashInternal(final Hash left, final Hash right) {
-        final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
-        wmd.reset();
+        return hashInternal(left, right, MESSAGE_DIGEST_THREAD_LOCAL.get());
+    }
+
+    private static Hash hashInternal(final Hash left, final Hash right, final WritableMessageDigest wmd) {
         // Unique value to make sure internal node hashes are different from leaf hashes. This
         // value indicates the number of child nodes. All internal virtual nodes have 2 children
         // except a root node in a tree with just one element / leaf. In this and only this case,
@@ -131,6 +134,7 @@ public final class VirtualHasher {
         if (right != NO_PATH2_HASH) { // use identity check rather than equals
             right.getBytes().writeTo(wmd);
         }
+        // Note that the digest is reset after the call to digest()
         return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
@@ -147,7 +151,7 @@ public final class VirtualHasher {
         void setOut(final ChunkHashTask out) {
             this.out = out;
             if (out != null) {
-                out.taskInput();
+                out.dynamicHashInput();
             }
             send();
         }
@@ -182,7 +186,12 @@ public final class VirtualHasher {
         // Number of input dependencies set for this task, either other tasks, or
         // nulls, which indicate the hash will be loaded from disk. No synchronization,
         // since this field is only used on the task submission thread
-        private int inputs = 0;
+        private int inputsInitialized = 0;
+
+        // Indicates if this task will have all input hashes set, i.e. all inputs are
+        // other tasks, not nulls. This flag is to avoid scanning through all ins
+        // during execution time
+        private boolean hasNullInputs = false;
 
         ChunkHashTask(final ForkJoinPool pool, final long path, final int height) {
             super(pool, 1 + (1 << height));
@@ -191,31 +200,42 @@ public final class VirtualHasher {
             this.ins = new Hash[1 << height];
         }
 
-        public void taskInput() {
-            inputs++;
+        // Notifies this task that one of its input hashes will be provided by
+        // another task. This method may be called on the task submission thread only
+        public void dynamicHashInput() {
+            inputsInitialized++;
         }
 
-        public void noInput() {
-            inputs++;
+        // Notifies this task that one of its input hashes is null, which means it
+        // will be loaded from disk during execution. This method may be called on
+        // the task submission thread only
+        public void staticNullInput() {
+            hasNullInputs = true;
+            inputsInitialized++;
             send();
         }
 
+        // Notifies this task it won't get any more inputs, that is no more calls to
+        // dynamicHashInput() or staticNullInput(). If some task inputs aren't
+        // initialized by this time, they are assumed to be null
         public void noMoreInputs() {
             final int numInputs = 1 << height;
-            assert inputs <= numInputs;
-            for (int i = inputs; i < numInputs; i++) {
-                inputs++;
+            assert inputsInitialized <= numInputs;
+            for (int i = inputsInitialized; i < numInputs; i++) {
+                hasNullInputs = true;
+                inputsInitialized++;
                 send();
             }
         }
 
         public boolean allInputsInitialized() {
-            return inputs == (1 << height);
+            return inputsInitialized == (1 << height);
         }
 
-        void setHash(final long path, final Hash hash) {
+        void setHash(final long path, @NonNull final Hash hash) {
             assert Path.getRank(this.path) + height == Path.getRank(path)
                     : this.path + " " + Path.getRank(this.path) + " " + height + " " + path + " " + Path.getRank(path);
+            assert hash != null;
             final long firstPathInPathRank = Path.getLeftGrandChildPath(this.path, height);
             final int index = Math.toIntExact(path - firstPathInPathRank);
             assert (index >= 0) && (index < ins.length);
@@ -244,14 +264,7 @@ public final class VirtualHasher {
             VirtualHashChunk hashChunk = null;
             if ((height == defaultChunkHeight) || (Path.getLeftGrandChildPath(path, height) >= firstLeafPath)) {
                 if (chunkPath == path) {
-                    boolean allInputhashesAvailable = true;
-                    for (int i = 0; i < len; i++) {
-                        if (ins[i] == null) {
-                            allInputhashesAvailable = false;
-                            break;
-                        }
-                    }
-                    if (allInputhashesAvailable) {
+                    if (!hasNullInputs) {
                         // All inputs provided, no need to load the chunk from disk using hashChunkPreloader
                         hashChunk = new VirtualHashChunk(chunkPath, defaultChunkHeight);
                     }
@@ -269,6 +282,7 @@ public final class VirtualHasher {
             final int chunkLastRank = chunkRank + hashChunk.height();
             long rankPath = Path.getLeftGrandChildPath(path, height);
             int currentRank = taskRank + height;
+            final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
             while (len > 1) {
                 for (int i = 0; i < len / 2; i++) {
                     Hash left = ins[i * 2];
@@ -315,7 +329,7 @@ public final class VirtualHasher {
                         }
                     }
 
-                    ins[i] = hashInternal(left, right);
+                    ins[i] = hashInternal(left, right, wmd);
                 }
                 rankPath = Path.getParentPath(rankPath);
                 currentRank--;
@@ -342,31 +356,23 @@ public final class VirtualHasher {
         private final long path;
 
         // Leaf data. May be null
-        private VirtualLeafBytes<?> leaf;
+        private final VirtualLeafBytes<?> leaf;
 
-        LeafHashTask(final ForkJoinPool pool, final long path) {
-            super(pool, 2);
+        LeafHashTask(final ForkJoinPool pool, final long path, @NonNull final VirtualLeafBytes<?> leaf) {
+            super(pool, 1); // dependency: output task
             this.path = path;
-        }
-
-        void setLeaf(final VirtualLeafBytes<?> leaf) {
             assert leaf != null;
             assert path == leaf.path();
             this.leaf = leaf;
-            send();
         }
 
         @Override
         protected boolean onExecute() {
-            if (leaf != null) {
-                final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
-                leaf.writeToForHashing(wmd);
-                final Hash hash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
-                listener.onLeafHashed(leaf);
-                out.setHash(path, hash);
-            } else {
-                out.setHash(path, null);
-            }
+            final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
+            leaf.writeToForHashing(wmd);
+            final Hash hash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+            listener.onLeafHashed(leaf);
+            out.setHash(path, hash);
             return true;
         }
     }
@@ -413,44 +419,6 @@ public final class VirtualHasher {
             // All other chunks are of the default height
             assert (rank % defaultChunkHeight == 0);
             return defaultChunkHeight;
-        }
-    }
-
-    /**
-     * Given a rank, returns chunk height, where the rank is the chunk output rank.
-     *
-     * @param rank the output rank
-     * @param firstLeafRank the rank of the first leaf path
-     * @param lastLeafRank the rank of the last leaf path
-     * @param defaultChunkHeight default chunk height from configuration
-     */
-    private int getChunkHeightForOutputRank(
-            final long path,
-            final int rank,
-            final int firstLeafRank,
-            final int lastLeafRank,
-            final int defaultChunkHeight) {
-        if ((rank == firstLeafRank) && (firstLeafRank != lastLeafRank)) {
-            // Small chunks of height 1 starting at the first leaf rank
-            return 1;
-        } else {
-            // Either default height, or height to the first leaf rank, whichever is smaller
-            assert rank % defaultChunkHeight == 0;
-            assert rank < firstLeafRank;
-            if (rank + defaultChunkHeight <= firstLeafRank) {
-                return defaultChunkHeight;
-            }
-            final int height = lastLeafRank - rank;
-            final long lastPathInChunk = Path.getRightGrandChildPath(path, height);
-            if (lastPathInChunk <= lastLeafPath) {
-                // First 'height' ranks in the chunk are in the tree
-                return height;
-            } else {
-                // Some nodes at the 'height' rank are beyond the leaf range. Split
-                // the chunk into one task of height - 1, and a few small chunks of
-                // height 1
-                return height - 1;
-            }
         }
     }
 
@@ -592,13 +560,13 @@ public final class VirtualHasher {
         int lastLeafRank = Path.getRank(lastLeafPath);
 
         // This map contains all tasks created, but not scheduled for execution yet
-        final HashMap<Long, ChunkHashTask> allTasks = new HashMap<>();
+        final HashMap<Long, ChunkHashTask> chunkTasks = new HashMap<>(128);
 
         final int rootTaskHeight = Math.min(firstLeafRank, defaultChunkHeight);
         final ChunkHashTask rootTask = new ChunkHashTask(pool, ROOT_PATH, rootTaskHeight);
         // The root task doesn't have an output. Still need to call setOut() to set the dependency
         rootTask.setOut(null);
-        allTasks.put(ROOT_PATH, rootTask);
+        chunkTasks.put(ROOT_PATH, rootTask);
 
         final long[] stack = new long[lastLeafRank + 1];
         Arrays.fill(stack, INVALID_PATH);
@@ -614,8 +582,7 @@ public final class VirtualHasher {
             long curPath = leaf.path();
             // For the created leaf task, set the leaf as an input. Together with the parent task
             // below it completes all task dependencies, so the task is executed
-            final LeafHashTask leafTask = new LeafHashTask(pool, curPath);
-            leafTask.setLeaf(leaf);
+            final LeafHashTask leafTask = new LeafHashTask(pool, curPath, leaf);
 
             // The next step is to iterate over parent tasks, until an already created task
             // is met (e.g. the root task). For every parent task, check all already created
@@ -630,22 +597,31 @@ public final class VirtualHasher {
                 assert curRank > 0; // there is parent task
 
                 final long lastPathAtRank = stack[curRank];
+                // Stack path may be null, if this is the very first dirty leaf, or
+                // the first dirty leaf at the last leaf rank
                 if (lastPathAtRank != INVALID_PATH) {
+                    // Identify the parent task for the last path at stack
                     final int lastTaskAtRankParentChunkHeight =
                             getChunkHeightForInputRank(lastPathAtRank, curRank, firstLeafRank, lastLeafRank,
                                     defaultChunkHeight);
                     final long lastTaskAtRankParentPath = Path.getGrandParentPath(lastPathAtRank,
                             lastTaskAtRankParentChunkHeight);
-                    final ChunkHashTask lastTaskAtRankParentTask = allTasks.get(lastTaskAtRankParentPath);
+                    final ChunkHashTask lastTaskAtRankParentTask = chunkTasks.get(lastTaskAtRankParentPath);
+                    // The parent tank must exist, since it was created at the previous iteration
                     assert lastTaskAtRankParentTask != null;
-                    final long lastTaskAtRankParentLastInputPath = Path.getRightGrandChildPath(lastTaskAtRankParentPath,
-                            lastTaskAtRankParentChunkHeight);
+                    final long lastTaskAtRankParentLastInputPath =
+                            Path.getRightGrandChildPath(lastTaskAtRankParentPath, lastTaskAtRankParentChunkHeight);
                     if (curPath > lastTaskAtRankParentLastInputPath) {
+                        // Mark all paths in range (last path at stack, the last input path
+                        // in the parent task] as clean. The corresponding dependencies in the
+                        // parent task will be set to null
                         for (long l = lastPathAtRank + 1; l <= lastTaskAtRankParentLastInputPath; l++) {
-                            lastTaskAtRankParentTask.noInput();
+                            lastTaskAtRankParentTask.staticNullInput();
                         }
+                        // If the parent task has all inputs (static nulls or dynamic task inputs),
+                        // it can be removed from the map
                         if (lastTaskAtRankParentTask.allInputsInitialized()) {
-                            allTasks.remove(lastTaskAtRankParentPath);
+                            chunkTasks.remove(lastTaskAtRankParentPath);
                         }
                     } else {
                         // curPath is in the same parent chunk as the stack path, all paths between
@@ -654,21 +630,25 @@ public final class VirtualHasher {
                 }
                 stack[curRank] = curPath;
 
+                // Now find this task's parent task
                 final int parentChunkHeight =
                         getChunkHeightForInputRank(curPath, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
                 final long parentPath = Path.getGrandParentPath(curPath, parentChunkHeight);
-                ChunkHashTask parentTask = allTasks.get(parentPath);
+                ChunkHashTask parentTask = chunkTasks.get(parentPath);
                 final boolean parentTaskExists = parentTask != null;
                 if (parentTask == null) {
                     parentTask = new ChunkHashTask(pool, parentPath, parentChunkHeight);
-                    allTasks.put(parentPath, parentTask);
+                    chunkTasks.put(parentPath, parentTask);
                 }
                 curTask.setOut(parentTask);
 
-                final long parentTaskFirstInputPath = Path.getLeftGrandChildPath(parentPath, parentChunkHeight);
+                // Mark all paths in range [first path in the parent task, cur path) as clean. Note that
+                // the last path in stack may be in the same parent task, in this case only paths
+                // greater than the last path in stack are marked
                 if (lastPathAtRank != INVALID_PATH) {
+                    final long parentTaskFirstInputPath = Path.getLeftGrandChildPath(parentPath, parentChunkHeight);
                     for (long l = Math.max(parentTaskFirstInputPath, lastPathAtRank + 1); l < curPath; l++) {
-                        parentTask.noInput();
+                        parentTask.staticNullInput();
                     }
                 }
 
@@ -687,8 +667,8 @@ public final class VirtualHasher {
         // created during walking from the last leaf on the last leaf rank to the root; sibling
         // tasks to the left of the very first route to the root. There are no more dirty leaves,
         // all these tasks may be marked as clean now
-        allTasks.forEach((path, task) -> task.noMoreInputs());
-        allTasks.clear();
+        chunkTasks.forEach((path, task) -> task.noMoreInputs());
+        chunkTasks.clear();
 
         return rootTask;
     }
