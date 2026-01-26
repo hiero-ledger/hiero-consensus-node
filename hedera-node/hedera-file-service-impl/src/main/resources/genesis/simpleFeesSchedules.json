@@ -37,7 +37,8 @@
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
     { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 499000000},
     { "name":  "SCHEDULE_CREATE_CONTRACT_CALL_BASE",        "fee": 900000000},
-    { "name":  "HOOK_EXECUTION",                            "fee": 50000000 }
+    { "name":  "HOOK_EXECUTION",                            "fee": 50000000 },
+    { "name":  "HOOK_SLOT_UPDATE",                          "fee": 50000000 }
   ],
   "services": [
     {
@@ -689,7 +690,12 @@
         {
           "name": "HookStore",
           "baseFee": 49000000,
-          "extras": [],
+          "extras": [
+            {
+              "name": "HOOK_SLOT_UPDATE",
+              "includedCount": 1
+            }
+          ],
           "highVolumeRates": {
             "maxMultiplier": 200000,
             "pricingCurve": {

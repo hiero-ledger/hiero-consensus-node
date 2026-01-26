@@ -28,7 +28,7 @@ public class TokenClaimAirdropFeeCalculator implements ServiceFeeCalculator {
             validateTrue(tokenConfig.airdropsClaimEnabled(), ResponseCodeEnum.NOT_SUPPORTED);
         }
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_CLAIM_AIRDROP);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {
