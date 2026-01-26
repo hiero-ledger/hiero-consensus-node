@@ -98,6 +98,7 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
@@ -145,7 +146,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -1011,9 +1011,12 @@ public final class Hedera
         // Will be null if the submitting node is no longer in the address book
         final var creatorInfo =
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
-        final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, ignored) -> {
-            final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
-            stateSignatureTxnCallback.accept(scopedTxn);
+        final ShortCircuitCallback shortCircuitTxnCallback = (stateSignatureTx, ignored) -> {
+            if (stateSignatureTx != null) {
+                final var scopedTxn =
+                        new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), stateSignatureTx);
+                stateSignatureTxnCallback.accept(scopedTxn);
+            }
         };
         final var transactions = new ArrayList<Transaction>(1000);
         event.forEachTransaction(transactions::add);

@@ -4,6 +4,7 @@ package com.swirlds.platform.state.signed;
 import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.state.State;
@@ -30,6 +31,11 @@ public record SignedStateValidationData(
         @NonNull Instant consensusTimestamp,
         @Nullable Hash rosterHash,
         @NonNull Hash consensusEventsRunningHash) {
+
+    public SignedStateValidationData {
+        requireNonNull(consensusTimestamp);
+        requireNonNull(consensusEventsRunningHash);
+    }
 
     public SignedStateValidationData(@NonNull final State that, @Nullable final Roster roster) {
         this(

@@ -80,6 +80,7 @@ import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
 import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
+import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
@@ -106,7 +107,6 @@ import java.util.Optional;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -427,13 +427,12 @@ public class HandleWorkflow {
                 writeEventHeader(event);
             }
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
-            final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, bytes) -> {
-                if (txn != null) {
-                    final var scopedTxn =
-                            new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
+            final ShortCircuitCallback shortCircuitCallback = (stateSignatureTx, bytes) -> {
+                if (stateSignatureTx != null) {
+                    final var scopedTxn = new ScopedSystemTransaction<>(
+                            event.getCreatorId(), event.getBirthRound(), stateSignatureTx);
                     stateSignatureTxnCallback.accept(scopedTxn);
                 }
-
                 if (streamMode != RECORDS) {
                     final var txnItem =
                             BlockItem.newBuilder().signedTransaction(bytes).build();
@@ -445,7 +444,7 @@ public class HandleWorkflow {
                 final var platformTxn = it.next();
                 try {
                     transactionsDispatched |= handlePlatformTransaction(
-                            state, creator, platformTxn, event.getEventCore().birthRound(), shortCircuitTxnCallback);
+                            state, creator, platformTxn, event.getEventCore().birthRound(), shortCircuitCallback);
                 } catch (final Exception e) {
                     logger.fatal(
                             "Possibly CATASTROPHIC failure while running the handle workflow. "
@@ -526,7 +525,7 @@ public class HandleWorkflow {
      * @param creator the {@link NodeInfo} of the creator of the transaction
      * @param txn the {@link ConsensusTransaction} to be handled
      * @param eventBirthRound the birth round of the event that this transaction belongs to
-     * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
+     * @param shortCircuitCallback A callback to be called when encountering any short-circuiting
      * transaction type
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
@@ -535,7 +534,7 @@ public class HandleWorkflow {
             @Nullable final NodeInfo creator,
             @NonNull final ConsensusTransaction txn,
             final long eventBirthRound,
-            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
+            @NonNull final ShortCircuitCallback shortCircuitCallback) {
         final var handleStart = System.nanoTime();
 
         // Always use platform-assigned time for user transaction, c.f. https://hips.hedera.com/hip/hip-993
@@ -583,7 +582,7 @@ public class HandleWorkflow {
 
         // IMPORTANT - this has the side effect of ensuring the tx's metadata is a PreHandleResult
         final var topLevelTxn =
-                parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitTxnCallback);
+                parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitCallback);
         if (topLevelTxn == null) {
             return false;
         } else if (streamMode != BLOCKS && startsNewRecordFile) {

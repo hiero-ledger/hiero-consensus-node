@@ -21,6 +21,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 
@@ -30,6 +32,8 @@ import org.hiero.consensus.model.hashgraph.Round;
  * access to particular properties of the platform state.
  */
 public final class PlatformStateUtils {
+
+    private static final Logger log = LogManager.getLogger(PlatformStateUtils.class);
 
     /**
      * @param state the state to extract value from
@@ -302,6 +306,7 @@ public final class PlatformStateUtils {
         final ReadableStates readableStates = state.getReadableStates(NAME);
         if (readableStates.isEmpty()
                 || readableStates.getSingleton(PLATFORM_STATE_STATE_ID).get() == null) {
+            log.info("Returning UNINITIALIZED_PLATFORM_STATE (because empty? {})", readableStates.isEmpty());
             return new SnapshotPlatformStateAccessor(UNINITIALIZED_PLATFORM_STATE);
         }
         return new ReadablePlatformStateStore(readableStates);
