@@ -23,6 +23,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double KEYS_FEE_USD = 0.01;
     public static final double NFT_SERIALS_FEE_USD = 0.00089;
     public static final double ACCOUNTS_FEE_USD = 0.0001;
+    public static final double SIGNATURE_FEE_AFTER_MULTIPLIER = (NETWORK_MULTIPLIER + 1) * SIGNATURE_FEE_USD;
 
     public static final double FUNGIBLE_TOKENS_FEE_USD = 0.0001;
     public static final double NON_FUNGIBLE_TOKENS_FEE_USD = 0.0001;
@@ -31,7 +32,8 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double ALLOWANCES_FEE_USD = 0.05;
 
     public static final double TOKEN_CREATE_WITH_CUSTOM_FEES_FEE_USD = 1.0;
-    public static final double TOKEN_MINT_NFT_FEE_USD = 0.019999;
+    public static final double TOKEN_MINT_FT_BASE_FEE = 0.001;
+    public static final double TOKEN_MINT_NFT_FEE_USD = 0.02;
 
     public static final double AIRDROPS_FEE_USD = 0.05;
     public static final double HOOK_UPDATES_FEE_USD = 1.0;
