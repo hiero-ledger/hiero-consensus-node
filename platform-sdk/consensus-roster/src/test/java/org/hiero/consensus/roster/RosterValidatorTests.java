@@ -8,8 +8,6 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.hiero.consensus.roster.InvalidRosterException;
-import org.hiero.consensus.roster.RosterValidator;
 import org.junit.jupiter.api.Test;
 
 public class RosterValidatorTests {

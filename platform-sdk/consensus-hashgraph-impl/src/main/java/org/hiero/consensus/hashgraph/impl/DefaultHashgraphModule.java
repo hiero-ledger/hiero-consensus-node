@@ -73,7 +73,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
                 .buildSplitter("ConsensusRoundsSplitter", "consensus rounds");
         this.preconsensusEventOutputWire = consensusEngineWiring
                 .getOutputWire()
-                .buildTransformer("PreConsensusEvents", "consensusEngineOutput", ConsensusEngineOutput::preConsensusEvents)
+                .buildTransformer(
+                        "PreConsensusEvents", "consensusEngineOutput", ConsensusEngineOutput::preConsensusEvents)
                 .buildSplitter("PreConsensusEventsSplitter", "preconsensus events");
         this.staleEventOutputWire = consensusEngineWiring
                 .getOutputWire()
@@ -92,12 +93,11 @@ public class DefaultHashgraphModule implements HashgraphModule {
 
         if (pipelineTracker != null) {
             pipelineTracker.registerMetric("consensus");
-            consensusRoundOutputWire
-                    .solderForMonitoring(consensusRound -> pipelineTracker.recordEvents(
-                            "consensus",
-                            consensusRound.getConsensusEvents().stream()
-                                    .map(PlatformEvent::getTimeReceived)
-                                    .toList()));
+            consensusRoundOutputWire.solderForMonitoring(consensusRound -> pipelineTracker.recordEvents(
+                    "consensus",
+                    consensusRound.getConsensusEvents().stream()
+                            .map(PlatformEvent::getTimeReceived)
+                            .toList()));
         }
     }
 

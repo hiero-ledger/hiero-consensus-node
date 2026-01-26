@@ -8,8 +8,6 @@ import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
-import org.hiero.consensus.roster.ReadableRosterStoreImpl;
-import org.hiero.consensus.roster.RosterStateId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
