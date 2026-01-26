@@ -9,7 +9,7 @@ module org.hiero.consensus.hashgraph {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.consensus.model;
-    requires org.hiero.consensus.metrics;
+    requires transitive org.hiero.consensus.metrics;
     requires static com.github.spotbugs.annotations;
 
     exports org.hiero.consensus.hashgraph;
