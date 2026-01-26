@@ -56,6 +56,7 @@ javaModules {
         group = "org.hiero.observability"
 
         module("hiero-metrics") { artifact = "hiero-metrics" }
+        module("openmetrics-httpserver") { artifact = "openmetrics-httpserver" }
     }
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
