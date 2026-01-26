@@ -3,7 +3,6 @@ package com.swirlds.platform.gossip;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.google.common.collect.ImmutableList;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -57,7 +56,7 @@ public class SyncGossipModular implements Gossip {
     private static final Logger logger = LogManager.getLogger(SyncGossipModular.class);
 
     private final PeerCommunication network;
-    private final ImmutableList<Protocol> protocols;
+    private final List<Protocol> protocols;
     private final AbstractSyncProtocol<?> syncProtocol;
     private final FallenBehindMonitor fallenBehindMonitor;
     private final AbstractShadowgraphSynchronizer synchronizer;
@@ -164,7 +163,7 @@ public class SyncGossipModular implements Gossip {
                     syncMetrics);
         }
 
-        this.protocols = ImmutableList.of(
+        this.protocols = List.of(
                 HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
                 reconnectProtocol,
                 syncProtocol);
@@ -183,7 +182,7 @@ public class SyncGossipModular implements Gossip {
      * can be a short moment when it will drop out of the network if disconnect happens at a bad moment. NOT THREAD
      * SAFE. Synchronize externally.
      *
-     * @param added   peers to be added
+     * @param added peers to be added
      * @param removed peers to be removed
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
