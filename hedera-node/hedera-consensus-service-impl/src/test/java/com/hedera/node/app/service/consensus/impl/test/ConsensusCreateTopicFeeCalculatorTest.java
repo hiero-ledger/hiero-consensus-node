@@ -57,9 +57,9 @@ public class ConsensusCreateTopicFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             assertThat(result).isNotNull();
-            Assertions.assertThat(result.node).isEqualTo(100000L);
-            Assertions.assertThat(result.service).isEqualTo(498500000L);
-            Assertions.assertThat(result.network).isEqualTo(200000L);
+            Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L);
+            Assertions.assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
         }
     }
 

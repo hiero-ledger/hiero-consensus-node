@@ -105,7 +105,6 @@ public class ConsensusModuleBuilder {
                 new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
         final TransactionLimits transactionLimits = new TransactionLimits(0, 0);
-        final long startingRound = 0L;
         final EventPipelineTracker eventPipelineTracker = null;
 
         final EventIntakeModule eventIntakeModule = createEventIntakeModule();
@@ -115,10 +114,8 @@ public class ConsensusModuleBuilder {
                 metrics,
                 time,
                 rosterHistory,
-                selfId,
                 intakeEventCounter,
                 transactionLimits,
-                startingRound,
                 eventPipelineTracker);
         return eventIntakeModule;
     }

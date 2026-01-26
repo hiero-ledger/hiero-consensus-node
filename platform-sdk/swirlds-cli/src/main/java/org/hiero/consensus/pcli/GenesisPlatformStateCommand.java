@@ -5,6 +5,7 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf
 import static com.swirlds.platform.state.snapshot.SavedStateMetadata.NO_NODE_ID;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateFilesToDirectory;
 
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -54,7 +55,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
     }
 
     @Override
-    public Integer call() throws IOException, ExecutionException, InterruptedException {
+    public Integer call() throws IOException, ExecutionException, InterruptedException, ParseException {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
         BootstrapUtils.setupConstructableRegistry();
 

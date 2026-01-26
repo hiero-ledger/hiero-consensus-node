@@ -121,7 +121,7 @@ public class PlatformWiring {
 
         components
                 .eventIntakeModule()
-                .validatedNonPersistedEventsOutputWire()
+                .validatedEventsOutputWire()
                 .solderTo(components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
         components
                 .branchDetectorWiring()
@@ -373,7 +373,7 @@ public class PlatformWiring {
         if (callbacks.preconsensusEventConsumer() != null) {
             components
                     .eventIntakeModule()
-                    .validatedNonPersistedEventsOutputWire()
+                    .validatedEventsOutputWire()
                     .solderTo(
                             "preConsensusEventCallback", "pre-consensus events", callbacks.preconsensusEventConsumer());
         }

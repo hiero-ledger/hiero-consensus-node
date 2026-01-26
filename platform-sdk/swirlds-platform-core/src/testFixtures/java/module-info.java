@@ -35,7 +35,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.utility.test.fixtures;
     requires com.github.spotbugs.annotations;
-    requires com.google.common;
     requires java.desktop;
     requires org.mockito;
 

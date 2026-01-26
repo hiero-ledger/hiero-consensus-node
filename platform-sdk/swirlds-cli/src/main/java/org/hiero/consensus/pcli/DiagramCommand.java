@@ -117,7 +117,9 @@ public final class DiagramCommand extends AbstractCommand {
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
 
-        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, ApplicationCallbacks.EMPTY);
+        // Use non-null callbacks so all optional wires appear in the diagram
+        final ApplicationCallbacks callbacks = new ApplicationCallbacks(e -> {}, s -> {}, e -> {});
+        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, callbacks);
 
         final String diagramString =
                 model.generateWiringDiagram(parseGroups(), parseSubstitutions(), parseManualLinks(), !lessMystery);

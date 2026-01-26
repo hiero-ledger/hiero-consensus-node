@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.reconnect;
+package org.hiero.consensus.monitoring;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.hashgraph.EventWindow;

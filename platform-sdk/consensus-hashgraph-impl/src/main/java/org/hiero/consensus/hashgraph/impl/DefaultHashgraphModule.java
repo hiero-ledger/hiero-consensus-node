@@ -73,8 +73,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
                 .buildSplitter("ConsensusRoundsSplitter", "consensus rounds");
         this.preconsensusEventOutputWire = consensusEngineWiring
                 .getOutputWire()
-                .buildTransformer("preconsensusEvents", "consensusRounds", ConsensusEngineOutput::preConsensusEvents)
-                .buildSplitter("PreconsensusEventsSplitter", "preconsensus events");
+                .buildTransformer("PreConsensusEvents", "consensusEngineOutput", ConsensusEngineOutput::preConsensusEvents)
+                .buildSplitter("PreConsensusEventsSplitter", "preconsensus events");
         this.staleEventOutputWire = consensusEngineWiring
                 .getOutputWire()
                 .buildTransformer("staleEvents", "consensusEngineOutput", ConsensusEngineOutput::staleEvents)

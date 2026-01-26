@@ -7,6 +7,7 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunnin
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningEventHashOverride;
+import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.components.AppNotifier;
