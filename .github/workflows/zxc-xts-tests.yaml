@@ -248,8 +248,6 @@ jobs:
       access-token: ${{ secrets.platform-access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
-      gcp-project-number: ${{ secrets.gcp-project-number }}
-      gcp-sa-key-contents: ${{ secrets.gcp-sa-key-contents }}
       slack-api-token: ${{ secrets.slack-api-token }}
       grafana-agent-username: ${{ secrets.grafana-agent-username }}
       grafana-agent-password: ${{ secrets.grafana-agent-password }}
@@ -270,10 +268,6 @@ jobs:
       panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
     secrets:
       access-token: ${{ secrets.platform-access-token }}
-      jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
-      jrs-ssh-key-file: ${{ secrets.jrs-ssh-key-file }}
-      gcp-project-number: ${{ secrets.gcp-project-number }}
-      gcp-sa-key-contents: ${{ secrets.gcp-sa-key-contents }}
       slack-api-token: ${{ secrets.slack-api-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
