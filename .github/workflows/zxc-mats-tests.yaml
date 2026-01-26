@@ -125,7 +125,7 @@ jobs:
 
   build:
     name: "${{ inputs.custom-job-label }} Compile Code"
-    uses: ./.github/workflows/zxc-compile-application-code.yaml
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - commit-info
     with:
@@ -140,7 +140,7 @@ jobs:
   dependency-check:
     name: "${{ inputs.custom-job-label }} Dependency (Module Info)"
     if: ${{ inputs.enable-dependency-check == 'true' }}
-    uses: ./.github/workflows/zxc-dependency-module-check.yaml
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - commit-info
       - build
@@ -154,7 +154,7 @@ jobs:
   spotless:
     name: "${{ inputs.custom-job-label }} Spotless"
     if: ${{ inputs.enable-spotless-check == 'true' }}
-    uses: ./.github/workflows/zxc-spotless-check.yaml
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - commit-info
       - build
@@ -168,7 +168,7 @@ jobs:
   mats-unit-tests:
     name: Unit Tests
     if: ${{ inputs.enable-unit-tests == 'true' }}
-    uses: ./.github/workflows/zxc-execute-unit-tests.yaml
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - commit-info
       - build
@@ -187,7 +187,7 @@ jobs:
   mats-integration-tests:
     name: Integration Tests
     if: ${{ inputs.enable-integration-tests == 'true' }}
-    uses: ./.github/workflows/zxc-execute-integration-tests.yaml
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - commit-info
       - build
@@ -206,7 +206,27 @@ jobs:
   mats-hapi-tests-misc:
     name: HAPI Tests (Misc)
     if: ${{ inputs.enable-hapi-tests == 'true' }}
-    uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - commit-info
+      - build
+    with:
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
+      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-misc: ${{ inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+      mats-suffix: MATS
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  mats-hapi-tests-misc-records:
+    name: HAPI Tests (Misc Records)
+    if: ${{ inputs.enable-hapi-tests == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - commit-info
       - build
@@ -387,7 +407,7 @@ jobs:
     needs:
       - commit-info
       - build
-    uses: ./.github/workflows/zxc-snyk-scan.yaml
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
@@ -407,7 +427,6 @@ jobs:
       - commit-info
       - build
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
-    if: ${{ inputs.enable-gradle-determinism == 'true' }}
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
@@ -423,7 +442,6 @@ jobs:
       - commit-info
       - build
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
-    if: ${{ inputs.enable-docker-determinism == 'true' }}
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}

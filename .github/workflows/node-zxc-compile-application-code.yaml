@@ -43,6 +43,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable-hapi-tests-simplefees:
+        description: "HAPI Testing (simple fees) Enabled"
+        type: boolean
+        required: false
+        default: false
       enable-hapi-tests-token:
         description: "HAPI Testing (token) Enabled"
         type: boolean

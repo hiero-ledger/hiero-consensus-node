@@ -95,14 +95,6 @@ jobs:
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
 
-  state-validator-uberjar:
-    name: Build & Publish Hedera State Validator Uber JAR
-    if: ${{ inputs.execute-state-validator-build == true }}
-    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
-    with:
-      ref: ${{ inputs.ref }}
-      dry-run-enabled: "true"
-
   xts-execution:
     name: Execute XTS
     needs: parameters
@@ -115,7 +107,6 @@ jobs:
       mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       enable-extended-test-suite: ${{ inputs.enable-extended-test-suite }}
-      enable-abbreviated-panel: ${{ inputs.enable-abbreviated-panel }}
       enable-hedera-node-jrs-panel: ${{ inputs.enable-hedera-node-jrs-panel }}
       enable-sdk-tck-regression-panel: ${{ inputs.enable-sdk-tck-regression-panel }}
       enable-mirror-node-regression-panel: ${{ inputs.enable-mirror-node-regression-panel }}

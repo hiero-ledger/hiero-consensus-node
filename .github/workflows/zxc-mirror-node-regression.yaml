@@ -15,10 +15,6 @@ on:
         description: "The version of solo to install (if not specified, latest will be used)"
         required: false
         type: string
-      mirror-node-version:
-        description: "The version of the mirror node to deploy (if not specified, '0.142.2' will be used)"
-        required: false
-        type: string
       helm-release-name:
         description: "The Helm release name to use for the mirror node deployment"
         required: false
