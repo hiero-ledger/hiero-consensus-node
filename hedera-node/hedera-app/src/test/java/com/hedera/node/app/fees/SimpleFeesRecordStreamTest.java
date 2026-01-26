@@ -216,7 +216,7 @@ public class SimpleFeesRecordStreamTest {
         final var body = TransactionBody.PROTOBUF.parse(
                 Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
         final Transaction txn = Transaction.newBuilder().body(body).build();
-        if(txn.body().data().kind() == TransactionBody.DataOneOfType.UNSET) {
+        if (txn.body().data().kind() == TransactionBody.DataOneOfType.UNSET) {
             // skip unset types
             return;
         }
