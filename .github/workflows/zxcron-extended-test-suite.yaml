@@ -212,7 +212,7 @@ jobs:
               # should never get here.
               echo "::error file=zxcron-extended-test-suite.yaml,line=213::No commits associated with this release; exiting."
               exit 1
-            elif [[ "${COMMIT_COUNT}" -gt 15 ]]; then
+            elif [[ ${COMMIT_COUNT} -gt 15 ]]; then
               COMMIT_LIST_STR="Please refer to the workflow summary for the full list of associated commits."
             else
               PARSED_COMMIT_LIST="${COMMIT_LIST//\`/}"
