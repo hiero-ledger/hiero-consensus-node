@@ -18,8 +18,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class KeyComparatorTest {
 
-    private static final String CASE_FAIL_MESSAGE =
-            """
+    private static final String CASE_FAIL_MESSAGE = """
             Case %s failed.
             Expected value is %d, not %5$d.
             compare(%s, %s) returned %d.
@@ -75,9 +74,10 @@ class KeyComparatorTest {
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    //                              Parameterized test method sources                             //
-    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // ----------------------------------------------------------------------------------------------------
+    //                              Parameterized test method sources
+    // ----------------------------------------------------------------------------------------------------
+
     public static Stream<Arguments> generateAllCrossTypeMatches() {
         final Integer zero = Integer.valueOf(0);
         final Integer one = Integer.valueOf(1);
@@ -508,9 +508,9 @@ class KeyComparatorTest {
         addDelegateId(result, minusOne, new IdVal("0.1.one", 0, 0, 1, -1), new IdVal("0.2.five", 4, 0, 2, -1));
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    //                             Supporting methods and record types                            //
-    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // ----------------------------------------------------------------------------------------------------
+    //                             Supporting methods and record types
+    // ----------------------------------------------------------------------------------------------------
     private static record IdVal(String name, int index, int realm, int shard, int num) {}
 
     private static record NamedKeyList(String name, Key key) {}
@@ -540,9 +540,9 @@ class KeyComparatorTest {
         else return Key.newBuilder().contractID(builder).build();
     }
 
-    ////////////////////////////////////////////////////////////////////////////////////////////////
-    //                                   Static data fragments                                    //
-    ////////////////////////////////////////////////////////////////////////////////////////////////
+    // ----------------------------------------------------------------------------------------------------
+    //                                   Static data fragments
+    // ----------------------------------------------------------------------------------------------------
     // Test ECDSA SECP256 K1 key hex values
     private static final Bytes[] ECDSA_BYTES = {
         Bytes.fromHex("00badcadfaddad2bedfedbeef959feedbeadcafecadecedebeed4acedecada5ada"),

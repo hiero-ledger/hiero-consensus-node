@@ -3,6 +3,9 @@
     "baseFee": 100000,
     "extras": [
       {
+        "name": "BYTES", "includedCount": 1024
+      },
+      {
         "name": "SIGNATURES", "includedCount": 1
       }
     ]
@@ -34,7 +37,8 @@
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
     { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 499000000},
     { "name":  "SCHEDULE_CREATE_CONTRACT_CALL_BASE",        "fee": 900000000},
-    { "name":  "HOOK_EXECUTION",                            "fee": 50000000 }
+    { "name":  "HOOK_EXECUTION",                            "fee": 50000000 },
+    { "name":  "HOOK_SLOT_UPDATE",                          "fee": 50000000 }
   ],
   "services": [
     {
@@ -619,6 +623,10 @@
             {
               "name": "KEYS",
               "includedCount": 1
+            },
+            {
+              "name": "HOOK_UPDATES",
+              "includedCount": 0
             }
           ]
         },
@@ -641,8 +649,14 @@
           "name": "ContractCreate",
           "baseFee": 9999000000,
           "extras": [
-            { "name": "GAS", "includedCount": 0 },
-            {"name": "KEYS", "includedCount": 1}
+            {
+              "name": "HOOK_UPDATES",
+              "includedCount": 0
+            },
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
           ],
           "highVolumeRates": {
             "maxMultiplier": 80000,
@@ -666,7 +680,12 @@
         {
           "name": "HookStore",
           "baseFee": 49000000,
-          "extras": [],
+          "extras": [
+            {
+              "name": "HOOK_SLOT_UPDATE",
+              "includedCount": 1
+            }
+          ],
           "highVolumeRates": {
             "maxMultiplier": 200000,
             "pricingCurve": {
@@ -689,6 +708,25 @@
               }
             }
           }
+        },
+        {
+          "name": "ContractCallLocal",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "ContractGetBytecode",
+          "baseFee": 0,
+          "extras": [
+            {
+              "name": "BYTES", "includedCount": 1000
+            }
+          ]
+        },
+        {
+          "name": "ContractGetInfo",
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },

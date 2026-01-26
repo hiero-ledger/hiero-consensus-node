@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.merkle.util;
 
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Utility class for generating paired streams for synchronization tests.
@@ -15,15 +15,15 @@ import java.net.Socket;
 public class PairedStreams implements AutoCloseable {
 
     protected BufferedOutputStream teacherOutputBuffer;
-    protected MerkleDataOutputStream teacherOutput;
+    protected SerializableDataOutputStream teacherOutput;
 
     protected BufferedInputStream teacherInputBuffer;
-    protected MerkleDataInputStream teacherInput;
+    protected SerializableDataInputStream teacherInput;
 
     protected BufferedOutputStream learnerOutputBuffer;
-    protected MerkleDataOutputStream learnerOutput;
+    protected SerializableDataOutputStream learnerOutput;
     protected BufferedInputStream learnerInputBuffer;
-    protected MerkleDataInputStream learnerInput;
+    protected SerializableDataInputStream learnerInput;
 
     protected Socket teacherSocket;
     protected Socket learnerSocket;
@@ -36,31 +36,31 @@ public class PairedStreams implements AutoCloseable {
         learnerSocket = server.accept();
 
         teacherOutputBuffer = new BufferedOutputStream(teacherSocket.getOutputStream());
-        teacherOutput = new MerkleDataOutputStream(teacherOutputBuffer);
+        teacherOutput = new SerializableDataOutputStream(teacherOutputBuffer);
 
         teacherInputBuffer = new BufferedInputStream(teacherSocket.getInputStream());
-        teacherInput = new MerkleDataInputStream(teacherInputBuffer);
+        teacherInput = new SerializableDataInputStream(teacherInputBuffer);
 
         learnerOutputBuffer = new BufferedOutputStream(learnerSocket.getOutputStream());
-        learnerOutput = new MerkleDataOutputStream(learnerOutputBuffer);
+        learnerOutput = new SerializableDataOutputStream(learnerOutputBuffer);
 
         learnerInputBuffer = new BufferedInputStream(learnerSocket.getInputStream());
-        learnerInput = new MerkleDataInputStream(learnerInputBuffer);
+        learnerInput = new SerializableDataInputStream(learnerInputBuffer);
     }
 
-    public MerkleDataOutputStream getTeacherOutput() {
+    public SerializableDataOutputStream getTeacherOutput() {
         return teacherOutput;
     }
 
-    public MerkleDataInputStream getTeacherInput() {
+    public SerializableDataInputStream getTeacherInput() {
         return teacherInput;
     }
 
-    public MerkleDataOutputStream getLearnerOutput() {
+    public SerializableDataOutputStream getLearnerOutput() {
         return learnerOutput;
     }
 
-    public MerkleDataInputStream getLearnerInput() {
+    public SerializableDataInputStream getLearnerInput() {
         return learnerInput;
     }
 
