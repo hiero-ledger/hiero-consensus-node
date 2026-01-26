@@ -9,7 +9,6 @@ import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.PING;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.PING_REPLY;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.SYNC_DATA;
 
-import com.google.common.collect.Lists;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.message.GossipKnownTips;
 import com.hedera.hapi.platform.message.GossipPing;
@@ -506,15 +505,14 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     @Override
     public void sendEvents(@NonNull final List<GossipEvent> gossipEvents) {
         outputQueue.add(out -> {
-            final List<List<GossipEvent>> batches = Lists.partition(gossipEvents, EVENT_BATCH_SIZE);
-            {
-                for (final List<GossipEvent> batch : batches) {
-                    if (!batch.isEmpty()) {
-                        out.writeShort(batch.size());
-                        for (final GossipEvent gossipEvent : batch) {
-                            out.write(EVENT);
-                            out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
-                        }
+            for (int i = 0; i < gossipEvents.size(); i += EVENT_BATCH_SIZE) {
+                final List<GossipEvent> batch =
+                        gossipEvents.subList(i, Math.min(i + EVENT_BATCH_SIZE, gossipEvents.size()));
+                if (!batch.isEmpty()) {
+                    out.writeShort(batch.size());
+                    for (final GossipEvent gossipEvent : batch) {
+                        out.write(EVENT);
+                        out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
                     }
                 }
             }
