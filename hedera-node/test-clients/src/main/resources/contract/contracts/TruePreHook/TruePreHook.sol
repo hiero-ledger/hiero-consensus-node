@@ -6,10 +6,13 @@ import './IHieroAccountAllowanceHook.sol';
 
 /// A degenerate hook useful for basic HIP-1195 testing
 contract TruePreHook is IHieroAccountAllowanceHook {
+    event Log(string message);
+
     function allow(
        IHieroHook.HookContext calldata context,
        ProposedTransfers memory proposedTransfers
     ) override external payable returns (bool) {
-      return true;
+        emit Log(context.memo);
+        return true;
     }
 } 
