@@ -23,6 +23,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double KEYS_FEE_USD = 0.01;
     public static final double NFT_SERIALS_FEE_USD = 0.00089;
     public static final double ACCOUNTS_FEE_USD = 0.0001;
+    public static final double SIGNATURE_FEE_AFTER_MULTIPLIER = (NETWORK_MULTIPLIER + 1) * SIGNATURE_FEE_USD;
 
     public static final double FUNGIBLE_TOKENS_FEE_USD = 0.0001;
     public static final double NON_FUNGIBLE_TOKENS_FEE_USD = 0.0001;
@@ -63,6 +64,9 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS = 1L;
     public static final long CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS = 1L;
 
+    public static final double CRYPTO_APPROVE_ALLOWANCE_FEE = 0.05;
+    public static final double CRYPTO_DELETE_ALLOWANCE_FEE = 0.05;
+
     /* ---------- Consensus service ---------- */
 
     public static final double CONS_CREATE_TOPIC_BASE_FEE_USD = 0.0099;
@@ -72,8 +76,8 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double CONS_UPDATE_TOPIC_BASE_FEE_USD = 0.00012;
     public static final long CONS_UPDATE_TOPIC_INCLUDED_KEYS = 1L;
 
-    public static final double CONS_SUBMIT_MESSAGE_BASE_FEE_USD = 0.0;
-    public static final long CONS_SUBMIT_MESSAGE_INCLUDED_BYTES = 100L;
+    public static final double SUBMIT_MESSAGE_BASE_FEE_USD = 0.0008;
+    public static final double SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BASE_USD = 0.05;
 
     public static final double CONS_DELETE_TOPIC_BASE_FEE_USD = 0.0049;
 
