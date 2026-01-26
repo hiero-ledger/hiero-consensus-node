@@ -142,4 +142,6 @@ module com.swirlds.platform.core {
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.swirlds.platform.config.PlatformConfigurationExtension;
+    provides com.swirlds.platform.reconnect.api.ProtocolFactory with
+            com.swirlds.platform.reconnect.ReconnectProtocolFactory;
 }
