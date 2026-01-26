@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 import static com.swirlds.logging.legacy.LogMarker.TCP_CONNECT_EXCEPTIONS;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
@@ -188,7 +187,6 @@ public class OutboundConnectionManager implements ConnectionManager {
     /**
      * {@inheritDoc}
      */
-    @VisibleForTesting
     @Override
     public Connection getConnection() {
         return currentConn;
