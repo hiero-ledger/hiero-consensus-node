@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.test.handlers;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
@@ -9,14 +10,17 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -228,6 +232,49 @@ class UnzipUtilityTest {
                 .withMessageContaining("too many entries");
     }
 
+    @Test
+    @DisplayName("extractSingleFileWithLimits fails when entry exceeds max bytes and cleans up output file")
+    void extractSingleFileFailsWhenEntryExceedsMaxBytesAndCleansUp() throws Exception {
+        final var content = "0123456789".getBytes();
+        final var zip = createZipWithSingleEntryName("big.txt", content);
+        final var out = unzipOutputDir.resolve("big.txt");
+
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> extractWithLimits(zip, out, 5L, Long.MAX_VALUE))
+                .withMessageContaining("Zip entry exceeds max allowed size (5 bytes)");
+
+        assertThat(out).doesNotExist();
+    }
+
+    @Test
+    @DisplayName(
+            "extractSingleFileWithLimits fails when remaining total bytes would be exceeded and cleans up output file")
+    void extractSingleFileFailsWhenRemainingTotalBytesExceededAndCleansUp() throws Exception {
+        final var content = "0123456789".getBytes();
+        final var zip = createZipWithSingleEntryName("big-total.txt", content);
+        final var out = unzipOutputDir.resolve("big-total.txt");
+
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> extractWithLimits(zip, out, 100L, 5L))
+                .withMessageContaining("Zip archive exceeds max allowed extracted size");
+
+        assertThat(out).doesNotExist();
+    }
+
+    @Test
+    @DisplayName("extractSingleFileWithLimits logs warn when cleanup cannot delete partial output")
+    void extractSingleFileLogsWarnWhenCleanupCannotDelete() throws Exception {
+        final var zip = createZipWithSingleEntryName("entry.txt", "content".getBytes());
+        final var outDir = unzipOutputDir.resolve("not-a-file");
+        Files.createDirectories(outDir);
+        Files.writeString(outDir.resolve("child.txt"), "x");
+
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> extractWithLimits(zip, outDir, 100L, Long.MAX_VALUE));
+        assertThat(logCaptor.warnLogs())
+                .anyMatch(l -> l.contains("Unable to delete partially extracted file " + outDir));
+    }
+
     private byte[] createMaliciousZip() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ZipOutputStream zos = new ZipOutputStream(baos)) {
@@ -282,5 +329,31 @@ class UnzipUtilityTest {
             sb.append('a');
         }
         return sb.toString();
+    }
+
+    private static long extractWithLimits(
+            final byte[] zipBytes, final Path outputPath, final long maxEntryBytes, final long remainingTotalBytes)
+            throws IOException {
+        try (final var zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
+            final var entry = zis.getNextEntry();
+            if (entry == null) {
+                throw new IOException("No zip entry found in bytes");
+            }
+            final var method = UnzipUtility.class.getDeclaredMethod(
+                    "extractSingleFileWithLimits", ZipInputStream.class, Path.class, long.class, long.class);
+            method.setAccessible(true);
+            return (long) method.invoke(null, zis, outputPath, maxEntryBytes, remainingTotalBytes);
+        } catch (final InvocationTargetException e) {
+            final var cause = e.getCause();
+            if (cause instanceof IOException io) {
+                throw io;
+            }
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(cause);
+        } catch (final ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
