@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.PathsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -59,8 +60,11 @@ import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.util.encoders.DecoderException;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
+import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -305,7 +309,8 @@ public class EnhancedKeyStoreLoader {
     }
 
     /**
-     * Verifies the presence of all required keys based on the address book provided during initialization.
+     * Verifies the presence of all required keys based on the address book provided during initialization
+     * and that each signing key pair can produce valid signatures.
      *
      * @return this {@link EnhancedKeyStoreLoader} instance.
      * @throws KeyLoadingException if one or more of the required keys were not loaded.
@@ -314,6 +319,8 @@ public class EnhancedKeyStoreLoader {
      */
     @NonNull
     public EnhancedKeyStoreLoader verify() throws KeyLoadingException, KeyStoreException {
+        final Map<NodeId, X509Certificate> signing = signingCertificates();
+
         for (final NodeId nodeId : this.nodeIds) {
             try {
                 if (!sigPrivateKeys.containsKey(nodeId)) {
@@ -339,6 +346,18 @@ public class EnhancedKeyStoreLoader {
             } catch (final KeyLoadingException e) {
                 logger.warn(STARTUP.getMarker(), e.getMessage());
                 throw e;
+            }
+
+            // Ensure that the signing cert from the roster matches the signing private key from disk
+            final PrivateKey sigPrivateKey = sigPrivateKeys.get(nodeId);
+            final X509Certificate sigCert = signing.get(nodeId);
+            final KeyPair sigKeyPair = new KeyPair(sigCert.getPublicKey(), sigPrivateKey);
+            final PlatformSigner platformSigner = new PlatformSigner(sigKeyPair);
+            final String testString = "testString";
+            final Bytes testBytes = Bytes.wrap(testString.getBytes());
+            final Signature signature = platformSigner.sign(testBytes.toByteArray());
+            if (!ConsensusCryptoUtils.verifySignature(testBytes, signature.getBytes(), sigCert.getPublicKey())) {
+                throw new IllegalStateException("The signing certificate does not match the signing private key.");
             }
         }
 

@@ -3,6 +3,7 @@ package org.hiero.consensus.crypto;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.KeyPair;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
@@ -20,9 +21,15 @@ public class PlatformSigner implements Signer, BytesSigner {
      * @param keysAndCerts the platform's keys and certificates
      */
     public PlatformSigner(@NonNull final KeysAndCerts keysAndCerts) {
-        this.signer = SigningFactory.createSigner(keysAndCerts.sigKeyPair());
-        final SigningSchema schema =
-                SigningSchema.fromKeyType(keysAndCerts.sigKeyPair().getPrivate());
+        this(keysAndCerts.sigKeyPair());
+    }
+
+    /**
+     * @param sigKeyPair the signing key pair
+     */
+    public PlatformSigner(@NonNull final KeyPair sigKeyPair) {
+        this.signer = SigningFactory.createSigner(sigKeyPair);
+        final SigningSchema schema = SigningSchema.fromKeyType(sigKeyPair.getPrivate());
         this.signatureType = switch (schema) {
             case RSA -> SignatureType.RSA;
             case ED25519 -> SignatureType.ED25519;
