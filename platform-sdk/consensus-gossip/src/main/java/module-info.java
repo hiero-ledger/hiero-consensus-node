@@ -13,7 +13,6 @@ module org.hiero.consensus.gossip {
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires static transitive com.github.spotbugs.annotations;
-    requires static transitive com.google.auto.service;
 
     provides ConfigurationExtension with
             GossipConfigurationExtension;
