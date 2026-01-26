@@ -52,7 +52,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.nod
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.KEYS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip904.TokenAirdropBase.setUpTokensAndAllReceivers;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -1145,7 +1145,7 @@ class AtomicTokenServiceFeesSuite {
     @HapiTest
     @Tag(MATS)
     final Stream<DynamicTest> updateMultipleNftsFeeChargedAsExpected() {
-        final var expectedFee = TOKEN_UPDATE_BASE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER;
+        final var expectedFee = 5 * TOKEN_UPDATE_NFT_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER;
         final var nftUpdateTxn = "nftUpdateTxn";
 
         return hapiTest(

@@ -31,9 +31,11 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double GAS_FEE_USD = 0.0000000852;
     public static final double ALLOWANCES_FEE_USD = 0.05;
 
-    public static final double TOKEN_CREATE_WITH_CUSTOM_FEES_FEE_USD = 1.0;
+    public static final double TOKEN_CREATE_BASE_FEE = 1.0;
+    public static final double TOKEN_CREATE_WITH_CUSTOM_FEES_FEE = 2.0;
     public static final double TOKEN_MINT_FT_BASE_FEE = 0.001;
     public static final double TOKEN_MINT_NFT_FEE_USD = 0.02;
+    public static final double TOKEN_UPDATE_BASE_FEE = 0.001;
     public static final double TOKEN_UPDATE_NFT_FEE = 0.001;
 
     public static final double AIRDROPS_FEE_USD = 0.05;
