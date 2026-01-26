@@ -396,15 +396,6 @@ public class PlatformWiring {
                     .getOutputWire()
                     .solderForMonitoring(
                             platformEvent -> pipelineTracker.recordEvent("pces", platformEvent.getTimeReceived()));
-            pipelineTracker.registerMetric("consensus");
-            components
-                    .hashgraphModule()
-                    .consensusRoundOutputWire()
-                    .solderForMonitoring(consensusRound -> pipelineTracker.recordEvents(
-                            "consensus",
-                            consensusRound.getConsensusEvents().stream()
-                                    .map(PlatformEvent::getTimeReceived)
-                                    .toList()));
         }
     }
 

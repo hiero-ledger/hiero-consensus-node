@@ -19,6 +19,7 @@ import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.hashgraph.config.HashgraphWiringConfig;
 import org.hiero.consensus.hashgraph.impl.metrics.EventCounter;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
@@ -53,7 +54,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final FreezePeriodChecker freezeChecker) {
+            @NonNull final FreezePeriodChecker freezeChecker,
+            @Nullable EventPipelineTracker pipelineTracker) {
 
         //noinspection VariableNotUsedInsideIf
         if (consensusEngineWiring != null) {
@@ -87,6 +89,16 @@ public class DefaultHashgraphModule implements HashgraphModule {
         final ConsensusEngine consensusEngine =
                 new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, freezeChecker);
         consensusEngineWiring.bind(consensusEngine);
+
+        if (pipelineTracker != null) {
+            pipelineTracker.registerMetric("consensus");
+            consensusRoundOutputWire
+                    .solderForMonitoring(consensusRound -> pipelineTracker.recordEvents(
+                            "consensus",
+                            consensusRound.getConsensusEvents().stream()
+                                    .map(PlatformEvent::getTimeReceived)
+                                    .toList()));
+        }
     }
 
     /**

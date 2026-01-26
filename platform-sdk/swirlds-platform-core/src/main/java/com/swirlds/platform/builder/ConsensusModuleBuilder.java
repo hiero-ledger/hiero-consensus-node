@@ -150,7 +150,8 @@ public class ConsensusModuleBuilder {
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
         final Roster roster = new Roster(List.of(rosterEntry));
         final HashgraphModule hashgraphModule = createHashgraphModule();
-        hashgraphModule.initialize(model, configuration, metrics, time, roster, selfId, instant -> false);
+        final EventPipelineTracker eventPipelineTracker = null;
+        hashgraphModule.initialize(model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker);
         return hashgraphModule;
     }
 }

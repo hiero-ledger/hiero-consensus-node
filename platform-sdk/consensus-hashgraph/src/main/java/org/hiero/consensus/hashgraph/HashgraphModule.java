@@ -11,6 +11,8 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
@@ -41,7 +43,8 @@ public interface HashgraphModule {
             @NonNull Time time,
             @NonNull Roster roster,
             @NonNull NodeId selfId,
-            @NonNull FreezePeriodChecker freezeChecker);
+            @NonNull FreezePeriodChecker freezeChecker,
+            @Nullable EventPipelineTracker eventPipelineTracker);
 
     /**
      * The primary input wire of the Hashgraph module. This input wire accepts events to be added to the consensus

@@ -368,7 +368,7 @@ public final class PlatformBuilder {
         return this;
     }
 
-    private void initializeHashgraphModule() {
+    private void initializeHashgraphModule(@Nullable final EventPipelineTracker pipelineTracker) {
         if (this.hashgraphModule == null) {
             this.hashgraphModule = createHashgraphModule();
         }
@@ -380,7 +380,8 @@ public final class PlatformBuilder {
                 platformContext.getTime(),
                 rosterHistory.getCurrentRoster(),
                 selfId,
-                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()));
+                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
+                pipelineTracker);
     }
 
     /**
@@ -515,7 +516,7 @@ public final class PlatformBuilder {
 
         initializeEventCreatorModule();
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
-        initializeHashgraphModule();
+        initializeHashgraphModule(pipelineTracker);
 
         final PlatformComponents platformComponentWiring = PlatformComponents.create(
                 platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
