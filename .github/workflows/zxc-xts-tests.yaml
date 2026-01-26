@@ -248,8 +248,6 @@ jobs:
       access-token: ${{ secrets.platform-access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
-      jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
-      jrs-ssh-key-file: ${{ secrets.jrs-ssh-key-file }}
       gcp-project-number: ${{ secrets.gcp-project-number }}
       gcp-sa-key-contents: ${{ secrets.gcp-sa-key-contents }}
       slack-api-token: ${{ secrets.slack-api-token }}
