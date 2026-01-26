@@ -48,6 +48,7 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntToDoubleFunction;
+import org.apache.logging.log4j.Logger;
 
 public class FeesChargingUtils {
     private static final int NODE_INCLUDED_BYTES = 1024;
@@ -622,5 +623,22 @@ public class FeesChargingUtils {
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(chargedUsd, 4), txnId, allowedPercentDifference));
         });
+    }
+
+    public static double expectedFeeFromBytesFor(HapiSpec spec, Logger opLog, String txnName) {
+        // Get the transaction bytes from the registry
+        final var txnBytes = spec.registry().getBytes(txnName);
+        final var txnSize = txnBytes.length;
+
+        // Node fee BYTES extra: (txnBytes - 1024) * BYTES_FEE_USD * networkMultiplier
+        final var nodeBytesOverage = Math.max(0, txnSize - 1024);
+        double expectedFee = nodeBytesOverage * BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
+
+        opLog.info(
+                "Transaction size: {} bytes, node bytes overage: {}, expected fee: {}",
+                txnSize,
+                nodeBytesOverage,
+                expectedFee);
+        return expectedFee;
     }
 }
