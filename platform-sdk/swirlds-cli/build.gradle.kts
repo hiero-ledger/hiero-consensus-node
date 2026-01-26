@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.module.application") }
+plugins {
+    id("org.hiero.gradle.module.application")
+    id("org.hiero.gradle.feature.publish-maven-repository")
+    id("org.hiero.gradle.feature.publish-maven-central")
+}
 
 tasks.jar {
     // Gradle fails to track 'configurations.runtimeClasspath' as an input to the task if it is

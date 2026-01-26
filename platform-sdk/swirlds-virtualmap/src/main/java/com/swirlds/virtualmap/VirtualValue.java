@@ -3,7 +3,6 @@ package com.swirlds.virtualmap;
 
 import com.swirlds.common.FastCopyable;
 import java.nio.ByteBuffer;
-import org.hiero.base.io.SelfSerializable;
 
 /**
  * A {@link VirtualValue} is a "virtual" value, and is part of the API for the {@code VirtualMap}.
@@ -11,7 +10,7 @@ import org.hiero.base.io.SelfSerializable;
  * and {@link FastCopyable}. To enhance performance, serialization methods that work with
  * {@link ByteBuffer} are required on a VValue.
  */
-public interface VirtualValue extends SelfSerializable, FastCopyable {
+public interface VirtualValue extends FastCopyable {
 
     @Override
     VirtualValue copy();

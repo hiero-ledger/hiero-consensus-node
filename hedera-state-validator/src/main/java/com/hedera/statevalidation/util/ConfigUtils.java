@@ -48,7 +48,7 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.pces.PcesConfig;
+import org.hiero.consensus.pces.config.PcesConfig;
 
 /**
  * Configuration utility that provides access to system properties and Hedera platform configuration.

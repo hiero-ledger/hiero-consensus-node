@@ -3,7 +3,7 @@ package org.hiero.consensus.pcli;
 
 import com.swirlds.platform.util.BootstrapUtils;
 import java.nio.file.Path;
-import org.hiero.consensus.pces.PcesUtilities;
+import org.hiero.consensus.pces.impl.common.PcesUtilities;
 import picocli.CommandLine;
 
 @CommandLine.Command(

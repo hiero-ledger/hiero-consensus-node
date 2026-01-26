@@ -4,7 +4,6 @@ package com.swirlds.common.merkle.interfaces;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.merkle.route.MerkleRouteFactory;
 import java.util.function.Consumer;
 
 /**
@@ -20,17 +19,6 @@ public interface MerkleTraversable extends MerkleType, HasMerkleRoute {
      * @return the node at the end of the route
      */
     MerkleNode getNodeAtRoute(final MerkleRoute route);
-
-    /**
-     * Get the node that is reached by starting at this node and traversing along a provided route.
-     *
-     * @param steps
-     * 		the steps in the route
-     * @return the node at the end of the route
-     */
-    default MerkleNode getNodeAtRoute(final int... steps) {
-        return getNodeAtRoute(MerkleRouteFactory.buildRoute(steps));
-    }
 
     /**
      * Create a pre-ordered depth first iterator for this tree (or subtree).

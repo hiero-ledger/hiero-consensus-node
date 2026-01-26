@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
-import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
@@ -20,6 +19,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -75,9 +75,6 @@ public class FileServiceSimpleFeesTest {
         // Service fee extra for content bytes (1000 extra bytes above included 1000)
         final var serviceFeeFromBytes = (contentBytes - 1000) * SINGLE_BYTE_FEE;
 
-        // Network multiplier is 9, so node fee is multiplied by (1 + 9) = 10
-        final var networkMultiplier = 9;
-
         return hapiTest(
                 newKeyNamed(KEY).shape(KeyShape.SIMPLE),
                 cryptoCreate(CIVILIAN).key(KEY).balance(ONE_HUNDRED_HBARS),
@@ -88,28 +85,11 @@ public class FileServiceSimpleFeesTest {
                         .payingWith(CIVILIAN)
                         .fee(ONE_HUNDRED_HBARS)
                         .via("fileCreateExtraNodeBytes"),
-                // Use withOpContext to get the transaction bytes and calculate expected fee
-                withOpContext((spec, opLog) -> {
-                    // Get the transaction bytes from the registry
-                    final var txnBytes = spec.registry().getBytes("fileCreateExtraNodeBytes");
-                    final var txnSize = txnBytes.length;
-
-                    // Node fee BYTES extra: (txnBytes - 1024) * SINGLE_BYTE_FEE * (1 + networkMultiplier)
-                    final var nodeBytesOverage = Math.max(0, txnSize - 1024);
-                    final var nodeFeeFromBytes = nodeBytesOverage * SINGLE_BYTE_FEE * (1 + networkMultiplier);
-
-                    // Total expected fee
-                    final var expectedFee = BASE_FEE_FILE_CREATE + serviceFeeFromBytes + nodeFeeFromBytes;
-
-                    opLog.info(
-                            "Transaction size: {} bytes, node bytes overage: {}, expected fee: {}",
-                            txnSize,
-                            nodeBytesOverage,
-                            expectedFee);
-
-                    // Validate the charged fee
-                    allRunFor(spec, validateChargedUsd("fileCreateExtraNodeBytes", expectedFee));
-                }));
+                withOpContext((spec, opLog) -> validateChargedUsd(
+                        "fileCreateExtraNodeBytes",
+                        BASE_FEE_FILE_CREATE
+                                + serviceFeeFromBytes
+                                + expectedFeeFromBytesFor(spec, opLog, "fileCreateExtraNodeBytes"))));
     }
 
     @HapiTest

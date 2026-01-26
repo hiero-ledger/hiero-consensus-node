@@ -3,12 +3,12 @@ package com.swirlds.platform.network.protocol.rpc;
 
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 
-import com.google.common.collect.Maps;
 import com.hedera.hapi.platform.message.GossipPing;
 import com.swirlds.base.time.Time;
 import com.swirlds.platform.network.NetworkMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,7 +28,7 @@ final class RpcPingHandler {
     /**
      * Timestamp for each ping correlation id, so ping time can be measured after reply
      */
-    private final ConcurrentMap<Long, GossipPing> sentPings = Maps.newConcurrentMap();
+    private final ConcurrentMap<Long, GossipPing> sentPings = new ConcurrentHashMap<>();
 
     /**
      * Network metrics to register data about communication traffic and latencies

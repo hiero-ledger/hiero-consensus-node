@@ -2,8 +2,8 @@
 package org.hiero.otter.fixtures.internal.result;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.pces.PcesFileManager.NO_LOWER_BOUND;
-import static org.hiero.consensus.pces.PcesUtilities.getDatabaseDirectory;
+import static org.hiero.consensus.pces.impl.common.PcesFileManager.NO_LOWER_BOUND;
+import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDirectory;
 
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
@@ -13,10 +13,10 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.PcesFile;
-import org.hiero.consensus.pces.PcesFileReader;
-import org.hiero.consensus.pces.PcesFileTracker;
-import org.hiero.consensus.pces.PcesMultiFileIterator;
+import org.hiero.consensus.pces.impl.common.PcesFile;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
 /**

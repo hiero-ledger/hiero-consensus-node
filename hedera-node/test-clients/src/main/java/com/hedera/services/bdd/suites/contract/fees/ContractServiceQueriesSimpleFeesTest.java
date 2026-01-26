@@ -27,7 +27,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class ContractServiceQueriesSimpleFeesTest {
-
     private static final double CONTRACT_CALL_LOCAL_BASE_FEE = 0.0001;
     private static final double CONTRACT_GET_BYTECODE_BASE_FEE = 0.0001;
     private static final double CONTRACT_GET_INFO_BASE_FEE = 0.0001;

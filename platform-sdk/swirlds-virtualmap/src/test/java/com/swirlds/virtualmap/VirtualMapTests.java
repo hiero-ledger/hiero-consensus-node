@@ -26,7 +26,6 @@ import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.merkle.route.MerkleRouteFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
@@ -52,7 +51,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -644,39 +642,6 @@ class VirtualMapTests extends VirtualTestBase {
         fcm.release();
         fcm2.release();
         completed.release();
-    }
-
-    /**
-     * This test validates that for the basic tree below, the routes are set correctly.
-     *
-     * <pre>
-     *                      VirtualMap
-     *                         []
-     *                      /     \
-     *                     /       \
-     *                 Internal     B
-     *                 [1, 0]     [1, 1]
-     *                 /   \
-     *                /     \
-     *               A       C
-     *        [1, 0, 0]    [1, 0, 1]
-     * </pre>
-     */
-    @Test
-    void routesSetForBasicTree() {
-        final VirtualMap vm = createMap();
-        vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
-        vm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
-        vm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
-
-        final List<MerkleNode> nodes = new ArrayList<>();
-        vm.forEachNode(nodes::add);
-
-        assertEquals(MerkleRouteFactory.buildRoute(0, 0), nodes.get(0).getRoute(), "VirtualLeafNode A");
-        assertEquals(MerkleRouteFactory.buildRoute(0, 1), nodes.get(1).getRoute(), "VirtualLeafNode C");
-        assertEquals(MerkleRouteFactory.buildRoute(0), nodes.get(2).getRoute(), "VirtualInternalNode");
-        assertEquals(MerkleRouteFactory.buildRoute(1), nodes.get(3).getRoute(), "VirtualLeafNode B");
-        assertEquals(MerkleRouteFactory.buildRoute(), nodes.get(4).getRoute(), "VirtualMap");
     }
 
     /**

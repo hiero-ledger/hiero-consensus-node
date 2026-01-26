@@ -18,9 +18,9 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.PcesConfig;
-import org.hiero.consensus.pces.PcesFile;
-import org.hiero.consensus.pces.PcesUtilities;
+import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.pces.impl.common.PcesFile;
+import org.hiero.consensus.pces.impl.common.PcesUtilities;
 
 /**
  * Operations for copying preconsensus event files. Is not fully thread safe, best effort only. Race conditions can
@@ -216,12 +216,9 @@ public final class BestEffortPcesFileCopy {
         if (allFiles.isEmpty()) {
             logger.warn(STATE_TO_DISK.getMarker(), "No preconsensus event files found to copy");
         } else if (allFiles.size() == 1) {
-            logger.info(
-                    STATE_TO_DISK.getMarker(),
-                    """
+            logger.info(STATE_TO_DISK.getMarker(), """
                             Found 1 preconsensus file on disk.
-                                File: {}""",
-                    allFiles.get(0).getPath());
+                                File: {}""", allFiles.get(0).getPath());
         } else {
             logger.info(
                     STATE_TO_DISK.getMarker(),

@@ -3,7 +3,6 @@ package com.swirlds.platform.network;
 
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
 import java.util.concurrent.locks.Condition;
 import org.apache.logging.log4j.LogManager;
@@ -41,13 +40,8 @@ public class InboundConnectionManager implements ConnectionManager {
     }
 
     /**
-     * Returns the current connection, does not wait for a new one if it's broken.
-     *
-     * This method is not thread safe
-     *
-     * @return the current connection
+     * {@inheritDoc}
      */
-    @VisibleForTesting
     @Override
     public Connection getConnection() {
         return currentConn;

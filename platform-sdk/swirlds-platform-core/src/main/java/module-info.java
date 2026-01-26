@@ -115,7 +115,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
-    requires transitive org.hiero.consensus.pces;
+    requires transitive org.hiero.consensus.pces.impl;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
     requires transitive org.apache.logging.log4j;
@@ -124,11 +124,11 @@ module com.swirlds.platform.core {
     requires com.swirlds.merkledb;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
+    requires org.hiero.consensus.pces;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
-    requires com.google.common;
     requires java.desktop;
     requires java.management;
     requires java.scripting;

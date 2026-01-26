@@ -3,14 +3,11 @@ package com.swirlds.common.merkle.route.internal;
 
 import com.swirlds.common.merkle.exceptions.MerkleRouteException;
 import com.swirlds.common.merkle.route.MerkleRoute;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A collection of methods for manipulating binary merkle routes.
@@ -38,12 +35,6 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * |-- A leading 1 (does not encode a step)
  */
 public class BinaryMerkleRoute extends AbstractMerkleRoute {
-
-    private static final long CLASS_ID = 0xa424ff16af1380feL;
-
-    private static final class ClassVersion {
-        public static final int ORIGINAL = 1;
-    }
 
     /**
      * The number of binary steps that can be stored in each integer.
@@ -517,37 +508,5 @@ public class BinaryMerkleRoute extends AbstractMerkleRoute {
     @Override
     public int hashCode() {
         return Arrays.hashCode(data);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        out.writeIntArray(data);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        data = in.readIntArray(MerkleRoute.MAX_ROUTE_LENGTH);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.ORIGINAL;
     }
 }

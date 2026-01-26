@@ -12,10 +12,10 @@ import java.io.UncheckedIOException;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.CommonPcesWriter;
-import org.hiero.consensus.pces.FileSyncOption;
-import org.hiero.consensus.pces.PcesConfig;
-import org.hiero.consensus.pces.PcesFileManager;
+import org.hiero.consensus.pces.config.FileSyncOption;
+import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
+import org.hiero.consensus.pces.impl.common.PcesFileManager;
 
 public class DefaultInlinePcesWriter implements InlinePcesWriter {
 

@@ -25,10 +25,10 @@ import java.util.Objects;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
-import org.hiero.consensus.pces.PcesFile;
-import org.hiero.consensus.pces.PcesFileReader;
-import org.hiero.consensus.pces.PcesFileTracker;
-import org.hiero.consensus.pces.PcesMultiFileIterator;
+import org.hiero.consensus.pces.impl.common.PcesFile;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
 
 public class PcesWriterTestUtils {
     private PcesWriterTestUtils() {}

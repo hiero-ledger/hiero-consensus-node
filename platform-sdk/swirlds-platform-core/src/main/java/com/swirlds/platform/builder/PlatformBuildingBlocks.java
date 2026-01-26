@@ -30,7 +30,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
-import org.hiero.consensus.pces.PcesFileTracker;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.roster.RosterHistory;
 
 /**

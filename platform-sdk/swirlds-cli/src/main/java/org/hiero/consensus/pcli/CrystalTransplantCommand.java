@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.PcesConfig;
+import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.roster.RosterDiff;
 import org.hiero.consensus.roster.RosterUtils;
 import picocli.CommandLine;

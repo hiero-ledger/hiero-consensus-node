@@ -3,7 +3,6 @@ package com.swirlds.common.merkle.route;
 
 import java.util.Iterator;
 import java.util.List;
-import org.hiero.base.io.SelfSerializable;
 
 /**
  * <p>
@@ -24,7 +23,7 @@ import org.hiero.base.io.SelfSerializable;
  *
  * Implementations of MerkleRoute are expected to override equals() and hashCode().
  */
-public interface MerkleRoute extends Comparable<MerkleRoute>, Iterable<Integer>, SelfSerializable {
+public interface MerkleRoute extends Comparable<MerkleRoute>, Iterable<Integer> {
 
     /**
      * The maximum length that a route is permitted to be.

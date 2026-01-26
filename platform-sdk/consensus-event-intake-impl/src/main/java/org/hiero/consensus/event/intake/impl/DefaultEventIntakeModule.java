@@ -32,7 +32,6 @@ import org.hiero.consensus.event.intake.impl.validation.InternalEventValidator;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.roster.RosterHistory;
@@ -76,10 +75,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final NodeId selfId,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits,
-            final long startingRound,
             @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
         if (eventHasherWiring != null) {
@@ -87,11 +84,12 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         }
 
         // Set up wiring
-        final EventIntakeWiringConfig wiringConfig = configuration.getConfigData(EventIntakeWiringConfig.class);
         this.eventWindowDispatcher =
                 new WireTransformer<>(model, "EventWindowDispatcher", "event window", UnaryOperator.identity());
         this.clearCommandDispatcher =
                 new WireTransformer<>(model, "ClearCommandDispatcher", "clear commands", UnaryOperator.identity());
+
+        final EventIntakeWiringConfig wiringConfig = configuration.getConfigData(EventIntakeWiringConfig.class);
         this.eventHasherWiring = new ComponentWiring<>(model, EventHasher.class, wiringConfig.eventHasher());
         this.eventValidatorWiring =
                 new ComponentWiring<>(model, InternalEventValidator.class, wiringConfig.internalEventValidator());
@@ -195,15 +193,6 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
      */
     @Override
     @NonNull
-    public OutputWire<PlatformEvent> validatedNonPersistedEventsOutputWire() {
-        return requireNonNull(orphanBufferWiring, "Not initialized").getSplitOutput();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
     public InputWire<PlatformEvent> unhashedEventsInputWire() {
         return requireNonNull(eventHasherWiring, "Not initialized").getInputWire(EventHasher::hashEvent);
     }
@@ -241,13 +230,10 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
      * {@inheritDoc}
      */
     @Override
-    public void destroy() {
-        throw new UnsupportedOperationException("Shutdown mechanism not implemented yet");
+    @NonNull
+    public InputWire<Object> clearComponentsInputWire() {
+        return requireNonNull(clearCommandDispatcher, "Not initialized").getInputWire();
     }
-
-    // *************************************************************
-    // Temporary workaround to allow reuse of the EventIntake module
-    // *************************************************************
 
     /**
      * {@inheritDoc}
@@ -265,35 +251,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public InputWire<Object> clearComponentsInputWire() {
-        return requireNonNull(clearCommandDispatcher, "Not initialized").getInputWire();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public InputWire<Object> beginStreamingNewEventsInputWire() {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public InputWire<Long> registerDiscontinuityInputWire() {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public InputWire<Long> setMinimumAncientIdentifierToStore() {
-        throw new UnsupportedOperationException("Not implemented yet");
+    public void destroy() {
+        throw new UnsupportedOperationException("Shutdown mechanism not implemented yet");
     }
 }
