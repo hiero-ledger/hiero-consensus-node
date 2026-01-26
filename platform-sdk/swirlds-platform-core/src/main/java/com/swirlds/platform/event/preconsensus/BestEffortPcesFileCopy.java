@@ -216,12 +216,9 @@ public final class BestEffortPcesFileCopy {
         if (allFiles.isEmpty()) {
             logger.warn(STATE_TO_DISK.getMarker(), "No preconsensus event files found to copy");
         } else if (allFiles.size() == 1) {
-            logger.info(
-                    STATE_TO_DISK.getMarker(),
-                    """
+            logger.info(STATE_TO_DISK.getMarker(), """
                             Found 1 preconsensus file on disk.
-                                File: {}""",
-                    allFiles.get(0).getPath());
+                                File: {}""", allFiles.get(0).getPath());
         } else {
             logger.info(
                     STATE_TO_DISK.getMarker(),

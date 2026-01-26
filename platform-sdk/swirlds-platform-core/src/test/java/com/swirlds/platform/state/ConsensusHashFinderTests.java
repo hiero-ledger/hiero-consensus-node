@@ -43,7 +43,8 @@ class ConsensusHashFinderTests {
     /**
      * A node to be added to a consensus hash builder.
      */
-    private record NodeToAdd(@NonNull NodeId nodeId, long weight, @NonNull Hash stateHash) {}
+    private record NodeToAdd(
+            @NonNull NodeId nodeId, long weight, @NonNull Hash stateHash) {}
 
     /**
      * A description of a desired partition

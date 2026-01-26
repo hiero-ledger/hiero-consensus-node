@@ -761,5 +761,6 @@ public class HintsControllerImpl implements HintsController {
      * @param crs the updated CRS
      * @param proof the proof of the update
      */
-    public record CrsUpdateOutput(@NonNull Bytes crs, @NonNull Bytes proof) {}
+    public record CrsUpdateOutput(
+            @NonNull Bytes crs, @NonNull Bytes proof) {}
 }

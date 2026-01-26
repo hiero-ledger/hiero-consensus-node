@@ -8,6 +8,10 @@ import com.swirlds.config.api.ConfigProperty;
 
 @ConfigData("governanceTransactions")
 public record GovernanceTransactionsConfig(
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean isEnabled,
-        @ConfigProperty(defaultValue = "133120") @NetworkProperty int maxTxnSize,
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean isEnabled,
+
+        @ConfigProperty(defaultValue = "133120") @NetworkProperty
+        int maxTxnSize,
+
         @ConfigProperty(defaultValue = "2,42-799") PermissionedAccountsRange accountsRange) {}

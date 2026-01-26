@@ -19,8 +19,8 @@ import org.hiero.otter.fixtures.Node;
  * @param minDuration the minimum duration of the node failure period
  * @param maxDuration the maximum duration of the node failure period
  */
-public record NodeFailureExperiment(@NonNull Duration minDuration, @NonNull Duration maxDuration)
-        implements Experiment {
+public record NodeFailureExperiment(
+        @NonNull Duration minDuration, @NonNull Duration maxDuration) implements Experiment {
 
     private static final Logger log = LogManager.getLogger();
 

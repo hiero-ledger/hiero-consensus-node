@@ -4,11 +4,15 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
+import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
+import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
+import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
@@ -19,6 +23,8 @@ import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.SocketException;
@@ -26,6 +32,8 @@ import java.time.Duration;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 
@@ -63,7 +71,7 @@ public class ReconnectStateLearner {
      * @param connection
      * 		the connection to use for the reconnect
      * @param currentState
-     * 		the most recent state from the learner
+     * 		the most recent state from the learner; must be a VirtualMapState
      * @param reconnectSocketTimeout
      * 		the amount of time that should be used for the socket timeout
      * @param statistics
@@ -160,7 +168,7 @@ public class ReconnectStateLearner {
             reservedSignedState = reconnect();
             endReconnectHandshake(connection);
             return reservedSignedState;
-        } catch (final IOException | SignedStateInvalidException e) {
+        } catch (final IOException | SignedStateInvalidException | ParseException e) {
             if (reservedSignedState != null) {
                 // if the state was received, we need to release it or it will be leaked
                 reservedSignedState.close();
@@ -183,10 +191,14 @@ public class ReconnectStateLearner {
      */
     @NonNull
     private ReservedSignedState reconnect() throws InterruptedException {
+        if (!(currentState instanceof VirtualMapState virtualMapState)) {
+            throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
+        }
+
         statistics.incrementReceiverStartTimes();
 
-        final MerkleDataInputStream in = new MerkleDataInputStream(connection.getDis());
-        final MerkleDataOutputStream out = new MerkleDataOutputStream(connection.getDos());
+        final SerializableDataInputStream in = new SerializableDataInputStream(connection.getDis());
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(connection.getDos());
 
         connection.getDis().getSyncByteCounter().resetCount();
         connection.getDos().getSyncByteCounter().resetCount();
@@ -194,18 +206,26 @@ public class ReconnectStateLearner {
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
 
+        final VirtualMap reconnectRoot = virtualMapState.getRoot().newReconnectRoot();
+        final ReconnectMapStats mapStats = new ReconnectMapMetrics(platformContext.getMetrics(), null, null);
+        // The learner view will be closed by LearningSynchronizer
+        final LearnerTreeView<?> learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
-                threadManager,
-                in,
-                out,
-                currentState.getRoot(),
-                connection::disconnect,
-                platformContext.getMerkleCryptography(),
-                reconnectConfig,
-                platformContext.getMetrics());
-        synchronizer.synchronize();
+                threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
+        try {
+            synchronizer.synchronize();
+            logger.info(RECONNECT.getMarker(), () -> mapStats.format());
+        } catch (final InterruptedException e) {
+            logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
+            Thread.currentThread().interrupt();
+            reconnectRoot.release();
+            throw e;
+        } catch (final Exception e) {
+            reconnectRoot.release();
+            throw new MerkleSynchronizationException(e);
+        }
 
-        final MerkleNodeState receivedState = stateLifecycleManager.createStateFrom(synchronizer.getRoot());
+        final MerkleNodeState receivedState = stateLifecycleManager.createStateFrom(reconnectRoot);
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),
                 ConsensusCryptoUtils::verifySignature,
@@ -233,9 +253,12 @@ public class ReconnectStateLearner {
      * @throws IOException
      * 		if any I/O related errors occur
      */
-    private void receiveSignatures() throws IOException {
+    private void receiveSignatures() throws IOException, ParseException {
         logger.info(RECONNECT.getMarker(), "Receiving signed state signatures");
-        sigSet = connection.getDis().readSerializable();
+
+        sigSet = new SigSet();
+        final ReadableStreamingData streamingData = new ReadableStreamingData(connection.getDis());
+        sigSet.deserialize(streamingData);
 
         final StringBuilder sb = new StringBuilder();
         sb.append("Received signatures from nodes ");

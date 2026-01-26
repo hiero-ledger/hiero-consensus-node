@@ -57,9 +57,9 @@ class CryptoCreateFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             assertThat(result).isNotNull();
-            assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.service).isEqualTo(499000000L);
-            assertThat(result.network).isEqualTo(900000L);
+            assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(499000000L);
+            assertThat(result.getNetworkTotalTinycents()).isEqualTo(900000L);
         }
 
         @Test
@@ -77,9 +77,9 @@ class CryptoCreateFeeCalculatorTest {
 
             // Node = 100000 + 1000000 (1 extra signature) = 1100000
             // Network = node * multiplier = 1100000 * 9 = 9900000
-            assertThat(result.node).isEqualTo(1100000L);
-            assertThat(result.service).isEqualTo(499000000L);
-            assertThat(result.network).isEqualTo(9900000L);
+            assertThat(result.getNodeTotalTinycents()).isEqualTo(1100000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(499000000L);
+            assertThat(result.getNetworkTotalTinycents()).isEqualTo(9900000L);
         }
 
         @Test
@@ -105,7 +105,7 @@ class CryptoCreateFeeCalculatorTest {
 
             // Then: Base fee (499M) + 2 extra keys beyond includedCount=1 (2 * 100M = 200M)
             // service = 499000000 + 200000000 = 699000000
-            assertThat(result.service).isEqualTo(699000000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(699000000L);
         }
 
         @Test
@@ -137,7 +137,7 @@ class CryptoCreateFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // service = 499000000 + (3-1)*100000000 = 699000000
-            assertThat(result.service).isEqualTo(699000000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(699000000L);
         }
 
         @Test
@@ -185,9 +185,9 @@ class CryptoCreateFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then: Base fee (499000000) + overage for 4 extra keys (4 * 100000000 = 400000000)
-            assertThat(result.service).isEqualTo(899000000L);
-            assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.network).isEqualTo(900000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(899000000L);
+            assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            assertThat(result.getNetworkTotalTinycents()).isEqualTo(900000L);
         }
 
         @Test
@@ -227,9 +227,9 @@ class CryptoCreateFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then: Only base fee, no overage
-            assertThat(result.service).isEqualTo(499000000L);
-            assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.network).isEqualTo(900000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(499000000L);
+            assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            assertThat(result.getNetworkTotalTinycents()).isEqualTo(900000L);
         }
 
         @Test
@@ -248,9 +248,9 @@ class CryptoCreateFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then: Base fee (499M) + 1 hook (10M) = 509M
-            assertThat(result.service).isEqualTo(509000000L);
-            assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.network).isEqualTo(900000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(509000000L);
+            assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            assertThat(result.getNetworkTotalTinycents()).isEqualTo(900000L);
         }
 
         @Test
@@ -271,9 +271,9 @@ class CryptoCreateFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then: Base fee (499M) + 3 hooks (30M) = 529M
-            assertThat(result.service).isEqualTo(529000000L);
-            assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.network).isEqualTo(900000L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(529000000L);
+            assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            assertThat(result.getNetworkTotalTinycents()).isEqualTo(900000L);
         }
 
         @Test
@@ -318,11 +318,11 @@ class CryptoCreateFeeCalculatorTest {
         final var spec = EvmHookSpec.newBuilder()
                 .contractId(ContractID.newBuilder().contractNum(321).build())
                 .build();
-        final var lambda = LambdaEvmHook.newBuilder().spec(spec).build();
+        final var evmHook = EvmHook.newBuilder().spec(spec).build();
         return HookCreationDetails.newBuilder()
                 .hookId(id)
                 .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                .lambdaEvmHook(lambda)
+                .evmHook(evmHook)
                 .build();
     }
 }

@@ -95,7 +95,8 @@ public class MultipleNodeConsensusResultsContinuousAssert
         });
     }
 
-    private record RoundFromNode(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
+    private record RoundFromNode(
+            @NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
 
     private MultipleNodeConsensusResultsContinuousAssert checkContinuously(
             @NonNull final BiConsumer<NodeId, List<ConsensusRound>> check) {

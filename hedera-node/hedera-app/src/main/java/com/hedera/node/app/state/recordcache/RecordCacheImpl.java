@@ -149,8 +149,8 @@ public class RecordCacheImpl implements HederaRecordCache {
      * @param nodeIds The set of node ids that have submitted a properly screened transaction
      * @param recordSources The sources of records for the relevant base {@link TransactionID}
      */
-    private record HistorySource(@NonNull Set<Long> nodeIds, @NonNull List<RecordSource> recordSources)
-            implements ReceiptSource {
+    private record HistorySource(
+            @NonNull Set<Long> nodeIds, @NonNull List<RecordSource> recordSources) implements ReceiptSource {
         public HistorySource() {
             this(new HashSet<>(), new ArrayList<>());
         }

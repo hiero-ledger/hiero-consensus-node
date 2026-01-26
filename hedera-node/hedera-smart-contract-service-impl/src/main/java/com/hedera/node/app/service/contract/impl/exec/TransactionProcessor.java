@@ -81,7 +81,9 @@ public class TransactionProcessor {
      * @param receiverAddress the address of the account receiving the top-level call
      */
     private record InvolvedParties(
-            @NonNull HederaEvmAccount sender, @Nullable HederaEvmAccount relayer, @NonNull Address receiverAddress) {
+            @NonNull HederaEvmAccount sender,
+            @Nullable HederaEvmAccount relayer,
+            @NonNull Address receiverAddress) {
         @NonNull
         AccountID senderId() {
             return sender.hederaId();

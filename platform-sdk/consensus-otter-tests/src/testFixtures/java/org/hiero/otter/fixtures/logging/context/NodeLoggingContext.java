@@ -174,7 +174,8 @@ public final class NodeLoggingContext {
         apply(snapshot);
     }
 
-    record ContextSnapshot(@NonNull Map<String, String> map, @NonNull List<String> stack) {}
+    record ContextSnapshot(
+            @NonNull Map<String, String> map, @NonNull List<String> stack) {}
 
     public interface LoggingContextScope extends AutoCloseable {
         @Override

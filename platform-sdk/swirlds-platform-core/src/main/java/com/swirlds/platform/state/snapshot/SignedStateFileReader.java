@@ -2,14 +2,16 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
+import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_BIN_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SUPPORTED_SIGSET_VERSIONS;
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
@@ -26,9 +28,9 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.roster.RosterStateId;
 
@@ -51,7 +53,7 @@ public final class SignedStateFileReader {
             @NonNull final Path stateDir,
             @NonNull final PlatformContext platformContext,
             @NonNull final StateLifecycleManager stateLifecycleManager)
-            throws IOException {
+            throws IOException, ParseException {
 
         requireNonNull(stateDir);
         requireNonNull(platformContext);
@@ -63,12 +65,23 @@ public final class SignedStateFileReader {
         final MerkleNodeState merkleNodeState;
         merkleNodeState = stateLifecycleManager.loadSnapshot(stateDir);
 
-        final File sigSetFile = stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
-        final SigSet sigSet = deserializeAndDebugOnFailure(
-                () -> new BufferedInputStream(new FileInputStream(sigSetFile)), (final MerkleDataInputStream in) -> {
-                    readAndCheckSigSetFileVersion(in);
-                    return in.readSerializable();
-                });
+        final SigSet sigSet;
+        final File pbjFile = stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
+        if (pbjFile.exists()) {
+            sigSet = new SigSet();
+            try (final ReadableStreamingData in = new ReadableStreamingData(new FileInputStream(pbjFile))) {
+                sigSet.deserialize(in);
+            }
+        } else {
+            final File sigSetFile =
+                    stateDir.resolve(SIGNATURE_SET_BIN_FILE_NAME).toFile();
+            sigSet = deserializeAndDebugOnFailure(
+                    () -> new BufferedInputStream(new FileInputStream(sigSetFile)),
+                    (final SerializableDataInputStream in) -> {
+                        readAndCheckSigSetFileVersion(in);
+                        return in.readSerializable();
+                    });
+        }
 
         final SignedState newSignedState = new SignedState(
                 conf,
@@ -93,15 +106,13 @@ public final class SignedStateFileReader {
      * Check the path of a signed state file
      *
      * @param stateDirectory the path to check
-     * @throws IOException if the path is not valid
      */
     private static void checkSignedStateFilePath(@NonNull final Path stateDirectory) throws IOException {
-        final Path signedStateFilePath = stateDirectory.resolve(SIGNATURE_SET_FILE_NAME);
-        if (!exists(signedStateFilePath)) {
-            throw new IOException("Directory " + signedStateFilePath.toAbsolutePath() + " does not exist!");
-        }
-        if (!Files.isRegularFile(signedStateFilePath)) {
-            throw new IOException("File " + signedStateFilePath.toAbsolutePath() + " is not a file!");
+        final Path signedStatePbjPath = stateDirectory.resolve(SIGNATURE_SET_FILE_NAME);
+        final Path signedStateBinPath = stateDirectory.resolve(SIGNATURE_SET_BIN_FILE_NAME);
+        if (!exists(signedStatePbjPath) && !exists(signedStateBinPath)) {
+            throw new IOException(
+                    "Directory " + stateDirectory.toAbsolutePath() + " does not contain a signature set!");
         }
     }
 
@@ -111,7 +122,8 @@ public final class SignedStateFileReader {
      * @param in the stream to read from
      * @throws IOException if the version is invalid
      */
-    private static void readAndCheckSigSetFileVersion(@NonNull final MerkleDataInputStream in) throws IOException {
+    private static void readAndCheckSigSetFileVersion(@NonNull final SerializableDataInputStream in)
+            throws IOException {
         final int fileVersion = in.readInt();
         if (!SUPPORTED_SIGSET_VERSIONS.contains(fileVersion)) {
             throw new IOException("Unsupported file version: " + fileVersion);
@@ -133,8 +145,7 @@ public final class SignedStateFileReader {
      * <p>
      * If this SignedState object needs to become a real state to support the node operations later, the services/app
      * code will be responsible for initializing all the supported services. Note that the app skips registering
-     * service states if it finds the PlatformState is already registered. For this reason, a call to
-     * {@code SignedStateFileReader.unregisterServiceStates(SignedState)} below needs to be made to remove the stubs.
+     * service states if it finds the PlatformState is already registered.
      *
      * @param signedState a signed state to register schemas in
      */
@@ -167,22 +178,5 @@ public final class SignedStateFileReader {
                                 "Only singletons and onDisk virtual maps are supported as stub states");
                     }
                 });
-    }
-
-    /**
-     * Unregister the PlatformStateService and RosterService so that the app
-     * can initialize States API eventually. Currently, it wouldn't initialize it
-     * if it sees the PlatformStateService already present. This check occurs at
-     * Hedera.onStateInitialized().
-     *
-     * See the doc for registerServiceStates above for more details on why
-     * we initialize these stub states in the first place.
-     *
-     * @param signedState a signed state to unregister services from
-     */
-    public static void unregisterServiceStates(@NonNull final SignedState signedState) {
-        final MerkleNodeState state = signedState.getState();
-        state.unregisterService(PlatformStateService.NAME);
-        state.unregisterService(RosterStateId.SERVICE_NAME);
     }
 }

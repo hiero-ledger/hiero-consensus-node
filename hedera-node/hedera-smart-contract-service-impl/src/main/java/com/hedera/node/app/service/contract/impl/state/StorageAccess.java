@@ -19,7 +19,10 @@ import org.apache.tuweni.units.bigints.UInt256;
  * @param value the value read or overwritten
  * @param writtenValue if not null, the overwriting value
  */
-public record StorageAccess(@NonNull UInt256 key, @NonNull UInt256 value, @Nullable UInt256 writtenValue) {
+public record StorageAccess(
+        @NonNull UInt256 key,
+        @NonNull UInt256 value,
+        @Nullable UInt256 writtenValue) {
     public StorageAccess {
         requireNonNull(key, "Key cannot be null");
         requireNonNull(value, "Current value cannot be null");

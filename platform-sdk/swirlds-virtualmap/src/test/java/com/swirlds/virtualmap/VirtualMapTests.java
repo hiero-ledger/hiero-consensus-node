@@ -9,7 +9,6 @@ import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContex
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -27,8 +26,6 @@ import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.merkle.route.MerkleRouteFactory;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
@@ -54,7 +51,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -514,7 +510,7 @@ class VirtualMapTests extends VirtualTestBase {
 
         final VirtualMap completed = fcm;
         fcm = fcm.copy();
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(completed);
+        completed.getHash(); // calculate hash
 
         final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
         while (breadthItr.hasNext()) {
@@ -537,7 +533,7 @@ class VirtualMapTests extends VirtualTestBase {
         fcm = fcm.copy();
 
         try {
-            final Hash firstHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(completed);
+            final Hash firstHash = completed.getHash();
             final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
             while (breadthItr.hasNext()) {
                 assertNotNull(breadthItr.next().getHash(), "Expected a value");
@@ -552,7 +548,7 @@ class VirtualMapTests extends VirtualTestBase {
 
             final VirtualMap second = fcm;
             fcm = copyAndRelease(fcm);
-            final Hash secondHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(second);
+            final Hash secondHash = second.getHash();
             assertNotSame(firstHash, secondHash, "Wrong value");
         } finally {
             fcm.release();
@@ -646,39 +642,6 @@ class VirtualMapTests extends VirtualTestBase {
         fcm.release();
         fcm2.release();
         completed.release();
-    }
-
-    /**
-     * This test validates that for the basic tree below, the routes are set correctly.
-     *
-     * <pre>
-     *                      VirtualMap
-     *                         []
-     *                      /     \
-     *                     /       \
-     *                 Internal     B
-     *                 [1, 0]     [1, 1]
-     *                 /   \
-     *                /     \
-     *               A       C
-     *        [1, 0, 0]    [1, 0, 1]
-     * </pre>
-     */
-    @Test
-    void routesSetForBasicTree() {
-        final VirtualMap vm = createMap();
-        vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
-        vm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
-        vm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
-
-        final List<MerkleNode> nodes = new ArrayList<>();
-        vm.forEachNode(nodes::add);
-
-        assertEquals(MerkleRouteFactory.buildRoute(0, 0), nodes.get(0).getRoute(), "VirtualLeafNode A");
-        assertEquals(MerkleRouteFactory.buildRoute(0, 1), nodes.get(1).getRoute(), "VirtualLeafNode C");
-        assertEquals(MerkleRouteFactory.buildRoute(0), nodes.get(2).getRoute(), "VirtualInternalNode");
-        assertEquals(MerkleRouteFactory.buildRoute(1), nodes.get(3).getRoute(), "VirtualLeafNode B");
-        assertEquals(MerkleRouteFactory.buildRoute(), nodes.get(4).getRoute(), "VirtualMap");
     }
 
     /**
@@ -1313,15 +1276,6 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     void getVersion() {
         assertEquals(4, createMap().getVersion());
-    }
-
-    @Test
-    void postInitNoOpIfLearnerTreeViewIsSet() {
-        VirtualMap root = createMap();
-        VirtualMap anotherRoot = createMap();
-        anotherRoot.computeHash();
-        root.setupWithOriginalNode(anotherRoot);
-        assertDoesNotThrow(() -> root.postInit());
     }
 
     // based heavily on VirtualMapGroup::validateCopy(), but modified to just compare two VirtualMaps, instead of

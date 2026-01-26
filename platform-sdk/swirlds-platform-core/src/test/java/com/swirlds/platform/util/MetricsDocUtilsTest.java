@@ -93,8 +93,7 @@ class MetricsDocUtilsTest {
         final File docFile = new File(docFilePath);
         assertTrue(docFile.exists(), "The metric document file was not created: " + docFilePath);
 
-        final String expectedOutput =
-                """
+        final String expectedOutput = """
                         Category	Identifier	Name	Metric Type	Data Type	Unit	Description
                         category1	category1.metric.A	metric.A	COUNTER	INT	unit.A	Metric A description
                         category1	category1.metric.B	metric.B	COUNTER	INT	unit.B	Metric B description

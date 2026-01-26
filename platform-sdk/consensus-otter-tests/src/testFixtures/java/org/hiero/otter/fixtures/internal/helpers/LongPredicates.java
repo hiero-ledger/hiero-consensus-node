@@ -17,7 +17,8 @@ public class LongPredicates {
     /**
      * A functional interface that represents a predicate taking two long values.
      */
-    public record LongBiPredicate(@NonNull String operationName, @NonNull BiPredicate<Long, Long> predicate)
+    public record LongBiPredicate(
+            @NonNull String operationName, @NonNull BiPredicate<Long, Long> predicate)
             implements BiPredicate<Long, Long> {
         @Override
         public boolean test(final Long value1, final Long value2) {

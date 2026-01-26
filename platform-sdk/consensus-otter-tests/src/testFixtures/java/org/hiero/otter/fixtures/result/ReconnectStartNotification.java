@@ -12,5 +12,6 @@ import org.hiero.consensus.model.node.NodeId;
  * @param payload the reconnect start payload that triggered this notification
  * @param nodeId the node ID that logged the payload, or null if the node ID is not available
  */
-public record ReconnectStartNotification(@NonNull ReconnectStartPayload payload, @Nullable NodeId nodeId)
+public record ReconnectStartNotification(
+        @NonNull ReconnectStartPayload payload, @Nullable NodeId nodeId)
         implements ReconnectNotification<ReconnectStartPayload> {}

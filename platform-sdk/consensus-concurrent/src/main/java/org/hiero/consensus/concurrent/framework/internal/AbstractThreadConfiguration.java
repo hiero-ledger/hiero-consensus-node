@@ -675,5 +675,6 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      * Each executor worker restores this snapshot before running a task and reinstates the previous
      * values afterwards so diagnostic context survives thread hops.
      */
-    protected record ContextSnapshot(@NonNull Map<String, String> map, @NonNull List<String> stack) {}
+    protected record ContextSnapshot(
+            @NonNull Map<String, String> map, @NonNull List<String> stack) {}
 }

@@ -212,7 +212,8 @@ public class SimulatedNetwork {
 
     // Can be removed if we are able to clean up NodeId usage
     // https://github.com/hiero-ledger/hiero-consensus-node/issues/20537
-    private record GossipConnectionKey(@NonNull NodeId sender, @NonNull NodeId receiver) {
+    private record GossipConnectionKey(
+            @NonNull NodeId sender, @NonNull NodeId receiver) {
 
         static GossipConnectionKey of(@NonNull final ConnectionKey key) {
             return new GossipConnectionKey(

@@ -72,7 +72,6 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     private final StakingConfig stakingConfig;
     private final AccountID fundingAccountID;
     private final AccountID stakingRewardAccountID;
-    private final AccountsConfig accountsConfig;
 
     /**
      * Constructs a {@link TokenServiceApiImpl}.Used only in tests
@@ -113,7 +112,6 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
         nodesConfig = config.getConfigData(NodesConfig.class);
         stakingConfig = config.getConfigData(StakingConfig.class);
-        accountsConfig = config.getConfigData(AccountsConfig.class);
 
         // Compute the account ID's for funding (normally 0.0.98) and staking rewards (normally 0.0.800).
         final var hederaConfig = config.getConfigData(HederaConfig.class);
@@ -353,18 +351,18 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     }
 
     @Override
-    public void updateLambdaStorageSlots(
+    public void updateHookStorageSlots(
             @NonNull final AccountID accountId, final int netChangeInSlotsUsed, final boolean requireContract) {
         requireNonNull(accountId);
         final var account = accountStore.get(accountId);
         if (account == null) {
             throw new IllegalArgumentException("No account found for ID " + accountId);
         }
-        long newSlotsUsed = account.numberLambdaStorageSlots() + netChangeInSlotsUsed;
+        long newSlotsUsed = account.numberEvmHookStorageSlots() + netChangeInSlotsUsed;
         if (newSlotsUsed < 0) {
             logger.warn(
-                    "Asked to change # of lambda storage slots (currently {}) by {} for account {}; clipping to 0",
-                    account.numberLambdaStorageSlots(),
+                    "Asked to change # of EVM hook storage slots (currently {}) by {} for account {}; clipping to 0",
+                    account.numberEvmHookStorageSlots(),
                     netChangeInSlotsUsed,
                     accountId);
             newSlotsUsed = 0;
@@ -376,7 +374,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             return;
         }
         accountStore.put(
-                account.copyBuilder().numberLambdaStorageSlots(newSlotsUsed).build());
+                account.copyBuilder().numberEvmHookStorageSlots(newSlotsUsed).build());
     }
 
     @Override
@@ -670,7 +668,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         return account;
     }
 
-    private record InvolvedAccounts(@NonNull Account deletedAccount, @NonNull Account obtainerAccount) {
+    private record InvolvedAccounts(
+            @NonNull Account deletedAccount, @NonNull Account obtainerAccount) {
         private InvolvedAccounts {
             requireNonNull(deletedAccount);
             requireNonNull(obtainerAccount);

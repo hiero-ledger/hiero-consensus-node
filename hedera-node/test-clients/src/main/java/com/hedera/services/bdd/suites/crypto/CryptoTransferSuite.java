@@ -174,8 +174,7 @@ public class CryptoTransferSuite {
     private static final String VALID_TXN = "validTxn";
     private static final String UNCHECKED_TXN = "uncheckedTxn";
     private static final String PAYEE_SIG_REQ = "payeeSigReq";
-    private static final String TOKENS_INVOLVED_LOG_MESSAGE =
-            """
+    private static final String TOKENS_INVOLVED_LOG_MESSAGE = """
                     0 tokens involved,
                       2 account adjustments: {} tb, ${}"
                     1 tokens involved,

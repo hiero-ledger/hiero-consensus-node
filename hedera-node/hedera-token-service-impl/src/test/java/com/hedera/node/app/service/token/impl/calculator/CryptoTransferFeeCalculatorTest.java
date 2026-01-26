@@ -23,6 +23,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.*;
@@ -79,7 +80,7 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // HBAR-only: no service fee, total fee comes from node+network
-            assertThat(result.service).isEqualTo(0L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
         }
 
         @Test
@@ -91,7 +92,7 @@ class CryptoTransferFeeCalculatorTest {
 
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_FEE);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE);
         }
 
         @Test
@@ -103,7 +104,7 @@ class CryptoTransferFeeCalculatorTest {
 
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_FEE);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE);
         }
 
         @Test
@@ -115,7 +116,7 @@ class CryptoTransferFeeCalculatorTest {
 
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE);
         }
 
         @Test
@@ -129,7 +130,7 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Empty = HBAR-only = no service fee
-            assertThat(result.service).isEqualTo(0L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
         }
     }
 
@@ -157,7 +158,7 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Single charge, NOT 18M (double)
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_FEE);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE);
         }
 
         @Test
@@ -179,7 +180,7 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Single charge for custom fees tier
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE);
         }
 
         @Test
@@ -201,7 +202,8 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Custom fee tier + 1 extra fungible token
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE + FUNGIBLE_TOKEN_EXTRA_FEE);
+            assertThat(result.getServiceTotalTinycents())
+                    .isEqualTo(TOKEN_TRANSFER_CUSTOM_FEE + FUNGIBLE_TOKEN_EXTRA_FEE);
         }
     }
 
@@ -228,7 +230,7 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // TOKEN_TRANSFER_BASE + 1 extra fungible (first included)
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_FEE + FUNGIBLE_TOKEN_EXTRA_FEE);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE + FUNGIBLE_TOKEN_EXTRA_FEE);
         }
 
         @Test
@@ -264,7 +266,7 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // TOKEN_TRANSFER_BASE + 1 hook
-            assertThat(result.service).isEqualTo(TOKEN_TRANSFER_FEE + HOOK_EXECUTION_FEE);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE + HOOK_EXECUTION_FEE);
         }
     }
 
@@ -277,6 +279,7 @@ class CryptoTransferFeeCalculatorTest {
     private void setupMocksWithTokenStore() {
         setupMocks();
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+        lenient().when(feeContext.configuration()).thenReturn(HederaTestConfigBuilder.createConfig());
     }
 
     private void mockFungibleToken(long tokenNum, boolean hasCustomFees) {

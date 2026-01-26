@@ -14,4 +14,7 @@ import org.hiero.consensus.model.node.NodeId;
  * @param transaction     the transaction
  * @param <T>             the type of transaction
  */
-public record ScopedSystemTransaction<T>(@NonNull NodeId submitterId, long eventBirthRound, @NonNull T transaction) {}
+public record ScopedSystemTransaction<T>(
+        @NonNull NodeId submitterId,
+        long eventBirthRound,
+        @NonNull T transaction) {}

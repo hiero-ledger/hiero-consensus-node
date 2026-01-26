@@ -16,8 +16,9 @@ import org.assertj.core.data.Percentage;
  */
 @SuppressWarnings("unused")
 public record MeshTopologyConfiguration(
-        @NonNull Duration averageLatency, @NonNull Percentage jitter, @NonNull BandwidthLimit bandwidth)
-        implements TopologyConfiguration {
+        @NonNull Duration averageLatency,
+        @NonNull Percentage jitter,
+        @NonNull BandwidthLimit bandwidth) implements TopologyConfiguration {
 
     /**
      * Default configuration with 200ms average latency, 5% jitter, and unlimited bandwidth.

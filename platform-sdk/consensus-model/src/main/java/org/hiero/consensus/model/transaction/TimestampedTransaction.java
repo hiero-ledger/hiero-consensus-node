@@ -12,7 +12,8 @@ import java.util.Objects;
  * @param transaction the transaction data
  * @param receivedTime the time when this transaction was received
  */
-public record TimestampedTransaction(@NonNull Bytes transaction, @NonNull Instant receivedTime) {
+public record TimestampedTransaction(
+        @NonNull Bytes transaction, @NonNull Instant receivedTime) {
 
     /**
      * Constructor that validates inputs.

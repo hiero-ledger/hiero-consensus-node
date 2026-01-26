@@ -15,7 +15,9 @@ import java.util.Objects;
  * @param transactionNonceList A list of transaction nonce values which were included in the round
  */
 public record ConsistencyServiceRound(
-        long roundNumber, long currentStateChecksum, @NonNull List<Long> transactionNonceList) {
+        long roundNumber,
+        long currentStateChecksum,
+        @NonNull List<Long> transactionNonceList) {
 
     private static final String ROUND_NUMBER_STRING = "Round Number: ";
     private static final String CURRENT_STATE_STRING = "Current State Checksum: ";

@@ -46,12 +46,9 @@ public class SimpleScratchpad<K extends Enum<K> & ScratchpadType> implements Scr
             }
         }
 
-        logger.info(
-                STARTUP.getMarker(),
-                """
+        logger.info(STARTUP.getMarker(), """
                         Scratchpad contents:
-                        {}""",
-                table.render());
+                        {}""", table.render());
     }
 
     /**

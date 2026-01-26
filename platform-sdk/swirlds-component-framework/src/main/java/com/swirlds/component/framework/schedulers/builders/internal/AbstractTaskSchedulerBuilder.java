@@ -277,7 +277,8 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
         return Objects.requireNonNullElse(uncaughtExceptionHandler, or);
     }
 
-    protected record Counters(@NonNull ObjectCounter onRamp, @NonNull ObjectCounter offRamp) {}
+    protected record Counters(
+            @NonNull ObjectCounter onRamp, @NonNull ObjectCounter offRamp) {}
 
     /**
      * Combine two counters into one.

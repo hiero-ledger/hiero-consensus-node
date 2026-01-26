@@ -24,7 +24,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -53,7 +52,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -62,8 +60,8 @@ import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -85,7 +83,6 @@ class ReconnectControllerTest {
 
     private PlatformContext platformContext;
     private Roster roster;
-    private MerkleCryptography merkleCryptography;
     private Platform platform;
     private PlatformCoordinator platformCoordinator;
     private StateLifecycleManager stateLifecycleManager;
@@ -155,11 +152,6 @@ class ReconnectControllerTest {
         testWorkingState = testSignedState.getState().copy();
         testReservedSignedState = testSignedState.reserve("test");
 
-        // Mock MerkleCryptography
-        merkleCryptography = mock(MerkleCryptography.class);
-        final CompletableFuture<Hash> mockHashFuture = CompletableFuture.completedFuture(new Hash());
-        when(merkleCryptography.digestTreeAsync(any())).thenReturn(mockHashFuture);
-
         // Mock Platform
         platform = mock(Platform.class);
 
@@ -210,7 +202,6 @@ class ReconnectControllerTest {
     private ReconnectController createController() {
         return new ReconnectController(
                 roster,
-                merkleCryptography,
                 platform,
                 platformContext,
                 platformCoordinator,
@@ -228,7 +219,6 @@ class ReconnectControllerTest {
     private ReconnectController createController(final PlatformContext context) {
         return new ReconnectController(
                 roster,
-                merkleCryptography,
                 platform,
                 context,
                 platformCoordinator,
@@ -551,25 +541,6 @@ class ReconnectControllerTest {
                 .waitForReconnectToRequestState()
                 .provideState(testSignedState.reserve("second"))
                 .stop(LONG_TIMEOUT, "Controller did not finished when expected");
-    }
-
-    @Test
-    @DisplayName("System exits when Hash current state for reconnect throws ExecutionException")
-    void testHashStateExecutionException() {
-        // Setup hash computation to fail
-        final CompletableFuture<Hash> failedFuture = new CompletableFuture<>();
-        failedFuture.completeExceptionally(new RuntimeException("Hash computation failed"));
-        when(merkleCryptography.digestTreeAsync(any())).thenReturn(failedFuture);
-        AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
-
-        new ReconnectScenario(createController())
-                .startWithExitCapture(capturedExitCode)
-                .reportFallenBehind(NodeId.of(1), NodeId.of(2))
-                .waitForFinish(LONG_TIMEOUT);
-
-        // Verify the correct exit code was captured
-        assertEquals(
-                SystemExitCode.RECONNECT_FAILURE, capturedExitCode.get(), "Should exit with RECONNECT_FAILURE code");
     }
 
     @Test

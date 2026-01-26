@@ -162,9 +162,11 @@ public class MultipleNodeConsensusResultsAssert
      * @param nodeId the ID of the node that produced the round
      * @param round the round produced by the node
      */
-    private record NodeRound(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
+    private record NodeRound(
+            @NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
 
-    private record NodeRoundsResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
+    private record NodeRoundsResult(
+            @NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
         private int size() {
             return rounds.size();
         }

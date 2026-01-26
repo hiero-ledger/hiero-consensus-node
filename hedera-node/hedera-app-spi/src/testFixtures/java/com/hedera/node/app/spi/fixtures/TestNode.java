@@ -11,7 +11,10 @@ import java.util.List;
 
 /** Holds information related to a node used in test {@link Scenarios} */
 public record TestNode(
-        long nodeNumber, @NonNull AccountID nodeAccountID, @NonNull Account account, @NonNull TestKeyInfo keyInfo) {
+        long nodeNumber,
+        @NonNull AccountID nodeAccountID,
+        @NonNull Account account,
+        @NonNull TestKeyInfo keyInfo) {
     /**
      * Returns a {@link NodeInfo} representation of this {@link TestNode}
      */

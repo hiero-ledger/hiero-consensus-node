@@ -5,11 +5,9 @@
 open module com.swirlds.virtualmap {
     exports com.swirlds.virtualmap;
     exports com.swirlds.virtualmap.datasource;
-    exports com.swirlds.virtualmap.constructable;
     // Currently, exported only for tests.
     exports com.swirlds.virtualmap.internal.merkle;
     exports com.swirlds.virtualmap.config;
-    exports com.swirlds.virtualmap.serialize;
 
     // Testing-only exports
     exports com.swirlds.virtualmap.internal to

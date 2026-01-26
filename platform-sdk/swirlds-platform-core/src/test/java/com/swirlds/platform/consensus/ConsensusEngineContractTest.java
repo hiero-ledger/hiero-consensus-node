@@ -255,8 +255,7 @@ public class ConsensusEngineContractTest {
                         """
                                 Event %s is an ancient pre-consensus event, but has not been returned as a consensus\s
                                 or stale event. Every ancient pre-consensus event added should have either reached\s
-                                consensus or become stale, but not both."""
-                                .formatted(preConsensusEvent.getDescriptor().shortString()));
+                                consensus or become stale, but not both.""".formatted(preConsensusEvent.getDescriptor().shortString()));
             }
         }
 

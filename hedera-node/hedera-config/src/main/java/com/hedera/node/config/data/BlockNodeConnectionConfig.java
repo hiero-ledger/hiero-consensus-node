@@ -31,9 +31,15 @@ import java.time.Duration;
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
-        @ConfigProperty(defaultValue = "false") @NodeProperty boolean shutdownNodeOnNoBlockNodes,
-        @ConfigProperty(defaultValue = "data/config") @NodeProperty String blockNodeConnectionFileDir,
-        @ConfigProperty(defaultValue = "block-nodes.json") @NodeProperty String blockNodeConfigFile,
+        @ConfigProperty(defaultValue = "false") @NodeProperty
+        boolean shutdownNodeOnNoBlockNodes,
+
+        @ConfigProperty(defaultValue = "data/config") @NodeProperty
+        String blockNodeConnectionFileDir,
+
+        @ConfigProperty(defaultValue = "block-nodes.json") @NodeProperty
+        String blockNodeConfigFile,
+
         @ConfigProperty(defaultValue = "5") @NodeProperty int maxEndOfStreamsAllowed,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamTimeFrame,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamScheduleDelay,
@@ -43,9 +49,18 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "5") @NodeProperty int highLatencyEventsBeforeSwitching,
         @ConfigProperty(defaultValue = "10s") @NodeProperty Duration maxBackoffDelay,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration grpcOverallTimeout,
-        @ConfigProperty(defaultValue = "10ms") @NetworkProperty Duration connectionWorkerSleepDuration,
-        @ConfigProperty(defaultValue = "100ms") @NetworkProperty Duration maxRequestDelay,
+
+        @ConfigProperty(defaultValue = "10ms") @NetworkProperty
+        Duration connectionWorkerSleepDuration,
+
+        @ConfigProperty(defaultValue = "100ms") @NetworkProperty
+        Duration maxRequestDelay,
+
         @ConfigProperty(defaultValue = "180s") @NodeProperty Duration forcedSwitchRescheduleDelay,
         @ConfigProperty(defaultValue = "3s") @NodeProperty Duration pipelineOperationTimeout,
-        @ConfigProperty(defaultValue = "100") @Min(0) @NetworkProperty int streamingRequestPaddingBytes,
-        @ConfigProperty(defaultValue = "5") @Min(0) @NetworkProperty int streamingRequestItemPaddingBytes) {}
+
+        @ConfigProperty(defaultValue = "100") @Min(0) @NetworkProperty
+        int streamingRequestPaddingBytes,
+
+        @ConfigProperty(defaultValue = "5") @Min(0) @NetworkProperty
+        int streamingRequestItemPaddingBytes) {}

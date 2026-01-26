@@ -23,7 +23,10 @@ public record PathsConfig(
         @ConfigProperty(defaultValue = ".") String settingsUsedDir,
         @ConfigProperty(defaultValue = "data/keys") String keysDirPath,
         @ConfigProperty(defaultValue = "data/apps") String appsDirPath,
-        @ConfigProperty(defaultValue = "data/saved/marker_files") String markerFilesDir,
+
+        @ConfigProperty(defaultValue = "data/saved/marker_files")
+        String markerFilesDir,
+
         @ConfigProperty(defaultValue = "false") boolean writePlatformMarkerFiles) {
 
     /**

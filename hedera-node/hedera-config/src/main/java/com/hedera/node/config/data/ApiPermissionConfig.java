@@ -42,7 +42,9 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_ASSEMBLY_SIG
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
@@ -280,9 +282,11 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyAssemblySignature,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyProofVote,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange crsPublication,
-        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange lambdaSStore,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange lambdaSStore,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange hookStore,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate) {
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange ledgerIdPublication) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
@@ -305,6 +309,7 @@ public record ApiPermissionConfig(
         permissionKeys.put(CONTRACT_DELETE, c -> c.deleteContract);
         permissionKeys.put(ETHEREUM_TRANSACTION, c -> c.ethereumTransaction);
         permissionKeys.put(LAMBDA_S_STORE, c -> c.lambdaSStore);
+        permissionKeys.put(HOOK_STORE, c -> c.hookStore);
         permissionKeys.put(HOOK_DISPATCH, c -> c.hookDispatch);
         permissionKeys.put(CONSENSUS_CREATE_TOPIC, c -> c.createTopic);
         permissionKeys.put(CONSENSUS_UPDATE_TOPIC, c -> c.updateTopic);
@@ -372,6 +377,7 @@ public record ApiPermissionConfig(
         permissionKeys.put(HISTORY_PROOF_VOTE, c -> c.historyProofVote);
         permissionKeys.put(CRS_PUBLICATION, c -> c.crsPublication);
         permissionKeys.put(NODE_STAKE_UPDATE, c -> c.nodeStakeUpdate);
+        permissionKeys.put(LEDGER_ID_PUBLICATION, c -> c.ledgerIdPublication);
     }
 
     /**

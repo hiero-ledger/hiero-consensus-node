@@ -33,4 +33,6 @@ public record BasicConfig(
         @ConfigProperty(defaultValue = "1000") int jvmPauseDetectorSleepMs,
         @ConfigProperty(defaultValue = "1000") int jvmPauseReportMs,
         @ConfigProperty(defaultValue = "60s") Duration hangingThreadDuration,
-        @ConfigProperty(defaultValue = Configuration.EMPTY_LIST) List<NodeId> nodesToRun) {}
+
+        @ConfigProperty(defaultValue = Configuration.EMPTY_LIST)
+        List<NodeId> nodesToRun) {}

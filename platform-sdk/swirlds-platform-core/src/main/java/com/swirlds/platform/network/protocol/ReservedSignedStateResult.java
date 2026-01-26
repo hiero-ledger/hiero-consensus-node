@@ -10,8 +10,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * that manages access to reconnect states.
  */
 public record ReservedSignedStateResult(
-        @Nullable ReservedSignedState reservedSignedState, @Nullable RuntimeException throwable)
-        implements AutoCloseable {
+        @Nullable ReservedSignedState reservedSignedState,
+        @Nullable RuntimeException throwable) implements AutoCloseable {
     @Override
     public void close() {
         if (reservedSignedState != null) {

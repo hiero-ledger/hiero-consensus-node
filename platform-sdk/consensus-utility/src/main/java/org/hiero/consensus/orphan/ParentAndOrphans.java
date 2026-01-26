@@ -11,4 +11,5 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
  * @param parent  the parent event
  * @param orphans the orphans that are missing the parent
  */
-record ParentAndOrphans(@NonNull EventDescriptorWrapper parent, @NonNull List<OrphanedEvent> orphans) {}
+record ParentAndOrphans(
+        @NonNull EventDescriptorWrapper parent, @NonNull List<OrphanedEvent> orphans) {}

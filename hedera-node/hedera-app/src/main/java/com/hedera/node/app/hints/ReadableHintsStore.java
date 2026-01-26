@@ -30,7 +30,11 @@ public interface ReadableHintsStore {
      * @param partyId      the party id the node claimed to have for the construction
      * @param adoptionTime the time at which the key was adopted
      */
-    record HintsKeyPublication(long nodeId, @NonNull Bytes hintsKey, int partyId, @NonNull Instant adoptionTime) {
+    record HintsKeyPublication(
+            long nodeId,
+            @NonNull Bytes hintsKey,
+            int partyId,
+            @NonNull Instant adoptionTime) {
         public HintsKeyPublication {
             requireNonNull(hintsKey);
             requireNonNull(adoptionTime);

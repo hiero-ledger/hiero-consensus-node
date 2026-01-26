@@ -46,47 +46,48 @@ public class ClassicTransfersTranslator extends AbstractCallTranslator<HtsCallAt
      */
     public static final SystemContractMethod TRANSFER_TOKENS = SystemContractMethod.declare(
                     "transferTokens(address,address[],int64[])", ReturnTypes.INT_64)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC20, Category.TRANSFER);
     /**
      * Selector for transferToken(address,address,address,int64) method.
      */
     public static final SystemContractMethod TRANSFER_TOKEN = SystemContractMethod.declare(
                     "transferToken(address,address,address,int64)", ReturnTypes.INT_64)
             .withVariants(Variant.FT)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC20, Category.TRANSFER);
     /**
      * Selector for transferNFTs(address,address[],address[],int64[]) method.
      */
     public static final SystemContractMethod TRANSFER_NFTS = SystemContractMethod.declare(
                     "transferNFTs(address,address[],address[],int64[])", ReturnTypes.INT_64)
             .withVariants(Variant.NFT)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC721, Category.TRANSFER);
     /**
      * Selector for transferNFT(address,address,address,int64) method.
      */
     public static final SystemContractMethod TRANSFER_NFT = SystemContractMethod.declare(
                     "transferNFT(address,address,address,int64)", ReturnTypes.INT_64)
             .withVariants(Variant.NFT)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC721, Category.TRANSFER);
     /**
      * Selector for transferFrom(address,address,address,uint256) method.
      */
     public static final SystemContractMethod TRANSFER_FROM = SystemContractMethod.declare(
                     "transferFrom(address,address,address,uint256)", ReturnTypes.INT_64)
             .withVariants(Variant.FT)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC20, Category.TRANSFER);
     /**
      * Selector for transferFromNFT(address,address,address,uint256) method.
      */
     public static final SystemContractMethod TRANSFER_NFT_FROM = SystemContractMethod.declare(
                     "transferFromNFT(address,address,address,uint256)", ReturnTypes.INT_64)
             .withVariants(Variant.NFT)
-            .withCategories(Category.TRANSFER);
+            .withCategories(Category.ERC721, Category.TRANSFER);
 
     private final ClassicTransfersDecoder decoder;
 
     /**
      * Constructor for injection.
+     *
      * @param decoder the decoder used to decode transfer calls
      */
     @Inject

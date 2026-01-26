@@ -24,23 +24,54 @@ import com.swirlds.config.api.ConfigProperty;
  */
 @ConfigData("nodes")
 public record NodesConfig(
-        @ConfigProperty(defaultValue = "100") @NetworkProperty long maxNumber,
-        @ConfigProperty(defaultValue = "100") @NetworkProperty int nodeMaxDescriptionUtf8Bytes,
-        @ConfigProperty(defaultValue = "10") @NetworkProperty int maxGossipEndpoint,
+        @ConfigProperty(defaultValue = "100") @NetworkProperty
+        long maxNumber,
+
+        @ConfigProperty(defaultValue = "100") @NetworkProperty
+        int nodeMaxDescriptionUtf8Bytes,
+
+        @ConfigProperty(defaultValue = "10") @NetworkProperty
+        int maxGossipEndpoint,
+
         @ConfigProperty(defaultValue = "8") @NetworkProperty int maxServiceEndpoint,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean gossipFqdnRestricted,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean enableDAB,
-        @ConfigProperty(defaultValue = "253") @NetworkProperty int maxFqdnSize,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean updateAccountIdAllowed,
+
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean gossipFqdnRestricted,
+
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean enableDAB,
+
+        @ConfigProperty(defaultValue = "253") @NetworkProperty
+        int maxFqdnSize,
+
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean updateAccountIdAllowed,
         /* Node rewards HIP-1064 configurations */
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean nodeRewardsEnabled,
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean nodeRewardsEnabled,
+
         @ConfigProperty(defaultValue = "0") @NetworkProperty long minPerPeriodNodeRewardUsd,
-        @ConfigProperty(defaultValue = "25000") @NetworkProperty long targetYearlyNodeRewardsUsd,
-        @ConfigProperty(defaultValue = "365") @NetworkProperty long numPeriodsToTargetUsd,
-        @ConfigProperty(defaultValue = "100000000000000") @NetworkProperty long minNodeRewardBalance,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean adjustNodeFees,
-        @ConfigProperty(defaultValue = "10") @NetworkProperty int activeRoundsPercent,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean preserveMinNodeRewardBalance,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean webProxyEndpointsEnabled,
+
+        @ConfigProperty(defaultValue = "25000") @NetworkProperty
+        long targetYearlyNodeRewardsUsd,
+
+        @ConfigProperty(defaultValue = "365") @NetworkProperty
+        long numPeriodsToTargetUsd,
+
+        @ConfigProperty(defaultValue = "100000000000000") @NetworkProperty
+        long minNodeRewardBalance,
+
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean adjustNodeFees,
+
+        @ConfigProperty(defaultValue = "10") @NetworkProperty
+        int activeRoundsPercent,
+
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean preserveMinNodeRewardBalance,
+
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean webProxyEndpointsEnabled,
         /* Fee collection account enabled */
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean feeCollectionAccountEnabled) {}
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean feeCollectionAccountEnabled) {}

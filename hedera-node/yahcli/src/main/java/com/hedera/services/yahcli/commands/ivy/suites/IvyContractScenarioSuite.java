@@ -187,8 +187,7 @@ public class IvyContractScenarioSuite extends AbstractIvySuite {
         };
     }
 
-    private static final String PICK_ABI =
-            """
+    private static final String PICK_ABI = """
               {
                 "inputs": [],
                 "name": "pick",
@@ -203,8 +202,7 @@ public class IvyContractScenarioSuite extends AbstractIvySuite {
                 "type": "function"
               }
             """;
-    private static final String BELIEVE_IN_ABI =
-            """
+    private static final String BELIEVE_IN_ABI = """
               {
                "inputs": [
                  {
@@ -219,8 +217,7 @@ public class IvyContractScenarioSuite extends AbstractIvySuite {
                "type": "function"
               }
             """;
-    private static final String DONATE_ABI =
-            """
+    private static final String DONATE_ABI = """
               {
                 "inputs": [
                   {

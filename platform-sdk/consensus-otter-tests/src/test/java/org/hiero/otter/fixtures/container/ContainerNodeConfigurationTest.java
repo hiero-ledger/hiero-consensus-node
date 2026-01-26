@@ -76,5 +76,6 @@ class ContainerNodeConfigurationTest {
      * Test configuration data record with various property types.
      */
     @ConfigData
-    public record TestConfigData(@ConfigProperty(defaultValue = "") List<NetworkEndpoint> myEndpointList) {}
+    public record TestConfigData(
+            @ConfigProperty(defaultValue = "") List<NetworkEndpoint> myEndpointList) {}
 }

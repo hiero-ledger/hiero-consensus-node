@@ -10,7 +10,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_LIVE_H
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
-import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
@@ -70,6 +70,7 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -94,7 +95,7 @@ import org.apache.logging.log4j.Logger;
 public final class IngestChecker {
     private static final Logger logger = LogManager.getLogger(IngestChecker.class);
     private static final Set<HederaFunctionality> FEATURE_FLAGGED_TRANSACTIONS = EnumSet.of(
-            LAMBDA_S_STORE,
+            HOOK_STORE,
             CRYPTO_CREATE,
             CONTRACT_CREATE,
             CRYPTO_UPDATE,
@@ -324,7 +325,7 @@ public final class IngestChecker {
         }
 
         // 6. Verify payer's signatures
-        verifyPayerSignature(txInfo, payer, configuration);
+        verifyAccountSignature(txInfo, payer, configuration);
 
         // 7. Check payer solvency
         final var numSigs = txInfo.signatureMap().sigPair().size();
@@ -358,7 +359,8 @@ public final class IngestChecker {
             throws PreCheckException {
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var hooksConfig = configuration.getConfigData(HooksConfig.class);
-        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig);
+        final var networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
+        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig);
         if (hederaConfig.ingestThrottleEnabled()
                 && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
             workflowMetrics.incrementThrottled(txInfo.functionality());
@@ -369,9 +371,14 @@ public final class IngestChecker {
     private void assertThrottlingPreconditions(
             @NonNull final TransactionInfo txInfo,
             @NonNull final HederaConfig hederaConfig,
-            @NonNull final HooksConfig hooksConfig)
+            @NonNull final HooksConfig hooksConfig,
+            @NonNull final NetworkAdminConfig networkAdminConfig)
             throws PreCheckException {
         final var function = txInfo.functionality();
+        // Reject transactions with highVolume=true if the feature is not enabled
+        if (txInfo.txBody().highVolume() && !networkAdminConfig.highVolumeThrottlesEnabled()) {
+            throw new PreCheckException(NOT_SUPPORTED);
+        }
         if (UNSUPPORTED_TRANSACTIONS.contains(function)) {
             throw new PreCheckException(NOT_SUPPORTED);
         }
@@ -390,7 +397,7 @@ public final class IngestChecker {
         if (FEATURE_FLAGGED_TRANSACTIONS.contains(function)) {
             if (!hooksConfig.hooksEnabled()) {
                 switch (function) {
-                    case LAMBDA_S_STORE -> throw new PreCheckException(HOOKS_NOT_ENABLED);
+                    case HOOK_STORE -> throw new PreCheckException(HOOKS_NOT_ENABLED);
                     case CRYPTO_CREATE ->
                         validateTruePreCheck(
                                 txInfo.txBody()
@@ -485,6 +492,7 @@ public final class IngestChecker {
 
     /**
      * Validates that no allowance hooks are used in crypto transfers, as they are not supported.
+     *
      * @param op the {@link CryptoTransferTransactionBody} to validate
      * @throws PreCheckException if any allowance hooks are used
      */
@@ -498,6 +506,7 @@ public final class IngestChecker {
 
     /**
      * Validates that no allowance hooks are used in the given token transfers, as they are not supported.
+     *
      * @param tokenTransferLists the token transfers to validate
      * @throws PreCheckException if any allowance hooks are used
      */
@@ -519,27 +528,27 @@ public final class IngestChecker {
         }
     }
 
-    private void verifyPayerSignature(
+    public void verifyAccountSignature(
             @NonNull final TransactionInfo txInfo,
-            @NonNull final Account payer,
+            @NonNull final Account account,
             @NonNull final Configuration configuration)
             throws PreCheckException {
-        final var payerKey = payer.key();
+        final var payerKey = account.key();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var sigPairs = txInfo.signatureMap().sigPair();
 
         // Expand the signatures
         final var expandedSigs = new HashSet<ExpandedSignaturePair>();
         signatureExpander.expand(sigPairs, expandedSigs);
-        if (!isHollow(payer)) {
+        if (!isHollow(account)) {
             signatureExpander.expand(payerKey, sigPairs, expandedSigs);
         } else {
-            // If the payer is hollow, then we need to expand the signature for the payer
+            // If the account is hollow, then we need to expand the signature for the account
             final var originals = txInfo.signatureMap().sigPair().stream()
                     .filter(SignaturePair::hasEcdsaSecp256k1)
                     .filter(pair -> Bytes.wrap(EthSigsUtils.recoverAddressFromPubKey(
                                     pair.pubKeyPrefix().toByteArray()))
-                            .equals(payer.alias()))
+                            .equals(account.alias()))
                     .findFirst();
             validateTruePreCheck(originals.isPresent(), INVALID_SIGNATURE);
             signatureExpander.expand(List.of(originals.get()), expandedSigs);
@@ -548,14 +557,14 @@ public final class IngestChecker {
         // Verify the signatures
         final var results = signatureVerifier.verify(txInfo.signedBytes(), expandedSigs);
         final var verifier = new DefaultKeyVerifier(hederaConfig, results);
-        final SignatureVerification payerKeyVerification;
-        if (!isHollow(payer)) {
-            payerKeyVerification = verifier.verificationFor(payerKey);
+        final SignatureVerification keyVerification;
+        if (!isHollow(account)) {
+            keyVerification = verifier.verificationFor(payerKey);
         } else {
-            payerKeyVerification = verifier.verificationFor(payer.alias());
+            keyVerification = verifier.verificationFor(account.alias());
         }
-        // This can happen if the signature map was missing a signature for the payer account.
-        if (payerKeyVerification.failed()) {
+        // This can happen if the signature map was missing a signature for the account account.
+        if (keyVerification.failed()) {
             throw new PreCheckException(INVALID_SIGNATURE);
         }
     }

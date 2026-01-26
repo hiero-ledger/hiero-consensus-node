@@ -79,7 +79,10 @@ public record PcesConfig(
         @Min(1) @ConfigProperty(defaultValue = "1.2") double spanOverlapFactor,
         @ConfigProperty(defaultValue = "5") int minimumSpan,
         @ConfigProperty(defaultValue = "false") boolean permitGaps,
-        @ConfigProperty(defaultValue = "preconsensus-events") Path databaseDirectory,
+
+        @ConfigProperty(defaultValue = "preconsensus-events")
+        Path databaseDirectory,
+
         @ConfigProperty(defaultValue = "true") boolean copyRecentStreamToStateSnapshots,
         @ConfigProperty(defaultValue = "true") boolean compactLastFileOnStartup,
         @ConfigProperty(defaultValue = "false") boolean forceIgnorePcesSignatures,

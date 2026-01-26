@@ -45,7 +45,8 @@ import org.hiero.base.crypto.Hash;
  * @param height Chunk height
  * @param hashData Chunk hashes
  */
-public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) {
+public record VirtualHashChunk(
+        long path, int height, @NonNull byte[] hashData) {
 
     public static final FieldDefinition FIELD_HASHCHUNK_PATH =
             new FieldDefinition("path", FieldType.FIXED64, false, true, false, 1);

@@ -39,7 +39,6 @@ public abstract class VirtualMapReconnectBenchBase {
     protected final ReconnectConfig reconnectConfig = new TestConfigBuilder()
             // This is lower than the default, helps test that is supposed to fail to finish faster.
             .withValue(ReconnectConfig_.ASYNC_STREAM_TIMEOUT, "5s")
-            .withValue(ReconnectConfig_.MAX_ACK_DELAY, "1000ms")
             .getOrCreateConfig()
             .getConfigData(ReconnectConfig.class);
 
@@ -63,7 +62,6 @@ public abstract class VirtualMapReconnectBenchBase {
         registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
     }
 
     protected MerkleInternal createTreeForMap(VirtualMap map) {

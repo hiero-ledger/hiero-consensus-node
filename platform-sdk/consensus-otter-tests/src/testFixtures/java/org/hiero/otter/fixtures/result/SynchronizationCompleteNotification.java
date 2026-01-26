@@ -13,5 +13,5 @@ import org.hiero.consensus.model.node.NodeId;
  * @param nodeId the node ID that logged the payload, or null if the node ID is not available
  */
 public record SynchronizationCompleteNotification(
-        @NonNull SynchronizationCompletePayload payload, @Nullable NodeId nodeId)
-        implements ReconnectNotification<SynchronizationCompletePayload> {}
+        @NonNull SynchronizationCompletePayload payload,
+        @Nullable NodeId nodeId) implements ReconnectNotification<SynchronizationCompletePayload> {}

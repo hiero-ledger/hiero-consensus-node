@@ -49,7 +49,10 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
      * @param body           the partial signature
      */
     private record PartialSignature(
-            long constructionId, @NonNull Bytes crs, long nodeId, @NonNull HintsPartialSignatureTransactionBody body) {
+            long constructionId,
+            @NonNull Bytes crs,
+            long nodeId,
+            @NonNull HintsPartialSignatureTransactionBody body) {
         private PartialSignature {
             requireNonNull(crs);
             requireNonNull(body);

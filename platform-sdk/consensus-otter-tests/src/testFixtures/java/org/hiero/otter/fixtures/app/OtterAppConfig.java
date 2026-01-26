@@ -13,6 +13,6 @@ import java.util.List;
 @ConfigData("event")
 public record OtterAppConfig(
         @ConfigProperty(
-                        defaultValue = "org.hiero.otter.fixtures.app.services.consistency.ConsistencyService,"
-                                + "org.hiero.otter.fixtures.app.services.iss.IssService")
-                List<String> services) {}
+                defaultValue = "org.hiero.otter.fixtures.app.services.consistency.ConsistencyService,"
+                        + "org.hiero.otter.fixtures.app.services.iss.IssService")
+        List<String> services) {}

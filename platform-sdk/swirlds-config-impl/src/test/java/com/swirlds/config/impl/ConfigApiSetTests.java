@@ -194,7 +194,9 @@ class ConfigApiSetTests {
     }
 
     @ConfigData("settest")
-    public record SetTestConfig(@ConfigProperty(value = "testSet", defaultValue = "666,404,500") Set<Long> testSet) {}
+    public record SetTestConfig(
+            @ConfigProperty(value = "testSet", defaultValue = "666,404,500")
+            Set<Long> testSet) {}
 
     @Test
     void checkSetInRecord() {
@@ -242,7 +244,8 @@ class ConfigApiSetTests {
 
     @ConfigData("setinetaddresstest")
     public record SetInetAddressTestConfig(
-            @ConfigProperty(value = "testInetAddressSet", defaultValue = "1.1.1.1,2.2.2.2") Set<InetAddress> testSet) {}
+            @ConfigProperty(value = "testInetAddressSet", defaultValue = "1.1.1.1,2.2.2.2")
+            Set<InetAddress> testSet) {}
 
     @Test
     void checkInetAddressSetInRecord() throws UnknownHostException {

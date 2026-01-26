@@ -31,7 +31,8 @@ public interface ReadableHistoryStore {
      * @param proofKey the proof key itself
      * @param adoptionTime the time at which the key was adopted
      */
-    record ProofKeyPublication(long nodeId, @NonNull Bytes proofKey, @NonNull Instant adoptionTime) {
+    record ProofKeyPublication(
+            long nodeId, @NonNull Bytes proofKey, @NonNull Instant adoptionTime) {
         public ProofKeyPublication {
             requireNonNull(proofKey);
             requireNonNull(adoptionTime);
@@ -46,8 +47,10 @@ public interface ReadableHistoryStore {
      * @param nodeId the node ID submitting the WRAPS message
      */
     record WrapsMessagePublication(
-            long nodeId, @NonNull Bytes message, @NonNull WrapsPhase phase, @NonNull Instant receiptTime)
-            implements Comparable<WrapsMessagePublication> {
+            long nodeId,
+            @NonNull Bytes message,
+            @NonNull WrapsPhase phase,
+            @NonNull Instant receiptTime) implements Comparable<WrapsMessagePublication> {
         public WrapsMessagePublication {
             requireNonNull(message);
             requireNonNull(phase);

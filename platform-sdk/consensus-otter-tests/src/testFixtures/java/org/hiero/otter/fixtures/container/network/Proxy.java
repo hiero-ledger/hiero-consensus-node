@@ -11,7 +11,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * @param upstream the address to which the proxy forwards requests
  * @param enabled whether the proxy is enabled or not
  */
-public record Proxy(@NonNull String name, @NonNull String listen, @NonNull String upstream, boolean enabled) {
+public record Proxy(
+        @NonNull String name,
+        @NonNull String listen,
+        @NonNull String upstream,
+        boolean enabled) {
 
     /**
      * Constructs a new Proxy instance.

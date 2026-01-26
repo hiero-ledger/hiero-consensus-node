@@ -15,7 +15,8 @@ import org.apache.logging.log4j.Logger;
  * @param agentType the type of user-agent
  * @param version the version of the user-agent used
  */
-public record UserAgent(@NonNull UserAgentType agentType, @NonNull String version) {
+public record UserAgent(
+        @NonNull UserAgentType agentType, @NonNull String version) {
     // Simple SemVer regex, taken from https://ihateregex.io/expr/semver/
     private static final Pattern VERSION_REGEX = Pattern.compile(
             "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$");

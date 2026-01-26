@@ -25,8 +25,9 @@ import org.hiero.otter.fixtures.network.LatencyRange;
  * @param latencyRange the latency range to apply during the experiment
  */
 public record HighLatencyNodeExperiment(
-        @NonNull Duration minDuration, @NonNull Duration maxDuration, @NonNull LatencyRange latencyRange)
-        implements Experiment {
+        @NonNull Duration minDuration,
+        @NonNull Duration maxDuration,
+        @NonNull LatencyRange latencyRange) implements Experiment {
 
     private static final Logger log = LogManager.getLogger();
 
