@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network.protocol;
+package com.swirlds.platform.reconnect.api;
 
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -10,8 +10,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * that manages access to reconnect states.
  */
 public record ReservedSignedStateResult(
-        @Nullable ReservedSignedState reservedSignedState, @Nullable RuntimeException throwable)
-        implements AutoCloseable {
+        @Nullable ReservedSignedState reservedSignedState,
+        @Nullable RuntimeException throwable) implements AutoCloseable {
     @Override
     public void close() {
         if (reservedSignedState != null) {
