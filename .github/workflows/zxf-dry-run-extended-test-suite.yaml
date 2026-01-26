@@ -123,8 +123,6 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
       slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
