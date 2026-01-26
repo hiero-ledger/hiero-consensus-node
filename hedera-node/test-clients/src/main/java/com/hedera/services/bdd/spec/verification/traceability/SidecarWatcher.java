@@ -18,9 +18,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.Assertions;
 
@@ -43,6 +43,15 @@ import org.junit.jupiter.api.Assertions;
 // string literals should not be duplicated
 @SuppressWarnings("java:S1192")
 public class SidecarWatcher {
+    /**
+     * The watcher is event-driven (sidecars arrive after a sidecar marker file is noticed).
+     * In CI, marker creation/visibility can lag just enough that immediate unsubscribe can race
+     * and leave expectations "pending" even though the sidecar file exists on disk.
+     */
+    private static final long EXPECTATIONS_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(10);
+
+    private static final long EXPECTATIONS_POLL_SLEEP_MILLIS = 50L;
+
     private final Runnable unsubscribe;
     private final Queue<ExpectedSidecar> expectedSidecars = new LinkedBlockingDeque<>();
     private final Queue<TransactionSidecarRecord> actualSidecars = new LinkedBlockingDeque<>();
@@ -98,17 +107,47 @@ public class SidecarWatcher {
         // Ensure our listener has more than fair opportunity to observe all expected sidecars
         triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
         triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
-        // Stop listening for any more actual sidecars
-        unsubscribe.run();
+        // Drain sidecars until we either satisfy all expectations, or a bounded timeout elapses.
+        // This avoids racing the file monitor: the sidecar marker file can arrive a bit later than
+        // record stream file closure, especially on busy CI runners.
+        final long deadlineNanos = System.nanoTime() + EXPECTATIONS_TIMEOUT_NANOS;
+        while (!expectedSidecars.isEmpty() && System.nanoTime() < deadlineNanos) {
+            final var drainedAtLeastOne = drainActualSidecars();
+            if (expectedSidecars.isEmpty()) {
+                break;
+            }
+            // If nothing new arrived yet, avoid busy-waiting.
+            if (!drainedAtLeastOne) {
+                try {
+                    Thread.sleep(EXPECTATIONS_POLL_SLEEP_MILLIS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
 
-        for (final var iter = actualSidecars.iterator(); iter.hasNext(); ) {
-            final var actualSidecar = iter.next();
-            iter.remove();
+        // Stop listening for any more actual sidecars, then drain anything already queued.
+        unsubscribe.run();
+        drainActualSidecars();
+
+        assertTrue(thereAreNoMismatchedSidecars(), getMismatchErrors());
+        assertTrue(
+                thereAreNoPendingSidecars(),
+                "There are some sidecars that have not been yet"
+                        + " externalized in the sidecar files after all"
+                        + " specs: " + getPendingErrors());
+    }
+
+    private boolean drainActualSidecars() {
+        boolean drainedAtLeastOne = false;
+        TransactionSidecarRecord actualSidecar;
+        while ((actualSidecar = actualSidecars.poll()) != null) {
+            drainedAtLeastOne = true;
             System.out.println("Observed sidecar: " + actualSidecar);
-            final boolean matchesConsensusTimestamp = Optional.ofNullable(expectedSidecars.peek())
-                    .map(ExpectedSidecar::expectedSidecarRecord)
-                    .map(expected -> expected.matchesConsensusTimestampOf(actualSidecar))
-                    .orElse(false);
+            final var expectedAtHead = expectedSidecars.peek();
+            final boolean matchesConsensusTimestamp = expectedAtHead != null
+                    && expectedAtHead.expectedSidecarRecord().matchesConsensusTimestampOf(actualSidecar);
             if (hasSeenFirstExpectedSidecar && matchesConsensusTimestamp) {
                 assertIncomingSidecar(actualSidecar);
             } else {
@@ -124,13 +163,7 @@ public class SidecarWatcher {
                 }
             }
         }
-
-        assertTrue(thereAreNoMismatchedSidecars(), getMismatchErrors());
-        assertTrue(
-                thereAreNoPendingSidecars(),
-                "There are some sidecars that have not been yet"
-                        + " externalized in the sidecar files after all"
-                        + " specs: " + getPendingErrors());
+        return drainedAtLeastOne;
     }
 
     private void assertIncomingSidecar(final TransactionSidecarRecord actualSidecarRecord) {
