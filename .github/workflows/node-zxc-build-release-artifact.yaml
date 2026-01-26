@@ -874,12 +874,19 @@ jobs:
         if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
 
-      - name: Gradle Publish to Maven Central
+      - name: Gradle Publish to Maven Central (com.hedera)
         if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
           NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
-        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true -PpublishingPackageGroup=com.hedera
+
+      - name: Gradle Publish to Maven Central (org.hiero)
+        if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
+        env:
+          NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
+          NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true -PpublishingPackageGroup=org.hiero
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}

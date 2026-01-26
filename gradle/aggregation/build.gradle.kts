@@ -12,6 +12,16 @@ dependencies {
     implementation(project(":consensus-otter-tests"))
 }
 
+// Allow filtering of the publication package via -PpublishingPackageGroup=<namespace>
+tasks.nmcpZipAggregation {
+    includeEmptyDirs = false
+    val publishingPackageGroup = providers.gradleProperty("publishingPackageGroup")
+    if (publishingPackageGroup.isPresent) {
+        val includeFolder = publishingPackageGroup.get().replace(".", "/")
+        include("$includeFolder/**")
+    }
+}
+
 tasks.testCodeCoverageReport {
     // Redo the setup done in 'JacocoReportAggregationPlugin', but gather the class files in the
     // file tree and filter out selected classes by path.
