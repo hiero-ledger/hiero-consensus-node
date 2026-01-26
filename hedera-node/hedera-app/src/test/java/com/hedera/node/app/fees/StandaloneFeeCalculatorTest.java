@@ -226,8 +226,8 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         final FeeResult result = calc.calculateIntrinsic(txn);
-        assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
-        System.out.println("JSON is \n" + feeResultToJson(result));
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(7000000L);
+        //        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
     @Test
@@ -243,7 +243,7 @@ public class StandaloneFeeCalculatorTest {
         final FeeResult result = calc.calculateIntrinsic(txn);
         final var TINY_CENTS = 100_000_000L;
         assertThat(result.totalTinycents()).isEqualTo(1 * TINY_CENTS); // 0.01 USD
-        System.out.println("JSON is \n" + feeResultToJson(result));
+        //        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
     @Test
@@ -265,7 +265,7 @@ public class StandaloneFeeCalculatorTest {
         final FeeResult result = calc.calculateIntrinsic(txn);
         final var TINY_CENTS = 100_000_000L;
         assertThat(result.totalTinycents()).isEqualTo(200 * TINY_CENTS); // 2.00 USD
-        System.out.println("JSON is \n" + feeResultToJson(result));
+        //        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
     @Test
@@ -282,8 +282,8 @@ public class StandaloneFeeCalculatorTest {
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
         final FeeResult result = calc.calculateIntrinsic(txn);
-        assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
-        assertThat(result.totalTinycents()).isEqualTo(1_000_000L); // add in the node + network fee
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(7_000_000L);
+        assertThat(result.totalTinycents()).isEqualTo(7_000_000 + 1_000_000L); // add in the node + network fee
     }
 
     @Test
@@ -315,7 +315,7 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         final FeeResult result = calc.calculateIntrinsic(txn);
-        assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
         //        System.out.println("JSON is \n" + feeResultToJson(result));
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(7_000_000L);
     }
 }
