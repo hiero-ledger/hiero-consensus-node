@@ -26,14 +26,14 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateNetworkFeeOnlyUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -109,7 +109,8 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1, 0), 0.0001));
+                    validateChargedUsdWithinWithTxnSize(
+                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1, 0, txnSize), 0.0001));
         }
 
         @HapiTest
@@ -124,7 +125,8 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 1L), 0.0001));
+                    validateChargedUsdWithinWithTxnSize(
+                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
         }
 
         @HapiTest
@@ -145,7 +147,8 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(2L, 2L), 0.0001));
+                    validateChargedUsdWithinWithTxnSize(
+                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, txnSize), 0.0001));
         }
 
         @HapiTest
@@ -170,7 +173,8 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(3L, 4L), 0.0001));
+                    validateChargedUsdWithinWithTxnSize(
+                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(3L, 4L, txnSize), 0.0001));
         }
 
         @HapiTest
@@ -187,7 +191,8 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(2L, 2L), 0.0001));
+                    validateChargedUsdWithinWithTxnSize(
+                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, txnSize), 0.0001));
         }
 
         @HapiTest
@@ -203,7 +208,8 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 0L, 1L), 0.0001));
+                    validateChargedUsdWithinWithTxnSize(
+                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 0L, 1L, txnSize), 0.0001));
         }
 
         @HapiTest
@@ -221,7 +227,8 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 1L, 1L), 0.0001));
+                    validateChargedUsdWithinWithTxnSize(
+                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, 1L, txnSize), 0.0001));
         }
 
         @HapiTest
@@ -249,7 +256,8 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER_KEY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(2L, 2L, 2L), 0.0001));
+                    validateChargedUsdWithinWithTxnSize(
+                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, 2L, txnSize), 0.0001));
         }
 
         @HapiTest
@@ -296,7 +304,8 @@ public class CryptoCreateSimpleFeesTest {
                                 .via("cryptoCreateTxn");
                         allRunFor(spec, txn);
                     }),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 1L), 0.0001));
+                    validateChargedUsdWithinWithTxnSize(
+                            "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
         }
     }
 
@@ -836,11 +845,11 @@ public class CryptoCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedCryptoCreateNetworkFeeOnlyUsd(1L),
+                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(1L, txnSize),
                                 0.01));
             }
 
@@ -888,11 +897,11 @@ public class CryptoCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedCryptoCreateNetworkFeeOnlyUsd(2L),
+                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
                                 0.01));
             }
 
@@ -940,11 +949,11 @@ public class CryptoCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedCryptoCreateNetworkFeeOnlyUsd(2L),
+                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
                                 0.01));
             }
 
@@ -997,11 +1006,11 @@ public class CryptoCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedCryptoCreateNetworkFeeOnlyUsd(1L),
+                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(1L, txnSize),
                                 0.01));
             }
 
@@ -1056,11 +1065,11 @@ public class CryptoCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedCryptoCreateNetworkFeeOnlyUsd(2L),
+                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
                                 0.01));
             }
 
@@ -1113,11 +1122,11 @@ public class CryptoCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedCryptoCreateNetworkFeeOnlyUsd(2L),
+                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
                                 0.01));
             }
 
@@ -1170,11 +1179,11 @@ public class CryptoCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedCryptoCreateNetworkFeeOnlyUsd(2L),
+                                txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
                                 0.01));
             }
         }
@@ -1232,11 +1241,11 @@ public class CryptoCreateSimpleFeesTest {
                             assertEquals(initialNodeBalance.get(), afterNodeBalance.get());
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 "cryptoCreateTxn",
                                 initialBalance,
                                 afterBalance,
-                                expectedCryptoCreateFullFeeUsd(1L, 1L),
+                                txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize),
                                 0.01));
             }
         }
@@ -1257,7 +1266,8 @@ public class CryptoCreateSimpleFeesTest {
                                 .signedBy(PAYER, ADMIN_KEY)
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
-                        validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 1L), 0.0001));
+                        validateChargedUsdWithinWithTxnSize(
+                                "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
             }
 
             @HapiTest
@@ -1275,7 +1285,8 @@ public class CryptoCreateSimpleFeesTest {
                                 .signedBy(PAYER, ADMIN_KEY, "extraKey1", "extraKey2")
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
-                        validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 1L), 0.0001));
+                        validateChargedUsdWithinWithTxnSize(
+                                "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(1L, 1L, txnSize), 0.0001));
             }
 
             @HapiTest
@@ -1302,7 +1313,8 @@ public class CryptoCreateSimpleFeesTest {
                                 .signedBy(PAYER_KEY, "extraKey1", "extraKey2")
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
-                        validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(2L, 2L), 0.0001));
+                        validateChargedUsdWithinWithTxnSize(
+                                "cryptoCreateTxn", txnSize -> expectedCryptoCreateFullFeeUsd(2L, 2L, txnSize), 0.0001));
             }
         }
     }
