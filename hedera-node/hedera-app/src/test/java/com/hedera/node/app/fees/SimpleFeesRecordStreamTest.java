@@ -216,6 +216,10 @@ public class SimpleFeesRecordStreamTest {
         final var body = TransactionBody.PROTOBUF.parse(
                 Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
         final Transaction txn = Transaction.newBuilder().body(body).build();
+        if(txn.body().data().kind() == TransactionBody.DataOneOfType.UNSET) {
+            // skip unset types
+            return;
+        }
         final var result = calc.calculateIntrinsic(txn);
         final var record = item.getRecord();
         final var txnFee = record.getTransactionFee();

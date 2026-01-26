@@ -38,7 +38,6 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
         // return the calculator
         this.calc = executor.feeManager().getSimpleFeeCalculator();
-        System.out.println("got the simple fee calculator " + this.calc);
     }
 
     @Override

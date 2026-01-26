@@ -99,6 +99,13 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
             addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
             final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
             addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, totalNft);
+        } else {
+            for (final var ttl : op.tokenTransfers()) {
+                var regular_count = ttl.transfers().size();
+                addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, regular_count);
+                var nft_count = ttl.nftTransfers().size();
+                addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, nft_count);
+            }
         }
     }
 
