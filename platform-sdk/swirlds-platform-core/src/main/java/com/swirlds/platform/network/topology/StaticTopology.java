@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.topology;
 
-import com.google.common.collect.ImmutableSet;
 import com.swirlds.platform.network.PeerInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -14,22 +14,21 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class StaticTopology implements NetworkTopology {
 
-    private final ImmutableSet<NodeId> nodeIds;
+    @NonNull
+    private final Set<NodeId> nodeIds;
 
     private final NodeId selfId;
 
     /**
      * Constructor.
-     * @param peers             the set of peers in the network
-     * @param selfId            the ID of this node
+     *
+     * @param peers the set of peers in the network
+     * @param selfId the ID of this node
      */
     public StaticTopology(@NonNull final List<PeerInfo> peers, @NonNull final NodeId selfId) {
         Objects.requireNonNull(peers);
         Objects.requireNonNull(selfId);
-        ImmutableSet.Builder<NodeId> builder = ImmutableSet.builder();
-
-        peers.forEach(peer -> builder.add(peer.nodeId()));
-        nodeIds = builder.build();
+        nodeIds = peers.stream().map(PeerInfo::nodeId).collect(Collectors.toUnmodifiableSet());
         this.selfId = selfId;
     }
 
@@ -45,7 +44,7 @@ public class StaticTopology implements NetworkTopology {
      * {@inheritDoc}
      */
     @Override
-    public boolean shouldConnectToMe(final NodeId nodeId) {
+    public boolean shouldConnectToMe(@NonNull final NodeId nodeId) {
         return nodeIds.contains(nodeId) && nodeId.id() < selfId.id();
     }
 
@@ -53,7 +52,7 @@ public class StaticTopology implements NetworkTopology {
      * {@inheritDoc}
      */
     @Override
-    public boolean shouldConnectTo(final NodeId nodeId) {
+    public boolean shouldConnectTo(@NonNull final NodeId nodeId) {
         return nodeIds.contains(nodeId) && nodeId.id() > selfId.id();
     }
 }
