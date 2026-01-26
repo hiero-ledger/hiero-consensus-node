@@ -117,7 +117,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
         final AtomicReference<VirtualMap> teacherRef = new AtomicReference<>(teacherMap);
         final AtomicReference<VirtualMap> learnerRef = new AtomicReference<>(learnerMap);
 
-        new StateBuilder(BenchmarkKey::longToKey, BenchmarkValue::new)
+        new StateBuilder(BenchmarkKeyUtils::longToKey, BenchmarkValue::new)
                 .buildState(
                         random,
                         (long) numRecords * numFiles,

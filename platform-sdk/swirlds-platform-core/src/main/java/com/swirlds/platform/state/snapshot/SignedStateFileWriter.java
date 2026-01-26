@@ -2,7 +2,6 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
-import static com.swirlds.common.io.utility.FileUtils.writeAndFlush;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.writeSettingsUsed;
@@ -12,23 +11,22 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoStrin
 import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.INIT_SIG_SET_FILE_VERSION;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -63,12 +61,9 @@ public final class SignedStateFileWriter {
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
         final String platformInfo = getInfoString(state, stateConfig.debugHashDepth());
 
-        logger.info(
-                STATE_TO_DISK.getMarker(),
-                """
+        logger.info(STATE_TO_DISK.getMarker(), """
                         Information for state written to disk:
-                        {}""",
-                platformInfo);
+                        {}""", platformInfo);
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
 
@@ -99,26 +94,17 @@ public final class SignedStateFileWriter {
     }
 
     /**
-     * Write a {@link SigSet} to a stream.
-     *
-     * @param out         the stream to write to
-     * @param signedState the signed state to write
-     */
-    private static void writeSignatureSetToStream(final MerkleDataOutputStream out, final SignedState signedState)
-            throws IOException {
-        out.writeInt(INIT_SIG_SET_FILE_VERSION);
-        out.writeProtocolVersion();
-        out.writeSerializable(signedState.getSigSet(), true);
-    }
-
-    /**
      * Write the signature set file.
      * @param directory the directory to write to
      * @param signedState the signature set file
      */
     public static void writeSignatureSetFile(final @NonNull Path directory, final @NonNull SignedState signedState)
             throws IOException {
-        writeAndFlush(directory.resolve(SIGNATURE_SET_FILE_NAME), out -> writeSignatureSetToStream(out, signedState));
+        final Path sigSetFile = directory.resolve(SIGNATURE_SET_FILE_NAME);
+        try (final FileOutputStream fos = new FileOutputStream(sigSetFile.toFile());
+                final WritableStreamingData out = new WritableStreamingData(fos)) {
+            signedState.getSigSet().serialize(out);
+        }
     }
 
     /**
