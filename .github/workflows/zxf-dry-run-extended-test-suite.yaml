@@ -7,18 +7,13 @@ on:
         required: true
         description: "The commit sha, tag, or branch to check out"
       branch_name:
-        required: true
+        required: false
         description: "The branch name, for JRS Panel output"
       enable-extended-test-suite:
         required: true
         type: boolean
         default: true
         description: "Run Extended Test Suite"
-      enable-abbreviated-panel:
-        required: true
-        type: boolean
-        default: true
-        description: "Run Abbreviated JRS Panel"
       enable-hedera-node-jrs-panel:
         required: true
         type: boolean
@@ -44,6 +39,11 @@ on:
         type: boolean
         default: true
         description: "Run Block Node Regression Panel"
+      execute-state-validator-build:
+        required: true
+        type: boolean
+        default: true
+        description: "Execute the State Validator Uber JAR build job"
 
 permissions:
   id-token: write
@@ -60,16 +60,14 @@ defaults:
 jobs:
   parameters:
     name: Workflow Parameters
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-sm
     outputs:
       solo-version: ${{ steps.params.outputs.solo-version }}
       helm-release-name: ${{ steps.params.outputs.helm-release-name }}
       solo-ge-0440: ${{ steps.params.outputs.solo-ge-0440 }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
 
       - name: Print Params
         id: params
@@ -82,7 +80,6 @@ jobs:
           echo "Commit SHA: ${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Branch Name: ${{ inputs.branch_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Extended Test Suite: ${{ inputs.enable-extended-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Enable Abbreviated Panel: ${{ inputs.enable-abbreviated-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Hedera Node JRS Panel: ${{ inputs.enable-hedera-node-jrs-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable SDK TCK Regression Panel: ${{ inputs.enable-sdk-tck-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Mirror Node Regression Panel: ${{ inputs.enable-mirror-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -94,6 +91,14 @@ jobs:
           echo "solo-version=${{ vars.ADHOC_XTS_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
+
+  state-validator-uberjar:
+    name: Build & Publish Hedera State Validator Uber JAR
+    if: ${{ inputs.execute-state-validator-build == true }}
+    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      dry-run-enabled: "true"
 
   xts-execution:
     name: Execute XTS
