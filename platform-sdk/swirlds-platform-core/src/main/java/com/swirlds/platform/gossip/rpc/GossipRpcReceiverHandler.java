@@ -25,5 +25,5 @@ public interface GossipRpcReceiverHandler extends GossipRpcReceiver {
      */
     void cleanup();
 
-    void reportCommunicationOverload(boolean overloaded);
+    void setCommunicationOverloaded(boolean overloaded);
 }

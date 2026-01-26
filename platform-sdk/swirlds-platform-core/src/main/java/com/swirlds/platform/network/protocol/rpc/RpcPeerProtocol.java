@@ -93,6 +93,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
 
     private final RateLimiter exceptionRateLimiter;
     private final RpcInternalExceptionHandler exceptionHandler;
+    private final SyncConfig syncConfig;
 
     /**
      * State machine for rpc exchange process (mostly sync process)
@@ -140,17 +141,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private final SyncMetrics syncMetrics;
 
     /**
-     * How long to wait if nothing is happening on the write queue, to check for exit/ping handling
-     */
-    private final long idleWritePollTimeoutMs;
-
-    /**
-     * How long to wait if nothing is happening on dispatch queue, to check for possible periodic actions (current,
-     * starting of synchronization, if it is not already in progress)
-     */
-    private final long idleDispatchPollTimeoutMs;
-
-    /**
      * Marker bool to exit processing output queue early in case we need to give control back to other protocols
      */
     private volatile boolean processMessages = false;
@@ -159,12 +149,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * At what time conversation was stopped, used to measure possible timeout
      */
     private volatile long conversationFinishPending;
-
-    /**
-     * After what time exception should be thrown, if we have sent end of conversation marker, but other side has not
-     * replied in kind
-     */
-    private final long maxWaitForConversationFinishMs;
 
     /**
      * If we need to get out of RPC context, let's remember which sync phase we were in previously
@@ -177,21 +161,25 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private static final Runnable POISON_PILL =
             () -> logger.error(EXCEPTION.getMarker(), "Poison pill should never be executed");
 
-    private long lastCommunicationOverloadReported = -1;
+    /**
+     * Helper class for checking if rpc communication is overloaded (ping or output queue) and informs to disable
+     * broadcast if it is the case
+     */
+    private final RpcOverloadMonitor overloadMonitor;
 
     /**
      * Constructs a new rpc protocol
      *
-     * @param peerId         the id of the peer being synced with in this protocol
-     * @param executor       executor to run parallel network tasks
-     * @param gossipHalted   returns true if gossip is halted, false otherwise
-     * @param platformStatus provides the current platform status
-     * @param permitProvider provides permits to sync
-     * @param networkMetrics network metrics to register data about communication traffic and latencies
-     * @param time           the {@link Time} instance for the platformeturns the {@link Time} instance for the
-     *                       platform
-     * @param syncMetrics    metrics tracking syncing
-     * @param syncConfig     sync configuration
+     * @param peerId           the id of the peer being synced with in this protocol
+     * @param executor         executor to run parallel network tasks
+     * @param gossipHalted     returns true if gossip is halted, false otherwise
+     * @param platformStatus   provides the current platform status
+     * @param permitProvider   provides permits to sync
+     * @param networkMetrics   network metrics to register data about communication traffic and latencies
+     * @param time             the {@link Time} instance for the platformeturns the {@link Time} instance for the
+     *                         platform
+     * @param syncMetrics      metrics tracking syncing
+     * @param syncConfig       sync configuration
      * @param exceptionHandler handler for errors which happens when managing the connection/dispatch loop
      */
     public RpcPeerProtocol(
@@ -212,14 +200,18 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         this.permitProvider = Objects.requireNonNull(permitProvider);
         this.time = Objects.requireNonNull(time);
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
-        this.maxWaitForConversationFinishMs = syncConfig.maxSyncTime().toMillis();
-        this.idleDispatchPollTimeoutMs = syncConfig.rpcIdleDispatchPollTimeout().toMillis();
-        this.idleWritePollTimeoutMs = syncConfig.rpcIdleWritePollTimeout().toMillis();
+        this.syncConfig = syncConfig;
         this.pingHandler = new RpcPingHandler(time, networkMetrics, remotePeerId, this);
         this.keepSendingEventsWhenUnhealthy = syncConfig.keepSendingEventsWhenUnhealthy();
 
         this.exceptionRateLimiter = new RateLimiter(time, SOCKET_EXCEPTION_DURATION);
         this.exceptionHandler = exceptionHandler;
+        this.overloadMonitor = new RpcOverloadMonitor(
+                peerId,
+                syncConfig,
+                syncMetrics,
+                time,
+                (overload) -> rpcPeerHandler.setCommunicationOverloaded(overload));
     }
 
     /**
@@ -327,7 +319,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         try {
             while (true) {
                 syncMetrics.rpcInputQueueSize(remotePeerId, inputQueue.size());
-                final Runnable message = inputQueue.poll(idleDispatchPollTimeoutMs, TimeUnit.MILLISECONDS);
+                final Runnable message =
+                        inputQueue.poll(syncConfig.rpcIdleDispatchPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
                 if (message != null) {
                     if (message == POISON_PILL) {
                         break;
@@ -342,15 +335,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     // handler told us we are ok to stop processing messages right now due to platform not being healthy
                     processMessages = false;
                 }
-                // TODO: make configurable
-                if ( outputQueue.size() > 200 ) {
-                    rpcPeerHandler.reportCommunicationOverload(true);
-                    lastCommunicationOverloadReported = time.currentTimeMillis();
-                } else {
-                    if (time.currentTimeMillis()-lastCommunicationOverloadReported > 10_000 ) {
-                        rpcPeerHandler.reportCommunicationOverload(false);
-                    }
-                }
+                overloadMonitor.reportOutputQueueSize(outputQueue.size());
             }
         } finally {
             syncMetrics.rpcDispatchThreadRunning(-1);
@@ -380,7 +365,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 final StreamWriter message;
                 try {
                     final long startNanos = time.nanoTime();
-                    message = outputQueue.poll(idleWritePollTimeoutMs, TimeUnit.MILLISECONDS);
+                    message = outputQueue.poll(
+                            syncConfig.rpcIdleWritePollTimeout().toMillis(), TimeUnit.MILLISECONDS);
                     syncMetrics.outputQueuePollTime(time.nanoTime() - startNanos);
                 } catch (final InterruptedException e) {
                     processMessages = false;
@@ -439,11 +425,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 // check if other side should be already sending us end of conversation marker; if it is the case
                 // and they haven't for long enough, break the connection, they might be malicious
                 if (conversationFinishPending > 0
-                        && time.currentTimeMillis() - conversationFinishPending > maxWaitForConversationFinishMs) {
+                        && time.currentTimeMillis() - conversationFinishPending
+                                > syncConfig.maxSyncTime().toMillis()) {
                     inputQueue.clear();
                     throw new SyncTimeoutException(
                             Duration.ofMillis(time.currentTimeMillis() - conversationFinishPending),
-                            Duration.ofMillis(maxWaitForConversationFinishMs));
+                            syncConfig.maxSyncTime());
                 }
 
                 final short incomingBatchSize = input.readShort();
@@ -484,7 +471,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                         case PING_REPLY:
                             final GossipPing pingReply = input.readPbjRecord(GossipPing.PROTOBUF);
                             final long pingMillis = pingHandler.handleIncomingPingReply(pingReply) / 1_000_000;
-                            rpcPeerHandler.reportPing(pingMillis);
+                            overloadMonitor.reportPing(pingMillis);
                             break;
                     }
                     syncMetrics.rpcInputQueueSize(remotePeerId, inputQueue.size());

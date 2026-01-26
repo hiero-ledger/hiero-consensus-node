@@ -8,7 +8,6 @@ import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.util.function.Consumer;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -31,17 +30,15 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
     private final NodeId selfId;
 
     /**
-     * How long should we wait between sync attempts
-     */
-    private final Duration sleepAfterSync;
-
-    /**
      * Control for making sure that in case of limited amount of concurrent syncs we are not synchronizing with the same
      * peers over and over.
      */
     private final SyncGuard syncGuard;
 
-    private final Duration disableBroadcastPingThreshold;
+    /**
+     * Sync and broadcast configuration
+     */
+    private final SyncConfig syncConfig;
 
     /**
      * Constructs a new ShadowgraphSynchronizer.
@@ -77,11 +74,10 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
         final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
 
         this.selfId = selfId;
-        this.sleepAfterSync = syncConfig.rpcSleepAfterSync();
-        this.disableBroadcastPingThreshold = syncConfig.disableBroadcastPingThreshold();
 
         this.syncGuard = SyncGuardFactory.create(
                 syncConfig.fairMaxConcurrentSyncs(), syncConfig.fairMinimalRoundRobinSize(), numberOfNodes);
+        this.syncConfig = syncConfig;
     }
 
     /**
@@ -97,13 +93,12 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
                 sender,
                 selfId,
                 otherNodeId,
-                sleepAfterSync,
                 syncMetrics,
                 time,
                 intakeEventCounter,
                 eventHandler,
                 syncGuard,
                 fallenBehindMonitor,
-                disableBroadcastPingThreshold);
+                syncConfig);
     }
 }

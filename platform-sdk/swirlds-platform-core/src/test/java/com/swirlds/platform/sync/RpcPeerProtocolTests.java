@@ -124,7 +124,7 @@ public class RpcPeerProtocolTests {
                 }
 
                 @Override
-                public void reportCommunicationOverload(final boolean overloaded) {
+                public void setCommunicationOverloaded(final boolean overloaded) {
                     // no-op
                 }
 
@@ -181,11 +181,6 @@ public class RpcPeerProtocolTests {
 
                 @Override
                 public void receiveBroadcastEvent(final GossipEvent gossipEvent) {
-                    // no-op
-                }
-
-                @Override
-                public void reportPing(final long pingMillis) {
                     // no-op
                 }
             });

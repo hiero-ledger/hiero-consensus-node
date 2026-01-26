@@ -22,7 +22,7 @@ import java.time.Duration;
  *                                           not a self event and is not an ancestor of a self event, we must know about
  *                                           the event for at least this amount of time before the event is eligible to
  *                                           be sent
- * @param ancestorFilterThreshold     ignored if {@link #filterLikelyDuplicates} or {@link #broadcast} is false.
+ * @param ancestorFilterThreshold            ignored if {@link #filterLikelyDuplicates} or {@link #broadcast} is false.
  *                                           For each event that is a self event and is an ancestor of a self event, we
  *                                           must know about the event for at least this amount of time before the event
  *                                           is eligible to be sent. This is to help to reduce duplicate rate in when
@@ -71,6 +71,11 @@ import java.time.Duration;
  *                                           neighbours
  * @param disableBroadcastPingThreshold      if ping against peer breaches that level, we disable the broadcast for some
  *                                           time, as sync is more efficient at that point
+ * @param throttleOutputQueueThreshold       if output queue of rpc is bigger than that, we disable the broadcast for
+ *                                           some time, as we don't want to add additional load on network traffic and
+ *                                           leave sync to manage it temporarily
+ * @param pauseBroadcastOnLag                amount of time for which broadcast will be paused if communication overload
+ *                                           is detected
  */
 @ConfigData("sync")
 public record SyncConfig(
@@ -97,4 +102,6 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize,
         @ConfigProperty(defaultValue = "true") boolean keepSendingEventsWhenUnhealthy,
         @ConfigProperty(defaultValue = "true") boolean broadcast,
-        @ConfigProperty(defaultValue = "900ms") Duration disableBroadcastPingThreshold) {}
+        @ConfigProperty(defaultValue = "900ms") Duration disableBroadcastPingThreshold,
+        @ConfigProperty(defaultValue = "200") int throttleOutputQueueThreshold,
+        @ConfigProperty(defaultValue = "30s") Duration pauseBroadcastOnLag) {}
