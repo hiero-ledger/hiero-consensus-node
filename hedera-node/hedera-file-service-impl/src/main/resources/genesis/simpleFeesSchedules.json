@@ -129,17 +129,17 @@
         },
         {
           "name": "CryptoGetAccountBalance",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         },
         {
           "name": "CryptoGetInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         },
         {
           "name": "CryptoGetAccountRecords",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]
@@ -200,7 +200,7 @@
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]
@@ -292,14 +292,14 @@
         },
         {
           "name": "FileGetContents",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": [
             { "name": "BYTES", "includedCount": 1000}
           ]
         },
         {
           "name": "FileGetInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]
@@ -523,13 +523,13 @@
         },
         {
           "name": "TokenGetInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": [
           ]
         },
         {
           "name": "TokenGetNftInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": [
           ]
         }
@@ -577,7 +577,7 @@
         },
         {
           "name": "ScheduleGetInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]
@@ -587,12 +587,12 @@
       "schedule": [
         {
           "name": "GetVersionInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         },
         {
           "name": "TransactionGetRecord",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         },
         {
@@ -602,7 +602,7 @@
         },
         {
           "name": "GetByKey",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]
@@ -725,12 +725,12 @@
         },
         {
           "name": "ContractCallLocal",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         },
         {
           "name": "ContractGetBytecode",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": [
             {
               "name": "BYTES", "includedCount": 1000
@@ -739,7 +739,7 @@
         },
         {
           "name": "ContractGetInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]
