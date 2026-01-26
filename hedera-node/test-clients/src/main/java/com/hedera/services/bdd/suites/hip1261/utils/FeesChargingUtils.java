@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261.utils;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hederahashgraph.api.proto.java.Transaction;
+import org.apache.logging.log4j.Logger;
+
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.IntToDoubleFunction;
+
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.HapiTxnOp.serializedSignedTxFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -15,8 +24,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_DELETE_TOPIC_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_BASE_FEE_USD;
@@ -38,6 +45,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_SIGNATURES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NON_FUNGIBLE_TOKENS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_INCLUDED_TOKENS;
@@ -62,14 +70,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_BASE_FEE_USD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.HapiSpecOperation;
-import com.hederahashgraph.api.proto.java.Transaction;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.IntToDoubleFunction;
-import org.apache.logging.log4j.Logger;
 
 public class FeesChargingUtils {
     private static final int NODE_INCLUDED_BYTES = 1024;
@@ -552,25 +552,31 @@ public class FeesChargingUtils {
 
     /**
      * SimpleFees formula for ConsensusSubmitMessage:
-     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytes(txnSize)
+     * node    = nodeFeeFromBytes(txnSize) + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
      * network = node * NETWORK_MULTIPLIER
      * service = CONS_SUBMIT_MESSAGE_BASE
      *         + BYTES_FEE * max(0, bytes - includedBytesService)
      * total   = node + network + service
+     *
+     * Note: For ConsensusSubmitMessage, the node base fee is NOT charged.
+     * Only signature extras and bytes overage contribute to node/network fees.
+     * The message bytes fee is part of the service fee, not the node fee.
      */
     public static double expectedTopicSubmitMessageFullFeeUsd(long sigs, long bytes, int txnSize) {
-        // ----- node fees -----
+        // ----- node fees (only charged for txn size overage and extra signatures, NO base fee) -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+        final double nodeBytesOverageFee = nodeFeeFromBytesUsd(txnSize);
+        // No node base fee for SubmitMessage - only extras
+        final double nodeFee = nodeExtrasFee + nodeBytesOverageFee;
 
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
 
         // ----- service fees -----
-        final long byteExtrasService = Math.max(0L, bytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
+        final long byteExtrasService = Math.max(0L, bytes - 1024L);
         final double serviceExtrasFee = byteExtrasService * BYTES_FEE_USD;
-        final double serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + serviceExtrasFee;
+        final double serviceFee = SUBMIT_MESSAGE_BASE_FEE_USD + serviceExtrasFee;
 
         return nodeFee + networkFee + serviceFee;
     }
