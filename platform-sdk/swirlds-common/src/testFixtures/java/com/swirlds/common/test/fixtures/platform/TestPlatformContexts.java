@@ -16,7 +16,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.Optional;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.pces.PcesConfig_;
+import org.hiero.consensus.pces.config.PcesConfig_;
 
 /**
  * A utility class for generating PlatformContexts.

@@ -14,11 +14,8 @@ import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.writeTheirTipsIH
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils.TipsInfo;
-import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
-import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -40,9 +37,12 @@ import org.hiero.consensus.concurrent.framework.Stoppable.StopBehavior;
 import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
 import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.monitoring.FallenBehindStatus;
 
 /**
  * The goal of the ShadowgraphSynchronizer is to compare graphs with a remote node, and update them so both sides have
