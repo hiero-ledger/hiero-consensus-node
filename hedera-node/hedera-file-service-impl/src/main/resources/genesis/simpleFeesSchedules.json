@@ -131,6 +131,16 @@
           "name": "CryptoGetAccountBalance",
           "baseFee": 0,
           "extras": []
+        },
+        {
+          "name": "CryptoGetInfo",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "CryptoGetAccountRecords",
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },
@@ -190,16 +200,6 @@
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 0,
-          "extras": []
-        },
-        {
-          "name": "CryptoGetInfo",
-          "baseFee": 0,
-          "extras": []
-        },
-        {
-          "name": "CryptoGetAccountRecords",
           "baseFee": 0,
           "extras": []
         }
@@ -642,12 +642,7 @@
         {
           "name": "EthereumTransaction",
           "baseFee": 0,
-          "extras": [
-            {
-              "name": "BYTES",
-              "includedCount": 6144
-            }
-          ]
+          "extras": []
         },
         {
           "name": "ContractCreate",
