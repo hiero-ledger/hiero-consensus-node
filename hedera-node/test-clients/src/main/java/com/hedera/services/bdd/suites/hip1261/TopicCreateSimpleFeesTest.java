@@ -23,14 +23,14 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateNetworkFeeOnlyUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -93,7 +93,8 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(1, 0), 0.01));
+                    validateChargedUsdWithinWithTxnSize(
+                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(1, 0, txnSize), 0.01));
         }
 
         @HapiTest
@@ -113,7 +114,8 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN, AUTO_RENEW_ACCOUNT)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 2), 0.01));
+                    validateChargedUsdWithinWithTxnSize(
+                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(3, 2, txnSize), 0.01));
         }
 
         @HapiTest
@@ -129,7 +131,8 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, AUTO_RENEW_ACCOUNT)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(2, 0), 0.01));
+                    validateChargedUsdWithinWithTxnSize(
+                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(2, 0, txnSize), 0.01));
         }
 
         @HapiTest
@@ -145,7 +148,8 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(2, 1), 0.01));
+                    validateChargedUsdWithinWithTxnSize(
+                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(2, 1, txnSize), 0.01));
         }
 
         @HapiTest
@@ -163,7 +167,8 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(2, 2), 0.01));
+                    validateChargedUsdWithinWithTxnSize(
+                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(2, 2, txnSize), 0.01));
         }
 
         @HapiTest
@@ -190,7 +195,8 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 3), 0.01));
+                    validateChargedUsdWithinWithTxnSize(
+                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(3, 3, txnSize), 0.01));
         }
 
         @HapiTest
@@ -217,7 +223,8 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(4, 5), 0.01));
+                    validateChargedUsdWithinWithTxnSize(
+                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(4, 5, txnSize), 0.01));
         }
 
         @HapiTest
@@ -236,7 +243,8 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER, ADMIN)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 2), 0.01));
+                    validateChargedUsdWithinWithTxnSize(
+                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(3, 2, txnSize), 0.01));
         }
 
         @HapiTest
@@ -262,7 +270,8 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 5), 0.01));
+                    validateChargedUsdWithinWithTxnSize(
+                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(3, 5, txnSize), 0.01));
         }
 
         @HapiTest
@@ -288,7 +297,8 @@ public class TopicCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsdWithin("create-topic-txn", expectedTopicCreateFullFeeUsd(3, 8), 0.01));
+                    validateChargedUsdWithinWithTxnSize(
+                            "create-topic-txn", txnSize -> expectedTopicCreateFullFeeUsd(3, 8, txnSize), 0.01));
         }
     }
 
@@ -597,11 +607,11 @@ public class TopicCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedTopicCreateNetworkFeeOnlyUsd(1),
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
                                 0.01));
             }
 
@@ -647,12 +657,12 @@ public class TopicCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedTopicCreateNetworkFeeOnlyUsd(1),
-                                0.01));
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
+                                1));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -697,11 +707,11 @@ public class TopicCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedTopicCreateNetworkFeeOnlyUsd(2),
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(2, txnSize),
                                 0.01));
             }
 
@@ -746,8 +756,12 @@ public class TopicCreateSimpleFeesTest {
                             log.info("Payer balance change: {}", payerDelta);
                             log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(1, 1));
                         }),
-                        validateChargedFeeToUsd(
-                                INNER_ID, initialBalance, afterBalance, expectedTopicCreateFullFeeUsd(1, 1), 0.01));
+                        validateChargedFeeToUsdWithTxnSize(
+                                INNER_ID,
+                                initialBalance,
+                                afterBalance,
+                                txnSize -> expectedTopicCreateFullFeeUsd(1, 1, txnSize),
+                                0.01));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -789,11 +803,11 @@ public class TopicCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedTopicCreateNetworkFeeOnlyUsd(1),
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
                                 0.01));
             }
 
@@ -838,11 +852,11 @@ public class TopicCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedTopicCreateNetworkFeeOnlyUsd(1),
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
                                 0.01));
             }
 
@@ -888,11 +902,11 @@ public class TopicCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedTopicCreateNetworkFeeOnlyUsd(1),
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
                                 0.01));
             }
 
@@ -937,11 +951,11 @@ public class TopicCreateSimpleFeesTest {
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 INNER_ID,
                                 initialNodeBalance,
                                 afterNodeBalance,
-                                expectedTopicCreateNetworkFeeOnlyUsd(1),
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
                                 0.01));
             }
         }
@@ -999,11 +1013,11 @@ public class TopicCreateSimpleFeesTest {
                             assertEquals(initialNodeBalance.get(), afterNodeBalance.get());
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 "topicCreateTxn",
                                 initialBalance,
                                 afterBalance,
-                                expectedTopicCreateFullFeeUsd(1L, 0L),
+                                txnSize -> expectedTopicCreateFullFeeUsd(1L, 0L, txnSize),
                                 0.01));
             }
 
@@ -1046,11 +1060,11 @@ public class TopicCreateSimpleFeesTest {
                             log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(2, 3));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                expectedTopicCreateFullFeeUsd(2L, 3L),
+                                txnSize -> expectedTopicCreateFullFeeUsd(2L, 3L, txnSize),
                                 0.01));
             }
 
@@ -1086,11 +1100,11 @@ public class TopicCreateSimpleFeesTest {
                             log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(2, 1));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                expectedTopicCreateFullFeeUsd(2L, 1L),
+                                txnSize -> expectedTopicCreateFullFeeUsd(2L, 1L, txnSize),
                                 0.01));
             }
 
@@ -1133,11 +1147,11 @@ public class TopicCreateSimpleFeesTest {
                             log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(2, 5));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                expectedTopicCreateFullFeeUsd(2L, 5L),
+                                txnSize -> expectedTopicCreateFullFeeUsd(2L, 5L, txnSize),
                                 0.01));
             }
 
@@ -1173,11 +1187,11 @@ public class TopicCreateSimpleFeesTest {
                             log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(2, 1));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                expectedTopicCreateFullFeeUsd(2L, 1L),
+                                txnSize -> expectedTopicCreateFullFeeUsd(2L, 1L, txnSize),
                                 0.01));
             }
 
@@ -1213,11 +1227,11 @@ public class TopicCreateSimpleFeesTest {
                             log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(2, 3));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                expectedTopicCreateFullFeeUsd(2L, 3L),
+                                txnSize -> expectedTopicCreateFullFeeUsd(2L, 3L, txnSize),
                                 0.01));
             }
 
@@ -1253,11 +1267,11 @@ public class TopicCreateSimpleFeesTest {
                             log.info("Recorded fee: {}", expectedTopicCreateFullFeeUsd(3, 2));
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
-                        validateChargedFeeToUsd(
+                        validateChargedFeeToUsdWithTxnSize(
                                 "create-topic-txn",
                                 initialBalance,
                                 afterBalance,
-                                expectedTopicCreateFullFeeUsd(3L, 2L),
+                                txnSize -> expectedTopicCreateFullFeeUsd(3L, 2L, txnSize),
                                 0.01));
             }
         }

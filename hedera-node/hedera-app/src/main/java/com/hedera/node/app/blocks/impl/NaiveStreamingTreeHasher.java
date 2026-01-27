@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,13 +20,17 @@ import java.util.concurrent.CompletableFuture;
  * {@link ByteBuffer} leaves. Used to test the correctness of more efficient implementations.
  */
 public class NaiveStreamingTreeHasher implements StreamingTreeHasher {
-    private static final byte[] EMPTY_HASH = noThrowSha384HashOf(new byte[0]);
+    private static final Bytes EMPTY_HASH_BYTES = hashLeaf(BlockStreamManager.ZERO_BLOCK_HASH);
+    private static final byte[] EMPTY_HASH = EMPTY_HASH_BYTES.toByteArray();
 
     private final List<byte[]> leafHashes = new ArrayList<>();
     private boolean rootHashRequested = false;
 
     /**
      * Computes the root hash of a perfect binary Merkle tree of {@link ByteBuffer} leaves using a naive algorithm.
+     * <p>
+     * This method does <b>not</b> prefix leaf values with {@link StreamingTreeHasher#LEAF_PREFIX} before hashing,
+     * assuming this was done prior.
      * @param leafHashes the leaf hashes of the tree
      * @return the root hash of the tree
      */
@@ -54,7 +59,10 @@ public class NaiveStreamingTreeHasher implements StreamingTreeHasher {
     public CompletableFuture<Bytes> rootHash() {
         rootHashRequested = true;
         if (leafHashes.isEmpty()) {
-            return CompletableFuture.completedFuture(Bytes.wrap(EMPTY_HASH));
+            // Even though we have no leaves in this tree at all, and typically hash a value before adding it as a leaf,
+            // the empty hash value here has already been hashed as a leaf, and therefore doesn't need to be hashed
+            // again
+            return CompletableFuture.completedFuture(EMPTY_HASH_BYTES);
         }
         Queue<byte[]> hashes = new LinkedList<>(leafHashes);
         final int n = hashes.size();
@@ -69,10 +77,8 @@ public class NaiveStreamingTreeHasher implements StreamingTreeHasher {
             while (!hashes.isEmpty()) {
                 final byte[] left = hashes.poll();
                 final byte[] right = hashes.poll();
-                final byte[] combined = new byte[left.length + requireNonNull(right).length];
-                System.arraycopy(left, 0, combined, 0, left.length);
-                System.arraycopy(right, 0, combined, left.length, right.length);
-                newLeafHashes.add(noThrowSha384HashOf(combined));
+                final byte[] hashed = BlockImplUtils.hashInternalNode(left, requireNonNull(right));
+                newLeafHashes.add(hashed);
             }
             hashes = newLeafHashes;
         }

@@ -6,10 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 import static com.swirlds.logging.legacy.LogMarker.TCP_CONNECT_EXCEPTIONS;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.gossip.config.GossipConfig;
-import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
@@ -31,6 +28,9 @@ import org.hiero.base.concurrent.locks.AutoClosableResourceLock;
 import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.gossip.config.GossipConfig;
+import org.hiero.consensus.gossip.config.NetworkEndpoint;
+import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -188,7 +188,6 @@ public class OutboundConnectionManager implements ConnectionManager {
     /**
      * {@inheritDoc}
      */
-    @VisibleForTesting
     @Override
     public Connection getConnection() {
         return currentConn;

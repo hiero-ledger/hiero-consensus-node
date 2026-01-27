@@ -14,7 +14,6 @@ javaModules {
     // The Hedera platform modules
     directory("platform-sdk") {
         group = "com.hedera.hashgraph"
-        module("swirlds") // not actually a Module as it has no module-info.java
         module("swirlds-benchmarks") // not actually a Module as it has no module-info.java
     }
 
@@ -57,6 +56,7 @@ javaModules {
         group = "org.hiero.observability"
 
         module("hiero-metrics") { artifact = "hiero-metrics" }
+        module("openmetrics-httpserver") { artifact = "openmetrics-httpserver" }
     }
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }

@@ -12,14 +12,13 @@ import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConf
 import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.consensus.pces.PcesUtilities.getDatabaseDirectory;
+import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDirectory;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
@@ -28,9 +27,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
-import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
@@ -63,12 +60,15 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.PcesConfig;
-import org.hiero.consensus.pces.PcesFileReader;
-import org.hiero.consensus.pces.PcesFileTracker;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.roster.RosterHistory;
 
 /**
@@ -427,11 +427,8 @@ public final class PlatformBuilder {
                 platformContext.getMetrics(),
                 platformContext.getTime(),
                 rosterHistory,
-                selfId,
                 intakeEventCounter,
                 execution.getTransactionLimits(),
-                platformContext.getRecycleBin(),
-                initialState.get().getRound(),
                 pipelineTracker);
     }
 

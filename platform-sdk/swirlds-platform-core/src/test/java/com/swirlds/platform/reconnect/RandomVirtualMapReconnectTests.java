@@ -55,8 +55,9 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     @Override
     protected VirtualDataSourceBuilder createBuilder() {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        return new MerkleDbDataSourceBuilder(
-                CONFIGURATION, merkleDbConfig.maxNumOfKeys(), merkleDbConfig.hashesRamToDiskThreshold());
+        // Set initial capacity to a low value to reduce memory usage in tests. If needed,
+        // the data source (HDHM bucket index) will be resized automatically
+        return new MerkleDbDataSourceBuilder(CONFIGURATION, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
     }
 
     public String randomWord(final Random random, final int maximumKeySize) {

@@ -60,9 +60,7 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
-import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
-import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
@@ -91,7 +89,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -391,7 +388,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                         c.constructionId(), c.hintsSchemeOrThrow().preprocessedKeysOrThrow()));
         final IncrementalStreamingHasher incrementalBlockHashes =
                 new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        incrementalBlockHashes.addLeaf(BlockStreamManager.ZERO_BLOCK_HASH.toByteArray());
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
             final var shouldVerifyProof = i == 0
@@ -403,11 +399,16 @@ public class StateChangesValidator implements BlockStreamValidator {
                 this.state = stateToBeCopied.copy();
                 startOfStateHash = stateToBeCopied.getRoot().getHash().getBytes();
             }
-            final StreamingTreeHasher inputTreeHasher = new NaiveStreamingTreeHasher();
-            final StreamingTreeHasher outputTreeHasher = new NaiveStreamingTreeHasher();
-            final StreamingTreeHasher consensusHeaderHasher = new NaiveStreamingTreeHasher();
-            final StreamingTreeHasher stateChangesHasher = new NaiveStreamingTreeHasher();
-            final StreamingTreeHasher traceDataHasher = new NaiveStreamingTreeHasher();
+            final IncrementalStreamingHasher inputTreeHasher =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+            final IncrementalStreamingHasher outputTreeHasher =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+            final IncrementalStreamingHasher consensusHeaderHasher =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+            final IncrementalStreamingHasher stateChangesHasher =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+            final IncrementalStreamingHasher traceDataHasher =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
 
             long firstBlockRound = -1;
             long eventNodeId = -1;
@@ -501,8 +502,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                                     + " does not match final block BlockStreamInfo update type");
 
                     // The state changes hasher already incorporated the last state change, so compute its root hash
-                    final var finalStateChangesHash =
-                            stateChangesHasher.rootHash().join();
+                    final var finalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
                     final var expectedRootAndSiblings = computeBlockHash(
                             firstConsensusTimestamp,
@@ -631,27 +631,45 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private void hashSubTrees(
             final BlockItem item,
-            final StreamingTreeHasher inputTreeHasher,
-            final StreamingTreeHasher outputTreeHasher,
-            final StreamingTreeHasher consensusHeaderHasher,
-            final StreamingTreeHasher stateChangesHasher,
-            final StreamingTreeHasher traceDataHasher) {
-        final var itemSerialized = BlockItem.PROTOBUF.toBytes(item);
-        final var digest = sha384DigestOrThrow();
+            final IncrementalStreamingHasher inputTreeHasher,
+            final IncrementalStreamingHasher outputTreeHasher,
+            final IncrementalStreamingHasher consensusHeaderHasher,
+            final IncrementalStreamingHasher stateChangesHasher,
+            final IncrementalStreamingHasher traceDataHasher) {
+        final var serialized = BlockItem.PROTOBUF.toBytes(item).toByteArray();
+
         switch (item.item().kind()) {
-            case EVENT_HEADER, ROUND_HEADER ->
-                consensusHeaderHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
-            case SIGNED_TRANSACTION ->
-                inputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
-            case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER ->
-                outputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
-            case STATE_CHANGES ->
-                stateChangesHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
-            case TRACE_DATA -> traceDataHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
+            case EVENT_HEADER, ROUND_HEADER -> consensusHeaderHasher.addLeaf(serialized);
+            case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
+            case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
+            case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
+            case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
             default -> {
                 // Other items are not part of the input/output trees
             }
         }
+    }
+
+    private static Bytes hashLeaf(final Bytes leafData) {
+        final var digest = sha384DigestOrThrow();
+        digest.update(StreamingTreeHasher.LEAF_PREFIX);
+        digest.update(leafData.toByteArray());
+        return Bytes.wrap(digest.digest());
+    }
+
+    private static Bytes hashInternalNodeSingleChild(final Bytes hash) {
+        final var digest = sha384DigestOrThrow();
+        digest.update(StreamingTreeHasher.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
+        digest.update(hash.toByteArray());
+        return Bytes.wrap(digest.digest());
+    }
+
+    private static Bytes hashInternalNode(final Bytes leftChildHash, final Bytes rightChildHash) {
+        final var digest = sha384DigestOrThrow();
+        digest.update(StreamingTreeHasher.INTERNAL_NODE_PREFIX);
+        digest.update(leftChildHash.toByteArray());
+        digest.update(rightChildHash.toByteArray());
+        return Bytes.wrap(digest.digest());
     }
 
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
@@ -661,53 +679,42 @@ public class StateChangesValidator implements BlockStreamValidator {
             final Bytes previousBlockHash,
             final IncrementalStreamingHasher prevBlockRootsHasher,
             final Bytes startOfBlockStateHash,
-            final StreamingTreeHasher inputTreeHasher,
-            final StreamingTreeHasher outputTreeHasher,
-            final StreamingTreeHasher consensusHeaderHasher,
+            final IncrementalStreamingHasher inputTreeHasher,
+            final IncrementalStreamingHasher outputTreeHasher,
+            final IncrementalStreamingHasher consensusHeaderHasher,
             final Bytes finalStateChangesHash,
-            final StreamingTreeHasher traceDataHasher) {
+            final IncrementalStreamingHasher traceDataHasher) {
         final var prevBlocksRootHash = Bytes.wrap(prevBlockRootsHasher.computeRootHash());
-        final var consensusHeaderHash = consensusHeaderHasher.rootHash().join();
-        final var inputTreeHash = inputTreeHasher.rootHash().join();
-        final var outputTreeHash = outputTreeHasher.rootHash().join();
-        final var traceDataHash = traceDataHasher.rootHash().join();
+        final var consensusHeaderHash = Bytes.wrap(consensusHeaderHasher.computeRootHash());
+        final var inputTreeHash = Bytes.wrap(inputTreeHasher.computeRootHash());
+        final var outputTreeHash = Bytes.wrap(outputTreeHasher.computeRootHash());
+        final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
 
         // Compute depth five hashes
-        final var depth5Node1 = BlockImplUtils.combine(previousBlockHash, prevBlocksRootHash);
-        final var depth5Node2 = BlockImplUtils.combine(startOfBlockStateHash, consensusHeaderHash);
-        final var depth5Node3 = BlockImplUtils.combine(inputTreeHash, outputTreeHash);
-        final var depth5Node4 = BlockImplUtils.combine(finalStateChangesHash, traceDataHash);
-
-        final var combinedNulls =
-                BlockImplUtils.combine(BlockStreamManager.ZERO_BLOCK_HASH, BlockStreamManager.ZERO_BLOCK_HASH);
-        // Nodes 5-8 for depth five are all combined null hashes, but enumerated for clarity
-        final var depth5Node5 = combinedNulls;
-        final var depth5Node6 = combinedNulls;
-        final var depth5Node7 = combinedNulls;
-        final var depth5Node8 = combinedNulls;
+        final var depth5Node1 = hashInternalNode(previousBlockHash, prevBlocksRootHash);
+        final var depth5Node2 = hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
+        final var depth5Node3 = hashInternalNode(inputTreeHash, outputTreeHash);
+        final var depth5Node4 = hashInternalNode(finalStateChangesHash, traceDataHash);
 
         // Compute depth four hashes
-        final var depth4Node1 = BlockImplUtils.combine(depth5Node1, depth5Node2);
-        final var depth4Node2 = BlockImplUtils.combine(depth5Node3, depth5Node4);
-        final var depth4Node3 = BlockImplUtils.combine(depth5Node5, depth5Node6);
-        final var depth4Node4 = BlockImplUtils.combine(depth5Node7, depth5Node8);
+        final var depth4Node1 = hashInternalNode(depth5Node1, depth5Node2);
+        final var depth4Node2 = hashInternalNode(depth5Node3, depth5Node4);
 
-        // Compute depth three hashes
-        final var depth3Node1 = BlockImplUtils.combine(depth4Node1, depth4Node2);
-        final var depth3Node2 = BlockImplUtils.combine(depth4Node3, depth4Node4);
+        // Compute depth three hash (no 'node 2' at this level since reserved subroots 9-16 aren't encoded in the tree)
+        final var depth3Node1 = hashInternalNode(depth4Node1, depth4Node2);
 
         // Compute depth two hashes (timestamp + last right sibling)
-        final var depth2Node1 = noThrowSha384HashOf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
-        final var depth2Node2 = BlockImplUtils.combine(depth3Node1, depth3Node2);
+        final var timestamp = Timestamp.PROTOBUF.toBytes(blockTimestamp);
+        final var depth2Node1 = hashLeaf(timestamp);
+        final var depth2Node2 = hashInternalNodeSingleChild(depth3Node1);
 
         // Compute the block's root hash (depth 1)
-        final var root = BlockImplUtils.combine(depth2Node1, depth2Node2);
+        final var root = hashInternalNode(depth2Node1, depth2Node2);
 
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
             new MerkleSiblingHash(false, prevBlocksRootHash),
             new MerkleSiblingHash(false, depth5Node2),
             new MerkleSiblingHash(false, depth4Node2),
-            new MerkleSiblingHash(false, depth2Node2)
         });
     }
 
