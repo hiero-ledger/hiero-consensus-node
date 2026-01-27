@@ -18,7 +18,7 @@
   },
 
   "extras": [
-    { "name":  "SIGNATURES",                     "fee": 1000000 },
+    { "name":  "SIGNATURES",                     "fee": 100000 },
     { "name":  "BYTES",                          "fee": 110000 },
     { "name":  "KEYS",                           "fee": 100000000 },
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
