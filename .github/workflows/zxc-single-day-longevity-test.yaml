@@ -72,7 +72,7 @@ env:
 jobs:
   longevity-tests-start:
     name: Start
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     outputs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
@@ -437,7 +437,7 @@ jobs:
 
   longevity-tests-wait:
     name: Wait for Longevity test
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
@@ -585,7 +585,7 @@ jobs:
 
   longevity-tests-finish:
     name: Read results of Longevity test
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
@@ -732,7 +732,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
     name: Calculate Result
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-finish
@@ -774,7 +774,7 @@ jobs:
 
   longevity-report-failures:
     name: Report Failures
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-md
     needs:
       - longevity-tests-start
       - longevity-tests-wait
@@ -816,7 +816,7 @@ jobs:
           echo "${{ steps.summary.outputs.summary }}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   longevity-report-to-Slack:
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-md
     needs:
       - longevity-tests-finish
       - single-day-longevity-test-result

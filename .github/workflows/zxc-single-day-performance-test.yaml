@@ -97,7 +97,7 @@ env:
 jobs:
   performance-tests-start:
     name: Start
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     env:
       run_NLG_Test: NftTransferLoadTest
     outputs:
@@ -674,7 +674,7 @@ jobs:
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     needs:
       - performance-tests-start
     env:
@@ -855,7 +855,7 @@ jobs:
 
   performance-NftTransferLoadTest-report:
     name: NFT Transfer Load Test Report
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     needs:
       - performance-tests-start
       - performance-NftTransferLoadTest-watch1
@@ -1297,7 +1297,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-performance-test-result:
     name: Calculate Result
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - performance-NftTransferLoadTest-report
@@ -1375,7 +1375,7 @@ jobs:
 
   delete-namespace:
     name: Delete namespace
-    runs-on: hiero-citr-linux-large
+    runs-on: hl-cn-citr-lin-lg
     needs:
       - performance-tests-start
       - single-day-performance-test-result
@@ -1424,7 +1424,7 @@ jobs:
 
   performance-report-to-rootly:
     name: Report Failures to Rootly
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-md
     needs:
       - performance-tests-start
       - performance-NftTransferLoadTest-watch1
@@ -1482,7 +1482,7 @@ jobs:
           echo "${{ steps.summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-slack:
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-citr-lin-md
     needs:
       - performance-NftTransferLoadTest-report
       - performance-HCSLoadTest
