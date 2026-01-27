@@ -15,8 +15,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_DELETE_TOPIC_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_BASE_FEE_USD;
@@ -38,8 +36,30 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_SIGNATURES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NON_FUNGIBLE_TOKENS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_INCLUDED_TOKENS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_BURN_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_INCLUDED_KEYS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_DISSOCIATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_FREEZE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_GRANT_KYC_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_INCLUDED_NFT;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_NFT_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_PAUSE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_REVOKE_KYC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_CUSTOM_FEES_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNFREEZE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNPAUSE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_KEYS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_BASE_FEE_USD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -48,6 +68,7 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hederahashgraph.api.proto.java.Transaction;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntToDoubleFunction;
+import org.apache.logging.log4j.Logger;
 
 public class FeesChargingUtils {
     private static final int NODE_INCLUDED_BYTES = 1024;
@@ -530,25 +551,31 @@ public class FeesChargingUtils {
 
     /**
      * SimpleFees formula for ConsensusSubmitMessage:
-     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytes(txnSize)
+     * node    = nodeFeeFromBytes(txnSize) + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
      * network = node * NETWORK_MULTIPLIER
      * service = CONS_SUBMIT_MESSAGE_BASE
      *         + BYTES_FEE * max(0, bytes - includedBytesService)
      * total   = node + network + service
+     *
+     * Note: For ConsensusSubmitMessage, the node base fee is NOT charged.
+     * Only signature extras and bytes overage contribute to node/network fees.
+     * The message bytes fee is part of the service fee, not the node fee.
      */
     public static double expectedTopicSubmitMessageFullFeeUsd(long sigs, long bytes, int txnSize) {
-        // ----- node fees -----
+        // ----- node fees (only charged for txn size overage and extra signatures, NO base fee) -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+        final double nodeBytesOverageFee = nodeFeeFromBytesUsd(txnSize);
+        // No node base fee for SubmitMessage - only extras
+        final double nodeFee = nodeExtrasFee + nodeBytesOverageFee;
 
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
 
         // ----- service fees -----
-        final long byteExtrasService = Math.max(0L, bytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
+        final long byteExtrasService = Math.max(0L, bytes - 1024L);
         final double serviceExtrasFee = byteExtrasService * BYTES_FEE_USD;
-        final double serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + serviceExtrasFee;
+        final double serviceFee = SUBMIT_MESSAGE_BASE_FEE_USD + serviceExtrasFee;
 
         return nodeFee + networkFee + serviceFee;
     }
@@ -622,5 +649,589 @@ public class FeesChargingUtils {
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(chargedUsd, 4), txnId, allowedPercentDifference));
         });
+    }
+
+    public static double expectedFeeFromBytesFor(HapiSpec spec, Logger opLog, String txnName) {
+        // Get the transaction bytes from the registry
+        final var txnBytes = spec.registry().getBytes(txnName);
+        final var txnSize = txnBytes.length;
+
+        // Node fee BYTES extra: (txnBytes - 1024) * BYTES_FEE_USD * networkMultiplier
+        final var nodeBytesOverage = Math.max(0, txnSize - 1024);
+        double expectedFee = nodeBytesOverage * BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
+
+        opLog.info(
+                "Transaction size: {} bytes, node bytes overage: {}, expected fee: {}",
+                txnSize,
+                nodeBytesOverage,
+                expectedFee);
+        return expectedFee;
+    }
+
+    /**
+     * SimpleFees formula for TokenCreate (fungible or NFT without custom fees):
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_CREATE_BASE + KEYS_FEE * max(0, keys - includedKeys)
+     * total   = node + network + service
+     */
+    public static double expectedTokenCreateFungibleFullFeeUsd(long sigs, long keys) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+        // ----- service fees -----
+        final long keyExtrasService = Math.max(0L, keys - TOKEN_CREATE_INCLUDED_KEYS);
+        final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD;
+        final double serviceFee = TOKEN_CREATE_BASE_FEE_USD + serviceExtrasFee;
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * SimpleFees formula for TokenCreate (NFT without custom fees):
+     * Same as fungible - the base fee is the same for both token types.
+     */
+    public static double expectedTokenCreateNftFullFeeUsd(long sigs, long keys) {
+        return expectedTokenCreateFungibleFullFeeUsd(sigs, keys);
+    }
+
+    /**
+     * SimpleFees formula for TokenCreate (fungible with custom fees):
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_CREATE_BASE + KEYS_FEE * extras + TOKEN_CREATE_WITH_CUSTOM_FEE
+     * total   = node + network + service
+     */
+    public static double expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(long sigs, long keys) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final long keyExtrasService = Math.max(0L, keys - TOKEN_CREATE_INCLUDED_KEYS);
+        final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD + TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
+        final double serviceFee = TOKEN_CREATE_BASE_FEE_USD + serviceExtrasFee;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * SimpleFees formula for TokenCreate (NFT with custom fees):
+     * Same as fungible with custom fees.
+     */
+    public static double expectedTokenCreateNftWithCustomFeesFullFeeUsd(long sigs, long keys) {
+        return expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(sigs, keys);
+    }
+
+    /**
+     * Network-only fee for TokenCreate failures in pre-handle.
+     */
+    public static double expectedTokenCreateNetworkFeeOnlyUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenUpdate:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_UPDATE_BASE + KEYS_FEE * max(0, keys - includedKeys)
+     * total   = node + network + service
+     */
+    public static double expectedTokenUpdateFullFeeUsd(long sigs, long keys) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final long keyExtrasService = Math.max(0L, keys - TOKEN_UPDATE_INCLUDED_KEYS);
+        final double serviceExtrasFee = keyExtrasService * KEYS_FEE_USD;
+        final double serviceFee = TOKEN_UPDATE_BASE_FEE_USD + serviceExtrasFee;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Overload for TokenUpdate with no extra keys.
+     */
+    public static double expectedTokenUpdateFullFeeUsd(long sigs) {
+        return expectedTokenUpdateFullFeeUsd(sigs, 0L);
+    }
+
+    /**
+     * Network-only fee for TokenUpdate failures in pre-handle.
+     */
+    public static double expectedTokenUpdateNetworkFeeOnlyUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenDelete:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_DELETE_BASE
+     * total   = node + network + service
+     */
+    public static double expectedTokenDeleteFullFeeUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = TOKEN_DELETE_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Network-only fee for TokenDelete failures in pre-handle.
+     */
+    public static double expectedTokenDeleteNetworkFeeOnlyUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenMint (fungible):
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_MINT_BASE
+     * total   = node + network + service
+     */
+    public static double expectedTokenMintFungibleFullFeeUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = TOKEN_MINT_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * SimpleFees formula for TokenMint (NFT):
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_MINT_BASE + TOKEN_MINT_NFT_FEE * max(0, nftSerials - includedNft)
+     * total   = node + network + service
+     */
+    public static double expectedTokenMintNftFullFeeUsd(long sigs, long nftSerials) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final long serialExtrasService = Math.max(0L, nftSerials - TOKEN_MINT_INCLUDED_NFT);
+        final double serviceExtrasFee = serialExtrasService * TOKEN_MINT_NFT_FEE_USD;
+        final double serviceFee = TOKEN_MINT_BASE_FEE_USD + serviceExtrasFee;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Network-only fee for TokenMint failures in pre-handle.
+     */
+    public static double expectedTokenMintNetworkFeeOnlyUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenBurn (fungible):
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_BURN_BASE
+     * total   = node + network + service
+     */
+    public static double expectedTokenBurnFungibleFullFeeUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = TOKEN_BURN_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * SimpleFees formula for TokenBurn (NFT):
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_BURN_BASE (no extras for NFT serials in burn)
+     * total   = node + network + service
+     */
+    public static double expectedTokenBurnNftFullFeeUsd(long sigs, long nftSerials) {
+        return expectedTokenBurnFungibleFullFeeUsd(sigs);
+    }
+
+    /**
+     * Network-only fee for TokenBurn failures in pre-handle.
+     */
+    public static double expectedTokenBurnNetworkFeeOnlyUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenAssociate:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_ASSOCIATE_BASE * tokens count
+     * total   = node + network + service
+     */
+    public static double expectedTokenAssociateFullFeeUsd(long sigs, long tokens) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+        // ----- service fees -----
+        final long extraTokens = Math.max(0L, tokens - TOKEN_ASSOCIATE_INCLUDED_TOKENS);
+        final double serviceFee = TOKEN_ASSOCIATE_BASE_FEE_USD + extraTokens * TOKEN_ASSOCIATE_EXTRA_FEE_USD;
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Overload for single token association.
+     */
+    public static double expectedTokenAssociateFullFeeUsd(long sigs) {
+        return expectedTokenAssociateFullFeeUsd(sigs, 1L);
+    }
+
+    /**
+     * Network-only fee for TokenAssociate failures in pre-handle.
+     */
+    public static double expectedTokenAssociateNetworkFeeOnlyUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenDissociate:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_DISSOCIATE_BASE
+     * total   = node + network + service
+     */
+    public static double expectedTokenDissociateFullFeeUsd(long sigs, long tokens) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = TOKEN_DISSOCIATE_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Overload for single token dissociation.
+     */
+    public static double expectedTokenDissociateFullFeeUsd(long sigs) {
+        return expectedTokenDissociateFullFeeUsd(sigs, 1L);
+    }
+
+    /**
+     * Network-only fee for TokenDissociate failures in pre-handle.
+     */
+    public static double expectedTokenDissociateNetworkFeeOnlyUsd(long sigs) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenGrantKyc:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_GRANT_KYC_BASE
+     * total   = node + network + service
+     */
+    public static double expectedTokenGrantKycFullFeeUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = TOKEN_GRANT_KYC_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Network-only fee for TokenGrantKyc failures in pre-handle.
+     */
+    public static double expectedTokenGrantKycNetworkFeeOnlyUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenRevokeKyc:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_REVOKE_KYC_BASE
+     * total   = node + network + service
+     */
+    public static double expectedTokenRevokeKycFullFeeUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = TOKEN_REVOKE_KYC_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Network-only fee for TokenRevokeKyc failures in pre-handle.
+     */
+    public static double expectedTokenRevokeKycNetworkFeeOnlyUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenFreeze:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_FREEZE_BASE
+     * total   = node + network + service
+     */
+    public static double expectedTokenFreezeFullFeeUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = TOKEN_FREEZE_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Network-only fee for TokenFreeze failures in pre-handle.
+     */
+    public static double expectedTokenFreezeNetworkFeeOnlyUsd(long sigs) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenUnfreeze:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_UNFREEZE_BASE
+     * total   = node + network + service
+     */
+    public static double expectedTokenUnfreezeFullFeeUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = TOKEN_UNFREEZE_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Network-only fee for TokenUnfreeze failures in pre-handle.
+     */
+    public static double expectedTokenUnfreezeNetworkFeeOnlyUsd(long sigs) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenPause:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_PAUSE_BASE
+     * total   = node + network + service
+     */
+    public static double expectedTokenPauseFullFeeUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = TOKEN_PAUSE_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Network-only fee for TokenPause failures in pre-handle.
+     */
+    public static double expectedTokenPauseNetworkFeeOnlyUsd(long sigs) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenUnpause:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_UNPAUSE_BASE
+     * total   = node + network + service
+     */
+    public static double expectedTokenUnpauseFullFeeUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = TOKEN_UNPAUSE_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Network-only fee for TokenUnpause failures in pre-handle.
+     */
+    public static double expectedTokenUnpauseNetworkFeeOnlyUsd(long sigs) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for TokenWipe (fungible):
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_WIPE_BASE
+     * total   = node + network + service
+     */
+    public static double expectedTokenWipeFungibleFullFeeUsd(long sigs) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = TOKEN_WIPE_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Network-only fee for TokenWipe failures in pre-handle.
+     */
+    public static double expectedTokenWipeNetworkFeeOnlyUsd(long sigs) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        return nodeFee * NETWORK_MULTIPLIER;
     }
 }
