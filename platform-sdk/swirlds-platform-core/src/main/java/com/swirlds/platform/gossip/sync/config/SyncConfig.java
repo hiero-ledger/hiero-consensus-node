@@ -23,11 +23,14 @@ import java.time.Duration;
  *                                           the event for at least this amount of time before the event is eligible to
  *                                           be sent
  * @param ancestorFilterThreshold            ignored if {@link #filterLikelyDuplicates} or {@link #broadcast} is false.
- *                                           For each event that is a self event and is an ancestor of a self event, we
- *                                           must know about the event for at least this amount of time before the event
- *                                           is eligible to be sent. This is to help to reduce duplicate rate in when
- *                                           broadcast is enabled
- * @param selfFilterThreshold
+ *                                           For each event that is not a self event and is an ancestor of a self event,
+ *                                           we must know about the event for at least this amount of time before the
+ *                                           event is eligible to be sent. This is to help to reduce duplicate rate in
+ *                                           when broadcast is enabled
+ * @param selfFilterThreshold                ignored if {@link #filterLikelyDuplicates} or {@link #broadcast} is false.
+ *                                           For each event that is a self event, we must know about the event for at
+ *                                           least this amount of time before the event is eligible to be sent. This is
+ *                                           to help to reduce duplicate rate in when broadcast is enabled
  * @param syncKeepalivePeriod                send a keepalive message every this many milliseconds when reading events
  *                                           during a sync
  * @param maxSyncTime                        the maximum amount of time to spend syncing with a peer, syncs that take
