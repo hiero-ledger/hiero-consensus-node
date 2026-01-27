@@ -201,7 +201,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                 }
             } else {
                 // For any other Hedera accounts: code delegation to System Contracts is a no-op - so just succeed.
-                context.frame.setState(MessageFrame.State.CODE_SUCCESS);
+                context.frame.setState(MessageFrame.State.COMPLETED_SUCCESS);
 
                 // Even though execution is no-op, the call may still carry value transfer.
                 if (context.transfersValue) {
@@ -284,7 +284,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
 
         if (context.isCodeDelegation) {
             // Code delegation to Precompile is a no-op - so just succeed.
-            context.frame.setState(MessageFrame.State.CODE_SUCCESS);
+            context.frame.setState(MessageFrame.State.COMPLETED_SUCCESS);
             // Even though execution is no-op, the call may still carry value transfer.
             if (context.transfersValue) {
                 doTransferValueOrHalt(context);
@@ -330,7 +330,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
     private void handleNonExtantSystemAccountCall(CustomMessageCallContext context) {
         if (context.isCodeDelegation) {
             // Code delegation is a no-op - so just succeed.
-            context.frame.setState(MessageFrame.State.CODE_SUCCESS);
+            context.frame.setState(MessageFrame.State.COMPLETED_SUCCESS);
             // Even though execution is no-op, the call may still carry value transfer.
             if (context.transfersValue) {
                 doTransferValueOrHalt(context);
