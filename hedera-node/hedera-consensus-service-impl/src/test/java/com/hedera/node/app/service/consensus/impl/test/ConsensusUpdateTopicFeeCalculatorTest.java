@@ -8,13 +8,17 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusUpdateTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 import org.assertj.core.api.Assertions;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -48,6 +52,9 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
     @Nested
     @DisplayName("update topic")
     class UpdateTopicTests {
+        static final Function<String, Key.Builder> KEY_BUILDER =
+                value -> Key.newBuilder().ed25519(Bytes.wrap(value.getBytes()));
+
         @Test
         @DisplayName("update topic")
         void updateTopic() {
@@ -58,6 +65,32 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
             assertThat(result).isNotNull();
             Assertions.assertThat(result.node).isEqualTo(100000L);
             Assertions.assertThat(result.service).isEqualTo(498500000L);
+            Assertions.assertThat(result.network).isEqualTo(200000L);
+        }
+
+        @Test
+        @DisplayName("update topic with submit, admin, and fee schedule keys")
+        void updateTopicWithKeys() {
+            final String SCHEDULE_KEY = "scheduleKey";
+            final String ADMIN_KEY = "adminKey";
+            final Key SHEDULE_KEY = Key.newBuilder()
+                    .keyList(KeyList.newBuilder()
+                            .keys(KEY_BUILDER.apply(SCHEDULE_KEY).build()))
+                    .build();
+            // 1 key =
+            final var op = ConsensusUpdateTopicTransactionBody.newBuilder()
+                    .feeScheduleKey(SHEDULE_KEY)
+                    .submitKey(SHEDULE_KEY)
+                    .adminKey(KEY_BUILDER.apply(ADMIN_KEY).build())
+                    .build();
+            final var body =
+                    TransactionBody.newBuilder().consensusUpdateTopic(op).build();
+            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+            assertThat(result).isNotNull();
+            Assertions.assertThat(result.node).isEqualTo(100000L);
+            // update topic base 498500000L
+            // -1 keys =  100000000L
+            Assertions.assertThat(result.service).isEqualTo(498500000L + 100000000L * 2);
             Assertions.assertThat(result.network).isEqualTo(200000L);
         }
     }
@@ -80,7 +113,7 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
                         makeServiceFee(
                                 HederaFunctionality.CONSENSUS_UPDATE_TOPIC,
                                 498500000L,
-                                makeExtraIncluded(Extra.SIGNATURES, 1))))
+                                makeExtraIncluded(Extra.KEYS, 1))))
                 .build();
     }
 }
