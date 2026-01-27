@@ -7,7 +7,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.GossipController;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.AbstractShadowgraphSynchronizer;
-import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
@@ -15,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.config.SyncConfig;
 
 /**
  * Base class for synchronization protocols using tipset exchange

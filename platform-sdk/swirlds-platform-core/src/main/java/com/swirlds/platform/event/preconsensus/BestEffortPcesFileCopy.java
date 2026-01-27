@@ -18,9 +18,9 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.PcesConfig;
-import org.hiero.consensus.pces.PcesFile;
-import org.hiero.consensus.pces.PcesUtilities;
+import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.pces.impl.common.PcesFile;
+import org.hiero.consensus.pces.impl.common.PcesUtilities;
 
 /**
  * Operations for copying preconsensus event files. Is not fully thread safe, best effort only. Race conditions can

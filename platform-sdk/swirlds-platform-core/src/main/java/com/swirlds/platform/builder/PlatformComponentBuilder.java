@@ -32,6 +32,8 @@ import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.gossip.SyncGossipModular;
+import com.swirlds.platform.network.protocol.Protocol;
+import com.swirlds.platform.reconnect.api.ProtocolFactory;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.DefaultHashLogger;
@@ -60,13 +62,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import java.util.ServiceLoader;
+import java.util.function.Supplier;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.PcesConfig;
-import org.hiero.consensus.pces.PcesFileManager;
-import org.hiero.consensus.pces.PcesUtilities;
+import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.pces.impl.common.PcesFileManager;
+import org.hiero.consensus.pces.impl.common.PcesUtilities;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -574,18 +579,30 @@ public class PlatformComponentBuilder {
     @NonNull
     public Gossip buildGossip() {
         if (gossip == null) {
+            final ThreadManager threadManager = AdHocThreadManager.getStaticThreadManager();
+            final Supplier<ReservedSignedState> latestCompleteState =
+                    () -> blocks.getLatestCompleteStateReference().get().get();
+
+            final ProtocolFactory factory =
+                    ServiceLoader.load(ProtocolFactory.class).findFirst().orElseThrow();
+            final Protocol reconnectProtocol = factory.createProtocol(
+                    blocks.platformContext(),
+                    threadManager,
+                    latestCompleteState,
+                    blocks.reservedSignedStateResultPromise(),
+                    blocks.fallenBehindMonitor(),
+                    blocks.stateLifecycleManager());
+
             gossip = new SyncGossipModular(
                     blocks.platformContext(),
-                    AdHocThreadManager.getStaticThreadManager(),
+                    threadManager,
                     blocks.keysAndCerts(),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
                     blocks.appVersion(),
-                    blocks.stateLifecycleManager(),
-                    () -> blocks.getLatestCompleteStateReference().get().get(),
                     blocks.intakeEventCounter(),
                     blocks.fallenBehindMonitor(),
-                    blocks.reservedSignedStateResultPromise());
+                    reconnectProtocol);
         }
         return gossip;
     }
