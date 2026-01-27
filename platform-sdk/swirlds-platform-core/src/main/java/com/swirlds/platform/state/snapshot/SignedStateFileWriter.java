@@ -138,6 +138,8 @@ public final class SignedStateFileWriter {
                 // cache are already in place, so the only thing needed is an actual data source snapshot.
                 // Sync method would be slower here, and it would block the VirtualPipeline until it is done, causing
                 // the backpressure.
+                // This optimization applies only to PERIODIC_SNAPSHOT states. States saved for other reasons
+                // (e.g., freeze states) may retain additional references and won't be destroyed here, and thus flushed.
                 final var snapshotAsync = stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
                 // Release the state reference so that current snapshot creation can be unblocked in `VirtualMap#flush`,
                 // because the copy becomes destroyed and thus can be flushed.
