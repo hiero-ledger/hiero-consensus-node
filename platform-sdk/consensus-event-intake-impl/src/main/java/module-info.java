@@ -4,6 +4,8 @@ import org.hiero.consensus.event.intake.impl.DefaultEventIntakeModule;
 
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.event.intake.impl {
+    exports org.hiero.consensus.event.intake.impl.validation;
+    exports org.hiero.consensus.event.intake.impl.deduplication;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
