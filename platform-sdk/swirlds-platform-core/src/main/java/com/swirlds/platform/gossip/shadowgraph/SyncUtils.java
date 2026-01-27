@@ -129,7 +129,7 @@ public final class SyncUtils {
      * @param connection           the connection to write to
      * @param theirTipsIHave       for each tip they sent me, write true if I have it, false otherwise. Order
      *                             corresponds to the order in which they sent me their tips.
-     * @param ignoreIncomingEvents
+     * @param ignoreIncomingEvents should remote side stop sending events
      * @return a {@link Callable} that writes the booleans
      */
     public static ThrowingRunnable writeTheirTipsIHave(
@@ -382,17 +382,26 @@ public final class SyncUtils {
      * have and that are unlikely to end up being duplicate events.
      *
      * <p>
-     * General principles:
+     * General principles if broadcast is disabled:
      * <ul>
      * <li>Always send self events right away.</li>
      * <li>Don't send non-ancestors of self events unless we've known about that event for a long time.</li>
      * </ul>
      *
+     * <p>
+     * General principles if broadcast is enabled:
+     * <ul>
+     * <li>Don't send ancestors of self events coming from other nodes for short amount of time</li>
+     * <li>Don't send non-ancestors of self events or self events themselves unless we've known about that event for a long time.</li>
+     * </ul>
+     *
      * @param selfId                  the id of this node
      * @param nonAncestorThreshold    for each event that is not a self event and is not an ancestor of a self event,
      *                                the amount of time the event must be known about before it is eligible to be sent
-     * @param ancestorFilterThreshold
-     * @param selfFilterThreshold
+     * @param ancestorFilterThreshold for each event that is not a self event and is an ancestor of a self event, the
+     *                                amount of time the event must be known about before it is eligible to be sent
+     * @param selfFilterThreshold     for each event that is a self event the amount of time the event must be known
+     *                                about before it is eligible to be sent
      * @param now                     the current time
      * @param eventsTheyNeed          the list of events we think they need, expected to be in topological order
      * @return the events that should be actually sent, will be a subset of the eventsTheyNeed list

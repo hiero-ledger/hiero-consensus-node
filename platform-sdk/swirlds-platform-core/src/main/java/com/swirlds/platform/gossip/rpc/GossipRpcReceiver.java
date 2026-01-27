@@ -42,5 +42,5 @@ public interface GossipRpcReceiver {
     /**
      * {@link GossipRpcSender#sendBroadcastEvent(GossipEvent)}
      */
-    void receiveBroadcastEvent(GossipEvent gossipEvent);
+    void receiveBroadcastEvent(@NonNull GossipEvent gossipEvent);
 }

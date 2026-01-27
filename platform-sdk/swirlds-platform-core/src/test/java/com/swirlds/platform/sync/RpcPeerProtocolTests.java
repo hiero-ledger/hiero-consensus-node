@@ -180,7 +180,7 @@ public class RpcPeerProtocolTests {
                 }
 
                 @Override
-                public void receiveBroadcastEvent(final GossipEvent gossipEvent) {
+                public void receiveBroadcastEvent(@NonNull final GossipEvent gossipEvent) {
                     // no-op
                 }
             });

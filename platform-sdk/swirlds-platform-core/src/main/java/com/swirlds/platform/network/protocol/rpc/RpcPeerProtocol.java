@@ -86,13 +86,22 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      */
     private final RpcPingHandler pingHandler;
 
-    private final boolean keepSendingEventsWhenUnhealthy;
-
     /** A duration between reporting full stack traces for socket exceptions. */
     private static final Duration SOCKET_EXCEPTION_DURATION = Duration.ofMinutes(1);
 
+    /**
+     * Internal log rate limiter to avoid spamming logs
+     */
     private final RateLimiter exceptionRateLimiter;
+
+    /**
+     * Pluggable exception handler, mostly useful for testing.
+     */
     private final RpcInternalExceptionHandler exceptionHandler;
+
+    /**
+     * Configuration for sync parameters
+     */
     private final SyncConfig syncConfig;
 
     /**
@@ -202,7 +211,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
         this.syncConfig = syncConfig;
         this.pingHandler = new RpcPingHandler(time, networkMetrics, remotePeerId, this);
-        this.keepSendingEventsWhenUnhealthy = syncConfig.keepSendingEventsWhenUnhealthy();
 
         this.exceptionRateLimiter = new RateLimiter(time, SOCKET_EXCEPTION_DURATION);
         this.exceptionHandler = exceptionHandler;
@@ -329,8 +337,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 }
                 // permitProvider health indicates that system is overloaded, and we are getting backpressure; we need
                 // to give up on spamming network and/or reading new messages and let things settle down
-                final boolean wantToExit =
-                        gossipHalted.get() || (!permitProvider.isHealthy() && !keepSendingEventsWhenUnhealthy);
+                final boolean wantToExit = gossipHalted.get()
+                        || (!permitProvider.isHealthy() && !syncConfig.keepSendingEventsWhenUnhealthy());
                 if (!rpcPeerHandler.checkForPeriodicActions(wantToExit, !permitProvider.isHealthy())) {
                     // handler told us we are ok to stop processing messages right now due to platform not being healthy
                     processMessages = false;

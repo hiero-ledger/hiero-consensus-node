@@ -104,7 +104,7 @@ final class RpcPingHandler {
      *
      * @param pingReply reply to our ping
      */
-    long handleIncomingPingReply(final GossipPing pingReply) {
+    long handleIncomingPingReply(@NonNull final GossipPing pingReply) {
         final GossipPing original = sentPings.remove(pingReply.correlationId());
         if (original == null) {
             logger.error(

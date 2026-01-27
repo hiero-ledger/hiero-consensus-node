@@ -12,9 +12,9 @@ import org.hiero.consensus.model.node.NodeId;
 /**
  * Helper class for checking if rpc communication is overloaded (ping or output queue) and informs to disable broadcast
  * if it is the case. From this class point of view it doesn't know anything about broadcast, just informs provided
- * callback about being 'overloaded'
- * Please see {@link SyncConfig.throttleOutputQueueThreshold}, {@link SyncConfig.disableBroadcastPingThreshold} and
- * {@link SyncConfig.pauseBroadcastOnLag} for configuration options
+ * callback about being 'overloaded' Please see {@link SyncConfig#throttleOutputQueueThreshold()},
+ * {@link SyncConfig#disableBroadcastPingThreshold()} and {@link SyncConfig#pauseBroadcastOnLag()} for configuration
+ * options
  */
 public class RpcOverloadMonitor {
 
@@ -27,7 +27,7 @@ public class RpcOverloadMonitor {
     private volatile long lastCommunicationOverloadReported = -1;
     private volatile long disabledBroadcastDueToLag = -1;
 
-    public RpcOverloadMonitor(
+    RpcOverloadMonitor(
             @NonNull final NodeId peerId,
             @NonNull final SyncConfig syncConfig,
             @NonNull final SyncMetrics syncMetrics,
@@ -46,7 +46,7 @@ public class RpcOverloadMonitor {
      *
      * @param size number of items in the queue
      */
-    public void reportOutputQueueSize(final int size) {
+    void reportOutputQueueSize(final int size) {
         if (size > syncConfig.throttleOutputQueueThreshold()) {
             communicationOverloadHandler.accept(true);
             syncMetrics.disabledBroadcastDueToOverload(true);
@@ -65,7 +65,7 @@ public class RpcOverloadMonitor {
      *
      * @param pingMillis roundtrip of message being interpreted in milliseconds
      */
-    public void reportPing(final long pingMillis) {
+    void reportPing(final long pingMillis) {
         if (disabledBroadcastDueToLag < 0
                 && pingMillis > syncConfig.disableBroadcastPingThreshold().toMillis()) {
             disabledBroadcastDueToLag = time.currentTimeMillis();

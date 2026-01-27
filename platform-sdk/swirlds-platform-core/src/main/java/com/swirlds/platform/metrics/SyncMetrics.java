@@ -702,10 +702,20 @@ public class SyncMetrics {
         syncsInProgress.add(-1);
     }
 
+    /**
+     * Broadcast was disabled or enabled due to ping lag between the nodes
+     *
+     * @param disabled is broadcast disabled
+     */
     public void disabledBroadcastDueToLag(final boolean disabled) {
         broadcastDisabledDueToLag.add(disabled ? 1 : -1);
     }
 
+    /**
+     * Broadcast was disabled or enabled due to rpc queue size for a peer
+     *
+     * @param disabled is broadcast disabled
+     */
     public void disabledBroadcastDueToOverload(final boolean disabled) {
         broadcastDisabledDueToOverload.add(disabled ? 1 : -1);
     }

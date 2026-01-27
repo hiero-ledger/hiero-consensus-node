@@ -119,7 +119,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     /**
      * Should all incoming events be ignored due to platoform being unhealthy
      */
-    private boolean lastIgnoreIncomingEvents;
+    private boolean ignoreIncomingEvents;
 
     /**
      * Indication if communication with peer is overloaded for some reason (network issues). Used to disable broadcast
@@ -172,12 +172,13 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
 
     /**
      * {@inheritDoc}
+     * <p>
+     * Called on dispatch thread
      */
-    // dispatch thread
     @Override
     public boolean checkForPeriodicActions(final boolean wantToExit, final boolean ignoreIncomingEvents) {
 
-        this.lastIgnoreIncomingEvents = ignoreIncomingEvents;
+        this.ignoreIncomingEvents = ignoreIncomingEvents;
 
         if (!isSyncCooldownComplete()) {
             this.syncMetrics.doNotSyncCooldown();
@@ -223,8 +224,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
 
     /**
      * {@inheritDoc}
+     * <p>
+     * Called on protocol thread (which is equivalent to read-thread)
      */
-    // protocol thread (which is equivalent to read-thread)
     @Override
     public void cleanup() {
         if (state.mySyncData != null) {
@@ -244,11 +246,12 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     }
 
     /**
-     * Send event to remote node outside of normal sync logic (most probably due to broadcast)
+     * Send event to remote node outside of normal sync logic (due to broadcast)
+     * <p>
+     * Called on protocol thread (which is equivalent to read-thread)
      *
      * @param gossipEvent event to be sent
      */
-    // platform thread
     public void broadcastEvent(@NonNull final GossipEvent gossipEvent) {
         // don't spam remote side if it is going to reconnect
         // or if we haven't completed even a first sync, as it might be a recovery phase for either for us
@@ -258,14 +261,6 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         if (isBroadcastRunning()) {
             sender.sendBroadcastEvent(gossipEvent);
         }
-    }
-
-    private boolean isBroadcastRunning() {
-
-        return syncConfig.broadcast()
-                && !state.peerIsBehind
-                && state.lastSyncFinishedTime != Instant.MIN
-                && !communicationOverload;
     }
 
     // HANDLE INCOMING MESSAGES - all done on dispatch thread
@@ -360,18 +355,22 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         this.lastReceiveEventFinished = time.nanoTime();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void receiveBroadcastEvent(final GossipEvent gossipEvent) {
+    public void receiveBroadcastEvent(@NonNull final GossipEvent gossipEvent) {
         // we don't use handleIncomingSyncEvent, as we don't want to block sync till this event is resolved
         // so no marking it in intakeEventCounter
 
-        if (lastIgnoreIncomingEvents) {
+        if (ignoreIncomingEvents) {
             // we need to ignore broadcast events if system is unhealthy
             return;
         }
 
         // this method won't be called if we have fallen behind, as reconnect protocol will take over, preempting rpc
-        // protocol, so nobody will broadcast events to us anymore
+        // protocol, so nobody will broadcast events to us anymore; this means we won't be overloading intake pipeline
+        // with random events, no need to make extra checks here
         this.syncMetrics.broadcastEventReceived();
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
         eventHandler.accept(platformEvent);
@@ -422,7 +421,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         sendKnownTips();
     }
 
-    private boolean tryFixSelfFallBehind(final EventWindow remoteEventWindow) {
+    private boolean tryFixSelfFallBehind(@NonNull final EventWindow remoteEventWindow) {
         try (final ReservedEventWindow latestShadowWindow = sharedShadowgraphSynchronizer.reserveEventWindow()) {
             final FallenBehindStatus behindStatus =
                     fallenBehindMonitor.check(latestShadowWindow.getEventWindow(), remoteEventWindow, peerId);
@@ -513,5 +512,21 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         platformEvent.setSenderId(peerId);
         this.intakeEventCounter.eventEnteredIntakePipeline(peerId);
         eventHandler.accept(platformEvent);
+    }
+
+    /**
+     * Are we currently in the state where broadcast is allowed to run?
+     * <p>
+     * Can be called on various threads. It is informative only, so we won't break if it is slightly delayed in
+     * reporting the status.
+     *
+     * @return should broadcast be active
+     */
+    private boolean isBroadcastRunning() {
+
+        return syncConfig.broadcast()
+                && !state.peerIsBehind
+                && state.lastSyncFinishedTime != Instant.MIN
+                && !communicationOverload;
     }
 }
