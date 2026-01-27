@@ -6,6 +6,7 @@ import static com.hedera.node.app.info.DiskStartupNetworks.ARCHIVE;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
@@ -21,6 +22,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
@@ -257,7 +259,7 @@ class DiskStartupNetworksTest {
         addRosterInfo(state, network);
         addAddressBookInfo(state, network);
         final var writableStates = state.getWritableStates(PlatformStateService.NAME);
-        new PlatformStateService().doGenesisSetup(writableStates, DEFAULT_CONFIG);
+        writableStates.getSingleton(PLATFORM_STATE_STATE_ID).put(PlatformState.DEFAULT);
         ((CommittableWritableStates) writableStates).commit();
         return state;
     }
