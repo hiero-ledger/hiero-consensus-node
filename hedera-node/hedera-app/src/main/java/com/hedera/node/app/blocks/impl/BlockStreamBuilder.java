@@ -1526,7 +1526,12 @@ public class BlockStreamBuilder
      */
     private TranslationContext translationContext() {
         return switch (requireNonNull(functionality)) {
-            case CONTRACT_CALL, CONTRACT_CREATE, CONTRACT_DELETE, CONTRACT_UPDATE, ETHEREUM_TRANSACTION ->
+            case HOOK_DISPATCH,
+                    CONTRACT_CALL,
+                    CONTRACT_CREATE,
+                    CONTRACT_DELETE,
+                    CONTRACT_UPDATE,
+                    ETHEREUM_TRANSACTION ->
                 new ContractOpContext(
                         memo,
                         translationContextExchangeRates,
