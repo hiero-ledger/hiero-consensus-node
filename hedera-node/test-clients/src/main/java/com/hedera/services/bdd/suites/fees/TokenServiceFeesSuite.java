@@ -144,15 +144,14 @@ public class TokenServiceFeesSuite {
         var receiver = "receiver";
         return hapiTest(
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
-                newKeyNamed(FUNGIBLE_FREEZE_KEY),
                 tokenCreate(FUNGIBLE_TOKEN)
                         .treasury(OWNER)
                         .tokenType(FUNGIBLE_COMMON)
-                        .freezeKey(FUNGIBLE_FREEZE_KEY)
                         .initialSupply(1000L),
                 cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
                 tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, receiver))
                         .payingWith(OWNER)
+                        .signedBy(OWNER)
                         .via("airdrop"),
                 tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, receiver))
                         .payingWith(OWNER)
