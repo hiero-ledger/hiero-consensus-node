@@ -5,8 +5,6 @@ import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.filterLikelyDupl
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.gossip.SyncException;
-import com.swirlds.platform.gossip.shadowgraph.SyncUtils.TipsInfo;
 import com.swirlds.platform.metrics.SyncMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
