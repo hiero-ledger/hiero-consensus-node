@@ -78,7 +78,7 @@ env:
 jobs:
   otter:
     name: ${{ inputs.custom-job-label || 'Otter Tests' }}
-    runs-on: hiero-cn-otter-lin-large
+    runs-on: hiero-cn-otter-linux
     outputs:
       failure-mode: ${{ steps.calculate-failure-mode.outputs.failure-mode }}
     steps:
