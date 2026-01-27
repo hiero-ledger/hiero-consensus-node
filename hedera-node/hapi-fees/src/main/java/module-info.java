@@ -24,6 +24,7 @@ module com.hedera.node.app.hapi.fees {
     requires transitive static java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
     requires com.fasterxml.jackson.databind;
+    requires com.hedera.pbj.runtime;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
