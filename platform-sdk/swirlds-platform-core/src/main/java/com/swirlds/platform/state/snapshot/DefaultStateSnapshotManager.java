@@ -120,26 +120,33 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         final StateSavingResult stateSavingResult;
 
         // the state is reserved before it is handed to this method, and it is released when we are done
-        final SignedState signedState = reservedSignedState.get();
-        if (signedState.hasStateBeenSavedToDisk()) {
-            logger.info(
-                    EXCEPTION.getMarker(),
-                    "Not saving signed state for round {} to disk because it has already been saved.",
-                    signedState.getRound());
-            return null;
+        try {
+            final SignedState signedState = reservedSignedState.get();
+            if (signedState.hasStateBeenSavedToDisk()) {
+                logger.info(
+                        EXCEPTION.getMarker(),
+                        "Not saving signed state for round {} to disk because it has already been saved.",
+                        signedState.getRound());
+                return null;
+            }
+            checkSignatures(signedState);
+            final boolean success = saveStateTask(reservedSignedState, getSignedStateDir(signedState.getRound()));
+            if (!success) {
+                return null;
+            }
+            signedState.stateSavedToDisk();
+            final long minBirthRound = deleteOldStates();
+            stateSavingResult = new StateSavingResult(
+                    signedState.getRound(),
+                    signedState.isFreezeState(),
+                    signedState.getConsensusTimestamp(),
+                    minBirthRound);
+        } finally {
+            if (!reservedSignedState.isClosed()) {
+                reservedSignedState.close();
+            }
         }
-        checkSignatures(signedState);
-        final boolean success = saveStateTask(reservedSignedState, getSignedStateDir(signedState.getRound()));
-        if (!success) {
-            return null;
-        }
-        signedState.stateSavedToDisk();
-        final long minBirthRound = deleteOldStates();
-        stateSavingResult = new StateSavingResult(
-                signedState.getRound(),
-                signedState.isFreezeState(),
-                signedState.getConsensusTimestamp(),
-                minBirthRound);
+
         metrics.getStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
         metrics.getWriteStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
 
