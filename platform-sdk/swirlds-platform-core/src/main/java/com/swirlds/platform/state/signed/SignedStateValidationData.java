@@ -11,6 +11,7 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Optional;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -40,9 +41,9 @@ public record SignedStateValidationData(
     public SignedStateValidationData(@NonNull final State that, @Nullable final Roster roster) {
         this(
                 roundOf(that),
-                consensusTimestampOf(that),
+                Optional.ofNullable(consensusTimestampOf(that)).orElse(Instant.EPOCH),
                 roster == null ? null : RosterUtils.hash(roster),
-                legacyRunningEventHashOf(that));
+                Optional.ofNullable(legacyRunningEventHashOf(that)).orElse(new Hash()));
     }
 
     /**

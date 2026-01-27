@@ -199,7 +199,6 @@ public class ReconnectController implements Runnable {
             logger.info(RECONNECT.getMarker(), "A state was obtained from a peer");
             // We validate the data in the peer state relative to our current state
             final SignedStateValidationData data = new SignedStateValidationData(currentState, roster);
-            // Ensure platform schemas are registered before accessing peer state
             SignedStateFileReader.registerServiceStates(
                     result.reservedSignedState().get());
             signedStateValidator.validate(result.reservedSignedState().get(), roster, data);
