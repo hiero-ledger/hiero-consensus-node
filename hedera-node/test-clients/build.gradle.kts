@@ -63,13 +63,14 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES|ISOLATED)"
 val matsSuffix = "MATS"
 
 val basePrCheckTags =
     mapOf(
         "hapiTestAdhoc" to "ADHOC",
         "hapiTestCrypto" to "CRYPTO",
+        "hapiTestIsolated" to "ISOLATED",
         "hapiTestToken" to "TOKEN",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
@@ -118,6 +119,7 @@ val prCheckStartPorts =
         put("hapiTestNDReconnect", "26000")
         put("hapiTestTimeConsuming", "26200")
         put("hapiTestIss", "26400")
+        put("hapiTestIsolated", "26600")
         put("hapiTestMisc", "26800")
         put("hapiTestBlockNodeCommunication", "27000")
         put("hapiTestMiscRecords", "27200")
@@ -181,6 +183,7 @@ val prCheckNetSizeOverrides =
     buildMap<String, String> {
         put("hapiTestAdhoc", "3")
         put("hapiTestCrypto", "3")
+        put("hapiTestIsolated", "3")
         put("hapiTestToken", "3")
         put("hapiTestSmartContract", "4")
 
@@ -213,6 +216,13 @@ tasks.register<Test>("testSubprocess") {
             .filter { it.isNotBlank() }
             .toList()
             .joinToString("|")
+    // Run stream/log validation once after all tests complete (not as regular tests).
+    // NOTE: We intentionally disable this for ISS and BLOCK_NODE test runs.
+    val runPostValidations =
+        ciTagExpression.isNotBlank() &&
+            !ciTagExpression.contains("ISS") &&
+            !ciTagExpression.contains("BLOCK_NODE")
+    systemProperty("hapi.spec.run.post.validations", runPostValidations.toString())
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
@@ -220,7 +230,7 @@ tasks.register<Test>("testSubprocess") {
             // cases
             else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
+            else "(${ciTagExpression})&!(EMBEDDED|REPEATABLE|ISS)"
         )
     }
 
@@ -293,12 +303,10 @@ tasks.register<Test>("testSubprocess") {
     )
     systemProperty("junit.jupiter.execution.parallel.enabled", true)
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
-    // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
-    // correctly if test classes run in parallel (concurrent execution WITHIN a test class
-    // is fine). So we need to force the test classes to run in the same thread. Luckily this
-    // is not a huge limitation, as our test classes generally have enough non-leaky tests to
-    // get a material speed up. See https://github.com/gradle/gradle/issues/6453.
-    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
+    // Enable parallel execution across both classes and methods. We run stream/log validation
+    // once after the entire test plan finishes (see hapi.spec.run.post.validations) to avoid
+    // relying on JUnit scheduling to make validation run last.
+    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
     systemProperty(
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
@@ -412,11 +420,13 @@ tasks.register<Test>("testEmbedded") {
             .filter { it.isNotBlank() }
             .toList()
             .joinToString("|")
+    // Run stream/log validation once after all tests complete (not as regular tests).
+    systemProperty("hapi.spec.run.post.validations", ciTagExpression.isNotBlank().toString())
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank())
                 "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
+            else "(${ciTagExpression})&!(INTEGRATION|ISS)"
         )
     }
 
@@ -486,11 +496,13 @@ tasks.register<Test>("testRepeatable") {
             .filter { it.isNotBlank() }
             .toList()
             .joinToString("|")
+    // Run stream/log validation once after all tests complete (not as regular tests).
+    systemProperty("hapi.spec.run.post.validations", ciTagExpression.isNotBlank().toString())
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank())
                 "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
+            else "(${ciTagExpression})&!(INTEGRATION|ISS)"
         )
     }
 

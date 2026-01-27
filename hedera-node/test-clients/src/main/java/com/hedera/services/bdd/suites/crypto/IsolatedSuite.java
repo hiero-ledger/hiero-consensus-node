@@ -2,7 +2,10 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
-import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
+import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.ISOLATED;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -49,11 +52,20 @@ import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
-@Tag(CRYPTO)
+/**
+ * Contains CRYPTO-tagged tests that must not run concurrently with other tests (for example,
+ * tests using {@code @LeakyHapiTest}, {@code @GenesisHapiTest}, or {@code @Isolated}).
+ *
+ * <p>These tests are moved out of the regular crypto suites so CRYPTO suites can execute with
+ * higher concurrency while still allowing these tests to be selected explicitly via the
+ * {@link com.hedera.services.bdd.junit.TestTags#ISOLATED} tag.
+ */
+@Tag(ISOLATED)
 @HapiTestLifecycle
-public class CryptoRecordsSanityCheckSuite {
+public class IsolatedSuite {
     private static final String PAYER = "payer";
     private static final String RECEIVER = "receiver";
     private static final String NEW_KEY = "newKey";
@@ -61,6 +73,7 @@ public class CryptoRecordsSanityCheckSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        // Matches the prior behavior in CryptoRecordsSanityCheckSuite
         testLifecycle.overrideInClass(Map.of("nodes.feeCollectionAccountEnabled", "false"));
     }
 
@@ -101,8 +114,7 @@ public class CryptoRecordsSanityCheckSuite {
                 takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR),
                 cryptoCreate("test").via("txn"),
                 validateTransferListForBalances(
-                        "txn",
-                        List.of("test", FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR)),
+                        "txn", List.of("test", FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR)),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
@@ -140,8 +152,7 @@ public class CryptoRecordsSanityCheckSuite {
                 takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
                 cryptoUpdate("test").key(NEW_KEY).via("txn").fee(500_000L).payingWith("test"),
                 validateTransferListForBalances(
-                        "txn",
-                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR)),
+                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR)),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
@@ -192,4 +203,99 @@ public class CryptoRecordsSanityCheckSuite {
                         .hasPrecheckFrom(OK, INVALID_SIGNATURE)
                         .hasKnownStatus(INVALID_PAYER_SIGNATURE));
     }
+
+    // -------------------------------------------------------------------------
+    // Isolated/leaky tests moved out of regular CRYPTO suites.
+    // (These wrappers are the actual JUnit test factories; implementation lives in helpers.)
+    // -------------------------------------------------------------------------
+
+    @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+    final Stream<DynamicTest> createFailsIfMaxAutoAssocIsNegativeAndUnlimitedFlagDisabled() {
+        return CryptoIsolatedOps.createFailsIfMaxAutoAssocIsNegativeAndUnlimitedFlagDisabled();
+    }
+
+    @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+    final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationsDisabled() {
+        return CryptoIsolatedOps.autoAccountCreationsUnlimitedAssociationsDisabled();
+    }
+
+    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    @Tag(MATS)
+    final Stream<DynamicTest> deletedAccountCannotBePayer() {
+        return CryptoIsolatedOps.deletedAccountCannotBePayer();
+    }
+
+    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    final Stream<DynamicTest> reduceTransferFee() {
+        return CryptoIsolatedOps.reduceTransferFee();
+    }
+
+    @LeakyHapiTest(overrides = {"hedera.allowances.maxTransactionLimit"})
+    final Stream<DynamicTest> exceedsTransactionLimit() {
+        return CryptoIsolatedOps.exceedsTransactionLimit();
+    }
+
+    @LeakyHapiTest(overrides = {"tokens.maxRelsPerInfoQuery"})
+    @Tag(MATS)
+    final Stream<DynamicTest> fetchesOnlyALimitedTokenAssociations() {
+        return CryptoIsolatedOps.fetchesOnlyALimitedTokenAssociations();
+    }
+
+    @LeakyHapiTest(
+            requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
+            overrides = {"tokens.countingGetBalanceThrottleEnabled"},
+            throttles = "testSystemFiles/tiny-get-balance-throttle.json")
+    public Stream<DynamicTest> cryptoGetAccountBalanceQueryAssociationThrottles() {
+        return CryptoIsolatedOps.cryptoGetAccountBalanceQueryAssociationThrottles();
+    }
+
+    @LeakyHapiTest(overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
+    @Tag(MATS)
+    final Stream<DynamicTest> usdFeeAsExpectedCryptoUpdate() {
+        return CryptoIsolatedOps.usdFeeAsExpectedCryptoUpdate();
+    }
+
+    @Order(16)
+    @LeakyHapiTest(overrides = {"ledger.maxAutoAssociations", "ledger.autoRenewPeriod.minDuration"})
+    final Stream<DynamicTest> autoAssociationPropertiesWorkAsExpected() {
+        return LeakyCryptoIsolatedOps.autoAssociationPropertiesWorkAsExpected();
+    }
+
+    @Order(1)
+    @LeakyHapiTest(overrides = {"ledger.autoRenewPeriod.minDuration"})
+    final Stream<DynamicTest> cannotDissociateFromExpiredTokenWithNonZeroBalance() {
+        return LeakyCryptoIsolatedOps.cannotDissociateFromExpiredTokenWithNonZeroBalance();
+    }
+
+    @Order(2)
+    @LeakyHapiTest(overrides = {"hedera.allowances.maxTransactionLimit", "hedera.allowances.maxAccountLimit"})
+    final Stream<DynamicTest> cannotExceedAccountAllowanceLimit() {
+        return LeakyCryptoIsolatedOps.cannotExceedAccountAllowanceLimit();
+    }
+
+    @Order(3)
+    @LeakyHapiTest(overrides = {"hedera.allowances.maxTransactionLimit", "hedera.allowances.maxAccountLimit"})
+    final Stream<DynamicTest> cannotExceedAllowancesTransactionLimit() {
+        return LeakyCryptoIsolatedOps.cannotExceedAllowancesTransactionLimit();
+    }
+
+    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    @Tag(MATS)
+    final Stream<DynamicTest> hollowAccountCreationChargesExpectedFees() {
+        return LeakyCryptoIsolatedOps.hollowAccountCreationChargesExpectedFees();
+    }
+
+    @Order(14)
+    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @Tag(MATS)
+    final Stream<DynamicTest> contractDeployAfterEthereumTransferLazyCreate() {
+        return LeakyCryptoIsolatedOps.contractDeployAfterEthereumTransferLazyCreate();
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @Tag(MATS)
+    final Stream<DynamicTest> contractCallAfterEthereumTransferLazyCreate() {
+        return LeakyCryptoIsolatedOps.contractCallAfterEthereumTransferLazyCreate();
+    }
 }
+

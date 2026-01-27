@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
-import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -49,7 +48,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
@@ -96,26 +94,6 @@ public class MiscCryptoSuite {
                         .signedBy(firstKey)
                         .payingWith(randomAccountB)
                         .hasKnownStatus(INVALID_SIGNATURE));
-    }
-
-    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
-    final Stream<DynamicTest> reduceTransferFee() {
-        final long REDUCED_NODE_FEE = 2L;
-        final long REDUCED_NETWORK_FEE = 3L;
-        final long REDUCED_SERVICE_FEE = 3L;
-        final long REDUCED_TOTAL_FEE = REDUCED_NODE_FEE + REDUCED_NETWORK_FEE + REDUCED_SERVICE_FEE;
-        return hapiTest(
-                cryptoCreate("sender").balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("receiver").balance(0L),
-                cryptoTransfer(tinyBarsFromTo("sender", "receiver", ONE_HBAR))
-                        .payingWith("sender")
-                        .fee(REDUCED_TOTAL_FEE)
-                        .hasPrecheck(INSUFFICIENT_TX_FEE),
-                reduceFeeFor(CryptoTransfer, REDUCED_NODE_FEE, REDUCED_NETWORK_FEE, REDUCED_SERVICE_FEE),
-                cryptoTransfer(tinyBarsFromTo("sender", "receiver", ONE_HBAR))
-                        .payingWith("sender")
-                        .fee(ONE_HBAR),
-                getAccountBalance("sender").hasTinyBars(ONE_HUNDRED_HBARS - ONE_HBAR - REDUCED_TOTAL_FEE));
     }
 
     @HapiTest

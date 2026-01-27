@@ -66,7 +66,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -263,28 +262,6 @@ public class CryptoCreateSuite {
                         .alias(evmAddress.get())
                         .via(creation)),
                 sourcing(() -> getTxnRecord(creation).logged()));
-    }
-
-    @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
-    final Stream<DynamicTest> createFailsIfMaxAutoAssocIsNegativeAndUnlimitedFlagDisabled() {
-        return hapiTest(
-                overriding("entities.unlimitedAutoAssociationsEnabled", FALSE_VALUE),
-                cryptoCreate(CIVILIAN)
-                        .balance(0L)
-                        .maxAutomaticTokenAssociations(-1)
-                        .hasKnownStatus(INVALID_MAX_AUTO_ASSOCIATIONS),
-                cryptoCreate(CIVILIAN)
-                        .balance(0L)
-                        .maxAutomaticTokenAssociations(-2)
-                        .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS),
-                cryptoCreate(CIVILIAN)
-                        .balance(0L)
-                        .maxAutomaticTokenAssociations(-1000)
-                        .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS),
-                cryptoCreate(CIVILIAN)
-                        .balance(0L)
-                        .maxAutomaticTokenAssociations(Integer.MIN_VALUE)
-                        .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS));
     }
 
     @HapiTest

@@ -9,6 +9,8 @@ import static com.hedera.services.bdd.junit.support.TestPlanUtils.hasAnnotatedTe
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateAllLogsAfter;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateStreams;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -21,6 +23,7 @@ import com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.validators.HighVolumePricingValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
@@ -50,6 +53,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
     private static final List<Consumer<HederaNetwork>> onSubProcessReady = new ArrayList<>();
 
     public static final int CLASSIC_HAPI_TEST_NETWORK_SIZE = 4;
+    private static final String RUN_POST_VALIDATIONS_PROPERTY = "hapi.spec.run.post.validations";
+    private static final Duration VALIDATION_DELAY = Duration.ofSeconds(1);
 
     /**
      * Add a listener to be notified when the network is ready.
@@ -144,10 +149,48 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
 
         @Override
         public void testPlanExecutionFinished(@NonNull final TestPlan testPlan) {
-            if (embedding == Embedding.NA) {
-                HapiClients.tearDown();
+            final HederaNetwork network = SHARED_NETWORK.get();
+            try {
+                if (shouldRunPostValidations() && network != null) {
+                    runPostValidations(network);
+                }
+            } finally {
+                if (embedding == Embedding.NA) {
+                    HapiClients.tearDown();
+                }
+                Optional.ofNullable(network).ifPresent(HederaNetwork::terminate);
             }
-            Optional.ofNullable(SHARED_NETWORK.get()).ifPresent(HederaNetwork::terminate);
+        }
+
+        private static boolean shouldRunPostValidations() {
+            return Optional.ofNullable(System.getProperty(RUN_POST_VALIDATIONS_PROPERTY))
+                    .map(Boolean::parseBoolean)
+                    .orElse(false);
+        }
+
+        /**
+         * Runs log and stream validation after the entire test plan has finished.
+         *
+         * <p>This avoids relying on JUnit class/method scheduling to ensure validation is last, and ensures
+         * validation observes artifacts produced by all tests executed against the shared network.
+         *
+         * @param network the shared network used by the test plan
+         */
+        private static void runPostValidations(@NonNull final HederaNetwork network) {
+            requireNonNull(network);
+            final var logValidationOp = validateAllLogsAfter(VALIDATION_DELAY);
+            final var streamValidationOp = validateStreams();
+            final var validationSpec =
+                    new HapiSpec(
+                            "PostTestLogAndStreamValidation",
+                            new SpecOperation[] {logValidationOp, streamValidationOp});
+            validationSpec.setTargetNetwork(network);
+            Optional.ofNullable(SHARED_BLOCK_NODE_NETWORK.get()).ifPresent(validationSpec::setBlockNodeNetwork);
+            try {
+                validationSpec.execute();
+            } catch (final Throwable t) {
+                throw new RuntimeException("Post-test log/stream validation failed", t);
+            }
         }
 
         /**
