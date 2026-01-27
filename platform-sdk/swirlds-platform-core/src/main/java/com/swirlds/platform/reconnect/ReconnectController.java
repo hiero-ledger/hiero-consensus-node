@@ -146,7 +146,7 @@ public class ReconnectController implements Runnable {
                 currentState.getHash(); // hash the state
                 int failedReconnectsInARow = 0;
                 do {
-                    final AttemptReconnectResult result = attemptReconnect();
+                    final AttemptReconnectResult result = attemptReconnect(currentState);
                     if (result.success()) {
                         // reset the monitor to the initial state
                         fallenBehindMonitor.clear();
@@ -180,7 +180,8 @@ public class ReconnectController implements Runnable {
     }
 
     /** One reconnect attempt; returns true on success. */
-    private AttemptReconnectResult attemptReconnect() throws InterruptedException {
+    private AttemptReconnectResult attemptReconnect(@NonNull final MerkleNodeState currentState)
+            throws InterruptedException {
         // This is a direct connection with the protocols at Gossip component.
         // reservedStateResource is a blocking data structure that will provide a signed state from one of the peers
         // At the same time this code is evaluated, the ReconnectStateProtocol is being executed
@@ -196,12 +197,11 @@ public class ReconnectController implements Runnable {
             }
 
             logger.info(RECONNECT.getMarker(), "A state was obtained from a peer");
-            // Ensure the platform schemas are registered before accessing any state
+            // We validate the data in the peer state relative to our current state
+            final SignedStateValidationData data = new SignedStateValidationData(currentState, roster);
+            // Ensure platform schemas are registered before accessing peer state
             SignedStateFileReader.registerServiceStates(
                     result.reservedSignedState().get());
-            // Now validate the data in the state
-            final SignedStateValidationData data = new SignedStateValidationData(
-                    result.reservedSignedState().get().getState(), roster);
             signedStateValidator.validate(result.reservedSignedState().get(), roster, data);
             logger.info(RECONNECT.getMarker(), "The state obtained from a peer was validated");
             loadState(result.reservedSignedState().get());
