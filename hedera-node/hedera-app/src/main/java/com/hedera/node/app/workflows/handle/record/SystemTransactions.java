@@ -19,6 +19,7 @@ import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
@@ -46,6 +47,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.tss.LedgerIdNodeContribution;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -94,6 +96,7 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -168,8 +171,8 @@ public class SystemTransactions {
     private int nextDispatchNonce = 1;
 
     @FunctionalInterface
-    public interface KvStateChangeStreaming {
-        void doStreamingKVChanges(
+    public interface StateChangeStreaming {
+        void doStreamingChanges(
                 @NonNull WritableStates writableStates,
                 @Nullable WritableStates entityIdWritableStates,
                 @NonNull Runnable action);
@@ -228,21 +231,31 @@ public class SystemTransactions {
      *
      * @param now the current time
      * @param state the state to set up
-     * @param kvStateChangeStreaming the callback to stream KV state changes
+     * @param stateChangeStreaming the callback to stream KV state changes
      */
     public void doGenesisSetup(
             @NonNull final Instant now,
             @NonNull final State state,
-            @NonNull final KvStateChangeStreaming kvStateChangeStreaming) {
+            @NonNull final StateChangeStreaming stateChangeStreaming) {
         requireNonNull(now);
         requireNonNull(state);
-        // Ensure all singletons exist (will be externalized in state changes at end of genesis block if appropriate)
         final var config = configProvider.getConfiguration();
+        // Do genesis setup per-service, forcing the PlatformState singleton to be externalized first
+        final var writablePlatformStates = state.getWritableStates(PlatformStateService.NAME);
+        stateChangeStreaming.doStreamingChanges(writablePlatformStates, null, () -> {
+            // Externalize the platform state singleton as it is with a little in-place write
+            final var platformStateSingleton =
+                    writablePlatformStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID);
+            platformStateSingleton.put(platformStateSingleton.get());
+        });
         for (final var r : servicesRegistry.registrations()) {
             final var service = r.service();
+            if (PlatformStateService.NAME.equals(service.getServiceName())) {
+                continue;
+            }
             // Maybe EmptyWritableStates if the service's schemas register no state definitions at all
             final var writableStates = state.getWritableStates(service.getServiceName());
-            kvStateChangeStreaming.doStreamingKVChanges(
+            stateChangeStreaming.doStreamingChanges(
                     writableStates, null, () -> service.doGenesisSetup(writableStates, config));
         }
 

@@ -530,8 +530,7 @@ public final class Hedera
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         final var rosterServiceImpl = new RosterServiceImpl(
                 this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState), this::startupNetworks);
-        final var platformStateService = new PlatformStateService(
-                config -> config.getConfigData(VersionConfig.class).servicesVersion());
+        final var platformStateService = new PlatformStateService();
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
                 bootstrapConfig.getConfigData(HederaConfig.class).nodeTransactionMaxBytes(),

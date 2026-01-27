@@ -237,7 +237,7 @@ class DiskStartupNetworksTest {
         SemanticVersion currentVersion =
                 bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion();
         Set.of(
-                        new PlatformStateService(config -> SemanticVersion.DEFAULT),
+                        new PlatformStateService(),
                         new EntityIdServiceImpl(),
                         new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state, () -> startupNetworks),
                         new AddressBookServiceImpl())
@@ -257,7 +257,7 @@ class DiskStartupNetworksTest {
         addRosterInfo(state, network);
         addAddressBookInfo(state, network);
         final var writableStates = state.getWritableStates(PlatformStateService.NAME);
-        new PlatformStateService(config -> SemanticVersion.DEFAULT).doGenesisSetup(writableStates, DEFAULT_CONFIG);
+        new PlatformStateService().doGenesisSetup(writableStates, DEFAULT_CONFIG);
         ((CommittableWritableStates) writableStates).commit();
         return state;
     }

@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.BDDMockito.given;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -20,7 +19,7 @@ class PlatformStateServiceTest {
     @Mock
     private SchemaRegistry registry;
 
-    private final PlatformStateService subject = new PlatformStateService(config -> SemanticVersion.DEFAULT);
+    private final PlatformStateService subject = new PlatformStateService();
 
     @Test
     void registersTwoSchema() {

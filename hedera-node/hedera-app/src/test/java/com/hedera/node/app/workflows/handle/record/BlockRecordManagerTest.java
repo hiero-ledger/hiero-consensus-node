@@ -23,7 +23,6 @@ import static org.mockito.Mockito.mock;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
@@ -130,7 +129,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 256)
                 .withConfigValue("blockStream.streamMode", "BOTH")
                 .withService(new BlockRecordService())
-                .withService(new PlatformStateService(config -> SemanticVersion.DEFAULT))
+                .withService(new PlatformStateService())
                 .build();
 
         // Preload the specific state we want to test with

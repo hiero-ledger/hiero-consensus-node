@@ -306,7 +306,6 @@ public final class PlatformStateUtils {
         final ReadableStates readableStates = state.getReadableStates(NAME);
         if (readableStates.isEmpty()
                 || readableStates.getSingleton(PLATFORM_STATE_STATE_ID).get() == null) {
-            log.info("Returning UNINITIALIZED_PLATFORM_STATE (because empty? {})", readableStates.isEmpty());
             return new SnapshotPlatformStateAccessor(UNINITIALIZED_PLATFORM_STATE);
         }
         return new ReadablePlatformStateStore(readableStates);

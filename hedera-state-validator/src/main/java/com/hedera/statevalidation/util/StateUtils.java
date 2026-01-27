@@ -51,7 +51,6 @@ import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.standalone.ExecutorComponent;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
@@ -226,8 +225,7 @@ public final class StateUtils {
                         new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
                             throw new UnsupportedOperationException("No startup networks available");
                         }),
-                        new PlatformStateService(
-                                c -> c.getConfigData(VersionConfig.class).servicesVersion()))
+                        new PlatformStateService())
                 .forEach(servicesRegistry::register);
 
         return servicesRegistry;
