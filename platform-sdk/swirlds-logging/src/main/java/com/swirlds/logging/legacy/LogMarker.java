@@ -166,7 +166,12 @@ public enum LogMarker {
     /**
      * logging related to metric system
      */
-    METRICS(LogMarkerType.INFO);
+    METRICS(LogMarkerType.INFO),
+
+    /**
+     * logs related to benchmark measurements (latency, throughput, etc.)
+     */
+    BENCHMARK(LogMarkerType.INFO);
 
     private final LogMarkerType type;
     private final Marker marker;
