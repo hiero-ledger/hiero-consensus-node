@@ -7,15 +7,12 @@ import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 import static com.swirlds.logging.legacy.LogMarker.TCP_CONNECT_EXCEPTIONS;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.gossip.config.GossipConfig;
-import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionTracker;
 import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.network.SocketConnection;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,6 +30,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.gossip.config.GossipConfig;
+import org.hiero.consensus.gossip.config.NetworkEndpoint;
+import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterEntryNotFoundException;
 
