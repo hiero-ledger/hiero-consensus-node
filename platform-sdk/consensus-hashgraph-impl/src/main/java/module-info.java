@@ -16,8 +16,8 @@ module org.hiero.consensus.hashgraph.impl {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.hashgraph;
-    requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.metrics;
+    requires transitive org.hiero.consensus.model;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.consensus.concurrent;

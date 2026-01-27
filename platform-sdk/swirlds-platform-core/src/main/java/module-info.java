@@ -98,8 +98,8 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.event.intake;
-    requires transitive org.hiero.consensus.hashgraph.impl;
     requires transitive org.hiero.consensus.gossip;
+    requires transitive org.hiero.consensus.hashgraph.impl;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
