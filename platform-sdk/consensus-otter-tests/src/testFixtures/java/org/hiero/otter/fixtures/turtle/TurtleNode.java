@@ -296,12 +296,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             platformComponent = platformBuildingBlocks.platformComponents();
 
             platformComponent
-                    .consensusEngineWiring()
-                    .consensusRoundsOutputWire()
+                    .hashgraphModule()
+                    .consensusRoundOutputWire()
                     .solderTo(
                             "nodeConsensusRoundsCollector",
                             "consensusRounds",
-                            wrapConsumerWithNodeContext(resultsCollector::addConsensusRounds));
+                            wrapConsumerWithNodeContext(resultsCollector::addConsensusRound));
 
             platformComponent
                     .platformMonitorWiring()
