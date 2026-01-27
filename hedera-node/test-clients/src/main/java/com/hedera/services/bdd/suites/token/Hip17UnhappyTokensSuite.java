@@ -108,7 +108,7 @@ public class Hip17UnhappyTokensSuite {
                 cryptoTransfer(TokenMovement.movingUnique(NFTdeleted, 1L).between(TOKEN_TREASURY, ANOTHER_USER)),
                 tokenDelete(NFTdeleted),
                 cryptoTransfer(TokenMovement.movingUnique(NFTdeleted, 2L).between(TOKEN_TREASURY, ANOTHER_USER))
-                        .hasKnownStatus(TOKEN_WAS_DELETED));
+                        .hasPrecheck(TOKEN_WAS_DELETED));
     }
 
     @HapiTest
