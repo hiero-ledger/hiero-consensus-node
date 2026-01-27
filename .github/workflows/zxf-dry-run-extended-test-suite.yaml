@@ -42,7 +42,7 @@ on:
       enable-block-node-regression-panel:
         required: true
         type: boolean
-        default: true
+        default: false
         description: "Run Block Node Regression Panel"
 
 permissions:

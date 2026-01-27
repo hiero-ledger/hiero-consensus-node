@@ -297,7 +297,6 @@ jobs:
       custom-job-label: "XTS (Optional):"
       enable-mirror-node-regression-panel: "true"
       enable-rpc-relay-regression-panel: "true"
-      enable-block-node-regression-panel: "true"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
