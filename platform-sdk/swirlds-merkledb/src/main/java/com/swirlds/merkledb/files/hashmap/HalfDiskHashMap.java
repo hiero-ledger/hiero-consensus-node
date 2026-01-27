@@ -79,6 +79,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     private final int goodAverageBucketEntryCount;
 
+    /**
+     * When average number of keys per bucket exceeds PERCENT_START_RESIZE percent of
+     * goodAverageBucketEntryCount, HDHM will be resized to double the number of buckets.
+     */
+    static final int PERCENT_START_RESIZE = 70;
+
     /** The limit on the number of concurrent read tasks in {@code endWriting()} */
     private static final int MAX_IN_FLIGHT = 1024;
 
@@ -212,9 +218,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         final MerkleDbConfig merkleDbConfig = this.config.getConfigData(MerkleDbConfig.class);
         this.goodAverageBucketEntryCount = merkleDbConfig.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
-        // on average, GOOD_AVERAGE_BUCKET_ENTRY_COUNT times smaller than the number of keys. To
-        // be on the safe side, double that amount and use as a hard limit for bucket index size
-        final long bucketIndexCapacity = merkleDbConfig.maxNumOfKeys() * 2 / goodAverageBucketEntryCount;
+        // on average, goodAverageBucketEntryCount times smaller than the number of keys.
+        // Additionally, HDHM resize is initiated, when avg number of keys per bucket exceeds
+        // PERCENT_START_RESIZE percent of goodAverageBucketEntryCount. Set index capacity to
+        // max number of keys / goodAverageBucketEntryCount / percent, rounded up to the nearest
+        // power of two, since the number of buckets is always a power of two
+        final long bucketIndexCapacity =
+                calculateBucketIndexCapacity(merkleDbConfig.maxNumOfKeys(), goodAverageBucketEntryCount);
         this.storeName = storeName;
         Path indexFile = storeDir.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX);
         // create bucket pool
@@ -929,13 +939,17 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     public void resizeIfNeeded(final long firstLeafPath, final long lastLeafPath) {
         final long currentSize = lastLeafPath - firstLeafPath + 1;
-        if (currentSize / numOfBuckets.get() * 100 <= goodAverageBucketEntryCount * 70L) {
+        if (currentSize <= (long) numOfBuckets.get() * goodAverageBucketEntryCount * PERCENT_START_RESIZE / 100) {
             // No need to resize yet
             return;
         }
 
         final int oldSize = numOfBuckets.get();
         final int newSize = oldSize * 2;
+        if (newSize > bucketIndexToBucketLocation.capacity()) {
+            logger.warn(MERKLE_DB.getMarker(), "Bucket index capacity is reached, HDHM is not resized");
+            return;
+        }
         logger.info(MERKLE_DB.getMarker(), "Resize HDHM {} to {} buckets", storeName, newSize);
 
         bucketIndexToBucketLocation.updateValidRange(0, newSize - 1);
@@ -958,15 +972,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     /** Debug dump stats for this map */
     public void printStats() {
-        logger.info(
-                MERKLE_DB.getMarker(),
-                """
+        logger.info(MERKLE_DB.getMarker(), """
                         HalfDiskHashMap Stats {
                         	numOfBuckets = {}
                         	goodAverageBucketEntryCount = {}
-                        }""",
-                numOfBuckets,
-                goodAverageBucketEntryCount);
+                        }""", numOfBuckets, goodAverageBucketEntryCount);
     }
 
     public DataFileCollection getFileCollection() {
@@ -979,6 +989,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     // =================================================================================================================
     // Private API
+
+    private long calculateBucketIndexCapacity(final long maxNumOfKeys, final int goodAverageBucketEntryCount) {
+        // When the number of buckets reaches PERCENT_START_RESIZE percent, HDHM is doubled. We
+        // need the last resize to cover all keys, i.e. be greater than maxNumOfKeys
+        final long lastResizeStartedAtCount = maxNumOfKeys * 100L / PERCENT_START_RESIZE;
+        return Long.highestOneBit(lastResizeStartedAtCount / goodAverageBucketEntryCount) * 2;
+    }
 
     /**
      * Updates the number of buckets and bucket mask bits. The new value must be a power of 2.

@@ -14,8 +14,6 @@ import com.swirlds.platform.gossip.rpc.GossipRpcReceiverHandler;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
 import com.swirlds.platform.metrics.SyncMetrics;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
-import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -30,10 +28,12 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.monitoring.FallenBehindStatus;
 
 /**
  * Conversation logic for an RPC exchange between two nodes. At this moment mostly concerned with performing a sync,
- * using {@link RpcShadowgraphSynchronizer}, but in the future, it can extend to handle more responsibilities. Most of
+ * using {@link ShadowgraphSynchronizer}, but in the future, it can extend to handle more responsibilities. Most of
  * its internal state was externalized to {@link RpcPeerState} for clarity.
  */
 public class RpcPeerHandler implements GossipRpcReceiverHandler {
@@ -43,7 +43,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     /**
      * Shared logic reference for actions which have to work against global state (mostly shadowgraph)
      */
-    private final RpcShadowgraphSynchronizer sharedShadowgraphSynchronizer;
+    private final ShadowgraphSynchronizer sharedShadowgraphSynchronizer;
 
     /**
      * Metrics for sync related numbers
@@ -128,7 +128,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      */
     public RpcPeerHandler(
-            @NonNull final RpcShadowgraphSynchronizer sharedShadowgraphSynchronizer,
+            @NonNull final ShadowgraphSynchronizer sharedShadowgraphSynchronizer,
             @NonNull final GossipRpcSender sender,
             @NonNull final NodeId selfId,
             @NonNull final NodeId peerId,

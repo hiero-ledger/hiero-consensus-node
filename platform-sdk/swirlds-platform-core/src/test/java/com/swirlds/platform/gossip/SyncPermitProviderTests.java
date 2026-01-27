@@ -16,11 +16,11 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
-import com.swirlds.platform.gossip.sync.config.SyncConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.gossip.config.SyncConfig_;
 import org.junit.jupiter.api.Test;
 
 class SyncPermitProviderTests {
