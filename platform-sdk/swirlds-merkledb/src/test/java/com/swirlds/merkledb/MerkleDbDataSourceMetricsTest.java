@@ -75,7 +75,7 @@ class MerkleDbDataSourceMetricsTest {
                 false);
 
         // one 8 MB memory chunk
-        // assertMetricValue("ds_offheap_hashesIndexMb_" + TABLE_NAME, 8);
+        assertMetricValue("ds_offheap_hashesIndexMb_" + TABLE_NAME, 8);
         assertNoMemoryForLeafAndKeyToPathLists();
 
         // create more internal nodes
@@ -89,8 +89,8 @@ class MerkleDbDataSourceMetricsTest {
 
         // one 8 MB memory chunk
         final int expectedHashesIndexSize = 8;
-        // assertMetricValue("ds_offheap_hashesIndexMb_" + TABLE_NAME, expectedHashesIndexSize);
-        // assertMetricValue("ds_offheap_dataSourceMb_" + TABLE_NAME, expectedHashesIndexSize);
+        assertMetricValue("ds_offheap_hashesIndexMb_" + TABLE_NAME, expectedHashesIndexSize);
+        assertMetricValue("ds_offheap_dataSourceMb_" + TABLE_NAME, expectedHashesIndexSize);
         assertNoMemoryForLeafAndKeyToPathLists();
     }
 

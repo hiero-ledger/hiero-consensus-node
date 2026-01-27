@@ -353,7 +353,7 @@ final class ConcurrentArray<T> {
             throw new IllegalArgumentException("You can not call parallelTraverse on a mutable ConcurrentArray");
         }
 
-        final int BATCH = Runtime.getRuntime().availableProcessors() / 2;
+        final int batch = Runtime.getRuntime().availableProcessors() / 2;
 
         final StandardFuture<Void> result = new StandardFuture<>();
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
@@ -364,11 +364,11 @@ final class ConcurrentArray<T> {
             final T[] array = cur.array;
             final int size = cur.size.get();
             count.addAndGet(size);
-            for (int j = 0; j < BATCH; j++) {
+            for (int j = 0; j < batch; j++) {
                 final int fj = j;
                 final int arrayStart = nextIndex;
                 executor.execute(() -> {
-                    for (int i = fj; i < size; i += BATCH) {
+                    for (int i = fj; i < size; i += batch) {
                         final T element = array[i];
                         try {
                             action.accept(arrayStart + i, element);

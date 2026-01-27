@@ -17,13 +17,18 @@ child node hashes.
 
 Historically hashes are stored on disk by path. MerkleDb has a data collection for hashes,
 its index is mapping paths to hash record locations on disk (file + offset). Hash records
-contain a path and a hash. This approach has pros and cons:
+contain a path and a hash. This approach has pros
 
 * Individual hash lookups are fast. Disk location lookup in index, plus one disk read
 * Memory utilization is great. During hashing, only dirty hashes are stored in the node
   cache and eventually flushed to disk
+
+and cons:
+
 * Multiple disk reads for every dirty leaf during hashing. For example, if a dirty leaf is
   at rank 20, to calculate a root hash needs 20 sibling hash lookups on the path to the root
+* Since hashes are stored on disk individually, hash index size is equal to virtual map size,
+  which may be large
 
 ## Hash chunks
 
@@ -45,9 +50,10 @@ the whole virtual tree.
 Chunks may also be identified by IDs. The root chunk at path 0 has ID 0. Chunk with ID 1 may be
 located at path 1 (chunk height 1), or path 3 (chunk height 2), or path 7 (chunk height 3), and
 so on. Chunk with ID 2 is a sibling of chunk with ID 1. If chunk height is 1, chunk with ID 3
-is at path 3. If chunk height is 2, chunk with ID 2 is at path 5.
+is at path 3. If chunk height is 2, chunk with ID 2 is at path 5. When chunk height is fixed,
+there is 1-1 mapping between chunk IDs and chunk paths.
 
-Chunk paths are handful during hashing. Chunk IDs are used in the node cache and in the data
+Chunk paths are handy during hashing. Chunk IDs are used in the node cache and in the data
 source.
 
 Here is a diagram for chunk height 2. Node names are `C/P`, where `C` is a chunk ID, and `P` is
@@ -69,19 +75,25 @@ graph TB
     1/8 --> 1/18
 ```
 
-Hash chunk pros and cons:
+Hash chunk pros:
 
-* Fewer number of disk reads during hashing. For example, a dirty leaf at rank 20 will result
-  in only 4 disk reads, when chunk height is 5. However, total number of bytes read from disk
-  is greater, since some clean (unchanged) hashes are read, too
-* Greater memory consumption in virtual node cache. Even if a hash isn't changed in some round,
-  but some other hash in the same chunk is updated, the whole chunk is stored in the cache
-* Fewer number of disk writes during flushes, since the number of chunks is less than the
-  number of hashes. However, total number of bytes written is greater
+* Lower number of disk reads during hashing. For example, a dirty leaf at rank 20 will result
+  in only 4 disk reads, when chunk height is 5
+* Lower number of disk writes during flushes, since the number of chunks is lower than the
+  number of hashes
+* Hash index size is times smaller than the number of paths in the virtual map
+
+and cons:
+
+* Despite the number of disk reads during hashing is low, the total number of bytes to read
+  is greater than when individual hashes are stored, since some clean (unchanged) hashes are
+  read, too. Total number of bytes written during flushes is also greater
+* Greater memory consumption in the virtual node cache. Even if a hash isn't changed in some
+  round, but some other hash in the same chunk is updated, the whole chunk is stored in the cache
 
 ### Chunk math
 
-A few handful facts related to chunks:
+A few math facts related to chunks:
 
 * Chunks of height `N` cover `2^(N+1)-2` nodes
 * Chunks of height `N` have `2^N` child chunks, this is equal to the number of nodes at the lowest
@@ -147,10 +159,10 @@ this appeared to be costly. First, every dirty chunk in the node cache requires 
 bytes to store all its hash data. Second, whenever a chunk is read from disk or written to disk,
 all hashes need to be read/written, even if some or most of them are dirty.
 
-This is why a different schema is used. Only hashes at the lowest chunk rank are stored. For chunks
-of height 4 it means only 16 hashes at chunk rank 4 are stored, while top 14 hashes at ranks 1, 2,
-and 3 are not stored. If a hash at these internal ranks is needed, it's calculated from its grand
-child nodes at the lowest rank.
+This is why a different schema is used. **Only hashes at the lowest chunk rank are stored**. For
+chunks of height 4 it means only 16 hashes at chunk rank 4 are stored, while the top 14 hashes at
+ranks 1, 2, and 3 are not stored. If hashes at these internal ranks are needed, they are calculated
+from their grand child nodes at the lowest rank.
 
 ### Hashes in partial chunks
 

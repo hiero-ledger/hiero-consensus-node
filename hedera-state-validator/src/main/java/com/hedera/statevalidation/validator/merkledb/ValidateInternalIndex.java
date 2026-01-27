@@ -80,7 +80,7 @@ public class ValidateInternalIndex {
         log.debug("Size of index: " + hashChunkIndex.size());
         final int hashChunkHeight = dataSource.getHashChunkHeight();
         assertEquals(
-                VirtualHashChunk.minChunkIdForPaths(lastLeafPath, hashChunkHeight),
+                VirtualHashChunk.lastChunkIdForPaths(lastLeafPath, hashChunkHeight),
                 hashChunkIndex.size(),
                 "Unexpected hash chunk index size");
 

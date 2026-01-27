@@ -316,7 +316,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // Path to KV index capacity is the same as max virtual path
         final long kvIndexCapacity = maxPath;
         // Path to hash index capacity is the min chunk ID to cover all paths from 0 to maxPath
-        final long hashIndexCapacity = VirtualHashChunk.minChunkIdForPaths(maxPath, hashChunkHeight);
+        final long hashIndexCapacity = VirtualHashChunk.lastChunkIdForPaths(maxPath, hashChunkHeight);
 
         // Hash chunk disk location index (chunk ID to disk location)
         final Path pathToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
@@ -333,7 +333,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // Hash chunk store (hash chunks)
         if (Files.exists(dbPaths.hashStoreRamFile) || Files.isDirectory(dbPaths.hashStoreDiskDirectory)) {
             if (idToDiskLocationHashChunks.size() != 0) {
-                throw new UnsupportedOperationException("Hash chunk index is not empty, but legacy hash stores exist");
+                throw new IllegalStateException("Hash chunk index is not empty, but legacy hash stores exist");
             }
             hashChunkStore = new MemoryIndexDiskKeyValueStore(
                     merkleDbConfig,
@@ -499,8 +499,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                             : new LongListOffHeap(
                                     dbPaths.pathToDiskLocationInternalNodesFile, hashIndexCapacity, config);
                 } else {
-                    throw new UnsupportedOperationException(
-                            "Rebuild hash chunks failed: pathToDiskLocationInternalNodes is missing");
+                    throw new IOException("Rebuild hash chunks failed: pathToDiskLocationInternalNodes is missing");
                 }
                 // Store
                 hashStoreDisk = new MemoryIndexDiskKeyValueStore(
@@ -514,10 +513,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
             hashChunkStore.startWriting();
 
-            final long maxChunkId = VirtualHashChunk.minChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
-            hashChunkStore.updateValidKeyRange(0, maxChunkId);
+            final long lastChunkId = VirtualHashChunk.lastChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
+            hashChunkStore.updateValidKeyRange(0, lastChunkId);
             final int chunkSize = VirtualHashChunk.getChunkSize(hashChunkHeight);
-            for (long chunkId = 0; chunkId <= maxChunkId; chunkId++) {
+            for (long chunkId = 0; chunkId <= lastChunkId; chunkId++) {
                 final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
                 final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, hashChunkHeight);
                 for (int i = 0; i < chunkSize; i++) {
@@ -968,7 +967,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 // Flush cached hash chunks to the hash chunk store
                 if (getLastLeafPath() > 0) {
                     final long maxValidChunkId =
-                            VirtualHashChunk.minChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
+                            VirtualHashChunk.lastChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
                     final Stream<VirtualHashChunk> cacheChunksToFlush =
                             hashChunkCache.values().stream().filter(c -> c.getChunkId() <= maxValidChunkId);
                     writeHashes(getLastLeafPath(), cacheChunksToFlush, false);
@@ -1199,7 +1198,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // Empty store
             hashChunkStore.updateValidKeyRange(-1, -1);
         } else {
-            hashChunkStore.updateValidKeyRange(0, VirtualHashChunk.minChunkIdForPaths(maxValidPath, hashChunkHeight));
+            hashChunkStore.updateValidKeyRange(0, VirtualHashChunk.lastChunkIdForPaths(maxValidPath, hashChunkHeight));
         }
 
         if (maxValidPath < 0) {

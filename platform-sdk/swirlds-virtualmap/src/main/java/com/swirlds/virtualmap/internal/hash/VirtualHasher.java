@@ -140,7 +140,7 @@ public final class VirtualHasher {
 
     // A task that can supply hashes to other tasks. There are two hash producer task
     // types: leaf tasks and chunk tasks
-    class HashProducingTask extends AbstractTask {
+    abstract class HashProducingTask extends AbstractTask {
 
         protected ChunkHashTask out;
 
@@ -154,11 +154,6 @@ public final class VirtualHasher {
                 out.dynamicHashInput();
             }
             send();
-        }
-
-        @Override
-        protected boolean onExecute() {
-            return true;
         }
 
         @Override

@@ -23,8 +23,8 @@ import org.hiero.base.crypto.Hash;
  *
  * <p>A chunk is identified by the chunk path, which is a parent of its two top-most hashes. For
  * example, the root chunk is identified with path 0 (0 is a parent of 1 and 2). If chunk height is 2,
- * the root chunk at path 0 contains hashes 1, 2, 3, 4, 5, and 6. Such chunk has 4 child chunks
- * identified by paths 3, 4, 5, and 6. For example, chunk 4 has hashes 9, 10, 19, 20, 21, and 22.
+ * the root chunk at path 0 contains hashes 1, 2, 3, 4, 5, and 6. Such a chunk has 4 child chunks
+ * identified by paths 3, 4, 5, and 6. The chunk at path 4 has hashes 9, 10, 19, 20, 21, and 22.
  * Note that a hash at a chunk path does not belong to the chunk, but to its parent chunk, except
  * the root node hash, which doesn't belong to any chunk.
  *
@@ -287,14 +287,14 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
     }
 
     /**
-     * Given a virtual path, returns chunk ID, so that chunks 0 to the ID cover
+     * Given a virtual path, returns the minimal chunk ID, so that chunks 0 to the ID cover
      * all hashes up to (and including) the path.
      *
      * @param maxPath Virtual path
      * @param chunkHeight Chunk height
      * @return Min chunk ID to cover all paths up to the given path
      */
-    public static long minChunkIdForPaths(final long maxPath, final int chunkHeight) {
+    public static long lastChunkIdForPaths(final long maxPath, final int chunkHeight) {
         assert maxPath > 0;
         // ID of a chunk that contains maxPath
         final long maxPathChunkId = pathToChunkId(maxPath, chunkHeight);
