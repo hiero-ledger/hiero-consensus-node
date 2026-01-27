@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
+import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -157,7 +158,7 @@ import org.junit.jupiter.api.Tag;
  *   <li>Fixed entity names with prefixes to avoid collisions between runs</li>
  * </ul>
  */
-@Tag(SIMPLE_FEES)
+@Tag(ADHOC)
 @Tag(ONLY_EMBEDDED)
 @HapiTestLifecycle
 public class KitchenSinkFeeComparisonSuite {
