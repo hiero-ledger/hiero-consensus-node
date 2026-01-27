@@ -57,6 +57,7 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 
 public class BonnevilleEVM extends HEVM {
+    public static final String TOP_SEP = "======================================================================";
     @NonNull final FeatureFlags _flags;
 
     public BonnevilleEVM(
@@ -70,10 +71,15 @@ public class BonnevilleEVM extends HEVM {
     }
 
 
+    // Shared free-list of BEVMs, to avoid making new with every contract.
     private static final ArrayList<BEVM> FREE = new ArrayList<>();
 
     @Override
-    public void runToHalt(@NotNull MessageFrame frame, @NotNull OperationTracer tracing) {
+    public void runToHalt(MessageFrame frame, OperationTracer tracing) {
+        runToHalt(null,frame,tracing);
+    }
+
+    void runToHalt(BEVM parent, MessageFrame frame, OperationTracer tracing ) {
         BEVM bevm;
         synchronized(FREE) {
             bevm = FREE.isEmpty()
@@ -81,10 +87,9 @@ public class BonnevilleEVM extends HEVM {
                 : FREE.removeLast();
         }
         // Run the contract bytecodes
-        bevm.init(frame,tracing).run().reset();
+        bevm.init(parent,frame,tracing).run(parent==null).reset(parent==null);
         synchronized(FREE) { FREE.add(bevm); }
     }
-
 
     // ---------------------
     public static String OPNAME(int op) {
@@ -104,7 +109,7 @@ public class BonnevilleEVM extends HEVM {
         if( op == 0xF4 ) return "dCal";
         if( op == 0xF5 ) return "Crt2";
         if( op == 0xFA ) return "sCal";
-        if( op == 0xFD ) return "revert ";
+        if( op == 0xFD ) return "revt";
         if( op == 0xFE ) return "invalid ";
         if( op == 0xFF ) return "self-destruct ";
         return String.format("%x",op);
@@ -183,6 +188,13 @@ class BEVM {
     // Custom SLoad optional tracking
     StorageAccessTracker _tracker;
 
+    // Top-level shared warm-address stack.
+    final ArrayList<AdrKey> _warmAdrStkTopLevel = new ArrayList<AdrKey>();
+    // Nested warm-address stack, points to some top-level stack
+    ArrayList<AdrKey> _warmAdrStk;
+    // Stack depth on entry, used to unwind on Revert
+    int _warmAdrStkPtr;
+
     // Last Storage key, value.  Used to inform the Frame that storage was updated.
     UInt256 _lastSKey, _lastSVal;
 
@@ -221,10 +233,11 @@ class BEVM {
     }
 
 
-    BEVM init( MessageFrame frame, OperationTracer tracing ) {
-        _tracing = tracing;
+    BEVM init( BEVM parent, MessageFrame frame, OperationTracer tracing ) {
 
         _frame = frame;
+
+        _tracing = tracing;
 
         // Bytecodes
         _codes = frame.getCode().getBytes().toArrayUnsafe();
@@ -259,15 +272,35 @@ class BEVM {
 
         _originator = frame.getOriginatorAddress();
 
+        // If top-level, use the top-level warm-address stack.
+        // If NOT top-level, pass down the top-level stack.
+        if( parent==null ) {
+            assert allColdSlots();
+            assert _warmAdrStkTopLevel.isEmpty();
+            _warmAdrStk = _warmAdrStkTopLevel;
+            _warmAdrStkPtr = 0;
+        } else {
+            _warmAdrStk = parent._warmAdrStk;
+            _warmAdrStkPtr = _warmAdrStk.size();
+            isWarm(parent._frame.getContractAddress());
+        }
+        isWarm(_frame.getSenderAddress());
+        isWarm(_frame.getContractAddress());
+
         assert _lastSKey==null && _lastSVal == null;
 
         return this;
     }
 
-    void reset() {
+    void reset(boolean topLevel) {
+        if( topLevel ) {
+            for( AdrKey ak : _warmAdrStkTopLevel )
+                ak._warm = false;
+            _warmAdrStkTopLevel.clear();
+        } else {
+            _warmAdrStk = null;
+        }
         _mem.reset();
-        for( AdrKey ak : _internAK.keySet() )
-            ak._warm = false;
         _frame = null;
         _codes = null;
         _sp = 0;
@@ -437,11 +470,13 @@ class BEVM {
 
     // -----------------------------------------------------------
     // Execute bytecodes until done
-    BEVM run() {
-        SB trace = null; // new SB();
+    BEVM run(boolean topLevel) {
+        SB trace = new SB();
         PrintStream oldSysOut = System.out;
-        if( trace != null )
+        if( trace != null ) {
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
+            if( topLevel ) System.out.println(BonnevilleEVM.TOP_SEP);
+        }
 
         int pc = 0;
         ExceptionalHaltReason halt = null;
@@ -591,6 +626,7 @@ class BEVM {
 
         if( trace != null ) {
             System.out.println();
+            if( topLevel ) System.out.println(BonnevilleEVM.TOP_SEP);
             System.setOut(oldSysOut);
         }
 
@@ -1196,9 +1232,8 @@ class BEVM {
     private ExceptionalHaltReason balance() {
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         var address = popAddress();
-        boolean isWarm = _frame.warmUpAddress(address) || _gasCalc.isPrecompile(address);
         long gas = _gasCalc.getBalanceOperationGasCost() +
-            (isWarm ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+            (isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);
         if( halt!=null ) return halt;
 
@@ -1315,9 +1350,8 @@ class BEVM {
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
-        boolean isWarm = _frame.warmUpAddress(address) || _gasCalc.isPrecompile(address);
         long gas = _gasCalc.getExtCodeSizeOperationGasCost() +
-            (isWarm ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+            (isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);
         if( halt!=null ) return halt;
 
@@ -1353,9 +1387,8 @@ class BEVM {
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
-        boolean isWarm = _frame.warmUpAddress(address) || _gasCalc.isPrecompile(address);
         long gas = copyCost(doff,len,0) +
-            (isWarm ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+            (isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);
         if( halt!=null ) return halt;
 
@@ -1388,9 +1421,8 @@ class BEVM {
         // Warmup address; true if already warm.  This is a per-transaction
         // tracking and is only for gas costs.  The actual warming happens if
         // we get past the gas test.
-        boolean isWarm = _frame.warmUpAddress(address) || _gasCalc.isPrecompile(address);
         long gas = _gasCalc.getExtCodeSizeOperationGasCost() +
-            (isWarm ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+            (isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);
         if( halt!=null ) return halt;
 
@@ -1499,20 +1531,18 @@ class BEVM {
         _frame.setOutputData(reason);
         _frame.setRevertReason(reason);
         _frame.setState(MessageFrame.State.REVERT);
+        // Undo all warmed-up addresses this contract
+        while( _warmAdrStk.size() > _warmAdrStkPtr )
+            _warmAdrStk.removeLast()._warm = false;
         return ExceptionalHaltReason.NONE;
     }
 
     private ExceptionalHaltReason customSelfDestruct() {
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         Address beneAdr = popAddress();
-        Operation.OperationResult opr;
-        if( _selfDestruct instanceof CustomSelfDestructOperation csdo ) {
-            // TODO: gas calc is not using Bonneville isWarm
-            opr = csdo.execute(_frame, _bevm, beneAdr);
-        } else {
-            boolean isWarm = _frame.warmUpAddress(beneAdr) || _gasCalc.isPrecompile(beneAdr);
-            opr = CustomSelfDestructOperation.executeOldSelfDestruct(_frame,beneAdr,isWarm, _gasCalc);
-        }
+        Operation.OperationResult opr = _selfDestruct instanceof CustomSelfDestructOperation csdo
+            ? csdo.execute(_frame, _bevm, beneAdr)
+            : CustomSelfDestructOperation.executeOldSelfDestruct(_frame,beneAdr,isWarm(beneAdr), _gasCalc);
         var halt = opr.getHaltReason();
         if( halt!=null ) return halt;
         halt = useGas(opr.getGasCost());
@@ -1735,31 +1765,31 @@ class BEVM {
     }
 
     // ---------------------
-    // Permanent Storage ops
+    // Permanent Storage ops.
 
-    // Is address+key warmed up?  Used for gas calcs
+    // Storage "slots" are keyed by (Address,UInt256) and are cold until first
+    // touched.  "cold" is reset at top-level contracts, and "warm" is passed
+    // down to all child contract calls.  Reverted contracts undo their
+    // "warming" touches as-if never happened.
+
     private final ArrayList<AdrKey> _freeAK = new ArrayList<>();
     private final HashMap<AdrKey,AdrKey> _internAK = new HashMap<>();
+    // Is address+key warmed up?  Used for gas calcs
     private static class AdrKey {
-        Address _adr;
-        UInt256 _ui256; // Warm-up flag; also used to access Account.getStorageValue
-        boolean _warm;
-        boolean isWarm() {
-            if( _warm ) return true;
-            _warm = true;
-            return false;       // Was cold, but warmed-up afterwards
-        }
-        @Override public int hashCode() { return _adr.hashCode() ^ _ui256.hashCode(); }
+        Address _adr;   // The pair (Address,UInt256) are a Key for the warm/cold check
+        UInt256 _ui256; //
+        boolean _warm;  // Warm-up flag
+        @Override public int hashCode() { return _adr.hashCode() ^ (_ui256==null ? -1 : _ui256.hashCode()); }
         @Override public boolean equals( Object o ) {
             if( !(o instanceof AdrKey ak) ) return false;
             return _adr.equals(ak._adr) && _ui256==ak._ui256;
         }
     }
     // Get and intern a slot based on Address and key
-    AdrKey getSlot( Address adr, long key0, long key1, long key2, long key3) {
+    private AdrKey getSlot( Address adr, long key0, long key1, long key2, long key3) {
         return getSlot(adr, UI256.intern(key0,key1,key2,key3));
     }
-    AdrKey getSlot( Address adr, UInt256 key) {
+    private AdrKey getSlot( Address adr, UInt256 key) {
         AdrKey ak = _freeAK.isEmpty() ? new AdrKey() : _freeAK.removeLast();
         ak._adr = adr;
         ak._ui256 = key;
@@ -1767,6 +1797,24 @@ class BEVM {
         if( ak2 != null ) _freeAK.add(ak);
         else              _internAK.put((ak2=ak),ak);
         return ak2;
+    }
+    private boolean allColdSlots() {
+        for( AdrKey ak : _internAK.keySet() )
+            if( ak._warm )
+                return false;
+        return true;
+    }
+
+    // Is AdrKey warm?  If not, warm it and stack it in case of revert
+    private boolean isWarm( AdrKey ak ) {
+        if( ak._warm ) return true;
+        _warmAdrStk.add(ak);    // Record for revert
+        ak._warm = true;
+        return false;           // Was cold, but warmed-up afterwards
+    }
+    // Is Address warm?  Make a AdrKey with null UInt256 and check normally
+    private boolean isWarm( Address adr ) {
+        return _gasCalc.isPrecompile(adr) || isWarm(getSlot(adr,null));
     }
 
 
@@ -1780,7 +1828,7 @@ class BEVM {
         // we get past the gas test.
         AdrKey ak = getSlot(_recv.getAddress(), key0, key1, key2, key3);
         long gas = _gasCalc.getSloadOperationGasCost() +
-            (ak.isWarm() ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdSloadCost());
+            (isWarm(ak) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdSloadCost());
         var halt = useGas(gas);
         if( halt!=null ) return halt;
 
@@ -1825,7 +1873,7 @@ class BEVM {
         // we get past the gas test.
         AdrKey ak = getSlot(_recv.getAddress(), key);
         long gas = _gasCalc.calculateStorageCost(val, _wrap0, _wrap1) +
-            (ak.isWarm() ? 0 : _gasCalc.getColdSloadCost());
+            (isWarm(ak) ? 0 : _gasCalc.getColdSloadCost());
         var halt = useGas(gas);
         if( halt!=null ) return halt;
 
@@ -1967,7 +2015,7 @@ class BEVM {
 
         if( _frame.getWorldUpdater() instanceof ProxyWorldUpdater proxyUpdater )
             proxyUpdater.setupInternalAliasedCreate(sender, contract);
-        _frame.warmUpAddress(contract);
+        isWarm(contract);
 
         // gas cost for making the contract
         long gas = _gasCalc.txCreateCost() + // 32000
@@ -2011,7 +2059,7 @@ class BEVM {
 
         // ----------------------------
         // Recursively call
-        _bevm.runToHalt(child,_tracing);
+        _bevm.runToHalt(this,child,_tracing);
         // ----------------------------
 
         switch( child.getState() ) {
@@ -2130,7 +2178,7 @@ class BEVM {
 
         // There is a 2nd gas check made here, with account possibly being warm
         // which is lower cost, so never fails...
-        gas += _frame.warmUpAddress(contract) || _gasCalc.isPrecompile(contract)
+        gas += isWarm(contract)
             ? _gasCalc.getWarmStorageReadCost()
             : _gasCalc.getColdAccountAccessCost();
         // Charge gas for call
@@ -2203,7 +2251,7 @@ class BEVM {
             assert child.getState() == MessageFrame.State.CODE_EXECUTING;
             // ----------------------------
             // Recursively call
-            _bevm.runToHalt(child,_tracing);
+            _bevm.runToHalt(this,child,_tracing);
             // ----------------------------
         }
 

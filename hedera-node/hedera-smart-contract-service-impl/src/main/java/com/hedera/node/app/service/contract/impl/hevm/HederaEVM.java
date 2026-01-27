@@ -108,10 +108,12 @@ public class HederaEVM extends HEVM {
         final long opsDurationMultiplier = opsDurationCounter==null ? 0 : opsDurationSchedule.opsGasBasedDurationMultiplier();
         final long opsDurationDenominator = opsDurationCounter==null ? 1 : opsDurationSchedule.multipliersDenominator();
 
-        SB trace = null; // new SB();
+        SB trace = new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null ) {
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
+            if( frame.getDepth()==0 )
+                System.out.println(BonnevilleEVM.TOP_SEP);
             int pc = frame.getPC();
             if( pc != 0 ) {
                 String str = contractStr(code[pc-1]&0xFF);
@@ -263,11 +265,11 @@ public class HederaEVM extends HEVM {
 
         if( trace != null ) {
             System.out.println();
+            if( frame.getDepth()==0 )
+                System.out.println(BonnevilleEVM.TOP_SEP);
             String contractStr = contractStr(opcode);
             if( contractStr != null )
                 System.out.println(trace.p("CONTRACT ").p(contractStr).nl());
-            if( haltReason != null )
-                System.out.println("HEVM HALT "+haltReason);
             System.setOut(oldSysOut);
         }
     }
