@@ -173,13 +173,4 @@ class TokenAirdropFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.NON_FUNGIBLE_TOKENS, 1))))
                 .build();
     }
-
-    private void mockConfig() {
-        final var configMock = mock(Configuration.class);
-        final var tokenConfigMock = mock(TokensConfig.class);
-        when(tokenConfigMock.airdropsClaimEnabled()).thenReturn(true);
-        when(tokenConfigMock.airdropsEnabled()).thenReturn(true);
-        when(configMock.getConfigData(TokensConfig.class)).thenReturn(tokenConfigMock);
-        when(feeContext.configuration()).thenReturn(configMock);
-    }
 }
