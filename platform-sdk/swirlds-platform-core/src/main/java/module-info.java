@@ -51,7 +51,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.system.status;
     exports com.swirlds.platform.system.status.actions;
     exports com.swirlds.platform.util;
-    exports com.swirlds.platform.gossip.config;
 
     /* Targeted Exports to External Libraries */
     exports com.swirlds.platform.internal to
@@ -73,12 +72,6 @@ module com.swirlds.platform.core {
             com.swirlds.config.extensions,
             com.swirlds.config.impl,
             com.swirlds.common,
-            com.hedera.node.test.clients;
-    exports com.swirlds.platform.gossip.sync.config to
-            com.swirlds.config.extensions,
-            com.swirlds.config.impl,
-            com.swirlds.common,
-            com.swirlds.platform.core.test.fixtures,
             com.hedera.node.test.clients;
     exports com.swirlds.platform.event.preconsensus;
     exports com.swirlds.platform.gossip.sync.protocol;
@@ -115,6 +108,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.event.intake;
+    requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
@@ -128,9 +122,6 @@ module com.swirlds.platform.core {
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.consensus.pces;
-    requires com.fasterxml.jackson.core;
-    requires com.fasterxml.jackson.databind;
-    requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
     requires java.desktop;
     requires java.management;
