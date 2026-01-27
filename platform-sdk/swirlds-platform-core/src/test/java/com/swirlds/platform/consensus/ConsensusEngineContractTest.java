@@ -12,7 +12,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
@@ -27,6 +26,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.junit.jupiter.api.Test;
@@ -255,8 +255,7 @@ public class ConsensusEngineContractTest {
                         """
                                 Event %s is an ancient pre-consensus event, but has not been returned as a consensus\s
                                 or stale event. Every ancient pre-consensus event added should have either reached\s
-                                consensus or become stale, but not both."""
-                                .formatted(preConsensusEvent.getDescriptor().shortString()));
+                                consensus or become stale, but not both.""".formatted(preConsensusEvent.getDescriptor().shortString()));
             }
         }
 
