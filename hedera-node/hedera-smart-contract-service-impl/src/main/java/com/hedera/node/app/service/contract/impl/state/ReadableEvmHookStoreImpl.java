@@ -30,7 +30,8 @@ public class ReadableEvmHookStoreImpl implements ReadableEvmHookStore {
         this.hookStates = states.get(EVM_HOOK_STATES_STATE_ID);
     }
 
-    public record EvmHookView(@NonNull EvmHookState state, @NonNull List<Slot> selectedSlots) {
+    public record EvmHookView(
+            @NonNull EvmHookState state, @NonNull List<Slot> selectedSlots) {
         public EvmHookView {
             requireNonNull(state);
             requireNonNull(selectedSlots);
@@ -41,7 +42,8 @@ public class ReadableEvmHookStoreImpl implements ReadableEvmHookStore {
         }
     }
 
-    public record Slot(@NonNull EvmHookSlotKey key, @Nullable SlotValue value) {
+    public record Slot(
+            @NonNull EvmHookSlotKey key, @Nullable SlotValue value) {
         public Slot {
             requireNonNull(key);
         }

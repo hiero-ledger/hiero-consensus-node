@@ -23,7 +23,6 @@ jmhModuleInfo {
 }
 
 testModuleInfo {
-    requires("com.google.common")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")

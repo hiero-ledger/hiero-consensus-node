@@ -127,6 +127,11 @@ public class ChildFeeContextImpl implements FeeContext {
     }
 
     @Override
+    public int numTxnBytes() {
+        return TransactionBody.PROTOBUF.measureRecord(body);
+    }
+
+    @Override
     public Fees dispatchComputeFees(@NonNull final TransactionBody txBody, @NonNull final AccountID syntheticPayerId) {
         return context.dispatchComputeFees(txBody, syntheticPayerId);
     }
