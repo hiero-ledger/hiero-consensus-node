@@ -652,12 +652,7 @@
         {
           "name": "EthereumTransaction",
           "baseFee": 0,
-          "extras": [
-            {
-              "name": "BYTES",
-              "includedCount": 6144
-            }
-          ]
+          "extras": []
         },
         {
           "name": "ContractCreate",
