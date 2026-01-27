@@ -19,7 +19,6 @@ import com.swirlds.platform.network.communication.handshake.VersionCompareHandsh
 import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
-import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
