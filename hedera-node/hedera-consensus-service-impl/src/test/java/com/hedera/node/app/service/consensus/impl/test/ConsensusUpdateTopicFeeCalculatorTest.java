@@ -16,7 +16,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusUpdateTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
