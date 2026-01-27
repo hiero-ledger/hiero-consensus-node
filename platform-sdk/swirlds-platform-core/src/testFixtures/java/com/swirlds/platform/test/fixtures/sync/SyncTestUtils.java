@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.sync;
 
-import com.swirlds.platform.internal.EventImpl;
 import java.util.Collection;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 public class SyncTestUtils {
 
