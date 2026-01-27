@@ -13,12 +13,12 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.model.node.NodeId;
 

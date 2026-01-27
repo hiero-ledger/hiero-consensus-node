@@ -50,7 +50,6 @@ import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.CommandLineArgs;
 import com.swirlds.platform.builder.PlatformBuilder;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -74,6 +73,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterStateUtils;
 
