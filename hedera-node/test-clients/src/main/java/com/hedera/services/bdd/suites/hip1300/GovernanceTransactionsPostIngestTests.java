@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1300;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -16,16 +17,17 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
-import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -35,14 +37,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-/**
- * A class with Governance Transactions tests.
- */
 @Tag(MATS)
-@Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
-@DisplayName("Governance Transactions Tests")
-public class GovernanceTransactionsTests implements LifecycleTest {
+@TargetEmbeddedMode(CONCURRENT)
+@DisplayName("Governance Transactions Tests Post Ingest")
+public class GovernanceTransactionsPostIngestTests {
     private static final String PAYER = "payer";
     private static final String PAYER2 = "payer2";
     private static final String PAYER_KEY = "payer_key";
@@ -64,9 +63,9 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 Map.of("hedera.transaction.maxMemoUtf8Bytes", OVERSIZED_TXN_SIZE + "")); // to avoid memo size limit
     }
 
-    // --- Tests to examine the behavior when the feature flag is on ---
+    // --- Tests to examine the behavior post ingest when the feature flag is on ---
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     @DisplayName("Normal account cannot submit more than 6KB transactions, signed by a larger key")
     public Stream<DynamicTest> nonGovernanceAccountCannotSubmitLargerSizeWithLargeKeyIfEnabled() {
         return hapiTest(
@@ -76,13 +75,14 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(PAYER)
                         .signedBy(PAYER, PAYER2)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     @DisplayName("Governance account can submit more than 6KB transactions, signed by a larger key")
     public Stream<DynamicTest> governanceAccountCanSubmitLargerSizeWithLargeKeyIfEnabled() {
         return hapiTest(
@@ -92,26 +92,28 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(SYSTEM_ADMIN)
                         .signedBy(SYSTEM_ADMIN, PAYER, PAYER2)
                         .hasKnownStatus(SUCCESS));
     }
 
-    @HapiTest
-    @DisplayName("Normal account still cannot submit more than 6KB transactions when the feature is enabled")
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
+    @DisplayName("Normal account cannot submit more than 6KB transactions, signed by a larger key")
     public Stream<DynamicTest> nonGovernanceAccountCannotSubmitLargeSizeTransactionsIfEnabled() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
                 createTopic(TOPIC)
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(PAYER)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     @DisplayName("Governance account cannot submit more than 6KB batch transactions when only the atomic batch is paid")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyBatchIfEnabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
@@ -123,16 +125,19 @@ public class GovernanceTransactionsTests implements LifecycleTest {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                atomicBatch(innerTxn.hasKnownStatus(TRANSACTION_OVERSIZE))
+                        .setNode(4)
                         .payingWith(GENESIS)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        // in AtomicBatch handle, inner transaction failures are mapped to INNER_TRANSACTION_FAILED
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     @DisplayName(
             "Governance account cannot submit more than 6KB batch transactions when only the inner transaction is paid")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyInnerIfEnabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
+                .setNode(4)
                 .submitKeyName(SUBMIT_KEY)
                 .payingWith(GENESIS)
                 .memo(LARGE_SIZE_MEMO)
@@ -141,10 +146,13 @@ public class GovernanceTransactionsTests implements LifecycleTest {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn.hasPrecheck(SUCCESS)).payingWith(PAYER).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasKnownStatus(SUCCESS))
+                        .setNode(4)
+                        .payingWith(PAYER)
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     @DisplayName(
             "Governance account can submit more than 6KB batch transactions when both the batch and the inner transactions are paid")
     public Stream<DynamicTest> governanceAccountCanSubmitWhenBothArePaidIfEnabled() {
@@ -157,43 +165,49 @@ public class GovernanceTransactionsTests implements LifecycleTest {
         return hapiTest(
                 newKeyNamed(SUBMIT_KEY),
                 atomicBatch(innerTxn.hasKnownStatus(SUCCESS))
+                        .setNode(4)
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     @DisplayName("Treasury and system admin accounts can submit more than 6KB transactions when the feature is enabled")
     public Stream<DynamicTest> governanceAccountCanSubmitLargeSizeTransactions() {
         return hapiTest(
                 newKeyNamed(SUBMIT_KEY),
                 newKeyNamed(SUBMIT_KEY2),
                 createTopic(TOPIC)
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(GENESIS)
                         .memo(LARGE_SIZE_MEMO)
                         .hasKnownStatus(SUCCESS),
                 createTopic(TOPIC2)
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY2)
                         .payingWith(SYSTEM_ADMIN)
                         .memo(LARGE_SIZE_MEMO)
                         .hasKnownStatus(SUCCESS));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
     @DisplayName("Non-governance account cannot submit transfers larger than 6KB even when the feature is enabled")
     public Stream<DynamicTest> nonGovernanceAccountTransactionLargerThan6kb() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                 cryptoCreate(RECEIVER),
                 cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, ONE_HUNDRED_HBARS))
+                        .setNode(4)
                         .memo(LARGE_SIZE_MEMO)
                         .payingWith(PAYER)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     // --- Test the behavior if the feature is disabled and verify nothing has changed ---
 
-    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = MUST_SKIP_INGEST,
+            overrides = {"governanceTransactions.isEnabled"})
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled at runtime")
     public Stream<DynamicTest> governanceAccountCannotSubmitLargeSizeTransactionsWhenDisabledDynamically() {
@@ -202,18 +216,22 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 newKeyNamed(SUBMIT_KEY),
                 newKeyNamed(SUBMIT_KEY2),
                 createTopic(TOPIC)
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(GENESIS)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE),
+                        .hasKnownStatus(TRANSACTION_OVERSIZE),
                 createTopic(TOPIC2)
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY2)
                         .payingWith(SYSTEM_ADMIN)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
-    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = MUST_SKIP_INGEST,
+            overrides = {"governanceTransactions.isEnabled"})
     @DisplayName("Governance account cannot submit more than 6KB transactions, signed by a larger key, if disabled")
     public Stream<DynamicTest> governanceAccountCannotSubmitLargerSizeWithLargeKeyIfDisabled() {
         return hapiTest(
@@ -224,13 +242,16 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(SYSTEM_ADMIN)
                         .signedBy(SYSTEM_ADMIN, PAYER, PAYER2)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
-    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = MUST_SKIP_INGEST,
+            overrides = {"governanceTransactions.isEnabled"})
     @DisplayName("Normal account cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> nonGovernanceAccountCannotSubmitLargeSizeTransactions() {
         return hapiTest(
@@ -238,17 +259,21 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
                 createTopic(TOPIC)
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(PAYER)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
-    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = MUST_SKIP_INGEST,
+            overrides = {"governanceTransactions.isEnabled"})
     @DisplayName(
             "Governance account cannot submit more than 6KB batch transactions when only the batch transaction is paid and feature disabled")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyBatchIfDisabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
+                .setNode(4)
                 .submitKeyName(SUBMIT_KEY)
                 .payingWith(PAYER)
                 .memo(LARGE_SIZE_MEMO)
@@ -258,16 +283,20 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 overriding("governanceTransactions.isEnabled", "false"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                atomicBatch(innerTxn.hasKnownStatus(TRANSACTION_OVERSIZE))
+                        .setNode(4)
                         .payingWith(GENESIS)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
-    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = MUST_SKIP_INGEST,
+            overrides = {"governanceTransactions.isEnabled"})
     @DisplayName(
             "Governance account cannot submit more than 6KB batch transactions when only the inner transaction is paid and feature disabled")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyInnerIfDisabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
+                .setNode(4)
                 .submitKeyName(SUBMIT_KEY)
                 .payingWith(GENESIS)
                 .memo(LARGE_SIZE_MEMO)
@@ -277,16 +306,20 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 overriding("governanceTransactions.isEnabled", "false"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                atomicBatch(innerTxn.hasKnownStatus(TRANSACTION_OVERSIZE))
+                        .setNode(4)
                         .payingWith(PAYER)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
-    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = MUST_SKIP_INGEST,
+            overrides = {"governanceTransactions.isEnabled"})
     @DisplayName(
             "Governance account cannot submit more than 6KB batch transactions when both the batch and the inner transactions are paid")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenBothArePaidIfDisabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
+                .setNode(4)
                 .submitKeyName(SUBMIT_KEY)
                 .payingWith(SYSTEM_ADMIN)
                 .memo(LARGE_SIZE_MEMO)
@@ -295,12 +328,15 @@ public class GovernanceTransactionsTests implements LifecycleTest {
         return hapiTest(
                 overriding("governanceTransactions.isEnabled", "false"),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                atomicBatch(innerTxn.hasKnownStatus(TRANSACTION_OVERSIZE))
+                        .setNode(4)
                         .payingWith(SYSTEM_ADMIN)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
-    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = MUST_SKIP_INGEST,
+            overrides = {"governanceTransactions.isEnabled"})
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> governanceAccountsCannotSubmitLargeSizeTransactions() {
@@ -309,14 +345,16 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 newKeyNamed(SUBMIT_KEY),
                 newKeyNamed(SUBMIT_KEY2),
                 createTopic(TOPIC)
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(GENESIS)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE),
+                        .hasKnownStatus(TRANSACTION_OVERSIZE),
                 createTopic(TOPIC2)
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY2)
                         .payingWith(SYSTEM_ADMIN)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 }
