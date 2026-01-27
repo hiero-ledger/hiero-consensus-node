@@ -25,13 +25,13 @@ public class ConsensusUpdateTopicFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.consensusUpdateTopicOrThrow();
         long keys = 0;
         if (op.hasAdminKey()) {
-            keys += countKeys(op.adminKey());
+            keys += countKeys(op.adminKeyOrThrow());
         }
         if (op.hasFeeScheduleKey()) {
-            keys += countKeys(op.feeScheduleKey());
+            keys += countKeys(op.feeScheduleKeyOrThrow());
         }
         if (op.hasSubmitKey()) {
-            keys += countKeys(op.submitKey());
+            keys += countKeys(op.submitKeyOrThrow());
         }
         if (op.hasFeeExemptKeyList()) {
             for (var key : op.feeExemptKeyList().keys()) {
