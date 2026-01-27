@@ -29,7 +29,6 @@ public final class KeystorePasswordPolicy {
             return;
         }
 
-        // Never log the actual password value.
         logger.warn(
                 "Configured {} does not meet recommended password policy ({}). This is not enforced, but weak "
                         + "keystore passwords increase risk of offline brute-force attacks.",
