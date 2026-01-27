@@ -14,7 +14,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
@@ -38,6 +38,7 @@ import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -100,8 +101,8 @@ public class ConsensusNodeManager {
 
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
-        final RecycleBin recycleBin =
-                RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        final RecycleBin recycleBin = RecycleBinImpl.create(
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
 
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
