@@ -3,12 +3,12 @@ package com.swirlds.platform.network.protocol;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.heartbeats.HeartbeatPeerProtocol;
 import com.swirlds.platform.network.NetworkMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
+import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 

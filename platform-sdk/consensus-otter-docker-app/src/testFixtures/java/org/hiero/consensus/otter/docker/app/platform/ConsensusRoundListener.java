@@ -2,7 +2,6 @@
 package org.hiero.consensus.otter.docker.app.platform;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
@@ -11,9 +10,9 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 @FunctionalInterface
 public interface ConsensusRoundListener {
     /**
-     * Called when a new batch of consensus rounds has been produced.
+     * Called when a new consensus round has been produced.
      *
-     * @param rounds the list of consensus rounds
+     * @param round the consensus round
      */
-    void onConsensusRounds(@NonNull List<ConsensusRound> rounds);
+    void onConsensusRound(@NonNull ConsensusRound round);
 }

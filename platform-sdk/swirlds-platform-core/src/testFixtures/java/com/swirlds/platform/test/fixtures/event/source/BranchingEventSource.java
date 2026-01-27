@@ -2,11 +2,11 @@
 package com.swirlds.platform.test.fixtures.event.source;
 
 import com.swirlds.common.test.fixtures.TransactionGenerator;
-import com.swirlds.platform.internal.EventImpl;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /**
  * An AbstractEventSource that will periodically branch.

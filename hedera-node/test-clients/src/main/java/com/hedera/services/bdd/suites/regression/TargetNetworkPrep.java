@@ -118,8 +118,6 @@ public class TargetNetworkPrep {
     final Stream<DynamicTest> ensureSystemStateAsExpectedWithFeeCollector() {
         final var emptyKey =
                 Key.newBuilder().setKeyList(KeyList.getDefaultInstance()).build();
-        final var snapshot800 = "800startBalance";
-        final var snapshot801 = "801startBalance";
         final var snapshot802 = "802startBalance";
         final var civilian = "civilian";
         final AtomicReference<FeeObject> feeObs = new AtomicReference<>();
@@ -127,8 +125,6 @@ public class TargetNetworkPrep {
                 overridingTwo(
                         "nodes.feeCollectionAccountEnabled", "true", "nodes.preserveMinNodeRewardBalance", "false"),
                 cryptoCreate(civilian),
-                balanceSnapshot(snapshot800, STAKING_REWARD),
-                balanceSnapshot(snapshot801, NODE_REWARD),
                 balanceSnapshot(snapshot802, FEE_COLLECTOR),
                 cryptoTransfer(tinyBarsFromTo(civilian, STAKING_REWARD, ONE_HBAR))
                         .payingWith(civilian)
@@ -136,16 +132,13 @@ public class TargetNetworkPrep {
                         .exposingFeesTo(feeObs)
                         .via("stakingRewardTransfer")
                         .logged(),
-                sourcing(
-                        () -> getAccountBalance(STAKING_REWARD).hasTinyBars(changeFromSnapshot(snapshot800, ONE_HBAR))),
+                getTxnRecord("stakingRewardTransfer").logged().hasHbarAmount(STAKING_REWARD, ONE_HBAR),
                 cryptoTransfer(tinyBarsFromTo(civilian, NODE_REWARD, ONE_HBAR))
                         .payingWith(civilian)
                         .signedBy(civilian)
                         .logged()
                         .via("nodeRewardTransfer"),
-                getTxnRecord("stakingRewardTransfer").logged(),
-                getTxnRecord("nodeRewardTransfer").logged(),
-                sourcing(() -> getAccountBalance(NODE_REWARD).hasTinyBars(changeFromSnapshot(snapshot801, ONE_HBAR))),
+                getTxnRecord("nodeRewardTransfer").logged().hasHbarAmount(NODE_REWARD, ONE_HBAR),
                 getAccountDetails(STAKING_REWARD)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()

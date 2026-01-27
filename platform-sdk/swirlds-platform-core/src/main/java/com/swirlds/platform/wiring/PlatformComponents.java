@@ -37,7 +37,6 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.wiring.components.ConsensusWiring;
 import com.swirlds.platform.wiring.components.GossipWiring;
 import com.swirlds.platform.wiring.components.PcesReplayerWiring;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
@@ -48,6 +47,7 @@ import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
@@ -62,7 +62,7 @@ public record PlatformComponents(
         WiringModel model,
         EventCreatorModule eventCreatorModule,
         EventIntakeModule eventIntakeModule,
-        ConsensusWiring consensusEngineWiring,
+        HashgraphModule hashgraphModule,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
         ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring,
@@ -114,7 +114,6 @@ public record PlatformComponents(
             @NonNull final SavedStateController savedStateController,
             @NonNull final AppNotifier notifier) {
 
-        consensusEngineWiring.bind(builder::buildConsensusEngine);
         stateSnapshotManagerWiring.bind(builder::buildStateSnapshotManager);
         stateSignerWiring.bind(builder::buildStateSigner);
         pcesReplayerWiring.bind(pcesReplayer);
@@ -155,7 +154,8 @@ public record PlatformComponents(
             @NonNull final PlatformContext platformContext,
             @NonNull final WiringModel model,
             @NonNull final EventCreatorModule eventCreatorModule,
-            @NonNull final EventIntakeModule eventIntakeModule) {
+            @NonNull final EventIntakeModule eventIntakeModule,
+            @NonNull final HashgraphModule hashgraphModule) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
@@ -167,7 +167,7 @@ public record PlatformComponents(
                 model,
                 eventCreatorModule,
                 eventIntakeModule,
-                ConsensusWiring.create(model, config.consensusEngine()),
+                hashgraphModule,
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler()),
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
                 new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),

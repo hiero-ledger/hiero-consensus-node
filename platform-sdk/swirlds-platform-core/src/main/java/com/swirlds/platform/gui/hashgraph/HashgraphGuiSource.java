@@ -3,9 +3,9 @@ package com.swirlds.platform.gui.hashgraph;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.gui.GuiEventStorage;
-import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /**
  * Provides the {@code HashgraphGui} information it needs to render an image of the hashgraph

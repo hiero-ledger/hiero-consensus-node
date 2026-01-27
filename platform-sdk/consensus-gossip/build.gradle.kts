@@ -5,3 +5,8 @@ plugins {
 }
 
 description = "Consensus Gossip API"
+
+mainModuleInfo {
+    annotationProcessor("com.swirlds.config.processor")
+    annotationProcessor("com.google.auto.service.processor")
+}

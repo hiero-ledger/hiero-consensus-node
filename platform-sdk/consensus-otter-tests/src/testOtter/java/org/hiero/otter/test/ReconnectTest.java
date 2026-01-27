@@ -21,7 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
-import org.hiero.consensus.hashgraph.ConsensusConfig_;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;

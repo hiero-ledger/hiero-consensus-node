@@ -5,7 +5,6 @@ import static com.swirlds.common.io.extendable.ExtendableInputStream.extendInput
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
-import com.swirlds.platform.network.SocketConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -15,6 +14,7 @@ import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.gossip.config.SocketConfig;
 
 public class SyncInputStream extends SerializableDataInputStream {
 

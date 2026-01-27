@@ -62,18 +62,16 @@ public class NodeResultsCollector {
      * Adds a consensus round to the list of rounds created during the test.
      * Rounds are deduplicated through the shared pool before being stored.
      *
-     * @param rounds the consensus rounds to add
+     * @param round the consensus round to add
      */
-    public void addConsensusRounds(@NonNull final List<ConsensusRound> rounds) {
-        requireNonNull(rounds);
+    public void addConsensusRound(@NonNull final ConsensusRound round) {
+        requireNonNull(round);
         if (!destroyed) {
             // sends each round through the pool to deduplicate across nodes
-            final List<ConsensusRound> internedRounds = rounds.stream()
-                    .map(round -> roundPool.update(round, nodeId))
-                    .toList();
+            final ConsensusRound internalRound = roundPool.update(round, nodeId);
 
             consensusRoundSubscribers.removeIf(
-                    subscriber -> subscriber.onConsensusRounds(nodeId, internedRounds) == SubscriberAction.UNSUBSCRIBE);
+                    subscriber -> subscriber.onConsensusRound(nodeId, internalRound) == SubscriberAction.UNSUBSCRIBE);
         }
     }
 

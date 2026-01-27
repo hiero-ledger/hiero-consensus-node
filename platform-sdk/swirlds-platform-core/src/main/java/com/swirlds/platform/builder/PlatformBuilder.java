@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createHashgraphModule;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
@@ -27,7 +28,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
-import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -61,6 +61,8 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -93,6 +95,7 @@ public final class PlatformBuilder {
 
     private EventCreatorModule eventCreatorModule;
     private EventIntakeModule eventIntakeModule;
+    private HashgraphModule hashgraphModule;
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
@@ -233,55 +236,6 @@ public final class PlatformBuilder {
     }
 
     /**
-     * Registers a callback that is called for each valid non-ancient preconsensus event in topological order (i.e.
-     * after each event exits the orphan buffer). Useful for scenarios where access to this internal stream of events is
-     * useful (e.g. UI hashgraph visualizers).
-     *
-     * <p>
-     * Among all callbacks in the following list, it is guaranteed that callbacks will not be called concurrently, and
-     * that there will be a happens-before relationship between each of the callbacks.
-     *
-     * <ul>
-     *     <li>{@link #withPreconsensusEventCallback(Consumer)} (i.e. this callback)</li>
-     *     <li>{@link #withConsensusSnapshotOverrideCallback(Consumer)}</li>
-     * </ul>
-     *
-     * @param preconsensusEventConsumer the callback to register
-     * @return this
-     */
-    @NonNull
-    public PlatformBuilder withPreconsensusEventCallback(
-            @NonNull final Consumer<PlatformEvent> preconsensusEventConsumer) {
-        throwIfAlreadyUsed();
-        this.preconsensusEventConsumer = requireNonNull(preconsensusEventConsumer);
-        return this;
-    }
-
-    /**
-     * Registers a callback that is called when the consensus snapshot is specified by an out of band operation (i.e.
-     * restart or reconnect). Useful for scenarios where access to this internal stream of data is useful (e.g. UI
-     * hashgraph visualizers).
-     *
-     * <p>
-     * Among all callbacks in the following list, it is guaranteed that callbacks will not be called concurrently, and
-     * that there will be a happens-before relationship between each of the callbacks.
-     *
-     * <ul>
-     *     <li>{@link #withPreconsensusEventCallback(Consumer)}</li>
-     *     <li>{@link #withConsensusSnapshotOverrideCallback(Consumer)} (i.e. this callback)</li>
-     * </ul>
-     *
-     * @return this
-     */
-    @NonNull
-    public PlatformBuilder withConsensusSnapshotOverrideCallback(
-            @NonNull final Consumer<ConsensusSnapshot> snapshotOverrideConsumer) {
-        throwIfAlreadyUsed();
-        this.snapshotOverrideConsumer = requireNonNull(snapshotOverrideConsumer);
-        return this;
-    }
-
-    /**
      * Register a callback that is called when a stale self event is detected (i.e. an event that will never reach
      * consensus). Depending on the use case, it may be a good idea to resubmit the transactions in the stale event.
      * <p>
@@ -399,6 +353,35 @@ public final class PlatformBuilder {
                 selfId,
                 execution,
                 execution);
+    }
+
+    /**
+     * Provide the Hashgraph module to use for this platform.
+     *
+     * @param hashgraphModule the hashgraph module
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withHashgraphModule(@NonNull final HashgraphModule hashgraphModule) {
+        throwIfAlreadyUsed();
+        this.hashgraphModule = requireNonNull(hashgraphModule);
+        return this;
+    }
+
+    private void initializeHashgraphModule(@Nullable final EventPipelineTracker pipelineTracker) {
+        if (this.hashgraphModule == null) {
+            this.hashgraphModule = createHashgraphModule();
+        }
+
+        hashgraphModule.initialize(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory.getCurrentRoster(),
+                selfId,
+                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
+                pipelineTracker);
     }
 
     /**
@@ -531,9 +514,10 @@ public final class PlatformBuilder {
 
         initializeEventCreatorModule();
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
+        initializeHashgraphModule(pipelineTracker);
 
-        final PlatformComponents platformComponentWiring =
-                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
+        final PlatformComponents platformComponentWiring = PlatformComponents.create(
+                platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
 
         PlatformWiring.wire(platformContext, execution, platformComponentWiring, callbacks);
         PlatformWiring.wireMetrics(platformComponentWiring, pipelineTracker);

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.internal;
 
-import com.swirlds.platform.Consensus;
 import com.swirlds.platform.gui.GuiUtils;
 import com.swirlds.platform.gui.components.PrePaintableJPanel;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,6 +8,7 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.util.Objects;
 import javax.swing.JTextArea;
+import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -27,9 +27,9 @@ class WinTab2Consensus extends PrePaintableJPanel {
     /**
      * Instantiate and initialize content of this tab.
      */
-    public WinTab2Consensus(@NonNull final Consensus consnesus, @NonNull final NodeId firstNodeId) {
+    public WinTab2Consensus(@NonNull final Consensus consensus, @NonNull final NodeId firstNodeId) {
         text = GuiUtils.newJTextArea("");
-        this.consensus = Objects.requireNonNull(consnesus);
+        this.consensus = Objects.requireNonNull(consensus);
         this.firstNodeId = Objects.requireNonNull(firstNodeId);
         add(text);
     }

@@ -3,9 +3,7 @@ package com.swirlds.platform.network.connectivity;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.network.SocketConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -32,6 +30,8 @@ import javax.net.ssl.TrustManagerFactory;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.exceptions.PlatformConstructionException;
+import org.hiero.consensus.gossip.config.GossipConfig;
+import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

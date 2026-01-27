@@ -9,10 +9,10 @@ import static org.hiero.base.CompareTo.isLessThan;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import org.hiero.consensus.gossip.config.SyncConfig;
 
 /**
  * Manages sync permits.
