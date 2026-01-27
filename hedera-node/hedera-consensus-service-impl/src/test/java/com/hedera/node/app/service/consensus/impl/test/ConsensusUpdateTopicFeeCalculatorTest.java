@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
+import com.hedera.hapi.node.transaction.FeeExemptKeyList;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusUpdateTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -91,6 +92,33 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
             // update topic base 498500000L
             // -1 keys =  100000000L
             Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L + 100000000L * 2);
+            Assertions.assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
+        }
+
+        @Test
+        @DisplayName("update topic fee exempt key list")
+        void updateTopicWithFeeExemptKeyList() {
+            final String KEY1 = "key1";
+            final String KEY2 = "key2";
+            final String KEY3 = "key3";
+            final String KEY4 = "key4";
+            final var op = ConsensusUpdateTopicTransactionBody.newBuilder()
+                    .feeExemptKeyList(FeeExemptKeyList.newBuilder()
+                            .keys(
+                                    KEY_BUILDER.apply(KEY1).build(),
+                                    KEY_BUILDER.apply(KEY2).build(),
+                                    KEY_BUILDER.apply(KEY3).build(),
+                                    KEY_BUILDER.apply(KEY4).build())
+                            .build())
+                    .build();
+            final var body =
+                    TransactionBody.newBuilder().consensusUpdateTopic(op).build();
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            assertThat(result).isNotNull();
+            Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            // update topic base 498500000L
+            // 4-1 keys =  100000000L*3
+            Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L + 100000000L * 3);
             Assertions.assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
         }
     }
