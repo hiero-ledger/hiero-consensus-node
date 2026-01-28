@@ -189,6 +189,7 @@ class IndirectProofSequenceValidator {
      * block proofs. Triggers construction of all expected indirect proofs based on the partial proofs already
      * collected.
      *
+     * @param signedTimestamp the designated consensus timestamp of the signed block
      * @param signedProof the TSS-signed block proof that ends the indirect proof sequence
      */
     private void endOfSequence(@NonNull final Timestamp signedTimestamp, @NonNull final BlockProof signedProof) {
