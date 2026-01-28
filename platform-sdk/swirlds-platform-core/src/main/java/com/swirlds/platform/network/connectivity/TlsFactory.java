@@ -2,7 +2,7 @@
 package com.swirlds.platform.network.connectivity;
 
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.network.PeerInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -28,6 +28,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.exceptions.PlatformConstructionException;
 import org.hiero.consensus.gossip.config.GossipConfig;
@@ -72,7 +73,7 @@ public class TlsFactory implements SocketFactory {
         final char[] password = configData.keystorePassword().toCharArray();
 
         /* nondeterministic CSPRNG */
-        this.nonDetRandom = CryptoStatic.getNonDetRandom();
+        this.nonDetRandom = ConsensusCryptoUtils.getNonDetRandom();
 
         // the agrKeyStore should contain an entry with both agrKeyPair.getPrivate() and agrCert
         // PKCS12 uses file extension .p12 or .pfx
@@ -133,7 +134,7 @@ public class TlsFactory implements SocketFactory {
             synchronized (this) {
                 // we just reset the list for now, until the work to calculate diffs is done
                 // then, we will have two lists of peers to add and to remove
-                final KeyStore signingTrustStore = CryptoStatic.createPublicKeyStore(Objects.requireNonNull(peers));
+                final KeyStore signingTrustStore = Utilities.createPublicKeyStore(Objects.requireNonNull(peers));
                 trustManagerFactory.init(signingTrustStore);
                 sslContext.init(
                         keyManagerFactory.getKeyManagers(), trustManagerFactory.getTrustManagers(), nonDetRandom);

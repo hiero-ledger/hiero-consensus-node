@@ -3,11 +3,11 @@ package org.hiero.otter.fixtures.turtle;
 
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
-import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.config.PathsConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.function.Supplier;
+import org.hiero.consensus.config.BasicConfig_;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.pces.config.PcesConfig_;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
