@@ -2,7 +2,6 @@
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
-    id("org.hiero.gradle.feature.test-fixtures")
 }
 
 description = "Consensus PCES-file handling"
@@ -20,7 +19,6 @@ testModuleInfo {
     requires("com.swirlds.platform.core.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
-    requires("org.hiero.consensus.pces.test.fixtures")
     requires("org.hiero.junit.extensions")
     requires("org.junit.jupiter.api")
     requires("org.mockito")

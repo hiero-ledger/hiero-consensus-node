@@ -87,19 +87,14 @@ public abstract class BufferingEventEmitter extends AbstractEventEmitter {
             return false;
         }
 
-        final EventImpl otherParent = potentialEvent.getOtherParent();
+        for (final EventImpl otherParent : potentialEvent.getOtherParents()) {
+            final NodeId otherNodeID = otherParent.getCreatorId();
 
-        if (otherParent == null) {
-            // There is no other parent, so no need to wait for it to be emitted
-            return true;
-        }
-
-        final NodeId otherNodeID = otherParent.getCreatorId();
-
-        for (final EventImpl event : events.get(otherNodeID)) {
-            if (event == otherParent) {
-                // Our other parent has not yet been emitted
-                return false;
+            for (final EventImpl event : events.get(otherNodeID)) {
+                if (event == otherParent) {
+                    // Our other parent has not yet been emitted
+                    return false;
+                }
             }
         }
 
