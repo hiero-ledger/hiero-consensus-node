@@ -5,7 +5,6 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 
-import com.hedera.node.app.tss.TssBaseService;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -29,7 +28,7 @@ public class TssVerbs {
     }
 
     /**
-     * Returns an operation that instructs the embedded {@link TssBaseService} to ignoring TSS signature requests.
+     * Returns an operation that instructs the embedded TSS service to ignoring signature requests.
      *
      * @return the operation that will ignore TSS signature requests
      */
@@ -39,7 +38,7 @@ public class TssVerbs {
     }
 
     /**
-     * Returns an operation that instructs the embedded {@link TssBaseService} to stop ignoring TSS signature requests.
+     * Returns an operation that instructs the embedded TSS service  to stop ignoring signature requests.
      *
      * @return the operation that will stop ignoring TSS signature requests
      */

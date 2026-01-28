@@ -18,6 +18,17 @@ public class RosterHistory {
     private final Map<Bytes, Roster> rosters;
 
     /**
+     * Construct a RosterHistory for a genesis roster.
+     * @param roster the genesis roster
+     * @return a RosterHistory for the genesis roster
+     */
+    public static RosterHistory fromGenesis(@NonNull final Roster roster) {
+        final var hash = RosterUtils.hash(roster).getBytes();
+        return new RosterHistory(
+                List.of(RoundRosterPair.newBuilder().activeRosterHash(hash).build()), Map.of(hash, roster));
+    }
+
+    /**
      * Construct a RosterHistory out of the RosterState and RosterMap inputs.
      * @param history a non-empty list of round number/roster hash pairs
      * @param rosters a map from roster hash to roster objects which must contain all the roster hashes found in the history.

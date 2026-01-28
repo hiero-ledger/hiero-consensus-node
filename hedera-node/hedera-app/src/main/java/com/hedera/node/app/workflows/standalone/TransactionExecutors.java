@@ -293,8 +293,8 @@ public enum TransactionExecutors {
                 appContext,
                 new HintsLibraryImpl(),
                 bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
-        final var historyService = new HistoryServiceImpl(
-                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig);
+        final var historyService =
+                new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl());
         final var standaloneNetworkInfo = new StandaloneNetworkInfo(configProvider);
         standaloneNetworkInfo.initFrom(state);
         final var component = DaggerExecutorComponent.builder()

@@ -99,19 +99,14 @@ public class WrappedWritableStates implements WritableStates {
 
     /**
      * Writes all modifications to the underlying {@link WritableStates}.
-     *
-     * @param commitSingletons if {@code true} commits singleton states.
      */
-    public void commit(boolean commitSingletons) {
+    public void commit() {
         // Ensure all commits always happen in lexicographic order by state ID
         writableKVStateMap.keySet().stream().sorted().forEach(stateId -> (writableKVStateMap.get(stateId)).commit());
         writableQueueStateMap.keySet().stream().sorted().forEach(stateId -> (writableQueueStateMap.get(stateId))
                 .commit());
-        if (commitSingletons) {
-            writableSingletonStateMap.keySet().stream()
-                    .sorted()
-                    .forEach(stateId -> (writableSingletonStateMap.get(stateId)).commit());
-        }
+        writableSingletonStateMap.keySet().stream().sorted().forEach(stateId -> (writableSingletonStateMap.get(stateId))
+                .commit());
 
         if (delegate instanceof CommittableWritableStates terminalStates) {
             terminalStates.commit();

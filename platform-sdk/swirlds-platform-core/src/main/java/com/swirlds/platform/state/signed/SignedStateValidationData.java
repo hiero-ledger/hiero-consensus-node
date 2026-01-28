@@ -4,12 +4,14 @@ package com.swirlds.platform.state.signed;
 import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Optional;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -31,12 +33,17 @@ public record SignedStateValidationData(
         @Nullable Hash rosterHash,
         @NonNull Hash consensusEventsRunningHash) {
 
+    public SignedStateValidationData {
+        requireNonNull(consensusTimestamp);
+        requireNonNull(consensusEventsRunningHash);
+    }
+
     public SignedStateValidationData(@NonNull final State that, @Nullable final Roster roster) {
         this(
                 roundOf(that),
-                consensusTimestampOf(that),
+                Optional.ofNullable(consensusTimestampOf(that)).orElse(Instant.EPOCH),
                 roster == null ? null : RosterUtils.hash(roster),
-                legacyRunningEventHashOf(that));
+                Optional.ofNullable(legacyRunningEventHashOf(that)).orElse(new Hash()));
     }
 
     /**

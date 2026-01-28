@@ -47,6 +47,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -187,10 +188,10 @@ public record SavedStateMetadata(
                 state.getHash(),
                 Mnemonics.generateMnemonic(state.getHash()),
                 consensusSnapshotOf(state).nextConsensusNumber(),
-                signedState.getConsensusTimestamp(),
+                Optional.ofNullable(signedState.getConsensusTimestamp()).orElse(Instant.EPOCH),
                 legacyRunningEventHashOf(state),
                 Mnemonics.generateMnemonic(legacyRunningEventHashOf(state)),
-                ancientThresholdOf(state),
+                round == 0 ? 0 : ancientThresholdOf(state),
                 convertToString(creationSoftwareVersionOf(state)),
                 now,
                 selfId,

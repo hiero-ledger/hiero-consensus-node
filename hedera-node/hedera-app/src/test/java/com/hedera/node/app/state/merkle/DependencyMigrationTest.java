@@ -22,6 +22,7 @@ import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -96,7 +97,8 @@ class DependencyMigrationTest extends MerkleTestBase {
                             VERSIONED_CONFIG,
                             startupNetworks,
                             storeMetricsService,
-                            configProvider))
+                            configProvider,
+                            InitTrigger.GENESIS))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -112,7 +114,8 @@ class DependencyMigrationTest extends MerkleTestBase {
                             VERSIONED_CONFIG,
                             startupNetworks,
                             storeMetricsService,
-                            configProvider))
+                            configProvider,
+                            InitTrigger.GENESIS))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -128,7 +131,8 @@ class DependencyMigrationTest extends MerkleTestBase {
                             null,
                             startupNetworks,
                             storeMetricsService,
-                            configProvider))
+                            configProvider,
+                            InitTrigger.GENESIS))
                     .isInstanceOf(NullPointerException.class);
         }
     }
@@ -219,7 +223,8 @@ class DependencyMigrationTest extends MerkleTestBase {
                 VERSIONED_CONFIG,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                InitTrigger.GENESIS);
 
         // Then: we verify the migrations were run in the expected order
         Assertions.assertThat(orderedInvocations)

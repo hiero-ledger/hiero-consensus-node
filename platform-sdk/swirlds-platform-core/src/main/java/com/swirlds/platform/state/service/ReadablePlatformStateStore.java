@@ -88,6 +88,9 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
         requireNonNull(consensusSnapshot, "No minimum judge info found in state for round, snapshot is null");
         final var minimumJudgeInfos = consensusSnapshot.minimumJudgeInfoList();
         if (minimumJudgeInfos.isEmpty()) {
+            if (consensusSnapshot.round() == GENESIS_ROUND) {
+                return 0L;
+            }
             throw new IllegalStateException(
                     "No minimum judge info found in state for round " + consensusSnapshot.round() + ", list is empty");
         }

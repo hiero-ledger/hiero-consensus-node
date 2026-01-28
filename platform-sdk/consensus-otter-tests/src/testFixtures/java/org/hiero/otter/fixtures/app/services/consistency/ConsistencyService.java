@@ -30,7 +30,6 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * A service that ensures the consistency of rounds and transactions sent by the platform to the execution layer for
@@ -177,7 +176,7 @@ public class ConsistencyService implements OtterService {
      * {@inheritDoc}
      */
     @Override
-    public void onRoundComplete(@NonNull final WritableStates writableStates, @NotNull final Round round) {
+    public void onRoundComplete(@NonNull final WritableStates writableStates, @NonNull final Round round) {
         roundHistory.onRoundComplete();
     }
 
@@ -194,8 +193,7 @@ public class ConsistencyService implements OtterService {
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public OtterServiceStateSpecification stateSpecification() {
+    public @NonNull OtterServiceStateSpecification stateSpecification() {
         return STATE_SPECIFICATION;
     }
 }

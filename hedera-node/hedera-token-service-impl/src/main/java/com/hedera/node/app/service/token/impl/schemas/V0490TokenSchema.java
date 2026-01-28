@@ -20,7 +20,6 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.token.TokenService;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -102,19 +101,5 @@ public class V0490TokenSchema extends Schema<SemanticVersion> {
                         MAX_STAKING_INFOS),
                 StateDefinition.singleton(
                         STAKING_NETWORK_REWARDS_STATE_ID, STAKING_NETWORK_REWARDS_KEY, NetworkStakingRewards.PROTOBUF));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        if (ctx.isGenesis()) {
-            final var networkRewardsState = ctx.newStates().getSingleton(STAKING_NETWORK_REWARDS_STATE_ID);
-            final var networkRewards = NetworkStakingRewards.newBuilder()
-                    .pendingRewards(0)
-                    .totalStakedRewardStart(0)
-                    .totalStakedStart(0)
-                    .stakingRewardsActivated(true)
-                    .build();
-            networkRewardsState.put(networkRewards);
-        }
     }
 }

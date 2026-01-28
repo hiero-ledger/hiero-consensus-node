@@ -75,6 +75,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
 
 /**
@@ -232,9 +233,12 @@ public class ServicesMain {
             hedera.initializeStatesApi(state, RESTART, platformConfig);
         }
         hedera.setInitialStateHash(reservedState.hash());
+        logger.info("Initial state hash: {}", reservedState.hash().toHex());
 
         // --- Create the platform context and initialize the cryptography ---
-        final var rosterHistory = RosterStateUtils.createRosterHistory(state);
+        final var rosterHistory = genesisNetwork.get()
+                ? RosterHistory.fromGenesis(hedera.genesisRosterOrThrow())
+                : RosterStateUtils.createRosterHistory(state);
 
         final var keysAndCerts = initNodeSecurity(platformConfig, selfId);
 
@@ -340,7 +344,7 @@ public class ServicesMain {
                         new HintsLibraryImpl(),
                         bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
-                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
+                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
                 TssBlockHashSigner::new,
                 configuration,
                 metrics,
