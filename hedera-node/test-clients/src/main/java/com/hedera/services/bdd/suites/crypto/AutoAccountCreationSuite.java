@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -83,6 +82,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.suites.contract.Utils;
@@ -109,6 +109,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
+@OrderedInIsolation
 public class AutoAccountCreationSuite {
 
     public static final long INITIAL_BALANCE = 1000L;
@@ -157,7 +158,6 @@ public class AutoAccountCreationSuite {
     private static final String FT_XFER = "ftXfer";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> aliasedPayerDoesntWork() {
         return hapiTest(
                 newKeyNamed(ALIAS),
@@ -395,7 +395,6 @@ public class AutoAccountCreationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canAutoCreateWithNftTransferToEvmAddress() {
         final var civilianBal = 10 * ONE_HBAR;
         final var nftTransfer = "multiNftTransfer";
@@ -654,7 +653,6 @@ public class AutoAccountCreationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> noStakePeriodStartIfNotStakingToNode() {
         final var user = "user";
         final var contract = "contract";
@@ -671,7 +669,6 @@ public class AutoAccountCreationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> hollowAccountCreationWithCryptoTransfer() {
         final var initialTokenSupply = 1000;
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
@@ -919,7 +916,6 @@ public class AutoAccountCreationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> autoAccountCreationWorksWhenUsingAliasOfDeletedAccount() {
         return hapiTest(
                 newKeyNamed(ALIAS),
@@ -1284,7 +1280,6 @@ public class AutoAccountCreationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferHbarsToECDSAKey() {
 
         final AtomicReference<ByteString> evmAddress = new AtomicReference<>();

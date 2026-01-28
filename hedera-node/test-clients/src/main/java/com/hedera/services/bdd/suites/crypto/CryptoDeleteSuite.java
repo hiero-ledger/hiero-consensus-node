@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -51,6 +50,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.ContextRequirement;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -60,6 +60,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
+@OrderedInIsolation
 public class CryptoDeleteSuite {
     private static final long TOKEN_INITIAL_SUPPLY = 500;
     private static final String TRANSFER_ACCOUNT = "transferAccount";
@@ -76,7 +77,6 @@ public class CryptoDeleteSuite {
     }
 
     @LeakyHapiTest(requirement = ContextRequirement.SYSTEM_ACCOUNT_BALANCES)
-    @Tag(MATS)
     final Stream<DynamicTest> deletedAccountCannotBePayer() {
         final var submittingNodeAccount = "3";
         final var beneficiaryAccount = "beneficiaryAccountForDeletedAccount";
@@ -124,7 +124,6 @@ public class CryptoDeleteSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> fundsTransferOnDelete() {
         long B = HapiSpecSetup.getDefaultInstance().defaultBalance();
 
@@ -139,7 +138,6 @@ public class CryptoDeleteSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> cannotDeleteAccountsWithNonzeroTokenBalances() {
         return hapiTest(
                 newKeyNamed("admin"),
@@ -195,7 +193,6 @@ public class CryptoDeleteSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> cannotDeleteTreasuryAccount() {
         return hapiTest(
                 cryptoCreate(TREASURY),
@@ -207,7 +204,6 @@ public class CryptoDeleteSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> deleteEcdsaKeyAliasWorked() {
         return hapiTest(
                 createHip32Auto(1, SECP_256K1_SHAPE, i -> ACCOUNT_TO_BE_DELETED),

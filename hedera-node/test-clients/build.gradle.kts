@@ -40,7 +40,7 @@ tasks.test {
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
-    useJUnitPlatform { includeTags("(INTEGRATION|STREAM_VALIDATION)") }
+    useJUnitPlatform { includeTags("(INTEGRATION|STREAM_VALIDATION)&!CRYPTO") }
 
     systemProperty("junit.jupiter.execution.parallel.enabled", true)
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
@@ -196,7 +196,12 @@ tasks {
         register(taskName) {
             getByName(taskName).group =
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
-            dependsOn("testSubprocess")
+            // CRYPTO tests run exclusively in testSubprocessConcurrent
+            if (taskName == "hapiTestCrypto" || taskName == "hapiTestCryptoMATS") {
+                dependsOn("testSubprocessConcurrent")
+            } else {
+                dependsOn("testSubprocess")
+            }
         }
     }
     remoteCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testRemote") } }
@@ -215,12 +220,13 @@ tasks.register<Test>("testSubprocess") {
             .joinToString("|")
     useJUnitPlatform {
         includeTags(
-            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
+            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS|CRYPTO)"
             // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
             // cases
             else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
-                "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
+                "(${ciTagExpression})&!(EMBEDDED|REPEATABLE|CRYPTO)"
+            else
+                "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS|CRYPTO)"
         )
     }
 
@@ -311,6 +317,112 @@ tasks.register<Test>("testSubprocess") {
     modularity.inferModulePath.set(false)
 }
 
+tasks.register<Test>("testSubprocessConcurrent") {
+    testClassesDirs = sourceSets.main.get().output.classesDirs
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+
+    val ciTagExpression =
+        gradle.startParameter.taskNames
+            .stream()
+            .map { prCheckTags[it] ?: "" }
+            .filter { it.isNotBlank() }
+            .toList()
+            .joinToString("|")
+    useJUnitPlatform {
+        includeTags(
+            // testSubprocessConcurrent runs ONLY CRYPTO tests
+            if (ciTagExpression.isBlank()) "CRYPTO&!(EMBEDDED|REPEATABLE|ISS)"
+            else if (ciTagExpression.contains("CRYPTO"))
+                "(${ciTagExpression})&!(EMBEDDED|REPEATABLE|ISS)"
+            else "none()"
+        )
+    }
+
+    // Choose a different initial port for each test task if running as PR check
+    val initialPort =
+        gradle.startParameter.taskNames
+            .stream()
+            .map { prCheckStartPorts[it] ?: "" }
+            .filter { it.isNotBlank() }
+            .findFirst()
+            .orElse("")
+    systemProperty("hapi.spec.initial.port", initialPort)
+    // There's nothing special about shard/realm 11.12, except that they are non-zero values.
+    // We want to run all tests that execute as part of `testSubprocess`–that is to say,
+    // the majority of the hapi tests - with a nonzero shard/realm
+    // to maintain confidence that we haven't fallen back into the habit of assuming 0.0
+    systemProperty("hapi.spec.default.shard", 11)
+    systemProperty("hapi.spec.default.realm", 12)
+
+    // Gather overrides into a single comma‐separated list
+    val testOverrides =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPropOverrides[it] }
+            .joinToString(separator = ",")
+    // Only set the system property if non-empty
+    if (testOverrides.isNotBlank()) {
+        systemProperty("hapi.spec.test.overrides", testOverrides)
+    }
+
+    val maxHistoryProofsToObserve =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
+            .maxOrNull()
+    if (maxHistoryProofsToObserve != null) {
+        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    }
+
+    val prepareUpgradeOffsets =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPrepareUpgradeOffsets[it] }
+            .joinToString(",")
+    if (prepareUpgradeOffsets.isNotEmpty()) {
+        systemProperty("hapi.spec.prepareUpgradeOffsets", prepareUpgradeOffsets)
+    }
+
+    val networkSize =
+        gradle.startParameter.taskNames
+            .stream()
+            .map { prCheckNetSizeOverrides[it] ?: "" }
+            .filter { it.isNotBlank() }
+            .findFirst()
+            .orElse("4")
+    systemProperty("hapi.spec.network.size", networkSize)
+
+    // Note the 1/4 threshold for the restart check; DabEnabledUpgradeTest is a chaotic
+    // churn of fast upgrades with heavy use of override networks, and there is a node
+    // removal step that happens without giving enough time for the next hinTS scheme
+    // to be completed, meaning a 1/3 threshold in the *actual* roster only accounts for
+    // 1/4 total weight in the out-of-date hinTS verification key,
+    val hintsThresholdDenominator =
+        if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3"
+    systemProperty("hapi.spec.hintsThresholdDenominator", hintsThresholdDenominator)
+    systemProperty("hapi.spec.block.stateproof.verification", "false")
+
+    // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
+    systemProperty(
+        "hapi.spec.quiet.mode",
+        System.getProperty("hapi.spec.quiet.mode")
+            ?: if (ciTagExpression.isNotBlank()) "true" else "false",
+    )
+    systemProperty("junit.jupiter.execution.parallel.enabled", true)
+    systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
+    // This task is specifically configured to run CRYPTO test classes in parallel (concurrently),
+    // deviating from the default 'same_thread' mode for `testSubprocess` to explore
+    // benefits of concurrent execution for crypto tests.
+    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
+    systemProperty(
+        "junit.jupiter.testclass.order.default",
+        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
+    )
+
+    // Limit heap and number of processors
+    maxHeapSize = "8g"
+    jvmArgs("-XX:ActiveProcessorCount=6")
+    maxParallelForks = 1
+    modularity.inferModulePath.set(false)
+}
+
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
@@ -328,8 +440,8 @@ tasks.register<Test>("testRemote") {
             .joinToString("|")
     useJUnitPlatform {
         includeTags(
-            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE)"
-            else "(${ciTagExpression}&!(EMBEDDED|REPEATABLE))"
+            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|CRYPTO)"
+            else "(${ciTagExpression}&!(EMBEDDED|REPEATABLE|CRYPTO))"
         )
     }
 
@@ -415,8 +527,8 @@ tasks.register<Test>("testEmbedded") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank())
-                "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
+                "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS|CRYPTO)"
+            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|CRYPTO)"
         )
     }
 
@@ -489,8 +601,8 @@ tasks.register<Test>("testRepeatable") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank())
-                "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
+                "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS|CRYPTO)"
+            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|CRYPTO)"
         )
     }
 

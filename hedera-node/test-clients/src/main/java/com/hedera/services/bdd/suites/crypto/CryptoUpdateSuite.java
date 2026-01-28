@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -55,6 +54,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyLabels;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -69,6 +69,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
+@OrderedInIsolation
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class CryptoUpdateSuite {
     private static final String TEST_ACCOUNT = "testAccount";
@@ -157,7 +158,6 @@ public class CryptoUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateStakingFieldsWorks() {
         final var stakedAccountId = 20;
         return hapiTest(
@@ -192,7 +192,6 @@ public class CryptoUpdateSuite {
     }
 
     @LeakyHapiTest(overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
-    @Tag(MATS)
     final Stream<DynamicTest> usdFeeAsExpectedCryptoUpdate() {
         double baseFee = 0.000214;
         double baseFeeWithExpiry = 0.00022;
@@ -358,7 +357,6 @@ public class CryptoUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateWithOverlappingSigs() {
         return hapiTest(
                 newKeyNamed(TARGET_KEY).shape(twoLevelThresh).labels(overlappingKeys),
@@ -370,7 +368,6 @@ public class CryptoUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateFailsWithContractKey() {
         final var id = new AtomicReference<ContractID>();
         final var CONTRACT = "Multipurpose";

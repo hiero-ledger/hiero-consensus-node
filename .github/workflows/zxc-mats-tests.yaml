@@ -218,7 +218,6 @@ jobs:
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-misc-records: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-crypto: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-simplefees: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-iss: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-token: "${{ inputs.enable-hapi-tests == 'true' }}"

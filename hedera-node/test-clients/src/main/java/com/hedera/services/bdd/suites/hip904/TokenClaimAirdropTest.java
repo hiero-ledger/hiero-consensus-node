@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -232,7 +231,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("not enough Hbar to claim and than enough")
-    @Tag(MATS)
     final Stream<DynamicTest> notEnoughHbarToClaimAndThanEnough() {
         final String ALICE = "ALICE";
         final String BOB = "BOB";
@@ -654,7 +652,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("Claim token airdrop - 2nd account pays")
-    @Tag(MATS)
     final Stream<DynamicTest> claimTokenAirdropOtherAccountPays() {
         return hapiTest(flattened(
                 setUpTokensAndAllReceivers(),
@@ -682,7 +679,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("Claim token airdrop - sender account pays")
-    @Tag(MATS)
     final Stream<DynamicTest> claimTokenAirdropSenderAccountPays() {
         return hapiTest(flattened(
                 setUpTokensAndAllReceivers(),
@@ -1268,7 +1264,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("Hollow account should be created before implementation of HIP-904")
-    @Tag(MATS)
     final Stream<DynamicTest> hollowAccountBehavior() {
         final String ALICE = "ALICE";
         final String BOB = "BOB";

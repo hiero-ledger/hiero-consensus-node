@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -133,7 +132,6 @@ public class CryptoApproveAllowanceSuite {
     public static final String PAUSE_KEY = "pauseKey";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferErc20TokenFromContractWithApproval() {
         final var transferFromOtherContractWithSignaturesTxn = "transferFromOtherContractWithSignaturesTxn";
         final var nestedContract = "NestedERC20Contract";
@@ -318,7 +316,6 @@ public class CryptoApproveAllowanceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canDeleteAllowanceFromDeletedSpender() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -777,7 +774,6 @@ public class CryptoApproveAllowanceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canHaveMultipleOwners() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -1112,7 +1108,6 @@ public class CryptoApproveAllowanceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> tokenNotAssociatedToAccountFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -1210,7 +1205,6 @@ public class CryptoApproveAllowanceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     public final Stream<DynamicTest> chargedUsdScalesWithAllowances() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -1495,7 +1489,6 @@ public class CryptoApproveAllowanceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduledCryptoApproveAllowanceWorks() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
