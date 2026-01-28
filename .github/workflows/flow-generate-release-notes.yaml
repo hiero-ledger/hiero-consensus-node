@@ -6,6 +6,10 @@ on:
       - "v*.*.*"
   workflow_dispatch:
     inputs:
+      ref:
+        description: "Branch, tag, or commit to build"
+        required: false
+        type: string
       version:
         description: "Release Version Number (ex: 0.59.2):"
         type: string
