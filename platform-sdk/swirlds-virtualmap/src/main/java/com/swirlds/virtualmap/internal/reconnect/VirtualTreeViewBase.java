@@ -8,8 +8,6 @@ import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TreeView;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -96,20 +94,19 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
     }
 
     /**
-     * {@inheritDoc}
+     * Retrieves the child node path of a given parent node path at a specified index.
+     *
+     * @param originalParent The path of the parent node whose child is to be retrieved.
+     *                       Must represent a valid internal node.
+     * @param childIndex     The index of the child node to retrieve, where 0 corresponds
+     *                       to the left child and 1 corresponds to the right child.
+     *                       Must be either 0 or 1.
+     * @return The path of the child node if it exists within the bounds of the original state;
+     *         otherwise, returns null.
+     * @throws AssertionError If the childIndex is not 0 or 1.
+     * @throws MerkleSynchronizationException If the originalParent path is out of bounds
+     *         or not an internal node.
      */
-    @Override
-    public long getClassId(final Long originalNode) {
-        checkValidNode(originalNode, originalState);
-        if (originalNode >= originalState.getLastLeafPath()) {
-            return VirtualLeafNode.CLASS_ID;
-        } else if (originalNode > ROOT_PATH) {
-            return VirtualInternalNode.CLASS_ID;
-        } else {
-            return VirtualMap.CLASS_ID;
-        }
-    }
-
     public Long getChild(final Long originalParent, final int childIndex) {
         checkValidInternal(originalParent, originalState);
         assert childIndex >= 0 && childIndex < 2 : "childIndex was not 1 or 2";

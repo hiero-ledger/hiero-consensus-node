@@ -98,17 +98,6 @@ class VirtualMapTests extends VirtualTestBase {
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("Fresh")})
-    @DisplayName("A fresh map has both children")
-    void freshMapHasBothChildren() {
-        final VirtualMap vm = createMap();
-        assertEquals(2, vm.getNumberOfChildren(), "VirtualMap size is wrong");
-        assertNull(vm.getChild(0), "Unexpected null at index 0");
-        assertNull(vm.getChild(1), "Unexpected non-null at index 1");
-        vm.release();
-    }
-
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("Fresh")})
     @DisplayName("A fresh map returns a non-null data source")
     void freshMapHasDataSource() {
         final VirtualMap vm = createMap();
