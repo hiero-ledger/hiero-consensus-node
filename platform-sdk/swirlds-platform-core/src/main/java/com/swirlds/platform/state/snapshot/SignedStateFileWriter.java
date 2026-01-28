@@ -157,6 +157,10 @@ public final class SignedStateFileWriter {
                     signedState.getRound(),
                     directory,
                     e);
+        } finally {
+            if (!reservedSignedState.isClosed()) {
+                reservedSignedState.close();
+            }
         }
 
         writeSignatureSetFile(directory, signedState);

@@ -161,14 +161,20 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         // the state is reserved before it is handed to this method, and it is released when we are done
         final ReservedSignedState reservedSignedState = request.reservedSignedState();
         final SignedState signedState = reservedSignedState.get();
-        // states requested to be written out-of-band are always written to disk
-        saveStateTask(
-                reservedSignedState,
-                signedStateFilePath
-                        .getSignedStatesBaseDirectory()
-                        .resolve(getReason(signedState).getDescription())
-                        .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
-        request.finishedCallback().run();
+        try {
+            // states requested to be written out-of-band are always written to disk
+            saveStateTask(
+                    reservedSignedState,
+                    signedStateFilePath
+                            .getSignedStatesBaseDirectory()
+                            .resolve(getReason(signedState).getDescription())
+                            .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
+            request.finishedCallback().run();
+        } finally {
+            if (!reservedSignedState.isClosed()) {
+                reservedSignedState.close();
+            }
+        }
     }
 
     @NonNull
