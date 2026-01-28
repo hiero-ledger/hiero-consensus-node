@@ -15,7 +15,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
-import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
+import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -64,7 +65,7 @@ public class MopTest {
         int maxParents = 0;
         int count = 0;
         double sum = 0;
-        try (final PcesMultiFileIterator pces =
+        try (final IOIterator<PlatformEvent> pces =
                 network.newPcesResults().pcesResults().getFirst().pcesEvents()) {
             while (pces.hasNext()) {
                 count++;
