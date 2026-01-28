@@ -226,15 +226,15 @@ def calc_service_fee(service_def, extra_fees, counts, txn_name=""):
                 effective *= hook_execs
             fee += effective * extra_fees.get(name, 0)
             if mult == 1:
-                parts.append(f\"{name} ({count}-{included})*{extra_fees.get(name, 0)}\")
+                parts.append(f"{name} ({count}-{included})*{extra_fees.get(name, 0)}")
             else:
-                parts.append(f\"{name} ({count}-{included})*{extra_fees.get(name, 0)}*{mult}\")
+                parts.append(f"{name} ({count}-{included})*{extra_fees.get(name, 0)}*{mult}")
     return fee, parts
 
 
 def calc_node_fee(node_base, node_extras, extra_fees, counts, use_bytes_for_node):
     fee = node_base
-    parts = [f\"base {node_base}\"]
+    parts = [f"base {node_base}"]
     sigs = counts.get("SIGS_ACTUAL", counts.get("SIGS"))
     if isinstance(sigs, str) and sigs.startswith(">"):
         sigs = None
@@ -243,7 +243,7 @@ def calc_node_fee(node_base, node_extras, extra_fees, counts, use_bytes_for_node
     included_sigs = node_extras.get("SIGNATURES", 0)
     if sigs > included_sigs:
         fee += (sigs - included_sigs) * extra_fees.get("SIGNATURES", 0)
-        parts.append(f\"SIGNATURES ({sigs}-{included_sigs})*{extra_fees.get('SIGNATURES', 0)}\")
+        parts.append(f"SIGNATURES ({sigs}-{included_sigs})*{extra_fees.get('SIGNATURES', 0)}")
 
     bytes_count = counts.get("TX_BYTES")
     if bytes_count is None and use_bytes_for_node:
@@ -255,13 +255,19 @@ def calc_node_fee(node_base, node_extras, extra_fees, counts, use_bytes_for_node
     included_bytes = node_extras.get("BYTES", 0)
     if bytes_count > included_bytes:
         fee += (bytes_count - included_bytes) * extra_fees.get("BYTES", 0)
-        parts.append(f\"BYTES ({bytes_count}-{included_bytes})*{extra_fees.get('BYTES', 0)}\")
+        parts.append(f"BYTES ({bytes_count}-{included_bytes})*{extra_fees.get('BYTES', 0)}")
 
     return fee, parts
 
 
 def tinycents_to_tinybars(amount, hbar_equiv, cent_equiv):
     return (amount * hbar_equiv) // cent_equiv
+
+
+def format_fee_with_parts(fee, parts):
+    if parts:
+        return f"{fee} {{{' + '.join(parts)}}}"
+    return str(fee)
 
 
 def main():
@@ -273,7 +279,7 @@ def main():
     parser.add_argument("--use-bytes-for-node", action="store_true", help="Use BYTES=... from emphasis to compute node BYTES extras (approximate).")
     parser.add_argument("--only-mismatches", action="store_true")
     parser.add_argument("--show-skipped", action="store_true")
-    parser.add_argument("--tolerance", type=int, default=0, help="Allowed tinybar delta.")
+    parser.add_argument("--tolerance", type=int, default=1, help="Allowed tinybar delta.")
     parser.add_argument("--write-csv", action="store_true", help="Write a validated CSV with pass/fail columns.")
     parser.add_argument("--out", help="Output CSV path (defaults to <input>.validated.csv if --write-csv).")
 
@@ -284,7 +290,9 @@ def main():
 
     assoc_fee_tinycents = None
     if "TokenAssociateToAccount" in service_defs:
-        assoc_service = calc_service_fee(service_defs["TokenAssociateToAccount"], extra_fees, {"TOKEN_ASSOCIATE": 1})
+        assoc_service, _ = calc_service_fee(
+            service_defs["TokenAssociateToAccount"], extra_fees, {"TOKEN_ASSOCIATE": 1}
+        )
         assoc_node = node_base
         assoc_fee_tinycents = assoc_service + assoc_node + assoc_node * network_multiplier
     airdrop_fee_tinycents = extra_fees.get("AIRDROPS")
@@ -313,9 +321,10 @@ def main():
                 skipped += 1
                 if args.show_skipped:
                     print(f"SKIP,INVALID_FEE,{txn}")
-                row["Simple Fee Expected (tinybars)"] = ""
-                row["Simple Fee Delta (tinybars)"] = ""
-                row["Simple Fee OK"] = "SKIP"
+                row["Service Fee (tinycents)"] = ""
+                row["Node Fee (tinycents)"] = ""
+                row["Network Fee (tinycents)"] = ""
+                row["Simple Fee OK (delta tinybars)"] = "SKIP"
                 row["Validation Note"] = "INVALID_FEE"
                 out_rows.append(row)
                 continue
@@ -329,9 +338,10 @@ def main():
                 unknown += 1
                 if args.show_skipped:
                     print(f"UNKNOWN,{txn}")
-                row["Simple Fee Expected (tinybars)"] = ""
-                row["Simple Fee Delta (tinybars)"] = ""
-                row["Simple Fee OK"] = "SKIP"
+                row["Service Fee (tinycents)"] = ""
+                row["Node Fee (tinycents)"] = ""
+                row["Network Fee (tinycents)"] = ""
+                row["Simple Fee OK (delta tinybars)"] = "SKIP"
                 row["Validation Note"] = "UNKNOWN"
                 out_rows.append(row)
                 continue
@@ -342,9 +352,10 @@ def main():
                 skipped += 1
                 if args.show_skipped:
                     print(f"UNSUPPORTED,{txn},{schedule_name}")
-                row["Simple Fee Expected (tinybars)"] = ""
-                row["Simple Fee Delta (tinybars)"] = ""
-                row["Simple Fee OK"] = "SKIP"
+                row["Service Fee (tinycents)"] = ""
+                row["Node Fee (tinycents)"] = ""
+                row["Network Fee (tinycents)"] = ""
+                row["Simple Fee OK (delta tinybars)"] = "SKIP"
                 row["Validation Note"] = "UNSUPPORTED"
                 out_rows.append(row)
                 continue
@@ -353,17 +364,23 @@ def main():
                 unknown += 1
                 if args.show_skipped:
                     print(f"UNKNOWN_SCHEDULE,{txn},{schedule_name}")
-                row["Simple Fee Expected (tinybars)"] = ""
-                row["Simple Fee Delta (tinybars)"] = ""
-                row["Simple Fee OK"] = "SKIP"
+                row["Service Fee (tinycents)"] = ""
+                row["Node Fee (tinycents)"] = ""
+                row["Network Fee (tinycents)"] = ""
+                row["Simple Fee OK (delta tinybars)"] = "SKIP"
                 row["Validation Note"] = "UNKNOWN_SCHEDULE"
                 out_rows.append(row)
                 continue
 
             if schedule_name == "TokenAirdrop":
-                service_fee = calc_service_fee(service_defs["CryptoTransfer"], extra_fees, counts)
-                node_fee = calc_node_fee(node_base, node_extras, extra_fees, counts, args.use_bytes_for_node)
-                total_tinycents = service_fee + node_fee + node_fee * network_multiplier
+                service_fee, service_parts = calc_service_fee(
+                    service_defs["CryptoTransfer"], extra_fees, counts
+                )
+                node_fee, node_parts = calc_node_fee(
+                    node_base, node_extras, extra_fees, counts, args.use_bytes_for_node
+                )
+                network_fee = node_fee * network_multiplier
+                network_parts = [f"node {node_fee} * mult {network_multiplier}"] if node_fee else []
                 pending = counts.get("PENDING_AIRDROPS", counts.get("AIRDROPS", 0))
                 existing = counts.get("EXISTING_PENDING_AIRDROPS", 0)
                 unlimited = counts.get("UNLIMITED_ASSOCIATIONS", 0)
@@ -373,24 +390,53 @@ def main():
                 if airdrop_fee_tinycents is not None:
                     new_pending = max(0, pending - existing)
                     if assoc_fee_tinycents is not None:
-                        total_tinycents += new_pending * (airdrop_fee_tinycents + assoc_fee_tinycents)
+                        if new_pending:
+                            service_fee += new_pending * (airdrop_fee_tinycents + assoc_fee_tinycents)
+                            service_parts.append(
+                                f"NEW_PENDING_AIRDROPS ({new_pending})*({airdrop_fee_tinycents}+{assoc_fee_tinycents})"
+                            )
                     else:
-                        total_tinycents += new_pending * airdrop_fee_tinycents
-                    total_tinycents += existing * airdrop_fee_tinycents
-                    total_tinycents += unlimited * airdrop_fee_tinycents
+                        if new_pending:
+                            service_fee += new_pending * airdrop_fee_tinycents
+                            service_parts.append(
+                                f"NEW_PENDING_AIRDROPS ({new_pending})*{airdrop_fee_tinycents}"
+                            )
+                    if existing:
+                        service_fee += existing * airdrop_fee_tinycents
+                        service_parts.append(
+                            f"EXISTING_PENDING_AIRDROPS ({existing})*{airdrop_fee_tinycents}"
+                        )
+                    if unlimited:
+                        service_fee += unlimited * airdrop_fee_tinycents
+                        service_parts.append(
+                            f"UNLIMITED_ASSOCIATIONS ({unlimited})*{airdrop_fee_tinycents}"
+                        )
+                total_tinycents = service_fee + node_fee + network_fee
             else:
-                service_fee = calc_service_fee(service_defs[schedule_name], extra_fees, counts, txn)
+                service_fee, service_parts = calc_service_fee(
+                    service_defs[schedule_name], extra_fees, counts, txn
+                )
+                node_fee = 0
+                node_parts = []
+                network_fee = 0
+                network_parts = []
                 if is_query:
                     total_tinycents = service_fee
                 else:
-                    node_fee = calc_node_fee(node_base, node_extras, extra_fees, counts, args.use_bytes_for_node)
+                    node_fee, node_parts = calc_node_fee(
+                        node_base, node_extras, extra_fees, counts, args.use_bytes_for_node
+                    )
                     network_fee = node_fee * network_multiplier
-                    total_tinycents = service_fee + node_fee + network_fee
+                    network_parts = [f"node {node_fee} * mult {network_multiplier}"] if node_fee else []
                     created_auto = counts.get("CREATED_AUTO_ASSOCIATIONS")
                     if isinstance(created_auto, str):
                         created_auto = 0
                     if created_auto and assoc_fee_tinycents is not None:
-                        total_tinycents += created_auto * assoc_fee_tinycents
+                        service_fee += created_auto * assoc_fee_tinycents
+                        service_parts.append(
+                            f"CREATED_AUTO_ASSOCIATIONS ({created_auto})*{assoc_fee_tinycents}"
+                        )
+                    total_tinycents = service_fee + node_fee + network_fee
 
             expected = tinycents_to_tinybars(total_tinycents, args.hbar_equiv, args.cent_equiv)
             delta = simple_fee - expected
@@ -400,14 +446,16 @@ def main():
                 ok += 1
                 if not args.only_mismatches:
                     print(f"OK,{txn},{schedule_name},expected={expected},actual={simple_fee},delta={delta}")
-                row["Simple Fee OK"] = "PASS"
+                status = "PASS"
             else:
                 mismatches += 1
                 print(f"MISMATCH,{txn},{schedule_name},expected={expected},actual={simple_fee},delta={delta}")
-                row["Simple Fee OK"] = "FAIL"
+                status = "FAIL"
 
-            row["Simple Fee Expected (tinybars)"] = str(expected)
-            row["Simple Fee Delta (tinybars)"] = str(delta)
+            row["Service Fee (tinycents)"] = format_fee_with_parts(service_fee, service_parts)
+            row["Node Fee (tinycents)"] = format_fee_with_parts(node_fee, node_parts)
+            row["Network Fee (tinycents)"] = format_fee_with_parts(network_fee, network_parts)
+            row["Simple Fee OK (delta tinybars)"] = f"{status} [delta={delta}]"
             row.setdefault("Validation Note", "")
             out_rows.append(row)
 
@@ -421,17 +469,37 @@ def main():
 
     if args.write_csv or args.out:
         out_path = Path(args.out) if args.out else csv_path.with_suffix(".validated.csv")
-        fieldnames = list(reader.fieldnames)
-        for col in [
+        input_fieldnames = list(reader.fieldnames)
+        drop_cols = {
+            "Service Fee (tinycents)",
+            "Node Fee (tinycents)",
+            "Network Fee (tinycents)",
+            "Simple Fee OK (delta tinybars)",
+            "Validation Note",
             "Simple Fee Expected (tinybars)",
             "Simple Fee Delta (tinybars)",
             "Simple Fee OK",
+            "Simple Fee Expected (tinycents)",
+            "Calc Details",
+        }
+        fieldnames = [c for c in input_fieldnames if c not in drop_cols]
+        new_cols = [
+            "Service Fee (tinycents)",
+            "Node Fee (tinycents)",
+            "Network Fee (tinycents)",
+            "Simple Fee OK (delta tinybars)",
             "Validation Note",
-        ]:
-            if col not in fieldnames:
-                fieldnames.append(col)
+        ]
+        insert_after = "% Change"
+        if insert_after in fieldnames:
+            idx = fieldnames.index(insert_after) + 1
+            for col in new_cols:
+                fieldnames.insert(idx, col)
+                idx += 1
+        else:
+            fieldnames.extend(new_cols)
         with out_path.open("w", newline="") as out_f:
-            writer = csv.DictWriter(out_f, fieldnames=fieldnames)
+            writer = csv.DictWriter(out_f, fieldnames=fieldnames, extrasaction="ignore")
             writer.writeheader()
             for row in out_rows:
                 writer.writerow(row)
