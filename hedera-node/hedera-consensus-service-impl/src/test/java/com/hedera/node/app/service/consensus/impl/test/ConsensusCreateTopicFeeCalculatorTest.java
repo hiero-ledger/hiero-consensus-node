@@ -54,7 +54,8 @@ public class ConsensusCreateTopicFeeCalculatorTest {
             final var op = ConsensusCreateTopicTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusCreateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(
+                    body, com.hedera.node.app.spi.fees.SimpleFeeContextUtil.fromFeeContext(feeContext));
 
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);

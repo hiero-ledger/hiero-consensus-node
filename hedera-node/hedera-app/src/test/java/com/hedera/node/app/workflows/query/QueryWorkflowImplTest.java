@@ -62,6 +62,7 @@ import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -91,6 +92,7 @@ import java.time.InstantSource;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -1149,7 +1151,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                     .runAllChecks(any(), any(), any(), any());
 
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateQueryFee(query, queryContext)).willReturn(100000L);
+            final var result = new FeeResult(0, 100000L, 0);
+            given(simpleFeeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromQueryContext(queryContext)))
+                    .willReturn(result);
 
             mockTopicGetInfoHandler(query, queryHeader, payment);
 
