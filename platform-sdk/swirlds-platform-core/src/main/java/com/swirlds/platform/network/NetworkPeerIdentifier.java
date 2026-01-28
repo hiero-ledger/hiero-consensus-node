@@ -3,7 +3,7 @@ package com.swirlds.platform.network;
 
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.Certificate;
@@ -37,13 +37,12 @@ public class NetworkPeerIdentifier {
     /**
      * constructor
      *
-     * @param platformContext the platform context
-     * @param peers           list of peers
+     * @param time the source of time
+     * @param peers list of peers
      */
-    public NetworkPeerIdentifier(@NonNull final PlatformContext platformContext, @NonNull final List<PeerInfo> peers) {
-        Objects.requireNonNull(platformContext);
+    public NetworkPeerIdentifier(@NonNull final Time time, @NonNull final List<PeerInfo> peers) {
         Objects.requireNonNull(peers);
-        noPeerFoundLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(5));
+        noPeerFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(5));
 
         this.x501PrincipalsAndPeers = peers.stream()
                 .collect(Collectors.toMap(
