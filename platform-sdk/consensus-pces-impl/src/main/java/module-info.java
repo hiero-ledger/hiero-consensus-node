@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.pces.impl {
-    exports org.hiero.consensus.pces.impl.common;
+    exports org.hiero.consensus.pces.impl.common to
+            com.swirlds.platform.core,
+            com.swirlds.platform.core.test.fixtures,
+            org.hiero.consensus.pcli,
+            org.hiero.otter.fixtures;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;

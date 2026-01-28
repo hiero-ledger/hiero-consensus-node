@@ -350,10 +350,9 @@ class ShadowgraphByBirthRoundTests {
         birthRoundToShadows.forEach((birthRound, shadowSet) -> {
             if (birthRound < expireBelowBirthRound) {
                 shadowSet.forEach((shadow) -> {
-                    assertNull(
-                            shadow.getSelfParent(), "Expired events should have their self parent reference nulled.");
-                    assertNull(
-                            shadow.getOtherParent(), "Expired events should have their other parent reference nulled.");
+                    assertTrue(
+                            shadow.getAllParents().isEmpty(),
+                            "Expired events should have their parents references nulled.");
                     assertFalse(
                             shadowGraph.isHashInGraph(shadow.getBaseHash()),
                             "Events in an expire birth round should not be in the shadow graph.");
@@ -681,8 +680,7 @@ class ShadowgraphByBirthRoundTests {
         shadowGraph.clear();
 
         for (final ShadowEvent s : shadows) {
-            assertNull(s.getSelfParent(), "after a clear, all parents should be disconnected");
-            assertNull(s.getOtherParent(), "after a clear, all parents should be disconnected");
+            assertTrue(s.getAllParents().isEmpty(), "after a clear, all parents should be disconnected");
         }
     }
 
