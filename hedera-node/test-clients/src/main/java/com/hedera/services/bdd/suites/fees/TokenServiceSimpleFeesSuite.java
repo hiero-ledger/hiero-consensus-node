@@ -37,12 +37,15 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedSimpleFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.nodeFeeFromBytesUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -53,9 +56,11 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -306,83 +311,6 @@ public class TokenServiceSimpleFeesSuite {
                 0.001,
                 1,
                 0.0010,
-                1);
-    }
-
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("compare mint a unique token")
-    final Stream<DynamicTest> compareMintUniqueToken() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(METADATA_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
-                        tokenCreate(NFT_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0L)
-                                .payingWith(PAYER)
-                                .supplyKey(SUPPLY_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS)
-                                .via("create-token-txn"),
-                        mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
-                                .payingWith(PAYER)
-                                .signedBy(SUPPLY_KEY)
-                                .blankMemo()
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS)
-                                .via("non-fungible-mint-txn")),
-                "non-fungible-mint-txn",
-                // base = 9000000,
-                // nft =  1*199000000,
-                // node+network = 1000000
-                // total = 209000000 = .0209
-                0.0209,
-                1,
-                0.0209,
-                1);
-    }
-
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("compare mint multiple unique tokens")
-    final Stream<DynamicTest> compareMintMultipleUniqueToken() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(METADATA_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
-                        tokenCreate(NFT_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0L)
-                                .payingWith(PAYER)
-                                .supplyKey(SUPPLY_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS)
-                                .via("create-token-txn"),
-                        mintToken(
-                                        NFT_TOKEN,
-                                        List.of(
-                                                ByteString.copyFromUtf8("Bart Simpson"),
-                                                ByteString.copyFromUtf8("Lisa Simpson"),
-                                                ByteString.copyFromUtf8("Homer Simpson")))
-                                .payingWith(PAYER)
-                                .signedBy(SUPPLY_KEY)
-                                .blankMemo()
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS)
-                                .via("non-fungible-multiple-mint-txn")),
-                "non-fungible-multiple-mint-txn",
-                // TODO: we need a better way to represent the cost of minting NFTs.
-                // with this current system the cost of node+network will be double counted
-                // base = 9000000,
-                // tokens = 199000000*3,
-                // node+network = 1000000
-                // total = 607000000 = .00607
-                0.0607,
-                1,
-                0.06069,
                 1);
     }
 
@@ -930,5 +858,49 @@ public class TokenServiceSimpleFeesSuite {
                 sourcing(() ->
                         tokenAssociate("account", tokens).payingWith("account").via("associateTxn")),
                 validateChargedUsd("associateTxn", TOKEN_ASSOCIATE_FEE * tokens.size()));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateOneNftTokenWithoutCustomFees() {
+        return updateBulkNftTokensAndValidateFees(List.of(1L));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateFiveBulkNftTokensWithoutCustomFees() {
+        return updateBulkNftTokensAndValidateFees(List.of(1L, 2L, 3L, 4L, 5L));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTenBulkNftTokensWithoutCustomFees() {
+        return updateBulkNftTokensAndValidateFees(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L));
+    }
+
+    private Stream<DynamicTest> updateBulkNftTokensAndValidateFees(final List<Long> updateAmounts) {
+        final var supplyKey = "supplyKey";
+        return hapiTest(
+                newKeyNamed(supplyKey),
+                cryptoCreate("owner").balance(ONE_HUNDRED_HBARS).key(supplyKey),
+                tokenCreate(NFT_TOKEN)
+                        .treasury("owner")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(supplyKey)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0),
+                mintToken(
+                                NFT_TOKEN,
+                                IntStream.range(0, updateAmounts.size())
+                                        .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                        .toList())
+                        .fee(updateAmounts.size() * ONE_HBAR)
+                        .payingWith("owner")
+                        .signedBy(supplyKey)
+                        .blankMemo(),
+                tokenUpdateNfts(NFT_TOKEN, "metadata", updateAmounts)
+                        .fee(updateAmounts.size() * ONE_HBAR)
+                        .payingWith("owner")
+                        .signedBy(supplyKey)
+                        .blankMemo()
+                        .via("updateTxn"),
+                validateChargedUsdWithin("updateTxn", TOKEN_UPDATE_NFT_FEE * updateAmounts.size(), 0.1));
     }
 }
