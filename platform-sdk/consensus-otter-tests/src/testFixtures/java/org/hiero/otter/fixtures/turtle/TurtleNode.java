@@ -18,7 +18,7 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
@@ -53,6 +53,7 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -212,7 +213,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
             final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
-            final RecycleBin recycleBin = RecycleBin.create(
+            final RecycleBin recycleBin = RecycleBinImpl.create(
                     metrics,
                     currentConfiguration,
                     getStaticThreadManager(),

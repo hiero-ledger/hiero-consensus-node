@@ -21,13 +21,13 @@ open module com.swirlds.common.test.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.logging;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.pces;
-    requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j.core;
     requires org.apache.logging.log4j;
     requires org.junit.jupiter.api;

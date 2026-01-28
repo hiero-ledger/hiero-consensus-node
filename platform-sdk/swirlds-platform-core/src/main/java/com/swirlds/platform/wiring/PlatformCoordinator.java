@@ -5,7 +5,6 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSna
 import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
@@ -34,6 +33,7 @@ import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
