@@ -8,8 +8,6 @@ module com.swirlds.common {
     exports com.swirlds.common.io;
     exports com.swirlds.common.io.config;
     exports com.swirlds.common.io.exceptions;
-    exports com.swirlds.common.io.extendable;
-    exports com.swirlds.common.io.extendable.extensions;
     exports com.swirlds.common.io.filesystem;
     exports com.swirlds.common.io.streams;
     exports com.swirlds.common.io.utility;
@@ -69,6 +67,7 @@ module com.swirlds.common {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
     requires com.hedera.pbj.runtime;
