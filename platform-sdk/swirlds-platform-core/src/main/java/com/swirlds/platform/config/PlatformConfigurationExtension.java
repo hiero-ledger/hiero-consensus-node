@@ -20,8 +20,6 @@ import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.hiero.consensus.config.BasicConfig;
-import org.hiero.consensus.config.ThreadConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
