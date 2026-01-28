@@ -53,6 +53,7 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.metrics.config.MetricsConfig_;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -198,7 +199,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 }
             }
 
-            // Start node from current state
+            // Disable metrics in Turtle runs, since it is not useful and could interfere with determinism
+            nodeConfiguration.withConfigValue(MetricsConfig_.DISABLE_METRICS_OUTPUT, true);
             final Configuration currentConfiguration = nodeConfiguration.current();
 
             setupGlobalMetrics(currentConfiguration);
