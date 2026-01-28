@@ -32,23 +32,19 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -546,7 +542,11 @@ public class BlockNodeConnectionManager {
         for (final Map.Entry<Integer, List<BlockNodeConfiguration>> entry : priorityGroups.entrySet()) {
             final int priority = entry.getKey();
             final List<BlockNodeConfiguration> nodesInGroup = entry.getValue();
-            selectedNode = findAvailableNode(nodesInGroup);
+            try {
+                selectedNode = findAvailableNode(nodesInGroup);
+            } catch (final Exception e) {
+                logger.warn("Error encountered while trying to find available node in priority group {}", priority, e);
+            }
 
             if (selectedNode == null) {
                 logger.debug("No available node found in priority group {}.", priority);
@@ -585,30 +585,6 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * Converts a {@link Future} to a {@link CompletableFuture}.
-     * @param future the Future to convert
-     * @return a CompletableFuture that wraps the original Future
-     */
-    private <T> CompletableFuture<T> toCompletableFuture(final Future<T> future) {
-        final CompletableFuture<T> cf = new CompletableFuture<>();
-
-        // This is kind of a roundabout way of converting the future, but it seems to be the simplest
-        Thread.ofVirtual().start(() -> {
-            try {
-                cf.complete(future.get());
-            } catch (final InterruptedException | ExecutionException e) {
-                if (e instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
-                }
-
-                cf.completeExceptionally(e);
-            }
-        });
-
-        return cf;
-    }
-
-    /**
      * Given a list of available nodes, find a node that can be used for creating a new connection.
      * This ensures we always create fresh BlockNodeConnection instances for new pipelines.
      *
@@ -626,39 +602,37 @@ public class BlockNodeConnectionManager {
             return null;
         }
 
-        // now that we have a list of possible candidates, call the service API to check which node is the best option
-        final Map<BlockNodeConfiguration, Future<BlockNodeStatus>> tasksByNode = new HashMap<>();
-        for (final BlockNodeConfiguration nodeCfg : candidateNodes) {
-            final Future<BlockNodeStatus> taskFuture =
-                    blockingIoExecutor.submit(new RetrieveBlockNodeStatusTask(nodeCfg));
-            tasksByNode.put(nodeCfg, taskFuture);
-        }
-
-        final CompletableFuture<?>[] completableFutures =
-                tasksByNode.values().stream().map(this::toCompletableFuture).toArray(CompletableFuture[]::new);
-        // Batch all the subtasks under one parent CompletableFuture so we can better handle timeouts
-        final CompletableFuture<?> batchFuture = CompletableFuture.allOf(completableFutures);
         final Duration timeout = configProvider
                 .getConfiguration()
                 .getConfigData(BlockNodeConnectionConfig.class)
                 .blockNodeStatusTimeout();
 
+        final List<RetrieveBlockNodeStatusTask> tasks = new ArrayList<>();
+        for (final BlockNodeConfiguration nodeCfg : candidateNodes) {
+            tasks.add(new RetrieveBlockNodeStatusTask(nodeCfg));
+        }
+
+        final List<Future<BlockNodeStatus>> futures = new ArrayList<>();
         try {
-            batchFuture.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            futures.addAll(blockingIoExecutor.invokeAll(tasks, timeout.toMillis(), TimeUnit.MILLISECONDS));
         } catch (final InterruptedException e) {
             logger.warn("Interrupted while waiting for one or more block node status retrieval tasks; ignoring group");
             Thread.currentThread().interrupt();
             return null;
-        } catch (final TimeoutException e) {
-            logger.warn(
-                    "Block node status retrieval batch contained one or more sub-futures that exceeded timeout (timeout: {}ms)",
-                    timeout.toMillis());
-            // do nothing else - the task(s) that timed out will be logged later when the individual tasks are processed
         } catch (final Exception e) {
-            // log the error, but otherwise ignore it...
-            // handling of failures will happen when the individual tasks are processed
             logger.warn(
-                    "Error encountered while waiting for one or more block node status retrieval tasks to complete", e);
+                    "Error encountered while waiting for one or more block node retrieval tasks to complete; ignoring group",
+                    e);
+            return null;
+        }
+
+        if (candidateNodes.size() != futures.size()) {
+            // this should never happen, but we will be defensive and check anyway
+            logger.warn(
+                    "Number of candidates ({}) does not match the number of tasks submitted ({}); ignoring group",
+                    candidateNodes.size(),
+                    futures.size());
+            return null;
         }
 
         // collect the results and filter out nodes that either are unavailable or nodes that require a block we don't
@@ -667,9 +641,9 @@ public class BlockNodeConnectionManager {
         final long latestAvailableBlock = blockBufferService.getLastBlockNumberProduced();
         final List<BlockNodeConfiguration> nodesToSelectFrom = new ArrayList<>();
 
-        for (final Map.Entry<BlockNodeConfiguration, Future<BlockNodeStatus>> entry : tasksByNode.entrySet()) {
-            final BlockNodeConfiguration nodeConfig = entry.getKey();
-            final Future<BlockNodeStatus> future = entry.getValue();
+        for (int i = 0; i < candidateNodes.size(); ++i) {
+            final BlockNodeConfiguration nodeConfig = candidateNodes.get(i);
+            final Future<BlockNodeStatus> future = futures.get(i);
             final BlockNodeStatus status =
                     switch (future.state()) {
                         case SUCCESS -> {
@@ -697,7 +671,7 @@ public class BlockNodeConnectionManager {
                                     future.exceptionNow());
                             yield BlockNodeStatus.notReachable();
                         }
-                        case RUNNING -> {
+                        case CANCELLED, RUNNING -> {
                             logger.warn(
                                     "[{}:{}] Timed out waiting for block node status",
                                     nodeConfig.address(),

@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static com.hedera.node.app.blocks.impl.streaming.BlockNodeStatus.notReachable;
+import static com.hedera.node.app.blocks.impl.streaming.BlockNodeStatus.reachable;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.CompletableFuture.completedFuture;
+import static java.util.concurrent.CompletableFuture.failedFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
@@ -13,7 +18,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
@@ -37,7 +41,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
@@ -71,7 +74,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedConstruction;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -211,7 +213,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testRescheduleAndSelectNode() {
+    void testRescheduleAndSelectNode() throws Exception {
         final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
         final BlockNodeConfiguration nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
         final Duration delay = Duration.ofSeconds(1);
@@ -229,9 +231,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         connectionManager.rescheduleConnection(connection, delay, null, true);
 
@@ -283,9 +293,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doReturn(List.of(completedFuture(reachable(10, 99))))
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         connectionManager.rescheduleConnection(connection, Duration.ZERO, null, true);
         Thread.sleep(1_000L); // sleep to ensure the backoff timeframe has passed
@@ -395,7 +405,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testStartup() throws IOException {
+    void testStartup() throws Exception {
         final AtomicBoolean isActive = isActiveFlag();
         isActive.set(false);
 
@@ -438,9 +448,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        // mark all nodes as reachable but with -1 as the latest block
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         connectionManager.start();
 
@@ -500,7 +519,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSelectNewBlockNodeForStreaming_higherPriorityThanActive() {
+    void testSelectNewBlockNodeForStreaming_higherPriorityThanActive() throws Exception {
         final Map<BlockNodeConfiguration, BlockNodeStreamingConnection> connections = connections();
         final List<BlockNodeConfiguration> availableNodes = availableNodes();
         final AtomicReference<BlockNodeStreamingConnection> activeConnection = activeConnection();
@@ -518,9 +537,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         final boolean isScheduled = connectionManager.selectNewBlockNodeForStreaming(false);
 
@@ -547,7 +574,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSelectNewBlockNodeForStreaming_lowerPriorityThanActive() {
+    void testSelectNewBlockNodeForStreaming_lowerPriorityThanActive() throws Exception {
         final Map<BlockNodeConfiguration, BlockNodeStreamingConnection> connections = connections();
         final List<BlockNodeConfiguration> availableNodes = availableNodes();
         final AtomicReference<BlockNodeStreamingConnection> activeConnection = activeConnection();
@@ -567,9 +594,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         final boolean isScheduled = connectionManager.selectNewBlockNodeForStreaming(false);
 
@@ -597,7 +632,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSelectNewBlockNodeForStreaming_samePriority() {
+    void testSelectNewBlockNodeForStreaming_samePriority() throws Exception {
         final Map<BlockNodeConfiguration, BlockNodeStreamingConnection> connections = connections();
         final List<BlockNodeConfiguration> availableNodes = availableNodes();
         final AtomicReference<BlockNodeStreamingConnection> activeConnection = activeConnection();
@@ -619,9 +654,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         final boolean isScheduled = connectionManager.selectNewBlockNodeForStreaming(false);
 
@@ -1163,7 +1206,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     // Priority based BN selection
     @Test
-    void testPriorityBasedSelection_multiplePriority0Nodes_randomSelection() {
+    void testPriorityBasedSelection_multiplePriority0Nodes_randomSelection() throws Exception {
         // Setup: Create multiple nodes with priority 0 and some with lower priorities
         final List<BlockNodeConfiguration> blockNodes = List.of(
                 newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 0), // Priority 0
@@ -1193,9 +1236,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
             doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
             doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-            doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+            doAnswer(invocation -> {
+                        final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                        final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                        for (int k = 0; k < tasks.size(); ++k) {
+                            futures.add(completedFuture(reachable(10, 99)));
+                        }
+
+                        return futures;
+                    })
                     .when(blockingIoExecutor)
-                    .submit(any(RetrieveBlockNodeStatusTask.class));
+                    .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
             // Configure the manager with these nodes
             createConnectionManager(blockNodes);
@@ -1228,7 +1279,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testPriorityBasedSelection_onlyLowerPriorityNodesAvailable() {
+    void testPriorityBasedSelection_onlyLowerPriorityNodesAvailable() throws Exception {
         // Setup: All priority 0 nodes are unavailable, only lower priority nodes available
         final List<BlockNodeConfiguration> blockNodes = List.of(
                 newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1), // Priority 1
@@ -1240,9 +1291,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         // Perform selection
         connectionManager.selectNewBlockNodeForStreaming(true);
@@ -1264,7 +1323,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testPriorityBasedSelection_mixedPrioritiesWithSomeUnavailable() {
+    void testPriorityBasedSelection_mixedPrioritiesWithSomeUnavailable() throws Exception {
         // Setup: Mix of priorities where some priority 0 nodes are already connected
         final List<BlockNodeConfiguration> allBlockNodes = List.of(
                 newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 0), // Priority 0 - will be unavailable
@@ -1278,9 +1337,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         // Simulate that node1 is already connected (unavailable)
         final BlockNodeConfiguration unavailableNode = allBlockNodes.getFirst();
@@ -1312,7 +1379,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testPriorityBasedSelection_allPriority0NodesUnavailable() {
+    void testPriorityBasedSelection_allPriority0NodesUnavailable() throws Exception {
         // Setup: All priority 0 nodes are connected, lower priority nodes available
         final List<BlockNodeConfiguration> allBlockNodes = List.of(
                 newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 0), // Priority 0 - unavailable
@@ -1326,9 +1393,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         // Make all priority 0 nodes unavailable by adding them to connections
         final Map<BlockNodeConfiguration, BlockNodeStreamingConnection> connections = connections();
@@ -1395,7 +1470,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testRefreshAvailableBlockNodes_shutsDownExecutorAndReloads_whenValid() {
+    void testRefreshAvailableBlockNodes_shutsDownExecutorAndReloads_whenValid() throws Exception {
         // Point manager at real bootstrap config directory so reload finds valid JSON
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
@@ -1414,9 +1489,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         invoke_refreshAvailableBlockNodes();
 
@@ -1478,9 +1561,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         connectionManager.start();
         final Path file = tempDir.resolve("block-nodes.json");
@@ -1664,9 +1755,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         connectionManager.start();
 
@@ -1726,9 +1825,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 99)))
+        doAnswer(invocation -> {
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(10, 99)));
+                    }
+
+                    return futures;
+                })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         connectionManager.start();
         awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
@@ -1974,7 +2081,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSelectNewBlockNodeForStreaming_allNodesUnreachableOrOutOfBounds() {
+    void testSelectNewBlockNodeForStreaming_allNodesUnreachableOrOutOfBounds() throws Exception {
         final BlockNodeConfiguration node1Config = newBlockNodeConfig(8080, 1);
         final BlockNodeConfiguration node2Config = newBlockNodeConfig(8081, 2);
         final BlockNodeConfiguration node3Config = newBlockNodeConfig(8082, 2);
@@ -1986,31 +2093,35 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final long latestBlock = 250;
         doReturn(earliestBlock).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(latestBlock).when(bufferService).getLastBlockNumberProduced();
-
         doAnswer(invocation -> {
-                    final RetrieveBlockNodeStatusTask task = invocation.getArgument(0);
-                    final BlockNodeServiceConnection connection =
-                            (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(task);
-                    final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-                    if (taskNodeConfig.streamingPort() == node1Config.streamingPort()) {
-                        // set one node as unreachable
-                        return CompletableFuture.completedFuture(BlockNodeStatus.notReachable());
-                    } else if (taskNodeConfig.streamingPort() == node2Config.streamingPort()) {
-                        // set one node to have a latest block greater than what is available
-                        return CompletableFuture.completedFuture(BlockNodeStatus.reachable(2, latestBlock + 10));
-                    } else {
-                        // set the rest of the nodes to be behind the CN
-                        return CompletableFuture.completedFuture(BlockNodeStatus.reachable(4, earliestBlock - 10));
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        final BlockNodeServiceConnection connection =
+                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
+                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
+                        if (taskNodeConfig.streamingPort() == node1Config.streamingPort()) {
+                            // set one node as unreachable
+                            futures.add(completedFuture(notReachable()));
+                        } else if (taskNodeConfig.streamingPort() == node2Config.streamingPort()) {
+                            // set one node to have a latest block greater than what is available
+                            futures.add(completedFuture(reachable(2, latestBlock + 10)));
+                        } else {
+                            // set the rest of the nodes to be behind the CN
+                            futures.add(completedFuture(reachable(4, earliestBlock - 10)));
+                        }
                     }
+
+                    return futures;
                 })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isFalse();
 
         verify(bufferService, times(3)).getLastBlockNumberProduced();
         verify(bufferService, times(3)).getEarliestAvailableBlockNumber();
-        verify(blockingIoExecutor, times(4)).submit(any(RetrieveBlockNodeStatusTask.class));
+        verify(blockingIoExecutor, times(3)).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoInteractions(metrics);
@@ -2018,7 +2129,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSelectNewBlockNodeForStreaming_noHighPriorityNodesAvailable() {
+    void testSelectNewBlockNodeForStreaming_noHighPriorityNodesAvailable() throws Exception {
         final BlockNodeConfiguration node1Config = newBlockNodeConfig(8080, 1);
         final BlockNodeConfiguration node2Config = newBlockNodeConfig(8081, 1);
         final BlockNodeConfiguration node3Config = newBlockNodeConfig(8082, 1);
@@ -2032,20 +2143,25 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doReturn(latestBlock).when(bufferService).getLastBlockNumberProduced();
 
         doAnswer(invocation -> {
-                    final RetrieveBlockNodeStatusTask task = invocation.getArgument(0);
-                    final BlockNodeServiceConnection connection =
-                            (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(task);
-                    final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-                    if (taskNodeConfig.streamingPort() == node4Config.streamingPort()) {
-                        // set node 4 (priority 2) as the only reachable node
-                        return CompletableFuture.completedFuture(BlockNodeStatus.reachable(3, latestBlock - 10));
-                    } else {
-                        // set all other nodes (priority 1) to be behind the CN
-                        return CompletableFuture.completedFuture(BlockNodeStatus.reachable(4, earliestBlock - 10));
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        final BlockNodeServiceConnection connection =
+                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
+                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
+                        if (taskNodeConfig.streamingPort() == node4Config.streamingPort()) {
+                            // set node 4 (priority 2) as the only reachable node
+                            futures.add(completedFuture(reachable(3, latestBlock - 10)));
+                        } else {
+                            // set all other nodes (priority 1) to be behind the CN
+                            futures.add(completedFuture(reachable(4, earliestBlock - 10)));
+                        }
                     }
+
+                    return futures;
                 })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
 
@@ -2060,7 +2176,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(bufferService, times(2)).getLastBlockNumberProduced();
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
-        verify(blockingIoExecutor, times(4)).submit(any(RetrieveBlockNodeStatusTask.class));
+        verify(blockingIoExecutor, times(2)).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoInteractions(metrics);
@@ -2068,7 +2184,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSelectNewBlockNodeForStreaming_multipleGoodNodes() {
+    void testSelectNewBlockNodeForStreaming_multipleGoodNodes() throws Exception {
         final BlockNodeConfiguration node1Config = newBlockNodeConfig(8080, 1);
         final BlockNodeConfiguration node2Config = newBlockNodeConfig(8081, 1);
         final BlockNodeConfiguration node3Config = newBlockNodeConfig(8082, 2);
@@ -2082,11 +2198,16 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doReturn(latestBlock).when(bufferService).getLastBlockNumberProduced();
 
         doAnswer(invocation -> {
-                    // mark all nodes as reachable
-                    return CompletableFuture.completedFuture(BlockNodeStatus.reachable(5, latestBlock - 5));
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(completedFuture(reachable(5, latestBlock - 5)));
+                    }
+
+                    return futures;
                 })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
 
@@ -2103,8 +2224,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // since one of the nodes in priority group 1 was chosen, we should only interact with the buffer service once
         verify(bufferService, times(1)).getLastBlockNumberProduced();
         verify(bufferService, times(1)).getEarliestAvailableBlockNumber();
-        // likewise, there should only be two tasks submitted to retrieve status for nodes in priority group 1
-        verify(blockingIoExecutor, times(2)).submit(any(RetrieveBlockNodeStatusTask.class));
+        verify(blockingIoExecutor).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoInteractions(metrics);
@@ -2112,7 +2232,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSelectNewBlockNodeForStreaming_noneAvailable_timeout() {
+    void testSelectNewBlockNodeForStreaming_noneAvailable_timeout() throws Exception {
         final BlockNodeConfiguration node1Config = newBlockNodeConfig(8080, 1);
         final BlockNodeConfiguration node2Config = newBlockNodeConfig(8081, 1);
         final BlockNodeConfiguration node3Config = newBlockNodeConfig(8082, 1);
@@ -2126,30 +2246,35 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doReturn(latestBlock).when(bufferService).getLastBlockNumberProduced();
 
         // when submitting the tasks to retrieve the status, block for longer than the timeout (default: 250ms)
-        final CompletableFuture<?> node1CfSpy = spy(createSleepingFuture());
-        final CompletableFuture<?> node2CfSpy = spy(createSleepingFuture());
-        final CompletableFuture<?> node3CfSpy = spy(createSleepingFuture());
-        final CompletableFuture<?> node4CfSpy = spy(createSleepingFuture());
+        final CompletableFuture<BlockNodeStatus> node1CfSpy = spy(createSleepingFuture());
+        final CompletableFuture<BlockNodeStatus> node2CfSpy = spy(createSleepingFuture());
+        final CompletableFuture<BlockNodeStatus> node3CfSpy = spy(createSleepingFuture());
+        final CompletableFuture<BlockNodeStatus> node4CfSpy = spy(createSleepingFuture());
 
         doAnswer(invocation -> {
-                    final RetrieveBlockNodeStatusTask task = invocation.getArgument(0);
-                    final BlockNodeServiceConnection connection =
-                            (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(task);
-                    final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-                    if (node1Config.streamingPort() == taskNodeConfig.streamingPort()) {
-                        return node1CfSpy;
-                    } else if (node2Config.streamingPort() == taskNodeConfig.streamingPort()) {
-                        return node2CfSpy;
-                    } else if (node3Config.streamingPort() == taskNodeConfig.streamingPort()) {
-                        return node3CfSpy;
-                    } else if (node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
-                        return node4CfSpy;
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        final BlockNodeServiceConnection connection =
+                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
+                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
+                        if (node1Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                            futures.add(node1CfSpy);
+                        } else if (node2Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                            futures.add(node2CfSpy);
+                        } else if (node3Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                            futures.add(node3CfSpy);
+                        } else if (node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                            futures.add(node4CfSpy);
+                        } else {
+                            throw new IllegalStateException("Unexpected config: " + taskNodeConfig);
+                        }
                     }
 
-                    throw new IllegalStateException("Unexpected config: " + taskNodeConfig);
+                    return futures;
                 })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isFalse();
 
@@ -2160,7 +2285,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node4CfSpy).cancel(true);
         verify(bufferService, times(1)).getLastBlockNumberProduced();
         verify(bufferService, times(1)).getEarliestAvailableBlockNumber();
-        verify(blockingIoExecutor, times(4)).submit(any(RetrieveBlockNodeStatusTask.class));
+        verify(blockingIoExecutor).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verifyNoInteractions(scheduledExecutor);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(blockingIoExecutor);
@@ -2176,29 +2301,28 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         availableNodes().clear();
         availableNodes().addAll(List.of(node1Config, node2Config, node3Config, node4Config));
 
+        final AtomicBoolean isFirstInvocation = new AtomicBoolean(true);
         final long earliestBlock = 100;
         final long latestBlock = 250;
         doReturn(earliestBlock).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(latestBlock).when(bufferService).getLastBlockNumberProduced();
-
         doAnswer(invocation -> {
-                    // mark all nodes as reachable
-                    return CompletableFuture.completedFuture(BlockNodeStatus.reachable(5, latestBlock - 5));
+                    if (isFirstInvocation.compareAndSet(true, false)) {
+                        throw new InterruptedException();
+                    } else {
+                        final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                        final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                        for (int i = 0; i < tasks.size(); ++i) {
+                            futures.add(completedFuture(reachable(5, latestBlock - 5)));
+                        }
+
+                        return futures;
+                    }
                 })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
-        final CompletableFuture<?> interruptedBatchFuture = mock(CompletableFuture.class);
-        doThrow(new InterruptedException()).when(interruptedBatchFuture).get(anyLong(), any(TimeUnit.class));
-        final CompletableFuture<?> otherBatchFuture = CompletableFuture.completedFuture(null);
-
-        try (final MockedStatic<CompletableFuture> mockedCf = mockStatic(CompletableFuture.class)) {
-            mockedCf.when(() -> CompletableFuture.allOf(any(CompletableFuture[].class)))
-                    .thenReturn(interruptedBatchFuture, otherBatchFuture);
-            mockedCf.when(() -> CompletableFuture.completedFuture(any())).thenCallRealMethod();
-
-            assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
-        }
+        assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
 
         final ArgumentCaptor<Runnable> scheduledExecCaptor = ArgumentCaptor.forClass(Runnable.class);
         verify(scheduledExecutor).schedule(scheduledExecCaptor.capture(), anyLong(), any(TimeUnit.class));
@@ -2210,9 +2334,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // the node we've scheduled to connect to should be a node from priority group 2 (node 3 or 4)
         assertThat(connection.configuration()).isIn(node3Config, node4Config);
 
-        verify(bufferService, times(1)).getLastBlockNumberProduced();
-        verify(bufferService, times(1)).getEarliestAvailableBlockNumber();
-        verify(blockingIoExecutor, times(4)).submit(any(RetrieveBlockNodeStatusTask.class));
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(blockingIoExecutor, times(2)).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verifyNoMoreInteractions(scheduledExecutor);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(blockingIoExecutor);
@@ -2220,7 +2344,111 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSelectNewBlockNodeForStreaming_error() {
+    void testSelectNewBlockNodeForStreaming_executorError() throws Exception {
+        final BlockNodeConfiguration node1Config = newBlockNodeConfig(8080, 1);
+        final BlockNodeConfiguration node2Config = newBlockNodeConfig(8081, 1);
+        final BlockNodeConfiguration node3Config = newBlockNodeConfig(8082, 2);
+        final BlockNodeConfiguration node4Config = newBlockNodeConfig(8083, 2);
+        availableNodes().clear();
+        availableNodes().addAll(List.of(node1Config, node2Config, node3Config, node4Config));
+
+        final AtomicBoolean isFirstInvocation = new AtomicBoolean(true);
+        final long earliestBlock = 100;
+        final long latestBlock = 250;
+        doReturn(earliestBlock).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(latestBlock).when(bufferService).getLastBlockNumberProduced();
+        doAnswer(invocation -> {
+                    if (isFirstInvocation.compareAndSet(true, false)) {
+                        throw new RuntimeException("watch out!");
+                    } else {
+                        final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                        final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                        for (int i = 0; i < tasks.size(); ++i) {
+                            futures.add(completedFuture(reachable(5, latestBlock - 5)));
+                        }
+
+                        return futures;
+                    }
+                })
+                .when(blockingIoExecutor)
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
+
+        assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
+
+        final ArgumentCaptor<Runnable> scheduledExecCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(scheduledExecutor).schedule(scheduledExecCaptor.capture(), anyLong(), any(TimeUnit.class));
+
+        assertThat(scheduledExecCaptor.getAllValues()).hasSize(1);
+        final Runnable task = scheduledExecCaptor.getValue();
+        assertThat(task).isNotNull().isInstanceOf(BlockNodeConnectionTask.class);
+        final BlockNodeStreamingConnection connection = connectionFromTask((BlockNodeConnectionTask) task);
+        // the node we've scheduled to connect to should be a node from priority group 2 (node 3 or 4)
+        assertThat(connection.configuration()).isIn(node3Config, node4Config);
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(blockingIoExecutor, times(2)).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
+        verifyNoMoreInteractions(scheduledExecutor);
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(blockingIoExecutor);
+        verifyNoInteractions(metrics);
+    }
+
+    @Test
+    void testSelectNewBlockNodeForStreaming_candidateAndTaskMismatch() throws Exception {
+        final BlockNodeConfiguration node1Config = newBlockNodeConfig(8080, 1);
+        final BlockNodeConfiguration node2Config = newBlockNodeConfig(8081, 1);
+        final BlockNodeConfiguration node3Config = newBlockNodeConfig(8082, 2);
+        final BlockNodeConfiguration node4Config = newBlockNodeConfig(8083, 2);
+        availableNodes().clear();
+        availableNodes().addAll(List.of(node1Config, node2Config, node3Config, node4Config));
+
+        final AtomicBoolean isFirstInvocation = new AtomicBoolean(true);
+        final long earliestBlock = 100;
+        final long latestBlock = 250;
+        doReturn(earliestBlock).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(latestBlock).when(bufferService).getLastBlockNumberProduced();
+        doAnswer(invocation -> {
+                    if (isFirstInvocation.compareAndSet(true, false)) {
+                        // return an empty list to trigger a mismatch since the number of candidates (2)
+                        // will be different than the number of tasks (0)
+                        return List.of();
+                    } else {
+                        final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                        final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                        for (int i = 0; i < tasks.size(); ++i) {
+                            futures.add(completedFuture(reachable(5, latestBlock - 5)));
+                        }
+
+                        return futures;
+                    }
+                })
+                .when(blockingIoExecutor)
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
+
+        assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
+
+        final ArgumentCaptor<Runnable> scheduledExecCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(scheduledExecutor).schedule(scheduledExecCaptor.capture(), anyLong(), any(TimeUnit.class));
+
+        assertThat(scheduledExecCaptor.getAllValues()).hasSize(1);
+        final Runnable task = scheduledExecCaptor.getValue();
+        assertThat(task).isNotNull().isInstanceOf(BlockNodeConnectionTask.class);
+        final BlockNodeStreamingConnection connection = connectionFromTask((BlockNodeConnectionTask) task);
+        // the node we've scheduled to connect to should be a node from priority group 2 (node 3 or 4)
+        assertThat(connection.configuration()).isIn(node3Config, node4Config);
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(blockingIoExecutor, times(2)).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
+        verifyNoMoreInteractions(scheduledExecutor);
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(blockingIoExecutor);
+        verifyNoInteractions(metrics);
+    }
+
+    @Test
+    void testSelectNewBlockNodeForStreaming_error() throws Exception {
         final BlockNodeConfiguration node1Config = newBlockNodeConfig(8080, 1);
         final BlockNodeConfiguration node2Config = newBlockNodeConfig(8081, 1);
         final BlockNodeConfiguration node3Config = newBlockNodeConfig(8082, 2);
@@ -2234,19 +2462,24 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doReturn(latestBlock).when(bufferService).getLastBlockNumberProduced();
 
         doAnswer(invocation -> {
-                    final RetrieveBlockNodeStatusTask task = invocation.getArgument(0);
-                    final BlockNodeServiceConnection connection =
-                            (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(task);
-                    final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-                    // fail all priority 1 nodes and one of the priority 2 nodes
-                    if (node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
-                        return CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, earliestBlock + 25));
-                    } else {
-                        return CompletableFuture.failedFuture(new RuntimeException("kaboom!"));
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        final BlockNodeServiceConnection connection =
+                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
+                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
+                        // fail all priority 1 nodes and one of the priority 2 nodes
+                        if (node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                            futures.add(completedFuture(reachable(10, earliestBlock + 25)));
+                        } else {
+                            futures.add(failedFuture(new RuntimeException("kaboom!")));
+                        }
                     }
+
+                    return futures;
                 })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
 
@@ -2262,7 +2495,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(bufferService, times(2)).getLastBlockNumberProduced();
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
-        verify(blockingIoExecutor, times(4)).submit(any(RetrieveBlockNodeStatusTask.class));
+        verify(blockingIoExecutor, times(2)).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verifyNoMoreInteractions(scheduledExecutor);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(blockingIoExecutor);
@@ -2270,7 +2503,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSelectNewBlockNodeForStreaming_allBlockNodesHaveNoBlocks() {
+    void testSelectNewBlockNodeForStreaming_allBlockNodesHaveNoBlocks() throws Exception {
         /*
         This test validates that when all the block nodes respond with -1 as the latest block, we treat it as a wildcard
         meaning the block node will accept whatever we send it - unless later the block node tells us something
@@ -2289,11 +2522,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doReturn(earliestBlock).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(latestBlock).when(bufferService).getLastBlockNumberProduced();
         doAnswer(invocation -> {
-                    // mark all nodes as reachable but with -1 as the latest block
-                    return CompletableFuture.completedFuture(BlockNodeStatus.reachable(5, -1));
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        // mark all nodes as reachable but with -1 as the latest block
+                        futures.add(completedFuture(reachable(5, -1)));
+                    }
+
+                    return futures;
                 })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
 
@@ -2310,8 +2549,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // since one of the nodes in priority group 1 was chosen, we should only interact with the buffer service once
         verify(bufferService, times(1)).getLastBlockNumberProduced();
         verify(bufferService, times(1)).getEarliestAvailableBlockNumber();
-        // likewise, there should only be three tasks submitted to retrieve status for nodes in priority group 1
-        verify(blockingIoExecutor, times(3)).submit(any(RetrieveBlockNodeStatusTask.class));
+        verify(blockingIoExecutor).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoInteractions(metrics);
@@ -2319,7 +2557,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSelectNewBlockNodeForStreaming_noBufferedBlocks() {
+    void testSelectNewBlockNodeForStreaming_noBufferedBlocks() throws Exception {
         /*
         This test validates a scenario in which the consensus node has no blocks in the buffer. This may be due to a
         restart in which no blocks were previously persisted (e.g. they were all acked) or it may due to the node being
@@ -2337,24 +2575,30 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doReturn(-1L).when(bufferService).getLastBlockNumberProduced();
         doAnswer(invocation -> {
                     // mark all nodes as reachable
-                    final RetrieveBlockNodeStatusTask task = invocation.getArgument(0);
-                    final BlockNodeServiceConnection connection =
-                            (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(task);
-                    final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-                    if (node1Config.streamingPort() == taskNodeConfig.streamingPort()) {
-                        return CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 10));
-                    } else if (node2Config.streamingPort() == taskNodeConfig.streamingPort()) {
-                        return CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, -1));
-                    } else if (node3Config.streamingPort() == taskNodeConfig.streamingPort()) {
-                        return CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 25));
-                    } else if (node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
-                        return CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 11));
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        final BlockNodeServiceConnection connection =
+                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
+                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
+                        if (node1Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                            futures.add(completedFuture(reachable(10, 10)));
+                        } else if (node2Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                            futures.add(completedFuture(reachable(10, -1)));
+                        } else if (node3Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                            futures.add(completedFuture(reachable(10, 25)));
+                        } else if (node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                            futures.add(completedFuture(reachable(10, 11)));
+                        } else {
+                            throw new IllegalStateException("Unexpected config: " + taskNodeConfig);
+                        }
                     }
 
-                    throw new IllegalStateException("Unexpected config: " + taskNodeConfig);
+                    return futures;
                 })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
 
@@ -2371,8 +2615,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // since one of the nodes in priority group 1 was chosen, we should only interact with the buffer service once
         verify(bufferService, times(1)).getLastBlockNumberProduced();
         verify(bufferService, times(1)).getEarliestAvailableBlockNumber();
-        // likewise, there should only be three tasks submitted to retrieve status for nodes in priority group 1
-        verify(blockingIoExecutor, times(3)).submit(any(RetrieveBlockNodeStatusTask.class));
+        verify(blockingIoExecutor).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoInteractions(metrics);
@@ -2380,7 +2623,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSelectNewBlockNodeForStreaming_nullResponse() {
+    void testSelectNewBlockNodeForStreaming_nullResponse() throws Exception {
         final BlockNodeConfiguration node1Config = newBlockNodeConfig(8080, 1);
         final BlockNodeConfiguration node2Config = newBlockNodeConfig(8081, 2);
         final BlockNodeConfiguration node3Config = newBlockNodeConfig(8082, 2);
@@ -2393,22 +2636,27 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doAnswer(invocation -> {
                     // return a successful null for node 1 and then successful, non-null response for the rest of the
                     // nodes
-                    final RetrieveBlockNodeStatusTask task = invocation.getArgument(0);
-                    final BlockNodeServiceConnection connection =
-                            (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(task);
-                    final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-                    if (node1Config.streamingPort() == taskNodeConfig.streamingPort()) {
-                        return CompletableFuture.completedFuture(null);
-                    } else if (node2Config.streamingPort() == taskNodeConfig.streamingPort()
-                            || node3Config.streamingPort() == taskNodeConfig.streamingPort()
-                            || node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
-                        return CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 15));
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        final BlockNodeServiceConnection connection =
+                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
+                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
+                        if (node1Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                            futures.add(completedFuture(null));
+                        } else if (node2Config.streamingPort() == taskNodeConfig.streamingPort()
+                                || node3Config.streamingPort() == taskNodeConfig.streamingPort()
+                                || node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                            futures.add(completedFuture(reachable(10, 15)));
+                        } else {
+                            throw new IllegalStateException("Unexpected config: " + taskNodeConfig);
+                        }
                     }
 
-                    throw new IllegalStateException("Unexpected config: " + taskNodeConfig);
+                    return futures;
                 })
                 .when(blockingIoExecutor)
-                .submit(any(RetrieveBlockNodeStatusTask.class));
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
 
         assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
 
@@ -2425,7 +2673,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // since both priority groups will be processed, we will interact with the buffer twice and submit 4 tasks
         verify(bufferService, times(2)).getLastBlockNumberProduced();
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
-        verify(blockingIoExecutor, times(4)).submit(any(RetrieveBlockNodeStatusTask.class));
+        verify(blockingIoExecutor, times(2)).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoInteractions(metrics);
@@ -2442,7 +2690,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testRetrieveBlockNodeStatusTask() {
         final BlockNodeConfiguration nodeConfig = newBlockNodeConfig(8080, 1);
-        final BlockNodeStatus expectedStatus = BlockNodeStatus.reachable(10, 100);
+        final BlockNodeStatus expectedStatus = reachable(10, 100);
 
         try (final MockedConstruction<BlockNodeServiceConnection> mockedSvcConn =
                 mockConstruction(BlockNodeServiceConnection.class)) {
@@ -2576,7 +2824,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
     }
 
-    private static CompletableFuture<?> createSleepingFuture() {
+    private static <T> CompletableFuture<T> createSleepingFuture() {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 Thread.sleep(30_000);
