@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.test.fixtures.TransactionGenerator;
 import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
@@ -23,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.pces.impl.common.PcesFile;
