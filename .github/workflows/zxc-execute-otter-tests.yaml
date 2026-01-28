@@ -39,7 +39,7 @@ on:
         type: string
     secrets:
       access-token:
-        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
       gradle-cache-username:
         description: "The username used to authenticate with the Gradle Build Cache Node."
