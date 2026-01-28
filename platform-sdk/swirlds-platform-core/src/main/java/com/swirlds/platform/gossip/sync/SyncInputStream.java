@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.sync;
 
-import static com.swirlds.common.io.extendable.ExtendableInputStream.extendInputStream;
+import static org.hiero.consensus.io.extendable.ExtendableInputStream.extendInputStream;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -15,6 +14,7 @@ import java.util.zip.InflaterInputStream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.gossip.config.SocketConfig;
+import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
 
 public class SyncInputStream extends SerializableDataInputStream {
 
