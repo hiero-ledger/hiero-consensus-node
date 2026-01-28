@@ -2,11 +2,11 @@
 package com.swirlds.platform.network.protocol.rpc;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Consumer;
+import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

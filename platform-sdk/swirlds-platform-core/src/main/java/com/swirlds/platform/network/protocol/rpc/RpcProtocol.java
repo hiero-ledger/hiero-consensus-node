@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.protocol.rpc;
 
-import com.hedera.hapi.platform.event.GossipEvent;
 import static com.swirlds.logging.legacy.LogMarker.FREEZE;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.GossipController;
@@ -18,8 +18,8 @@ import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,7 +29,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -60,11 +59,6 @@ public class RpcProtocol implements Protocol, GossipController {
     private final NodeId selfId;
 
     /**
-     * How long should we wait between sync attempts
-     */
-    private final Duration sleepAfterSync;
-
-    /**
      * Control for making sure that in case of limited amount of concurrent syncs we are not synchronizing with the same
      * peers over and over.
      */
@@ -79,16 +73,6 @@ public class RpcProtocol implements Protocol, GossipController {
      * List of all started sync exchanges with remote peers
      */
     private final List<RpcPeerHandler> allRpcPeers = new CopyOnWriteArrayList<>();
-
-    /**
-     * Is event broadcast enabled in settings
-     */
-    private final boolean broadcastEnabled;
-
-    /**
-     * Node id of current node
-     */
-    private final NodeId selfId;
 
     /**
      * Constructs a new sync protocol
@@ -129,8 +113,6 @@ public class RpcProtocol implements Protocol, GossipController {
             permitCount = syncConfig.syncProtocolPermitCount();
         }
 
-        this.sleepAfterSync = syncConfig.rpcSleepAfterSync();
-
         this.permitProvider = new SyncPermitProvider(platformContext, permitCount);
         this.executor = Objects.requireNonNull(executor);
         this.networkMetrics = Objects.requireNonNull(networkMetrics);
@@ -166,13 +148,13 @@ public class RpcProtocol implements Protocol, GossipController {
                 peerProtocol,
                 selfId,
                 peerId,
-                sleepAfterSync,
                 syncMetrics,
                 time,
                 intakeEventCounter,
                 receivedEventHandler,
                 syncGuard,
-                fallenBehindMonitor);
+                fallenBehindMonitor,
+                syncConfig);
 
         peerProtocol.setRpcPeerHandler(handler);
         allRpcPeers.add(handler);
@@ -188,14 +170,14 @@ public class RpcProtocol implements Protocol, GossipController {
     }
 
     /**
-     * {@inheritDoc}
+     * Handle new event fully processed by the event intake. In this case used to optionally broadcast self events to
+     * peer directly, skipping sync process
+     *
+     * @param platformEvent event to be processed
      */
-    @Override
     public void addEvent(@NonNull final PlatformEvent platformEvent) {
-        super.addEvent(platformEvent);
-
         // broadcast event to other nodes as part of simplistic broadcast
-        if (broadcastEnabled && selfId.equals(platformEvent.getCreatorId())) {
+        if (syncConfig.broadcast() && selfId.equals(platformEvent.getCreatorId())) {
             final GossipEvent gossipEvent = platformEvent.getGossipEvent();
             allRpcPeers.forEach(rpcPeer -> rpcPeer.broadcastEvent(gossipEvent));
             syncMetrics.broadcastEventSent();
