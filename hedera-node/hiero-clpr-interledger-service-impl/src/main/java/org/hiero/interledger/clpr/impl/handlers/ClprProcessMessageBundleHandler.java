@@ -13,10 +13,12 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.ConfigProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessagePayload;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageReply;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
+import org.hiero.interledger.clpr.WritableClprMessageQueueMetadataStore;
 import org.hiero.interledger.clpr.WritableClprMessageStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
@@ -55,22 +57,45 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
     @Override
     public void handle(@NonNull HandleContext context) throws HandleException {
         final var writableMessagesStore = context.storeFactory().writableStore(WritableClprMessageStore.class);
+        final var writableMessageQueueStore =
+                context.storeFactory().writableStore(WritableClprMessageQueueMetadataStore.class);
+
         final var txn = context.body();
-        final var messageQBundle = txn.clprProcessMessageBundle();
-        // TODO: Implement handle!
-        //  The full semantics of the handler will be specified in later issues.
-        //  For now just save messages in state
-        final var messageId = new AtomicInteger(0);
-        final var ledgerShortId = new AtomicInteger(0);
-        messageQBundle.ifMessageBundle(messageBundle -> {
-            messageBundle.messages().forEach(msg -> {
+        final var messageBundle = txn.clprProcessMessageBundleOrThrow().messageBundle();
+        final var ledgerId = messageBundle.ledgerIdOrThrow();
+        final var messageQueue = writableMessageQueueStore.get(ledgerId);
+        final var updatedQueueBuilder = messageQueue.copyBuilder();
+
+        // TODO: Validate running hashes and state proof
+
+        messageBundle.messages().forEach(msg -> {
+            if (msg.hasMessage()) {
+                // handle message
+                long nextReceivedId = updatedQueueBuilder.receivedMessageId() + 1;
+                long nextMessageId = updatedQueueBuilder.nextMessageId();
+
+                // create and save reply
                 final var key = ClprMessageKey.newBuilder()
-                        .messageId(messageId.getAndIncrement())
-                        .ledgerShortId(ledgerShortId.get())
+                        .messageId(nextMessageId)
+                        .ledgerId(ledgerId)
                         .build();
-                final var value = ClprMessageValue.newBuilder().payload(msg).build();
+
+                final var value = ClprMessageValue.newBuilder()
+                        .payload(ClprMessagePayload.newBuilder()
+                                .messageReply(ClprMessageReply.newBuilder()
+                                        .messageId(nextReceivedId)
+                                        .messageReplyData(msg.message().messageData())))
+                        .build();
                 writableMessagesStore.put(key, value);
-            });
+
+                // update message queue
+                updatedQueueBuilder.receivedMessageId(nextReceivedId);
+                updatedQueueBuilder.nextMessageId(nextMessageId);
+                writableMessageQueueStore.put(ledgerId, updatedQueueBuilder.build());
+            } else {
+                // handle reply
+
+            }
         });
     }
 }
