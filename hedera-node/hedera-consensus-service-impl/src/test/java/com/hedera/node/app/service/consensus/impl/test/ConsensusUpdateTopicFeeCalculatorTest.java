@@ -16,8 +16,8 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusUpdateTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -87,7 +87,7 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
                     .build();
             final var body =
                     TransactionBody.newBuilder().consensusUpdateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
             // update topic base 498500000L
@@ -114,7 +114,7 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
                     .build();
             final var body =
                     TransactionBody.newBuilder().consensusUpdateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
             // update topic base 498500000L
