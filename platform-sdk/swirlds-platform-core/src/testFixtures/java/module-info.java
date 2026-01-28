@@ -12,6 +12,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.gui;
     requires transitive org.hiero.consensus.hashgraph.impl;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.model.test.fixtures;
@@ -34,7 +35,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.utility.test.fixtures;
     requires com.github.spotbugs.annotations;
-    requires java.desktop;
     requires org.mockito;
 
     exports com.swirlds.platform.test.fixtures;
@@ -59,5 +59,4 @@ open module com.swirlds.platform.core.test.fixtures {
     exports com.swirlds.platform.test.fixtures.state;
     exports com.swirlds.platform.test.fixtures.state.manager;
     exports com.swirlds.platform.test.fixtures.addressbook;
-    exports com.swirlds.platform.test.fixtures.gui;
 }

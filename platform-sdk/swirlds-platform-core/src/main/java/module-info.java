@@ -25,13 +25,9 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config.legacy;
     exports com.swirlds.platform.crypto;
     exports com.swirlds.platform.event.report;
-    exports com.swirlds.platform.gui.hashgraph;
-    exports com.swirlds.platform.gui.hashgraph.internal;
     exports com.swirlds.platform.network.connection;
     exports com.swirlds.platform.network.connectivity;
     exports com.swirlds.platform.eventhandling;
-    exports com.swirlds.platform.gui;
-    exports com.swirlds.platform.gui.model;
     exports com.swirlds.platform.health;
     exports com.swirlds.platform.health.clock;
     exports com.swirlds.platform.health.entropy;
@@ -114,7 +110,6 @@ module com.swirlds.platform.core {
     requires com.swirlds.virtualmap;
     requires org.hiero.consensus.pces;
     requires com.github.spotbugs.annotations;
-    requires java.desktop;
     requires java.management;
     requires java.scripting;
     requires jdk.management;
