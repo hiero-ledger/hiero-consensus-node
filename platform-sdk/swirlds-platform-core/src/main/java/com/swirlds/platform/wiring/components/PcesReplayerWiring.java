@@ -4,7 +4,6 @@ package com.swirlds.platform.wiring.components;
 import static com.swirlds.component.framework.model.diagram.HyperlinkBuilder.platformCoreHyperlink;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT;
 
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
@@ -14,6 +13,7 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
