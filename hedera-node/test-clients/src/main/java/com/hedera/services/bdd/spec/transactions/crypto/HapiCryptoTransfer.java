@@ -42,6 +42,7 @@ import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransferList;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -406,6 +407,11 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                                 .setAmount(+amount)
                                 .build()))
                 .build();
+    }
+
+    public HapiCryptoTransfer withPreHookFor(
+            final String account, final long hookId, final long gasLimit, final ByteBuffer data) {
+        return withPreHookFor(account, hookId, gasLimit, ByteString.copyFrom(data));
     }
 
     public HapiCryptoTransfer withPreHookFor(
