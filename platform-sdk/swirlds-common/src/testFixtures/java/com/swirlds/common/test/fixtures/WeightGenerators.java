@@ -223,7 +223,7 @@ public final class WeightGenerators {
 
             if (i == 0) {
                 // a single node has a supermajority of weight
-                nodeWeights.add(numberOfNodes*1000L);
+                nodeWeights.add(numberOfNodes * 1000L);
             } else {
                 nodeWeights.add(1L);
             }

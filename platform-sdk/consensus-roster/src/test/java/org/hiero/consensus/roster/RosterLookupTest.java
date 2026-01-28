@@ -16,7 +16,6 @@ class RosterLookupTest {
     public static final int OUT_OF_RANGE_INDEX = 123456;
     public static final NodeId NON_EXISTENT_NODE_ID = NodeId.of(654321);
 
-
     private static Roster simpleRoster;
     private static RosterLookup simpleLookup;
     private static Roster singleNodeRoster;
@@ -99,8 +98,8 @@ class RosterLookupTest {
         assertFalse(singleNodeLookup.isIdAtIndex(singleId, OUT_OF_RANGE_INDEX));
 
         for (int i = 0; i < supermajorityNodeLookup.getRoster().rosterEntries().size(); i++) {
-            final NodeId nodeId =
-                    NodeId.of(supermajorityNodeLookup.getRoster().rosterEntries().get(i).nodeId());
+            final NodeId nodeId = NodeId.of(
+                    supermajorityNodeLookup.getRoster().rosterEntries().get(i).nodeId());
             assertTrue(supermajorityNodeLookup.isIdAtIndex(nodeId, i));
             assertFalse(supermajorityNodeLookup.isIdAtIndex(nodeId, i + 1));
             assertFalse(supermajorityNodeLookup.isIdAtIndex(nodeId, NEGATIVE_INDEX));
@@ -113,8 +112,8 @@ class RosterLookupTest {
         for (int i = 0; i < simpleLookup.getRoster().rosterEntries().size(); i++) {
             final NodeId nodeId =
                     NodeId.of(simpleLookup.getRoster().rosterEntries().get(i).nodeId());
-            assertEquals(i+1, simpleLookup.getWeight(nodeId));
-            assertEquals(i+1, simpleLookup.getWeight(i));
+            assertEquals(i + 1, simpleLookup.getWeight(nodeId));
+            assertEquals(i + 1, simpleLookup.getWeight(i));
         }
 
         final NodeId singleId = NodeId.of(
@@ -123,8 +122,8 @@ class RosterLookupTest {
         assertEquals(1000, singleNodeLookup.getWeight(0));
 
         for (int i = 0; i < supermajorityNodeLookup.getRoster().rosterEntries().size(); i++) {
-            final NodeId nodeId =
-                    NodeId.of(supermajorityNodeLookup.getRoster().rosterEntries().get(i).nodeId());
+            final NodeId nodeId = NodeId.of(
+                    supermajorityNodeLookup.getRoster().rosterEntries().get(i).nodeId());
             final long expectedWeight = (i == 0) ? 3000 : 1;
             assertEquals(expectedWeight, supermajorityNodeLookup.getWeight(nodeId));
             assertEquals(expectedWeight, supermajorityNodeLookup.getWeight(i));
@@ -148,13 +147,14 @@ class RosterLookupTest {
         assertEquals(0, singleNodeLookup.getRosterIndex(singleId));
 
         for (int i = 0; i < supermajorityNodeLookup.getRoster().rosterEntries().size(); i++) {
-            final NodeId nodeId =
-                    NodeId.of(supermajorityNodeLookup.getRoster().rosterEntries().get(i).nodeId());
+            final NodeId nodeId = NodeId.of(
+                    supermajorityNodeLookup.getRoster().rosterEntries().get(i).nodeId());
             assertEquals(i, supermajorityNodeLookup.getRosterIndex(nodeId));
         }
 
         assertThrows(IllegalArgumentException.class, () -> simpleLookup.getRosterIndex(NON_EXISTENT_NODE_ID));
         assertThrows(IllegalArgumentException.class, () -> singleNodeLookup.getRosterIndex(NON_EXISTENT_NODE_ID));
-        assertThrows(IllegalArgumentException.class, () -> supermajorityNodeLookup.getRosterIndex(NON_EXISTENT_NODE_ID));
+        assertThrows(
+                IllegalArgumentException.class, () -> supermajorityNodeLookup.getRosterIndex(NON_EXISTENT_NODE_ID));
     }
 }
