@@ -4,13 +4,11 @@ package com.swirlds.platform.gui.internal;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.gui.components.ScrollableJPanel;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.awt.Frame;
 import java.awt.GraphicsEnvironment;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Objects;
 
 /**
  * Manages static variables for the browser GUI window.
@@ -69,19 +67,6 @@ public final class BrowserWindowManager {
      */
     public static Collection<SwirldsPlatform> getPlatforms() {
         return platforms;
-    }
-
-    /**
-     * Add a collection of platforms to the list of platforms running on this machine.
-     *
-     * @param toAdd the platforms to add
-     */
-    public static void addPlatforms(@NonNull final Collection<SwirldsPlatform> toAdd) {
-        Objects.requireNonNull(toAdd);
-
-        synchronized (platforms) {
-            platforms.addAll(toAdd);
-        }
     }
 
     /**

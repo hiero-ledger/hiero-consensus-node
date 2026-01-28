@@ -56,6 +56,7 @@ module com.swirlds.platform.core {
 
     /* Targeted Exports to External Libraries */
     exports com.swirlds.platform.internal to
+            org.hiero.consensus.pcli,
             com.swirlds.platform.core.test.fixtures,
             com.fasterxml.jackson.core,
             com.fasterxml.jackson.databind;

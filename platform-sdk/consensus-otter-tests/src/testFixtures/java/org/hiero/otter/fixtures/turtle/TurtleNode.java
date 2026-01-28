@@ -289,9 +289,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final SimulatedGossip gossip = network.getGossipInstance(selfId);
             gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
 
-            platformComponentBuilder
-                    .withMetricsDocumentationEnabled(false)
-                    .withGossip(network.getGossipInstance(selfId));
+            platformComponentBuilder.withGossip(network.getGossipInstance(selfId));
 
             platformComponent = platformBuildingBlocks.platformComponents();
 
