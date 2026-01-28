@@ -39,6 +39,7 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 import org.assertj.core.api.Assertions;
 import org.hiero.base.utility.Threshold;
+import org.hiero.consensus.hashgraph.impl.consensus.SyntheticSnapshot;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;

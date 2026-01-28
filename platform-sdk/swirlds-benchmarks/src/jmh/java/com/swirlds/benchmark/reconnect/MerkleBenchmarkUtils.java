@@ -17,13 +17,13 @@ import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationEx
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.gossip.config.GossipConfig;
-import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.gossip.config.GossipConfig;
+import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

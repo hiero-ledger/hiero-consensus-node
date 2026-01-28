@@ -2,9 +2,9 @@
 package com.swirlds.platform.test.fixtures.event.source;
 
 import com.swirlds.common.test.fixtures.TransactionGenerator;
-import com.swirlds.platform.internal.EventImpl;
 import java.util.LinkedList;
 import java.util.Random;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /**
  * An event source that simulates a standard, honest node.
