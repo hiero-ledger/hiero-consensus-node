@@ -17,6 +17,6 @@ public class UtilityConfigurationExtension implements ConfigurationExtension {
      */
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(EventConfig.class);
+        return Set.of(BasicConfig.class, EventConfig.class, FallenBehindConfig.class, ThreadConfig.class);
     }
 }

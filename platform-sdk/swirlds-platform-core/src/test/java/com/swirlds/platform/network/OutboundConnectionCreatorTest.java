@@ -31,6 +31,7 @@ import java.net.SocketTimeoutException;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.gossip.config.SocketConfig_;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

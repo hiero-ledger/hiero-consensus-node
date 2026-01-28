@@ -15,7 +15,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
@@ -28,7 +27,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
+import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -375,28 +380,16 @@ class ConsensusLinkerTests {
                 linkedEvents.add(linkedEvent);
                 assertSame(event, linkedEvent.getBaseEvent());
 
-                final EventDescriptorWrapper selfParent = event.getSelfParent();
-                if (selfParent == null || eventWindow.isAncient(selfParent)) {
-                    assertNull(linkedEvent.getSelfParent());
-                } else {
-                    assertNotNull(linkedEvent.getSelfParent());
-                    assertEquals(
-                            event.getSelfParent(),
-                            linkedEvent.getSelfParent().getBaseEvent().getDescriptor());
-                }
-
-                final List<EventDescriptorWrapper> otherParents = event.getOtherParents();
-                if (otherParents.isEmpty()) {
-                    assertNull(linkedEvent.getOtherParent());
-                } else {
-                    final EventDescriptorWrapper otherParent = otherParents.getFirst();
-                    if (eventWindow.isAncient(otherParent)) {
-                        assertNull(linkedEvent.getOtherParent());
+                final Set<Hash> linkedParents = linkedEvent.getAllParents().stream()
+                        .map(EventImpl::getBaseHash)
+                        .collect(Collectors.toSet());
+                for (final EventDescriptorWrapper parent : event.getAllParents()) {
+                    if (eventWindow.isAncient(parent)) {
+                        // Ancient parents should not be linked.
+                        assertFalse(linkedParents.contains(parent.hash()));
                     } else {
-                        assertNotNull(linkedEvent.getOtherParent());
-                        assertEquals(
-                                otherParents.getFirst(),
-                                linkedEvent.getOtherParent().getBaseEvent().getDescriptor());
+                        // Non-ancient parents should be linked.
+                        assertTrue(linkedParents.contains(parent.hash()));
                     }
                 }
             }
@@ -419,7 +412,8 @@ class ConsensusLinkerTests {
                     final EventImpl linkedEvent = iterator.next();
                     if (eventWindow.isAncient(linkedEvent.getBaseEvent())) {
                         assertNull(linkedEvent.getSelfParent());
-                        assertNull(linkedEvent.getOtherParent());
+                        assertTrue(linkedEvent.getOtherParents().isEmpty());
+                        assertTrue(linkedEvent.getAllParents().isEmpty());
                         iterator.remove();
                     }
                 }
@@ -462,14 +456,18 @@ class ConsensusLinkerTests {
             assertSame(expectedSelfParent, toAssert.getSelfParent().getBaseEvent(), "Self parent does not match");
         }
         if (expectedOtherParents.isEmpty()) {
-            assertNull(toAssert.getOtherParent(), "Other parent should be null");
             assertEquals(0, toAssert.getOtherParents().size(), "Other parents list should be empty");
         } else {
-            assertNotNull(toAssert.getOtherParent(), "Other parent should not be null");
-            assertSame(
-                    expectedOtherParents.getFirst(),
-                    toAssert.getOtherParent().getBaseEvent(),
-                    "Other parent does not match");
+            assertEquals(
+                    expectedOtherParents.size(),
+                    toAssert.getOtherParents().size(),
+                    "Other parents list should be same size");
+            for (int i = 0; i < expectedOtherParents.size(); i++) {
+                assertSame(
+                        expectedOtherParents.get(i),
+                        toAssert.getOtherParents().get(i).getBaseEvent(),
+                        "Other parent at index " + i + " does not match");
+            }
         }
         for (final EventImpl otherParent : toAssert.getOtherParents()) {
             assertNotNull(otherParent, "The list of other-parents should not contain nulls");

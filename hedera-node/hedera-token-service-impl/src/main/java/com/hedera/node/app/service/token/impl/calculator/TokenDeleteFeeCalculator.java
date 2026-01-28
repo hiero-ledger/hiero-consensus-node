@@ -23,7 +23,7 @@ public class TokenDeleteFeeCalculator implements ServiceFeeCalculator {
             @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
         final var op = txnBody.tokenDeletionOrThrow();
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_DELETE);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {
