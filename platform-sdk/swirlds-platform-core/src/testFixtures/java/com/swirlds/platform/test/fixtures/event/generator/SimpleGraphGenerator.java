@@ -82,7 +82,7 @@ public class SimpleGraphGenerator {
             return latestEventTime;
         }
 
-        latestEventTime = latestEventTime.minusMillis(random.nextInt(1, 5));
+        latestEventTime = latestEventTime.plusMillis(random.nextInt(1, 5));
         return latestEventTime;
     }
 
@@ -133,6 +133,7 @@ public class SimpleGraphGenerator {
                 .build();
 
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+        platformEvent.signalPrehandleCompletion();
         new DefaultEventHasher().hashEvent(platformEvent);
         consensus.updateConsensus(platformEvent);
         latestEventPerNode[eventCreator] = platformEvent.getDescriptor().eventDescriptor();
