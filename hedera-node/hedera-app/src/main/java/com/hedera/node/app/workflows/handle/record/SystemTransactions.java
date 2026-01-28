@@ -11,6 +11,9 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater.END_OF_PERIOD_MEMO;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.fromStakingInfo;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.lastInstantOfPreviousPeriodFor;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -42,6 +45,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.NodeStake;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.tss.LedgerIdNodeContribution;
@@ -60,6 +64,7 @@ import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
+import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -310,6 +315,7 @@ public class SystemTransactions {
         final var stakingConfig = config.getConfigData(StakingConfig.class);
         final var numStoredPeriods = stakingConfig.rewardHistoryNumStoredPeriods();
         final var nodeAdminKeys = parseEd25519NodeAdminKeysFrom(bootstrapConfig.nodeAdminKeysPath());
+        final List<NodeStake> nodeStakes = new ArrayList<>();
         for (final var nodeInfo : networkInfo.addressBook()) {
             final var adminKey = nodeAdminKeys.getOrDefault(nodeInfo.nodeId(), systemKey);
             if (adminKey != systemKey) {
@@ -322,21 +328,20 @@ public class SystemTransactions {
                 final var writableStakingInfoStore = new WritableStakingInfoStore(
                         stack.getWritableStates(TokenService.NAME),
                         new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME)));
-                // Writing genesis staking info to state after the node create dispatch is only necessary if the created
-                // node's staking info isn't already present in state
                 if (writableStakingInfoStore.get(nodeInfo.nodeId()) == null) {
+                    log.info("Creating staking info for node{}", nodeInfo.nodeId());
                     final var rewardSumHistory = new Long[numStoredPeriods + 1];
                     Arrays.fill(rewardSumHistory, 0L);
-                    writableStakingInfoStore.putAndIncrementCount(
-                            nodeInfo.nodeId(),
-                            StakingNodeInfo.newBuilder()
-                                    .nodeNumber(nodeInfo.nodeId())
-                                    .maxStake(stakingConfig.maxStake())
-                                    .minStake(stakingConfig.minStake())
-                                    .rewardSumHistory(Arrays.asList(rewardSumHistory))
-                                    .weight(DEFAULT_GENESIS_WEIGHT)
-                                    .build());
+                    final var stakingNodeInfo = StakingNodeInfo.newBuilder()
+                            .nodeNumber(nodeInfo.nodeId())
+                            .maxStake(stakingConfig.maxStake())
+                            .minStake(stakingConfig.minStake())
+                            .rewardSumHistory(Arrays.asList(rewardSumHistory))
+                            .weight(DEFAULT_GENESIS_WEIGHT)
+                            .build();
+                    writableStakingInfoStore.putAndIncrementCount(nodeInfo.nodeId(), stakingNodeInfo);
                     stack.commitFullStack();
+                    nodeStakes.add(fromStakingInfo(0L, stakingNodeInfo));
                 }
             });
             systemContext.dispatchCreation(
@@ -363,6 +368,11 @@ public class SystemTransactions {
         // Now that the node metadata is correct, create the system files
         final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
         fileService.createSystemEntities(systemContext, nodeStore);
+
+        // And dispatch a node stake update transaction for mirror node benefit
+        final var nodeStakeUpdate = EndOfStakingPeriodUtils.newNodeStakeUpdate(
+                lastInstantOfPreviousPeriodFor(now), nodeStakes, stakingConfig, 0L, 0L, 0L, 0L);
+        systemContext.dispatchAdmin(b -> b.memo(END_OF_PERIOD_MEMO).nodeStakeUpdate(nodeStakeUpdate));
     }
 
     /**
