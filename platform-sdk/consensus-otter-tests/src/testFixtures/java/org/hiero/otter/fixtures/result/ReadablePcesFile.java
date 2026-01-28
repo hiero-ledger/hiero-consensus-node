@@ -15,32 +15,32 @@ import org.hiero.consensus.pces.impl.common.PcesFile;
 public interface ReadablePcesFile {
 
     /**
-     * The file extension for standard files. Stands for "PreConsensus Event Stream".
+     * {@see PcesFile#EVENT_FILE_EXTENSION}
      */
     String EVENT_FILE_EXTENSION = PcesFile.EVENT_FILE_EXTENSION;
 
     /**
-     * The character used to separate fields in the file name.
+     * {@see PcesFile#EVENT_FILE_SEPARATOR}
      */
     String EVENT_FILE_SEPARATOR = PcesFile.EVENT_FILE_SEPARATOR;
 
     /**
-     * Written before the sequence number in the file name. Improves readability for humans.
+     * {@see PcesFile#SEQUENCE_NUMBER_PREFIX}
      */
     String SEQUENCE_NUMBER_PREFIX = PcesFile.SEQUENCE_NUMBER_PREFIX;
 
     /**
-     * Written before the minimum birth round in the file name. Improves readability for humans.
+     * {@see PcesFile#MINIMUM_BIRTH_ROUND_PREFIX}
      */
     String MINIMUM_BIRTH_ROUND_PREFIX = PcesFile.MINIMUM_BIRTH_ROUND_PREFIX;
 
     /**
-     * Written before the maximum birth round in the file name. Improves readability for humans.
+     * {@see PcesFile#MAXIMUM_BIRTH_ROUND_PREFIX}
      */
     String MAXIMUM_BIRTH_ROUND_PREFIX = PcesFile.MAXIMUM_BIRTH_ROUND_PREFIX;
 
     /**
-     * Written before the origin round. Improves readability for humans.
+     * {@see PcesFile#ORIGIN_PREFIX}
      */
     String ORIGIN_PREFIX = PcesFile.ORIGIN_PREFIX;
 

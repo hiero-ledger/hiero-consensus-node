@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
+import static java.util.Objects.requireNonNull;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -22,8 +24,8 @@ public class ReadablePcesFileImpl implements ReadablePcesFile {
      *
      * @param pcesFile the underlying {@link PcesFile}
      */
-    ReadablePcesFileImpl(final PcesFile pcesFile) {
-        this.pcesFile = pcesFile;
+    ReadablePcesFileImpl(@NonNull final PcesFile pcesFile) {
+        this.pcesFile = requireNonNull(pcesFile);
     }
 
     /**
