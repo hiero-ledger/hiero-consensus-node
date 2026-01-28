@@ -63,7 +63,15 @@ jobs:
       - name: Extract the Input Version
         id: extract-version
         run: |
-          echo "version=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}" >> "${GITHUB_OUTPUT}"
+          VERSION=""
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "Using version from workflow input."
+            VERSION="${{ inputs.release-version }}"
+          else
+            echo "Using version from git ref."
+            VERSION="${{ github.ref_name }}"
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
       - name: Validate and Correct Release Identifier
         id: validate
