@@ -535,7 +535,7 @@ public class TopicUpdateSuite {
                         .payingWith(ALICE)
                         .hasKnownStatus(INVALID_SIGNATURE),
 
-                // Failed hack - cannot update feeScheduleKey without admin key signature even when changing expiry
+                // Update feeScheduleKey without admin key signature if changing expiry, should fail
                 updateTopic(TOPIC)
                         .expiry(futureExpiry)
                         .feeScheduleKeyName(FEE_SCHEDULE_KEY2)
@@ -544,7 +544,7 @@ public class TopicUpdateSuite {
                         .hasKnownStatus(INVALID_SIGNATURE),
                 getTopicInfo(TOPIC).hasFeeScheduleKey(FEE_SCHEDULE_KEY).hasAdminKey(ADMIN_KEY),
 
-                // Failed hack - cannot add custom fee without feeSchedule key signature even if expiry changes
+                // Add custom fee without feeSchedule key signature if expiry changes, should fail
                 updateTopic(TOPIC)
                         .expiry(futureExpiry)
                         .withConsensusCustomFee(fixedConsensusHbarFee(1, ATTACKER))
@@ -556,7 +556,7 @@ public class TopicUpdateSuite {
                         .hasAdminKey(ADMIN_KEY)
                         .hasFeeScheduleKey(FEE_SCHEDULE_KEY),
 
-                // Failed hack - cannot update exempt keys without admin key signature even if expiry changes
+                // Update exempt keys without admin key signature if expiry changes, should fail
                 updateTopic(TOPIC)
                         .expiry(futureExpiry)
                         .feeExemptKeys(FEE_SCHEDULE_KEY)
