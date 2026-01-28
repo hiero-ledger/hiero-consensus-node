@@ -45,66 +45,50 @@ public interface ReadablePcesFile {
     String ORIGIN_PREFIX = PcesFile.ORIGIN_PREFIX;
 
     /**
-     * @return the timestamp when this file was created (wall clock time)
+     * {@see PcesFile#getTimestamp()}
      */
     @NonNull
     Instant timestamp();
 
     /**
-     * @return the sequence number of the file. All file sequence numbers are unique. Sequence numbers are allocated in
-     * monotonically increasing order.
+     * {@see PcesFile#getSequenceNumber()}
      */
     long sequenceNumber();
 
     /**
-     * @return the minimum event bound permitted to be in this file (inclusive), based on the birth round of events.
+     * {@see PcesFile#getLowerBound()}
      */
     long lowerBound();
 
     /**
-     * @return the maximum event generation permitted to be in this file (inclusive), based on the birth round of events.
+     * {@see PcesFile#getUpperBound()}
      */
     long upperBound();
 
     /**
-     * Get the origin of the stream containing this file. A stream's origin is defined as the round number after which
-     * the stream is unbroken. When the origin of two sequential files is different, this signals a discontinuity in the
-     * stream (i.e. the end of one stream and the beginning of another). When replaying events, it is never ok to stream
-     * events from files with different origins.
-     *
-     * @return the origin round number
+     * {@see PcesFile#getOrigin()}
      */
     long origin();
 
     /**
-     * @return the path to this file
+     * {@see PcesFile#getPath()}
      */
     @NonNull
     Path path();
 
     /**
-     * Get the file name of this file.
-     *
-     * @return this file's name
+     * {@see PcesFile#getFileName()}
      */
     @NonNull
     String fileName();
 
     /**
-     * Check if it is legal for the file described by this object to contain a particular event.
-     *
-     * @param eventSequenceNumber a sequence number that describes which file an event should be in, based on the birth round of events.
-     * @return true if it is legal for this event to be in the file described by this object
+     * {@see PcesFile#canContain(long)}
      */
     boolean canContain(long eventSequenceNumber);
 
     /**
-     * Get an iterator that walks over the events in this file. The iterator will only return events that have an
-     * ancient indicator that is greater than or equal to the lower bound.
-     *
-     * @param lowerBound lower bound of the events to return, based on the birth round of events.
-     * @return an iterator over the events in this file
-     * @throws IOException if an I/O error occurs
+     * {@see PcesFile#iterator(long)}
      */
     @NonNull
     IOIterator<PlatformEvent> iterator(long lowerBound) throws IOException;
