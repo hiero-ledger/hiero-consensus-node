@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -74,7 +75,9 @@ public class RecordBlockNumberTool {
 
     private static Pair<Integer, Optional<RecordStreamFile>> readRecordStreamFile(final String fileLoc)
             throws IOException {
-        final var uncompressedFileContents = FileCompressionUtils.readUncompressedFileBytes(fileLoc);
+        final var parent = Path.of(fileLoc).toAbsolutePath().normalize().getParent();
+        final var authorizedDir = parent == null ? Path.of("").toAbsolutePath() : parent;
+        final var uncompressedFileContents = FileCompressionUtils.readUncompressedFileBytes(authorizedDir, fileLoc);
         final var recordFileVersion =
                 ByteBuffer.wrap(uncompressedFileContents, 0, 4).getInt();
         final var recordStreamFile = RecordStreamFile.parseFrom(

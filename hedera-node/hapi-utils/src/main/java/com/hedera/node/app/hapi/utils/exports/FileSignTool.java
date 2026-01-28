@@ -24,6 +24,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
@@ -312,8 +313,11 @@ public class FileSignTool {
                 final SerializableDataOutputStream dos = new SerializableDataOutputStream(
                         new BufferedOutputStream(new HashingOutputStream(streamDigest)))) {
             // parse record file
+            final var recordPath = Path.of(recordFile).toAbsolutePath().normalize();
+            final var authorizedDir =
+                    recordPath.getParent() == null ? Path.of("").toAbsolutePath() : recordPath.getParent();
             final Pair<Integer, Optional<RecordStreamFile>> recordResult =
-                    readMaybeCompressedRecordStreamFile(recordFile);
+                    readMaybeCompressedRecordStreamFile(authorizedDir, recordFile);
 
             if (recordResult == null || recordResult.getValue().isEmpty()) {
                 throw new RuntimeException("Record result is empty");

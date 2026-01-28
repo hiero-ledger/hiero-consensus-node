@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.test.handlers;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
@@ -9,14 +10,17 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -160,7 +164,8 @@ class UnzipUtilityTest {
         byte[] maliciousZip = createMaliciousZip();
         assertThatExceptionOfType(IOException.class)
                 .isThrownBy(() -> UnzipUtility.unzip(maliciousZip, unzipOutputDir))
-                .withMessageContaining("Zip file entry is outside of the destination directory");
+                // May fail fast on traversal validation, or later on canonical-path Zip Slip protection.
+                .withMessageContaining("Zip entry name contains path traversal");
     }
 
     @Test
@@ -180,6 +185,94 @@ class UnzipUtilityTest {
                 .isThrownBy(() -> UnzipUtility.unzip(null, unzipOutputDir));
 
         assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> UnzipUtility.unzip(new byte[0], null));
+    }
+
+    @Test
+    @DisplayName("Unzip fails when zip entry name contains control characters")
+    void failsWhenEntryNameHasControlCharacters() throws IOException {
+        final byte[] zip = createZipWithSingleEntryName("bad\nname.txt", "content".getBytes());
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> UnzipUtility.unzip(zip, unzipOutputDir))
+                .withMessageContaining("control character");
+    }
+
+    @Test
+    @DisplayName("Unzip fails when zip entry name contains null bytes")
+    void failsWhenEntryNameHasNullBytes() throws IOException {
+        final byte[] zip = createZipWithSingleEntryName("bad\u0000name.txt", "content".getBytes());
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> UnzipUtility.unzip(zip, unzipOutputDir))
+                .withMessageContaining("control character");
+    }
+
+    @Test
+    @DisplayName("Unzip fails when zip entry name is too long")
+    void failsWhenEntryNameIsTooLong() throws IOException {
+        final byte[] zip = createZipWithSingleEntryName("a".repeat(4097), "content".getBytes());
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> UnzipUtility.unzip(zip, unzipOutputDir))
+                .withMessageContaining("name is too long");
+    }
+
+    @Test
+    @DisplayName("Unzip fails when zip entry is nested too deeply")
+    void failsWhenEntryDepthTooDeep() throws IOException {
+        final byte[] zip = createZipWithSingleEntryName(buildDeepPath(21) + "/file.txt", "content".getBytes());
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> UnzipUtility.unzip(zip, unzipOutputDir))
+                .withMessageContaining("nested too deeply");
+    }
+
+    @Test
+    @DisplayName("Unzip fails when archive contains too many entries")
+    void failsWhenTooManyEntries() throws IOException {
+        final byte[] zip = createZipWithNEntries(10_001);
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> UnzipUtility.unzip(zip, unzipOutputDir))
+                .withMessageContaining("too many entries");
+    }
+
+    @Test
+    @DisplayName("extractSingleFileWithLimits fails when entry exceeds max bytes and cleans up output file")
+    void extractSingleFileFailsWhenEntryExceedsMaxBytesAndCleansUp() throws Exception {
+        final var content = "0123456789".getBytes();
+        final var zip = createZipWithSingleEntryName("big.txt", content);
+        final var out = unzipOutputDir.resolve("big.txt");
+
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> extractWithLimits(zip, out, 5L, Long.MAX_VALUE))
+                .withMessageContaining("Zip entry exceeds max allowed size (5 bytes)");
+
+        assertThat(out).doesNotExist();
+    }
+
+    @Test
+    @DisplayName(
+            "extractSingleFileWithLimits fails when remaining total bytes would be exceeded and cleans up output file")
+    void extractSingleFileFailsWhenRemainingTotalBytesExceededAndCleansUp() throws Exception {
+        final var content = "0123456789".getBytes();
+        final var zip = createZipWithSingleEntryName("big-total.txt", content);
+        final var out = unzipOutputDir.resolve("big-total.txt");
+
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> extractWithLimits(zip, out, 100L, 5L))
+                .withMessageContaining("Zip archive exceeds max allowed extracted size");
+
+        assertThat(out).doesNotExist();
+    }
+
+    @Test
+    @DisplayName("extractSingleFileWithLimits logs warn when cleanup cannot delete partial output")
+    void extractSingleFileLogsWarnWhenCleanupCannotDelete() throws Exception {
+        final var zip = createZipWithSingleEntryName("entry.txt", "content".getBytes());
+        final var outDir = unzipOutputDir.resolve("not-a-file");
+        Files.createDirectories(outDir);
+        Files.writeString(outDir.resolve("child.txt"), "x");
+
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> extractWithLimits(zip, outDir, 100L, Long.MAX_VALUE));
+        assertThat(logCaptor.warnLogs())
+                .anyMatch(l -> l.contains("Unable to delete partially extracted file " + outDir));
     }
 
     private byte[] createMaliciousZip() throws IOException {
@@ -203,5 +296,64 @@ class UnzipUtilityTest {
             zos.closeEntry();
         }
         return baos.toByteArray();
+    }
+
+    private byte[] createZipWithSingleEntryName(final String entryName, final byte[] content) throws IOException {
+        final var baos = new ByteArrayOutputStream();
+        try (final var zos = new ZipOutputStream(baos)) {
+            final var entry = new ZipEntry(entryName);
+            zos.putNextEntry(entry);
+            zos.write(content);
+            zos.closeEntry();
+        }
+        return baos.toByteArray();
+    }
+
+    private byte[] createZipWithNEntries(final int n) throws IOException {
+        final var baos = new ByteArrayOutputStream();
+        try (final var zos = new ZipOutputStream(baos)) {
+            for (int i = 0; i < n; i++) {
+                final var entry = new ZipEntry("file-" + i + ".txt");
+                zos.putNextEntry(entry);
+                zos.write("x".getBytes());
+                zos.closeEntry();
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    private static String buildDeepPath(final int depth) {
+        final var sb = new StringBuilder();
+        for (int i = 0; i < depth; i++) {
+            if (i > 0) sb.append('/');
+            sb.append('a');
+        }
+        return sb.toString();
+    }
+
+    private static long extractWithLimits(
+            final byte[] zipBytes, final Path outputPath, final long maxEntryBytes, final long remainingTotalBytes)
+            throws IOException {
+        try (final var zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
+            final var entry = zis.getNextEntry();
+            if (entry == null) {
+                throw new IOException("No zip entry found in bytes");
+            }
+            final var method = UnzipUtility.class.getDeclaredMethod(
+                    "extractSingleFileWithLimits", ZipInputStream.class, Path.class, long.class, long.class);
+            method.setAccessible(true);
+            return (long) method.invoke(null, zis, outputPath, maxEntryBytes, remainingTotalBytes);
+        } catch (final InvocationTargetException e) {
+            final var cause = e.getCause();
+            if (cause instanceof IOException io) {
+                throw io;
+            }
+            if (cause instanceof RuntimeException re) {
+                throw re;
+            }
+            throw new RuntimeException(cause);
+        } catch (final ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

@@ -61,7 +61,7 @@ public class CryptoArgsProvider {
         builder.withConfigDataTypes(PathsConfig.class, CryptoConfig.class);
 
         builder.withValue("paths.keysDirPath", keyDirectory.toAbsolutePath().toString());
-        builder.withValue("crypto.password", new String(PASSWORD));
+        builder.withValue("crypto.keystorePassword", new String(PASSWORD));
 
         return builder.build();
     }
