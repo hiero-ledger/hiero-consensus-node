@@ -308,6 +308,9 @@ jobs:
           # Generate the application.properties file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
 
+          # Generate the application.environment file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/application.environment.txt application.environment
+
           # Generate the settings.txt file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt
 
