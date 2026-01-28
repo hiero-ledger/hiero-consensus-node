@@ -1,18 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.gui;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.BranchingEventSource;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.event.generator.GeneratorConfig;
+import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGenerator;
 
 public class HashgraphGui {
 
@@ -31,35 +26,17 @@ public class HashgraphGui {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final GraphGenerator graphGenerator = new StandardGraphGenerator(
-                platformContext,
-                randotron.nextInt(),
-                2,
-                generateSources(numNodes, Arrays.stream(args).anyMatch("branch"::equals)));
-        graphGenerator.reset();
+        final Roster roster = RandomRosterBuilder.create(randotron).withSize(numNodes).build();
+        final SimpleGraphGenerator generator = new SimpleGraphGenerator(
+                platformContext.getConfiguration(),
+                platformContext.getTime(),
+                new GeneratorConfig(0, 2),
+                roster
+        );
 
         final TestGuiSource guiSource = new TestGuiSource(
-                platformContext, graphGenerator.getRoster(), new GeneratorEventProvider(graphGenerator));
+                platformContext, roster, new SimpleGeneratorProvider(generator));
         guiSource.generateEvents(initialEvents);
         guiSource.runGui();
-    }
-
-    /**
-     * Method that generates event source  for each node. It can also accept a boolean flag that
-     * indicates if we should have a branching event source or not.
-     *
-     * @param numNetworkNodes the number of nodes in the network
-     * @param shouldBranch true if we should have a branching event source, false otherwise
-     */
-    private static @NonNull List<EventSource> generateSources(final int numNetworkNodes, final boolean shouldBranch) {
-        final List<EventSource> list = new LinkedList<>();
-        for (long i = 0; i < numNetworkNodes; i++) {
-            if (i == 1 && shouldBranch) {
-                list.add(new BranchingEventSource().setBranchProbability(0.8).setMaximumBranchCount(5));
-                continue;
-            }
-            list.add(new StandardEventSource(true));
-        }
-        return list;
     }
 }

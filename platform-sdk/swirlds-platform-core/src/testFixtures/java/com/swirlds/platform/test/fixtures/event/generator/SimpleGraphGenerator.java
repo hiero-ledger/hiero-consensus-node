@@ -30,8 +30,7 @@ public class SimpleGraphGenerator {
 
     private final EventDescriptor[] latestEventPerNode;
 
-    /** The maximum number of other-parents that newly generated events should have */
-    private final int maxOtherParents;
+    private final GeneratorConfig generatorConfig;
 
     /**
      * The roster representing the event sources.
@@ -54,18 +53,15 @@ public class SimpleGraphGenerator {
      * <p>
      * Note: once an event source has been passed to this constructor it should not be modified by the outer context.
      *
-     * @param seed The random seed used to generate events.
-     * @param maxOtherParents The maximum number of other-parents for each event.
      * @param roster The roster to use.
      */
     public SimpleGraphGenerator(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
-            final long seed,
-            final int maxOtherParents,
+            @NonNull final GeneratorConfig generatorConfig,
             @NonNull final Roster roster) {
-        this.maxOtherParents = maxOtherParents;
-        this.random = new Random(seed);
+        this.generatorConfig = generatorConfig;
+        this.random = new Random(generatorConfig.seed());
         this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
         this.roster = roster;
         consensus = new GeneratorConsensus(configuration, time, roster);
@@ -90,10 +86,18 @@ public class SimpleGraphGenerator {
         return latestEventTime;
     }
 
+    public List<PlatformEvent> generateEvents(final int count) {
+        final List<PlatformEvent> events = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            events.add(generateEvent());
+        }
+        return events;
+    }
+
     /**
-     * Build the event that will be returned by getNextEvent.
+     * Build the event
      */
-    public GossipEvent buildNextEvent() {
+    public PlatformEvent generateEvent() {
         final List<Integer> nodeIndices = IntStream.range(0, roster.rosterEntries().size()).boxed()
                 .collect(ArrayList::new, List::add, List::addAll);
         Collections.shuffle(nodeIndices, random);
@@ -105,7 +109,7 @@ public class SimpleGraphGenerator {
             parents.add(latestEventPerNode[eventCreator]);
         }
         nodeIndices
-                .subList(0, Math.min(maxOtherParents, nodeIndices.size()))
+                .subList(0, Math.min(generatorConfig.maxOtherParents(), nodeIndices.size()))
                 .stream()
                 .map(i -> latestEventPerNode[i])
                 .filter(Objects::nonNull)
@@ -132,6 +136,6 @@ public class SimpleGraphGenerator {
         new DefaultEventHasher().hashEvent(platformEvent);
         consensus.updateConsensus(platformEvent);
         latestEventPerNode[eventCreator] = platformEvent.getDescriptor().eventDescriptor();
-        return gossipEvent;
+        return platformEvent;
     }
 }
