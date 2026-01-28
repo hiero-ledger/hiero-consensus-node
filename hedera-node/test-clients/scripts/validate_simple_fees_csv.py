@@ -154,6 +154,40 @@ def normalize_counts(counts):
         counts["TOKEN_TRANSFER_BASE"] = 0
     elif is_positive(counts.get("TOKEN_TRANSFER_BASE")):
         counts["TOKEN_TRANSFER_BASE"] = 1
+
+    # If minting NFTs, include the base NFT mint extra once when not present.
+    nft_count = counts.get("TOKEN_MINT_NFT")
+    if isinstance(nft_count, str) and nft_count.startswith(">"):
+        nft_count = 1
+    if isinstance(nft_count, int) and nft_count > 0:
+        counts.setdefault("TOKEN_MINT_NFT_BASE", 1)
+
+    # Map hook slot updates to HOOK_SLOT_UPDATE extras.
+    slot_updates = 0
+    for key in ("SLOTS", "REMOVE_SLOTS"):
+        val = counts.get(key)
+        if isinstance(val, str) and val.startswith(">"):
+            val = 1
+        if isinstance(val, int):
+            slot_updates += val
+    if slot_updates:
+        counts.setdefault("HOOK_SLOT_UPDATE", slot_updates)
+
+    # Derive hook executions from token transfer lists when hooks are involved.
+    hook_execs = counts.get("HOOK_EXECUTION")
+    if isinstance(hook_execs, str) and hook_execs.startswith(">"):
+        hook_execs = 1
+    if isinstance(hook_execs, int) and hook_execs > 0:
+        fung = counts.get("FUNGIBLE_TOKENS", 0)
+        if isinstance(fung, str) and fung.startswith(">"):
+            fung = 1
+        if not isinstance(fung, int):
+            fung = 0
+        nft = counts.get("NON_FUNGIBLE_TOKENS", 0)
+        nft_list = 1 if (isinstance(nft, int) and nft > 0) or (isinstance(nft, str) and nft.startswith(">")) else 0
+        derived = fung + nft_list
+        if derived > hook_execs:
+            counts["HOOK_EXECUTION"] = derived
     return counts
 
 
@@ -169,6 +203,10 @@ def map_txn_to_schedule(txn_name: str, schedule_names):
 
 def calc_service_fee(service_def, extra_fees, counts, txn_name=""):
     fee = service_def["baseFee"]
+    parts = [f"base {service_def['baseFee']}"]
+    hook_execs = counts.get("HOOK_EXECUTION", 0)
+    if isinstance(hook_execs, str) and hook_execs.startswith(">"):
+        hook_execs = 0
     for name, included in service_def["extras"].items():
         count = counts.get(name)
         if isinstance(count, str) and count.startswith(">"):
@@ -180,12 +218,23 @@ def calc_service_fee(service_def, extra_fees, counts, txn_name=""):
             else:
                 count = included
         if count > included:
-            fee += (count - included) * extra_fees.get(name, 0)
-    return fee
+            effective = count - included
+            mult = 1
+            # Gas is charged per hook execution.
+            if name == "GAS" and hook_execs:
+                mult = hook_execs
+                effective *= hook_execs
+            fee += effective * extra_fees.get(name, 0)
+            if mult == 1:
+                parts.append(f\"{name} ({count}-{included})*{extra_fees.get(name, 0)}\")
+            else:
+                parts.append(f\"{name} ({count}-{included})*{extra_fees.get(name, 0)}*{mult}\")
+    return fee, parts
 
 
 def calc_node_fee(node_base, node_extras, extra_fees, counts, use_bytes_for_node):
     fee = node_base
+    parts = [f\"base {node_base}\"]
     sigs = counts.get("SIGS_ACTUAL", counts.get("SIGS"))
     if isinstance(sigs, str) and sigs.startswith(">"):
         sigs = None
@@ -194,6 +243,7 @@ def calc_node_fee(node_base, node_extras, extra_fees, counts, use_bytes_for_node
     included_sigs = node_extras.get("SIGNATURES", 0)
     if sigs > included_sigs:
         fee += (sigs - included_sigs) * extra_fees.get("SIGNATURES", 0)
+        parts.append(f\"SIGNATURES ({sigs}-{included_sigs})*{extra_fees.get('SIGNATURES', 0)}\")
 
     bytes_count = counts.get("TX_BYTES")
     if bytes_count is None and use_bytes_for_node:
@@ -205,8 +255,9 @@ def calc_node_fee(node_base, node_extras, extra_fees, counts, use_bytes_for_node
     included_bytes = node_extras.get("BYTES", 0)
     if bytes_count > included_bytes:
         fee += (bytes_count - included_bytes) * extra_fees.get("BYTES", 0)
+        parts.append(f\"BYTES ({bytes_count}-{included_bytes})*{extra_fees.get('BYTES', 0)}\")
 
-    return fee
+    return fee, parts
 
 
 def tinycents_to_tinybars(amount, hbar_equiv, cent_equiv):
