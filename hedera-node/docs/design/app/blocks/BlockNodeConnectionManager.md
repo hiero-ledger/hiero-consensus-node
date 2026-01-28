@@ -23,8 +23,11 @@ blocks.
 <dt>BlockNodeConnectionManager</dt>
 <dd>The class responsible for managing and tracking all active block node connections, including creation, teardown, and error recovery.</dd>
 
-<dt>BlockNodeConnection</dt>
-<dd>A representation of a single connection to block node, managed by the connection manager.</dd>
+<dt>BlockNodeStreamingConnection</dt>
+<dd>A single connection to a block node that is used to stream blocks, managed by the connection manager.</dd>
+
+<dt>BlockNodeServiceConnection</dt>
+<dd>A single connection to a block node that is used to retrieve information about the node, managed by the connection manager.</dd>
 
 <dt>BlockBufferService</dt>
 <dd>The component responsible for maintaining a buffer of blocks produced by the consensus node.</dd>
@@ -58,6 +61,35 @@ blocks.
 - Calls `BlockBufferService` to get the blocks/requests to send and to also notify the buffer when blocks are acknowledged.
 - Updates connection state and retry schedule based on feedback from connections.
 
+## Block Node Selection
+
+When the consensus node wants to connect to a block node to start streaming data to, the list of potential block nodes
+will be retrieved by parsing the `block-nodes.json` file. This file contains the list of potential block nodes with their
+assigned priority, along with any additional configuration specific to the block node.
+
+With the list of potential block nodes known, the connection manager will begin iterating over each priority group in
+ascending order, starting with group 0. For each block node in the current priority group being handled, a "service"
+connection is established to the block node. Via this service connection, the status of the block node is retrieved - in
+particular the last block available on the block node.
+
+Once the status for each block node in the priority group is retrieved (either successfully or timed out/failed), the
+results are filtered. Any unreachable or timed out node is removed from the set of candidates. If the consensus node has
+no blocks buffered, then any reachable block node will be considered a viable candidate. If the consensus node has one
+or more blocks buffered, then the last block available on the block node is compared to the range of blocks available on
+the consensus node. If the block node's last available block is within the range of the consensus node, then the block
+node is considered a viable candidate. If the block node indicates that it's last available block is -1, then that node
+is considered viable since we interpret -1 as meaning "I will accept whatever you send me" from the block node. If a
+block node's last available block is not -1 and is outside the range of blocks available on the consensus node, then it
+will be excluded from the set of viable block nodes.
+
+Once a set of viable block nodes is found, then one of the nodes will be randomly selected as the block node to connect
+to. If no viable block nodes are found in the priority group, then the connection manager will repeat the same process
+for every subsequent priority group until a viable block node is found.
+
+If no viable block node is found, then no connection between the consensus node and block node will be established to
+stream blocks. Assuming the block buffer service is active and blocks are being produced, then periodically the buffer
+service will trigger the node selection process again.
+
 ## Sequence Diagrams
 
 ### Connection Establishment
@@ -66,7 +98,7 @@ blocks.
 sequenceDiagram
     participant Manager as BlockNodeConnectionManager
     participant Task as BlockNodeConnectionTask
-    participant Conn as BlockNodeConnection
+    participant Conn as BlockNodeStreamingConnection
 
     Manager->>Manager: Select next priority block node
     Manager->>Conn: Create connection with new gRPC client
@@ -77,7 +109,7 @@ sequenceDiagram
     alt connection task execution
       Task->>Task: Check if can promote based on priority
       Task->>Conn: Create request pipeline and establish gRPC stream
-      Conn->>Conn: Transition to PENDING state
+      Conn->>Conn: Transition to READY state
 
       alt promotion successful
         Task->>Conn: Promote to ACTIVE state
@@ -93,7 +125,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Conn as BlockNodeConnection
+    participant Conn as BlockNodeStreamingConnection
     participant Manager as BlockNodeConnectionManager
 
     Conn->>Conn: Transition to CLOSING state
@@ -115,7 +147,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Manager as BlockNodeConnectionManager
-    participant Conn as BlockNodeConnection
+    participant Conn as BlockNodeStreamingConnection
 
     alt shutdown
       Manager -> Manager: Stop configuration watcher
