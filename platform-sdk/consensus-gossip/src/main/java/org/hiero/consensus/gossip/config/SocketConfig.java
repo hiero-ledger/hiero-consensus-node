@@ -39,4 +39,4 @@ public record SocketConfig(
         @ConfigProperty(defaultValue = "false") boolean gzipCompression,
         @ConfigProperty(defaultValue = "10") int waitBetweenConnectionRetries,
         @ConfigProperty(defaultValue = "30") int maxSocketAcceptThreads,
-        @ConfigProperty(defaultValue = "false") boolean quickAck) {}
+        @ConfigProperty(defaultValue = "true") boolean quickAck) {}
