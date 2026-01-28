@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.consensus.pces.impl.common.PcesUtilities.compactPreconsensusEventFile;
 import static org.hiero.consensus.pces.impl.common.PcesUtilities.fileSanityChecks;
 
-import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -18,6 +17,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.pces.config.PcesConfig;
 
 /**

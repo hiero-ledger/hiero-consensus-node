@@ -22,7 +22,6 @@ import com.swirlds.platform.gossip.shadowgraph.ReservedEventWindow;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphInsertionException;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
@@ -42,6 +41,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -358,10 +358,9 @@ class ShadowgraphByBirthRoundTests {
         birthRoundToShadows.forEach((birthRound, shadowSet) -> {
             if (birthRound < expireBelowBirthRound) {
                 shadowSet.forEach((shadow) -> {
-                    assertNull(
-                            shadow.getSelfParent(), "Expired events should have their self parent reference nulled.");
-                    assertNull(
-                            shadow.getOtherParent(), "Expired events should have their other parent reference nulled.");
+                    assertTrue(
+                            shadow.getAllParents().isEmpty(),
+                            "Expired events should have their parents references nulled.");
                     assertFalse(
                             shadowGraph.isHashInGraph(shadow.getBaseHash()),
                             "Events in an expire birth round should not be in the shadow graph.");
@@ -689,8 +688,7 @@ class ShadowgraphByBirthRoundTests {
         shadowGraph.clear();
 
         for (final ShadowEvent s : shadows) {
-            assertNull(s.getSelfParent(), "after a clear, all parents should be disconnected");
-            assertNull(s.getOtherParent(), "after a clear, all parents should be disconnected");
+            assertTrue(s.getAllParents().isEmpty(), "after a clear, all parents should be disconnected");
         }
     }
 

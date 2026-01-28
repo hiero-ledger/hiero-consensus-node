@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getGlobalMetrics;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.gui.internal.BrowserWindowManager.getPlatforms;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static com.swirlds.platform.state.service.PlatformStateUtils.latestFreezeRoundOf;
 
@@ -16,8 +14,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifier;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
-import com.swirlds.platform.components.consensus.ConsensusEngine;
-import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
@@ -56,7 +52,6 @@ import com.swirlds.platform.system.DefaultPlatformMonitor;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.util.MetricsDocUtils;
 import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -96,7 +91,6 @@ public class PlatformComponentBuilder {
     private final PlatformBuildingBlocks blocks;
 
     private StateGarbageCollector stateGarbageCollector;
-    private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
@@ -162,34 +156,12 @@ public class PlatformComponentBuilder {
         throwIfAlreadyUsed();
         used = true;
 
-        try (final ReservedSignedState initialState = blocks.initialState()) {
+        try (final ReservedSignedState ignored = blocks.initialState()) {
             swirldsPlatform = new SwirldsPlatform(this);
             return swirldsPlatform;
         } finally {
-            if (metricsDocumentationEnabled) {
-                // Future work: eliminate the static variables that require this code to exist
-                if (blocks.firstPlatform()) {
-                    MetricsDocUtils.writeMetricsDocumentToFile(
-                            getGlobalMetrics(),
-                            getPlatforms(),
-                            blocks.platformContext().getConfiguration());
-                    getMetricsProvider().start();
-                }
-            }
+            getMetricsProvider().start();
         }
-    }
-
-    /**
-     * If enabled, building this object will cause a metrics document to be generated. Default is true.
-     *
-     * @param metricsDocumentationEnabled whether to generate a metrics document
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withMetricsDocumentationEnabled(final boolean metricsDocumentationEnabled) {
-        throwIfAlreadyUsed();
-        this.metricsDocumentationEnabled = metricsDocumentationEnabled;
-        return this;
     }
 
     /**
@@ -222,43 +194,6 @@ public class PlatformComponentBuilder {
             stateGarbageCollector = new DefaultStateGarbageCollector(blocks.platformContext());
         }
         return stateGarbageCollector;
-    }
-
-    /**
-     * Provide a consensus engine in place of the platform's default consensus engine.
-     *
-     * @param consensusEngine the consensus engine to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withConsensusEngine(@NonNull final ConsensusEngine consensusEngine) {
-        throwIfAlreadyUsed();
-        if (this.consensusEngine != null) {
-            throw new IllegalStateException("Consensus engine has already been set");
-        }
-        this.consensusEngine = Objects.requireNonNull(consensusEngine);
-        return this;
-    }
-
-    /**
-     * Build the consensus engine if it has not yet been built. If one has been provided via
-     * {@link #withConsensusEngine(ConsensusEngine)}, that engine will be used. If this method is called more than once,
-     * only the first call will build the consensus engine. Otherwise, the default engine will be created and returned.
-     *
-     * @return the consensus engine
-     */
-    @NonNull
-    public ConsensusEngine buildConsensusEngine() {
-        if (consensusEngine == null) {
-            consensusEngine = new DefaultConsensusEngine(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    blocks.rosterHistory().getCurrentRoster(),
-                    blocks.selfId(),
-                    blocks.freezeChecker());
-        }
-        return consensusEngine;
     }
 
     /**

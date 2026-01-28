@@ -305,7 +305,7 @@ public class TransactionDispatcher {
                     case FILE_ID -> handlers.fileSystemUndeleteHandler();
                     default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
                 };
-            case LEDGER_ID_PUBLICATION -> NOOP_HANDLER;
+            case LEDGER_ID_PUBLICATION, NODE_STAKE_UPDATE -> NOOP_HANDLER;
 
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };

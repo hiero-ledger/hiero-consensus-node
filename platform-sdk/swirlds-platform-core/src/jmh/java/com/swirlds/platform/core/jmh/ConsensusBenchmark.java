@@ -4,15 +4,15 @@ package com.swirlds.platform.core.jmh;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.Consensus;
-import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
-import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.metrics.NoOpConsensusMetrics;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
+import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
@@ -35,14 +35,16 @@ import org.openjdk.jmh.infra.Blackhole;
 @Warmup(iterations = 1, time = 3)
 @Measurement(iterations = 3, time = 10)
 public class ConsensusBenchmark {
+    private static final long SEED = 0;
+
     @Param({"4", "10", "30"})
     public int numNodes;
 
+    @Param({"1", "2", "4"})
+    public int numOP;
+
     @Param({"100000"})
     public int numEvents;
-
-    @Param({"0"})
-    public long seed;
 
     private List<EventImpl> events;
     private Consensus consensus;
@@ -52,8 +54,9 @@ public class ConsensusBenchmark {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
-                .setRandomSeed(seed)
+                .setRandomSeed(SEED)
                 .setNumNodes(numNodes)
+                .setMaxOtherParents(numOP)
                 .setWeightGenerator(WeightGenerators.BALANCED)
                 .build();
         events = emitter.emitEvents(numEvents);
@@ -84,11 +87,18 @@ public class ConsensusBenchmark {
         }
 
         /*
-            Results on a M1 Max MacBook Pro:
-            Benchmark                              (numEvents)  (numNodes)  (seed)  Mode  Cnt     Score     Error  Units
-            ConsensusBenchmark.calculateConsensus       100000           4       0  avgt    3   373.780 ± 214.697  ms/op
-            ConsensusBenchmark.calculateConsensus       100000          10       0  avgt    3   714.159 ±  50.984  ms/op
-            ConsensusBenchmark.calculateConsensus       100000          30       0  avgt    3  2358.441 ± 311.102  ms/op
+        Results on a M1 Max MacBook Pro:
+
+        Benchmark                              (numEvents)  (numNodes)  (numOP)  Mode  Cnt     Score     Error  Units
+        ConsensusBenchmark.calculateConsensus       100000           4        1  avgt    3   371.516 ± 260.771  ms/op
+        ConsensusBenchmark.calculateConsensus       100000           4        2  avgt    3   404.322 ± 140.380  ms/op
+        ConsensusBenchmark.calculateConsensus       100000           4        4  avgt    3   417.989 ± 230.466  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          10        1  avgt    3   746.292 ±  97.510  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          10        2  avgt    3   840.145 ± 180.210  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          10        4  avgt    3   953.634 ± 393.661  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          30        1  avgt    3  2841.761 ± 523.974  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          30        2  avgt    3  3060.256 ± 430.140  ms/op
+        ConsensusBenchmark.calculateConsensus       100000          30        4  avgt    3  3606.326 ± 276.873  ms/op
         */
     }
 }
