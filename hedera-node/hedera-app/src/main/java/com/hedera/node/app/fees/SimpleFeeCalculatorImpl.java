@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.spi.fees;
+package com.hedera.node.app.fees;
 
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -17,11 +20,7 @@ import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
- * Base class for simple fee calculators. Provides reusable utility methods for common fee
- * calculation patterns per HIP-1261.
- *
- * <p>Subclasses implement {@link SimpleFeeCalculator} directly and can use the static utility
- * methods provided here to avoid code duplication.
+ * Implementation of simple fee calculator per HIP-1261.
  */
 public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
@@ -110,34 +109,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     }
 
     /**
-     * Utility: Counts all keys including nested ones in threshold/key lists.
-     * Useful for calculating KEYS extra fees per HIP-1261.
-     *
-     * @param key The key structure to count
-     * @return The total number of simple keys (ED25519, ECDSA_SECP256K1, ECDSA_384)
-     */
-    public static long countKeys(@NonNull final Key key) {
-        return switch (key.key().kind()) {
-            case ED25519, ECDSA_SECP256K1, ECDSA_384 -> 1L;
-            case THRESHOLD_KEY ->
-                key.thresholdKeyOrThrow().keys().keys().stream()
-                        .mapToLong(SimpleFeeCalculatorImpl::countKeys)
-                        .sum();
-            case KEY_LIST ->
-                key.keyListOrThrow().keys().stream()
-                        .mapToLong(SimpleFeeCalculatorImpl::countKeys)
-                        .sum();
-            default -> 0L;
-        };
-    }
-
-    /**
      * Default implementation for query fee calculation.
      *
      * @param query The query to calculate fees for
      * @param queryContext the query context
-     * @return Never returns normally
-     * @throws UnsupportedOperationException always
+     * @return the calculated query fee
      */
     @Override
     public long calculateQueryFee(@NonNull final Query query, @NonNull final QueryContext queryContext) {
