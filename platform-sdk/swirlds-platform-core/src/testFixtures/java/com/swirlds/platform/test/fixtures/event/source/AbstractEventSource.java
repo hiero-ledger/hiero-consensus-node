@@ -5,7 +5,6 @@ import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDi
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
 import com.swirlds.common.test.fixtures.TransactionGenerator;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
 import com.swirlds.platform.test.fixtures.event.RandomEventUtils;
@@ -18,6 +17,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
