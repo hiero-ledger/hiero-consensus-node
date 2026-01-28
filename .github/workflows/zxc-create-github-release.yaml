@@ -3,6 +3,10 @@ name: "ZXC: Create Github Release"
 on:
   workflow_call:
     inputs:
+      ref:
+        description: "Branch, tag, or commit to build"
+        required: false
+        type: string
       release-version:
         description: "Release Version"
         type: string
@@ -85,6 +89,7 @@ jobs:
         id: checkout_code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: "0"
           token: ${{ secrets.gh-access-token }}
 
@@ -116,6 +121,7 @@ jobs:
         id: checkout_code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: "0"
           token: ${{ secrets.gh-access-token }}
 
@@ -163,6 +169,7 @@ jobs:
         id: checkout_code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: "0"
           token: ${{ secrets.gh-access-token }}
 
@@ -188,6 +195,7 @@ jobs:
         id: checkout_code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: "0"
           token: ${{ secrets.gh-access-token }}
 

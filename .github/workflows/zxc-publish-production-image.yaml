@@ -45,6 +45,9 @@ on:
         description: "Docker Image Tag"
         value: ${{ jobs.publish-image.outputs.docker-image-tag }}
     secrets:
+      access-token:
+        description: "The Github access token used to perform actions."
+        required: true
       jf-url:
         required: true
       jf-user-name:
@@ -83,6 +86,9 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.access-token }}
 
       - name: Restore Build Artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0

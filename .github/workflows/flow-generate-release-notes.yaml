@@ -30,7 +30,8 @@ jobs:
     name: Generate Release Notes
     uses: ./.github/workflows/zxc-create-github-release.yaml
     with:
-      release-version: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.version }}
+      ref: ${{ github.event_name == 'push' && github.sha || inputs.ref  || github.sha }}
+      release-version: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
       create-release-notes: true
       create-release: false
       dry-run: ${{ inputs.dry-run-enabled }}
