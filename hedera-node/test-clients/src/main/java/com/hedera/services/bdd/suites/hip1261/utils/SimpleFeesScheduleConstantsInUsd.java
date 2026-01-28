@@ -18,7 +18,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     /* ---------- Global extras price table ("extras") ---------- */
 
-    public static final double SIGNATURE_FEE_USD = 0.0001;
+    public static final double SIGNATURE_FEE_USD = 0.00001;
     public static final double BYTES_FEE_USD = 0.000011;
     public static final double KEYS_FEE_USD = 0.01;
     public static final double NFT_SERIALS_FEE_USD = 0.00089;
