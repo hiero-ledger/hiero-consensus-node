@@ -4,8 +4,6 @@ package com.swirlds.platform.crypto;
 import static com.swirlds.logging.legacy.LogMarker.ERROR;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
-import static org.hiero.consensus.crypto.ConsensusCryptoUtils.createEmptyTrustStore;
-import static org.hiero.consensus.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.config.api.Configuration;
