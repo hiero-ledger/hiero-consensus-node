@@ -314,7 +314,7 @@ public class ClprClientImpl implements ClprClient {
             final var transaction = Transaction.newBuilder()
                     .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTransaction))
                     .build();
-            final var response = clprServiceClient.updateMessageQueueMetadata(transaction);
+            final var response = clprServiceClient.processMessageBundle(transaction);
             return response.nodeTransactionPrecheckCode();
         } catch (final Exception e) {
             log.error(

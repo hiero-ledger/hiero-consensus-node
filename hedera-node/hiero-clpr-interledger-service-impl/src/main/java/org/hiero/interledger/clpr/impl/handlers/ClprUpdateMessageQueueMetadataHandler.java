@@ -91,10 +91,10 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
             HandleContext context, ClprLedgerId remoteLedgerId, ClprMessageQueueMetadata metadata) {
 
         final var nexId = metadata.nextMessageId();
-        if (nexId < 1) {
+        if (nexId < 6) {
             final var messageStore = context.storeFactory().writableStore(WritableClprMessageStore.class);
 
-            final var msgString = "Message ID: %d; Ledger ID: %d".formatted(nexId, remoteLedgerId);
+            final var msgString = "Message ID: %d; Ledger ID: %s".formatted(nexId, remoteLedgerId);
             final var messageKey = ClprMessageKey.newBuilder()
                     .messageId(nexId)
                     .ledgerId(remoteLedgerId)
