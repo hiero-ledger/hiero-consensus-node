@@ -46,7 +46,7 @@ on:
         value: ${{ jobs.publish-image.outputs.docker-image-tag }}
     secrets:
       access-token:
-        description: "The Github access token used to perform actions."
+        description: "The GitHub access token used to perform actions."
         required: true
       jf-url:
         required: true

@@ -28,7 +28,7 @@ on:
         default: false
     secrets:
       gh-access-token:
-        description: "The Github access token used to create the release."
+        description: "The GitHub access token used to create the release."
         required: true
 
 defaults:
