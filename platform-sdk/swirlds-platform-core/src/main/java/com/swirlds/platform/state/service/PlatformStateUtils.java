@@ -17,6 +17,7 @@ import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -285,15 +286,11 @@ public final class PlatformStateUtils {
     /**
      * Generate a string that describes this state.
      *
-     * @param hashDepth the depth of the tree to visit and print
      */
     @NonNull
-    public static String getInfoString(@NonNull final State state, final int hashDepth) {
+    public static String getInfoString(@NonNull final State state) {
         final MerkleNodeState merkleNodeState = (MerkleNodeState) state;
-        return createInfoString(
-                        hashDepth,
-                        readablePlatformStateStore(state),
-                        merkleNodeState.getHash(),
+        return createInfoString(readablePlatformStateStore(state), merkleNodeState.getHash(), (VirtualMap)
                         merkleNodeState.getRoot())
                 .concat(merkleNodeState.getInfoJson());
     }

@@ -2,8 +2,8 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -11,25 +11,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,46 +50,6 @@ class VirtualMapSerializationTests {
 
     public static MerkleDbDataSourceBuilder constructBuilder(final Configuration configuration) {
         return new MerkleDbDataSourceBuilder(configuration, 10_000, Long.MAX_VALUE);
-    }
-
-    /**
-     * Validate that two maps contain the same data.
-     */
-    private void assertMapsAreEqual(final VirtualMap originalMap, final VirtualMap deserializedMap) {
-
-        assertEquals(originalMap.size(), deserializedMap.size(), "size should match");
-
-        // make sure that the hashes are calculated
-        originalMap.getHash();
-        deserializedMap.getHash();
-
-        final Map<MerkleRoute, Hash> hashes = new HashMap<>();
-
-        originalMap.forEachNode((final MerkleNode node) -> {
-            if (node instanceof VirtualLeafNode) {
-                final VirtualLeafNode leaf = node.cast();
-
-                final Bytes key = leaf.getKey();
-                final Bytes value = leaf.getValue();
-
-                assertEquals(value, deserializedMap.getBytes(key), "expected values to match");
-            }
-
-            if (node instanceof VirtualLeafNode || node instanceof VirtualInternalNode) {
-                assertNotNull(node.getHash(), "hash should not be null");
-                assertFalse(hashes.containsKey(node.getRoute()), "no two routes should match");
-                hashes.put(node.getRoute(), node.getHash());
-            }
-        });
-
-        deserializedMap.forEachNode((final MerkleNode node) -> {
-            if (node instanceof VirtualLeafNode || node instanceof VirtualInternalNode) {
-                assertTrue(hashes.containsKey(node.getRoute()), "route should exist in both trees");
-                assertEquals(hashes.get(node.getRoute()), node.getHash(), "hash for each node should match");
-            }
-        });
-
-        assertEquals(originalMap.getHash(), deserializedMap.getHash(), "hash should match");
     }
 
     /**
@@ -147,15 +100,15 @@ class VirtualMapSerializationTests {
         final VirtualMap map2 = generateRandomMap(1234, 1_000);
 
         try {
-            assertMapsAreEqual(map0, map0);
-            assertMapsAreEqual(map0, map1);
-            assertMapsAreEqual(map1, map1);
-            assertMapsAreEqual(map1, map0);
-            assertMapsAreEqual(map2, map2);
-            assertThrows(AssertionError.class, () -> assertMapsAreEqual(map0, map2), "maps should not be equal");
-            assertThrows(AssertionError.class, () -> assertMapsAreEqual(map1, map2), "maps should not be equal");
-            assertThrows(AssertionError.class, () -> assertMapsAreEqual(map2, map0), "maps should not be equal");
-            assertThrows(AssertionError.class, () -> assertMapsAreEqual(map2, map1), "maps should not be equal");
+            assertVmsAreEqual(map0, map0);
+            assertVmsAreEqual(map0, map1);
+            assertVmsAreEqual(map1, map1);
+            assertVmsAreEqual(map1, map0);
+            assertVmsAreEqual(map2, map2);
+            assertThrows(AssertionError.class, () -> assertVmsAreEqual(map0, map2), "maps should not be equal");
+            assertThrows(AssertionError.class, () -> assertVmsAreEqual(map1, map2), "maps should not be equal");
+            assertThrows(AssertionError.class, () -> assertVmsAreEqual(map2, map0), "maps should not be equal");
+            assertThrows(AssertionError.class, () -> assertVmsAreEqual(map2, map1), "maps should not be equal");
         } finally {
             map0.release();
             map1.release();
@@ -188,7 +141,7 @@ class VirtualMapSerializationTests {
         final VirtualMap deserializedMap =
                 VirtualMap.loadFromDirectory(savedStateDirectory, CONFIGURATION, () -> constructBuilder(CONFIGURATION));
 
-        assertMapsAreEqual(map, deserializedMap);
+        assertVmsAreEqual(map, deserializedMap);
 
         deserializedMap.release();
     }
