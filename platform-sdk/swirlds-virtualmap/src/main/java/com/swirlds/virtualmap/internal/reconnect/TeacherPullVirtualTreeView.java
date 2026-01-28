@@ -4,8 +4,6 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
@@ -18,6 +16,7 @@ import java.io.IOException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -73,8 +72,8 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
             final TeachingSynchronizer teachingSynchronizer,
             final Time time,
             final StandardWorkGroup workGroup,
-            final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream) {
+            final SerializableDataInputStream inputStream,
+            final SerializableDataOutputStream outputStream) {
         final AsyncOutputStream<PullVirtualTreeResponse> out =
                 teachingSynchronizer.buildOutputStream(workGroup, outputStream);
         out.start();

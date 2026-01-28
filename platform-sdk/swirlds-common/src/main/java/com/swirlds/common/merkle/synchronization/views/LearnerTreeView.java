@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.views;
 
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
@@ -37,8 +35,8 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, TreeV
     void startLearnerTasks(
             final LearningSynchronizer learningSynchronizer,
             final StandardWorkGroup workGroup,
-            final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream);
+            final SerializableDataInputStream inputStream,
+            final SerializableDataOutputStream outputStream);
 
     /**
      * Aborts the reconnect process on the learner side. It may be used to release resources, when

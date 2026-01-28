@@ -10,9 +10,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.SavedStateLoadedPayload;
 import com.swirlds.platform.config.StateConfig;
@@ -32,6 +32,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -187,7 +188,7 @@ public final class StartupStateUtils {
         try {
             deserializedSignedState =
                     readState(savedStateInfo.stateDirectory(), platformContext, stateLifecycleManager);
-        } catch (final IOException | UncheckedIOException e) {
+        } catch (final IOException | UncheckedIOException | ParseException e) {
             logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateInfo.stateDirectory(), e);
 
             final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);

@@ -26,7 +26,7 @@ public class CryptoApproveAllowanceFeeCalculator implements ServiceFeeCalculator
         final var op = txnBody.cryptoApproveAllowanceOrThrow();
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
 
         final int totalAllowances = op.cryptoAllowances().size()
                 + op.tokenAllowances().size()
