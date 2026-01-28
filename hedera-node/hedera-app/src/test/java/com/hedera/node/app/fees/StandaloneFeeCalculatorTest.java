@@ -29,6 +29,11 @@ import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.Test;
 
 public class StandaloneFeeCalculatorTest {
+    final static long TINY_CENTS = 100_000_000L;
+    final static long CREATE_TOPIC_BASE = 99000000L;
+    final static long SUBMIT_MESSAGE_BASE = 7000000L;
+    final static long NODE_BASE = 100000;
+    final static long SIG_EXTRA = 1000000;
 
     @Test
     public void testTokenCreateIntrinsic() throws ParseException {
@@ -226,8 +231,11 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         final FeeResult result = calc.calculateIntrinsic(txn);
-        assertThat(result.getServiceTotalTinycents()).isEqualTo(7000000L);
-        //        System.out.println("JSON is \n" + feeResultToJson(result));
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(SUBMIT_MESSAGE_BASE);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(NODE_BASE);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(NODE_BASE*9);
+        assertThat(result.totalTinycents()).isEqualTo(NODE_BASE*10+SUBMIT_MESSAGE_BASE);
+//        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
     @Test
@@ -239,11 +247,9 @@ public class StandaloneFeeCalculatorTest {
                         .build())
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
-        // 0.01000
         final FeeResult result = calc.calculateIntrinsic(txn);
-        final var TINY_CENTS = 100_000_000L;
         assertThat(result.totalTinycents()).isEqualTo(1 * TINY_CENTS); // 0.01 USD
-        //        System.out.println("JSON is \n" + feeResultToJson(result));
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(CREATE_TOPIC_BASE);
     }
 
     @Test
@@ -261,11 +267,11 @@ public class StandaloneFeeCalculatorTest {
                         .build())
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
-        // 0.01000
         final FeeResult result = calc.calculateIntrinsic(txn);
-        final var TINY_CENTS = 100_000_000L;
         assertThat(result.totalTinycents()).isEqualTo(200 * TINY_CENTS); // 2.00 USD
-        //        System.out.println("JSON is \n" + feeResultToJson(result));
+        final var CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE = 19900000000L;
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(CREATE_TOPIC_BASE + CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE);
+//        System.out.println("JSON is \n" + feeResultToJson(result));
     }
 
     @Test
@@ -300,11 +306,15 @@ public class StandaloneFeeCalculatorTest {
                         .message(Bytes.wrap("some message"))
                         .build())
                 .build();
-        final SignaturePair pair = SignaturePair.newBuilder()
+        final SignaturePair pair1 = SignaturePair.newBuilder()
                 .pubKeyPrefix(Bytes.wrap("prefix"))
                 .ed25519(Bytes.wrap("signature"))
                 .build();
-        final var sigMap = SignatureMap.newBuilder().sigPair(pair).build();
+        final SignaturePair pair2 = SignaturePair.newBuilder()
+                .pubKeyPrefix(Bytes.wrap("prefix2"))
+                .ed25519(Bytes.wrap("signature2"))
+                .build();
+        final var sigMap = SignatureMap.newBuilder().sigPair(pair1,pair2).build();
         final var signedTx = SignedTransaction.newBuilder()
                 .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
                 .sigMap(sigMap)
@@ -315,7 +325,8 @@ public class StandaloneFeeCalculatorTest {
                 .build();
 
         final FeeResult result = calc.calculateIntrinsic(txn);
-        //        System.out.println("JSON is \n" + feeResultToJson(result));
-        assertThat(result.getServiceTotalTinycents()).isEqualTo(7_000_000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(SUBMIT_MESSAGE_BASE);
+        // 1 sig included, so only one charged
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(NODE_BASE+SIG_EXTRA);
     }
 }

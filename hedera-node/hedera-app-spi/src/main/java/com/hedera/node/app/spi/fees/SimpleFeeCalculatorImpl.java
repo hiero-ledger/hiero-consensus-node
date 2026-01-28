@@ -81,15 +81,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     public FeeResult calculateTxFee(
             @NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
         // Extract primitive counts (no allocations)
-        final long signatures = simpleFeeContext.feeContext() != null
-                ? simpleFeeContext.feeContext().numTxnSignatures()
-                : 0;
+        final long signatures = simpleFeeContext.numTxnSignatures();
         // Get full transaction size in bytes (includes body, signatures, and all transaction data)
-        final long bytes = simpleFeeContext.feeContext() != null
-                ? simpleFeeContext.feeContext().numTxnBytes()
-                : 0;
+        final long bytes = simpleFeeContext.numTxnBytes();
         final var result = new FeeResult();
-
         // Add node base and extras (bytes and payer signatures)
         result.setNodeBaseFeeTinycents(feeSchedule.node().baseFee());
         addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);

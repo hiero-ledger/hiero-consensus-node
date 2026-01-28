@@ -27,7 +27,7 @@ public class SimpleFeeContextUtil {
 
         @Override
         public int numTxnBytes() {
-            return 0;
+            return feeContext.numTxnBytes();
         }
 
         @Override
