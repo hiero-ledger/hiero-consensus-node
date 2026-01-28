@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -79,7 +80,9 @@ class OrphanBufferEventGraphSourceTest {
 
         // All orphanBuffer events should have ngen computed (>= 0)
         for (final PlatformEvent event : allEvents) {
-            assertTrue(event.getNGen() >= 0, "orphanBuffer events should have ngen computed");
+            assertTrue(
+                    event.getNGen() >= NonDeterministicGeneration.FIRST_GENERATION,
+                    "orphanBuffer events should have ngen computed");
         }
     }
 }
