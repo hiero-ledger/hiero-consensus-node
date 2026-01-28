@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.connectivity;
 
-import com.swirlds.platform.gossip.config.GossipConfig;
-import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.network.SocketConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -14,6 +11,9 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Objects;
+import org.hiero.consensus.gossip.config.GossipConfig;
+import org.hiero.consensus.gossip.config.NetworkEndpoint;
+import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

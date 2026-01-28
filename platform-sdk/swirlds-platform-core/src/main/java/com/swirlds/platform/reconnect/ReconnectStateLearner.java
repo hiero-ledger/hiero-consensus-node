@@ -4,9 +4,9 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
@@ -32,6 +32,8 @@ import java.time.Duration;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 
@@ -166,7 +168,7 @@ public class ReconnectStateLearner {
             reservedSignedState = reconnect();
             endReconnectHandshake(connection);
             return reservedSignedState;
-        } catch (final IOException | SignedStateInvalidException e) {
+        } catch (final IOException | SignedStateInvalidException | ParseException e) {
             if (reservedSignedState != null) {
                 // if the state was received, we need to release it or it will be leaked
                 reservedSignedState.close();
@@ -195,8 +197,8 @@ public class ReconnectStateLearner {
 
         statistics.incrementReceiverStartTimes();
 
-        final MerkleDataInputStream in = new MerkleDataInputStream(connection.getDis());
-        final MerkleDataOutputStream out = new MerkleDataOutputStream(connection.getDos());
+        final SerializableDataInputStream in = new SerializableDataInputStream(connection.getDis());
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(connection.getDos());
 
         connection.getDis().getSyncByteCounter().resetCount();
         connection.getDos().getSyncByteCounter().resetCount();
@@ -251,9 +253,12 @@ public class ReconnectStateLearner {
      * @throws IOException
      * 		if any I/O related errors occur
      */
-    private void receiveSignatures() throws IOException {
+    private void receiveSignatures() throws IOException, ParseException {
         logger.info(RECONNECT.getMarker(), "Receiving signed state signatures");
-        sigSet = connection.getDis().readSerializable();
+
+        sigSet = new SigSet();
+        final ReadableStreamingData streamingData = new ReadableStreamingData(connection.getDis());
+        sigSet.deserialize(streamingData);
 
         final StringBuilder sb = new StringBuilder();
         sb.append("Received signatures from nodes ");
