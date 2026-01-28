@@ -7,7 +7,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.Utilities;
+import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionTracker;
 import com.swirlds.platform.network.NetworkUtils;

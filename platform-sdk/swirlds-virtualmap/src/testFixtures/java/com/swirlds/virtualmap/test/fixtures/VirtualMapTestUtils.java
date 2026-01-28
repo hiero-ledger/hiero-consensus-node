@@ -4,6 +4,7 @@ package com.swirlds.virtualmap.test.fixtures;
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.VirtualMap;
@@ -39,6 +40,7 @@ public final class VirtualMapTestUtils {
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
+            .withConfigDataType(ReconnectConfig.class)
             .build();
 
     public static final VirtualMapConfig VIRTUAL_MAP_CONFIG = CONFIGURATION.getConfigData(VirtualMapConfig.class);

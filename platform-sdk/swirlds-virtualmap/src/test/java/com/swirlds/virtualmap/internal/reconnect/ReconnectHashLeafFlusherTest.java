@@ -18,7 +18,6 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
-import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.nio.ByteBuffer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -47,7 +46,6 @@ public class ReconnectHashLeafFlusherTest {
                 NullPointerException.class,
                 () -> new ReconnectHashLeafFlusher(
                         null,
-                        VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(),
                         VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
                         stats));
     }
@@ -59,7 +57,6 @@ public class ReconnectHashLeafFlusherTest {
                 NullPointerException.class,
                 () -> new ReconnectHashLeafFlusher(
                         ds,
-                        VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(),
                         VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
                         null));
     }
@@ -78,21 +75,21 @@ public class ReconnectHashLeafFlusherTest {
         final VirtualDataSource ds = new InMemoryDataSource("testNadLeafPaths");
         final VirtualMapStatistics stats = new VirtualMapStatistics("testNadLeafPaths");
         final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(
-                ds, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), stats);
+                ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), stats);
         assertThrows(IllegalArgumentException.class, () -> flusher.start(firstLeafPath, lastLeafPath));
     }
 
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 10, 31})
     void testHashesFlushed(final int flushInterval) throws Exception {
-        final int hashChunkHeight = VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight();
         final VirtualDataSource ds = new InMemoryDataSource("testHashesFlushed");
+        final int hashChunkHeight = ds.getHashChunkHeight();
         final VirtualMapStatistics stats = new VirtualMapStatistics("testHashesFlushed");
         final ReconnectHashLeafFlusher flusher =
-                new ReconnectHashLeafFlusher(ds, hashChunkHeight, flushInterval, stats);
+                new ReconnectHashLeafFlusher(ds, flushInterval, stats);
         final int COUNT = 500;
         flusher.start(COUNT - 1, COUNT * 2 - 2);
-        final long minHashChunkId = VirtualHashChunk.minChunkIdForPaths(COUNT * 2 - 2, hashChunkHeight);
+        final long minHashChunkId = VirtualHashChunk.lastChunkIdForPaths(COUNT * 2 - 2, hashChunkHeight);
         for (int i = 0; i <= minHashChunkId; i++) {
             final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(i, hashChunkHeight);
             final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, hashChunkHeight);
@@ -123,7 +120,7 @@ public class ReconnectHashLeafFlusherTest {
         final VirtualDataSource ds = new InMemoryDataSource("testLeavesFlushed");
         final VirtualMapStatistics stats = new VirtualMapStatistics("testLeavesFlushed");
         final ReconnectHashLeafFlusher flusher =
-                new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), flushInterval, stats);
+                new ReconnectHashLeafFlusher(ds, flushInterval, stats);
         final int COUNT = 500;
         flusher.start(COUNT - 1, COUNT * 2 - 2);
         for (int i = COUNT - 1; i < COUNT * 2 - 1; i++) {
@@ -155,8 +152,7 @@ public class ReconnectHashLeafFlusherTest {
                 Stream.of(),
                 false);
         final VirtualMapStatistics stats = new VirtualMapStatistics("testLeavesDeleted");
-        final ReconnectHashLeafFlusher flusher =
-                new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), flushInterval, stats);
+        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
         flusher.start(COUNT - 1, COUNT * 2 - 2);
         for (int i = COUNT / 2 + 99; i < COUNT - 1; i++) {
             flusher.deleteLeaf(leaf(i, i, i));

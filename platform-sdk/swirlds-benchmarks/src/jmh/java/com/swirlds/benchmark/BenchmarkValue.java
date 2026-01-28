@@ -4,17 +4,10 @@ package com.swirlds.benchmark;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.swirlds.virtualmap.VirtualValue;
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.function.LongUnaryOperator;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class BenchmarkValue implements VirtualValue {
-
-    static final long CLASS_ID = 0x2af5b26682153acfL;
-    static final int VERSION = 1;
 
     private static int valueSize = 16;
     private byte[] valueBytes;
@@ -73,12 +66,6 @@ public class BenchmarkValue implements VirtualValue {
         out.writeBytes(valueBytes);
     }
 
-    @Override
-    public void serialize(SerializableDataOutputStream outputStream) throws IOException {
-        outputStream.writeInt(valueBytes.length);
-        outputStream.write(valueBytes);
-    }
-
     public void serialize(final WritableSequentialData out) {
         out.writeInt(valueBytes.length);
         out.writeBytes(valueBytes);
@@ -88,26 +75,6 @@ public class BenchmarkValue implements VirtualValue {
         int n = in.readInt();
         valueBytes = new byte[n];
         in.readBytes(valueBytes);
-    }
-
-    @Override
-    public void deserialize(SerializableDataInputStream inputStream, int dataVersion) throws IOException {
-        assert dataVersion == getVersion() : "dataVersion=" + dataVersion + " != getVersion()=" + getVersion();
-        int n = inputStream.readInt();
-        valueBytes = new byte[n];
-        while (n > 0) {
-            n -= inputStream.read(valueBytes, valueBytes.length - n, n);
-        }
-    }
-
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    @Override
-    public int getVersion() {
-        return VERSION;
     }
 
     @Override

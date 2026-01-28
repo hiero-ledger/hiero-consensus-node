@@ -1840,7 +1840,7 @@ enum HederaFunctionality {
     AtomicBatch = 108;
 
     /**
-     * Update one or more storage slots in an lambda EVM hook.
+     * (DEPRECATED) Remove once no production throttle assets reference it.
      */
     LambdaSStore = 109;
 
@@ -1848,6 +1848,16 @@ enum HederaFunctionality {
      * (Internal-only) Dispatch a hook action.
      */
     HookDispatch = 110;
+
+    /**
+     * Update one or more storage slots in an EVM hook.
+     */
+    HookStore = 111;
+
+    /**
+     * (Internal-only) Publish a new ledger id and chain-of-trust key.
+     */
+    LedgerIdPublication = 112;
 }
 
 /**

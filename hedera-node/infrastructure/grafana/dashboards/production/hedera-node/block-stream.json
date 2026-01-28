@@ -118,7 +118,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -233,7 +233,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -303,7 +303,7 @@
         "frameIndex": 0,
         "showHeader": true
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -417,7 +417,7 @@
         "frameIndex": 0,
         "showHeader": true
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -531,7 +531,7 @@
         "frameIndex": 0,
         "showHeader": true
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -645,7 +645,7 @@
         "frameIndex": 0,
         "showHeader": true
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -3135,7 +3135,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -3222,7 +3222,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "decbytes"
         },
         "overrides": []
       },
@@ -3248,7 +3249,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -3257,7 +3258,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "max by(node) (blockStream_buffer_blockBytes{node=~\"$NodeId\", environment=\"$environment\"})",
+          "expr": "blockStream_buffer_blockBytes{node=~\"$NodeId\", environment=\"$environment\", type=\"mean\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -3352,7 +3353,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -3430,7 +3431,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "decbytes"
         },
         "overrides": []
       },
@@ -3456,7 +3458,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -3465,7 +3467,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "max by(node) (blockStream_buffer_blockItemsPerBlock{node=~\"$NodeId\", environment=\"$environment\"})",
+          "expr": "blockStream_buffer_blockItemsPerBlock{node=~\"$NodeId\", environment=\"$environment\", type=\"mean\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -3560,7 +3562,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -3638,7 +3640,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "decbytes"
         },
         "overrides": []
       },
@@ -3664,7 +3667,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -3673,7 +3676,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "max by(node) (blockStream_buffer_blockItemBytes{node=~\"$NodeId\", environment=\"$environment\"})",
+          "expr": "blockStream_buffer_blockItemBytes{node=~\"$NodeId\", environment=\"$environment\", type=\"mean\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -3768,7 +3771,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -3872,7 +3875,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -3964,7 +3967,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -3990,7 +3994,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -4069,7 +4073,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -4095,7 +4100,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -4174,7 +4179,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -4200,7 +4206,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -4279,7 +4285,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -4305,7 +4312,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -4384,7 +4391,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -4410,7 +4418,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -4489,7 +4497,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -4515,7 +4524,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -4619,7 +4628,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -4689,7 +4698,7 @@
         "frameIndex": 0,
         "showHeader": true
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -4861,7 +4870,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -4967,7 +4976,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -5071,7 +5080,7 @@
           "sort": "desc"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -5175,7 +5184,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -5279,7 +5288,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -5383,7 +5392,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -5468,7 +5477,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 109
       },
       "id": 44,
@@ -5487,7 +5496,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -5604,7 +5613,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -5708,7 +5717,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -5812,7 +5821,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -5916,7 +5925,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -6020,7 +6029,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -6124,7 +6133,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -6228,7 +6237,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -6332,7 +6341,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -6436,7 +6445,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -6540,7 +6549,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -6644,7 +6653,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -6663,110 +6672,6 @@
         }
       ],
       "title": "EndStream:BadBlockProof Responses Received (1m delta)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 158
-      },
-      "id": 37,
-      "options": {
-        "legend": {
-          "calcs": [
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "right",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "max by(node) (delta(blockStream_connRecv_endStream_behind_total{node=~\"$NodeId\", environment=\"$environment\"}[1m]))",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "legendFormat": "node {{node}}",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "EndStream:Behind Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -6852,7 +6757,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -6911,7 +6816,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
+        "h": 8,
         "w": 6,
         "x": 12,
         "y": 166
@@ -6922,7 +6827,7 @@
         "frameIndex": 0,
         "showHeader": true
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -7025,7 +6930,121 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 166
+      },
+      "id": 60,
+      "options": {
+        "cellHeight": "sm",
+        "frameIndex": 0,
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.0-19576184216",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "max by(node) (blockStream_connRecv_latestBlockSkipBlock{node=~\"$NodeId\", environment=\"$environment\"})",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "{{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Latest Block received in SkipBlock",
+      "transformations": [
+        {
+          "id": "joinByLabels",
+          "options": {
+            "value": "node"
+          }
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "labelsToFields": false,
+            "mode": "seriesToRows",
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Node",
+              "Last *": "Block"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Node"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false,
+            "wrapText": false
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
         "w": 6,
         "x": 0,
         "y": 174
@@ -7036,7 +7055,7 @@
         "frameIndex": 0,
         "showHeader": true
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -7141,10 +7160,10 @@
       "gridPos": {
         "h": 9,
         "w": 6,
-        "x": 6,
+        "x": 12,
         "y": 174
       },
-      "id": 60,
+      "id": 61,
       "options": {
         "cellHeight": "sm",
         "frameIndex": 0,
@@ -7160,7 +7179,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "max by(node) (blockStream_connRecv_latestBlockSkipBlock{node=~\"$NodeId\", environment=\"$environment\"})",
+          "expr": "max by(node) (blockStream_connRecv_latestBlockBehindPublisher{node=~\"$NodeId\", environment=\"$environment\"})",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -7170,7 +7189,7 @@
           "useBackend": false
         }
       ],
-      "title": "Latest Block received in SkipBlock",
+      "title": "Latest Block received in NodeBehindPublisher",
       "transformations": [
         {
           "id": "joinByLabels",
@@ -7221,7 +7240,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 183
+        "y": 182
       },
       "id": 17,
       "panels": [],
@@ -7293,7 +7312,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 184
+        "y": 183
       },
       "id": 64,
       "options": {
@@ -7311,7 +7330,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -7389,7 +7408,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "decbytes"
         },
         "overrides": []
       },
@@ -7397,7 +7417,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 184
+        "y": 183
       },
       "id": 66,
       "options": {
@@ -7415,7 +7435,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -7424,7 +7444,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "max by(node) (blockStream_connSend_requestBytes{node=~\"$NodeId\", environment=\"$environment\"})",
+          "expr": "blockStream_connSend_requestBytes{node=~\"$NodeId\", environment=\"$environment\", type=\"mean\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -7501,7 +7521,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 192
+        "y": 191
       },
       "id": 18,
       "options": {
@@ -7519,7 +7539,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -7605,7 +7625,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 192
+        "y": 191
       },
       "id": 67,
       "options": {
@@ -7623,7 +7643,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -7632,7 +7652,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "max by(node) (blockStream_connSend_requestBlockItemCount{node=~\"$NodeId\", environment=\"$environment\"})",
+          "expr": "blockStream_connSend_requestBlockItemCount{node=~\"$NodeId\", environment=\"$environment\", type=\"mean\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -7709,7 +7729,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 200
+        "y": 199
       },
       "id": 20,
       "options": {
@@ -7727,7 +7747,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -7813,7 +7833,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 200
+        "y": 199
       },
       "id": 21,
       "options": {
@@ -7831,7 +7851,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -7923,7 +7943,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 208
+        "y": 207
       },
       "id": 22,
       "options": {
@@ -7941,7 +7961,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -8033,7 +8053,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 208
+        "y": 207
       },
       "id": 23,
       "options": {
@@ -8051,7 +8071,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -8077,120 +8097,6 @@
         }
       ],
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "fixedColor": "blue",
-            "mode": "fixed"
-          },
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "footer": {
-              "reducers": []
-            },
-            "inspect": false,
-            "wrapText": false
-          },
-          "fieldMinMax": false,
-          "mappings": [],
-          "noValue": "0",
-          "thresholds": {
-            "mode": "percentage",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 6,
-        "x": 6,
-        "y": 216
-      },
-      "id": 63,
-      "options": {
-        "cellHeight": "sm",
-        "frameIndex": 0,
-        "showHeader": true
-      },
-      "pluginVersion": "12.2.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "exemplar": false,
-          "expr": "max by(node) (blockStream_connSend_streamingBlockNumber{node=~\"$NodeId\", environment=\"$environment\"})",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "{{node}}",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Streaming Block Number",
-      "transformations": [
-        {
-          "id": "joinByLabels",
-          "options": {
-            "value": "node"
-          }
-        },
-        {
-          "id": "reduce",
-          "options": {
-            "includeTimeField": false,
-            "labelsToFields": false,
-            "mode": "seriesToRows",
-            "reducers": [
-              "lastNotNull"
-            ]
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {},
-            "includeByName": {},
-            "indexByName": {},
-            "renameByName": {
-              "Field": "Node",
-              "Last *": "Block"
-            }
-          }
-        },
-        {
-          "id": "sortBy",
-          "options": {
-            "fields": {},
-            "sort": [
-              {
-                "field": "Node"
-              }
-            ]
-          }
-        }
-      ],
-      "type": "table"
     },
     {
       "datasource": {
@@ -8256,8 +8162,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 216
+        "x": 0,
+        "y": 215
       },
       "id": 24,
       "options": {
@@ -8275,7 +8181,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.4.0-19576184216",
       "targets": [
         {
           "datasource": {
@@ -8301,6 +8207,120 @@
         }
       ],
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false,
+            "wrapText": false
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 215
+      },
+      "id": 63,
+      "options": {
+        "cellHeight": "sm",
+        "frameIndex": 0,
+        "showHeader": true
+      },
+      "pluginVersion": "12.4.0-19576184216",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "exemplar": false,
+          "expr": "max by(node) (blockStream_connSend_streamingBlockNumber{node=~\"$NodeId\", environment=\"$environment\"})",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "{{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Streaming Block Number",
+      "transformations": [
+        {
+          "id": "joinByLabels",
+          "options": {
+            "value": "node"
+          }
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "labelsToFields": false,
+            "mode": "seriesToRows",
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Node",
+              "Last *": "Block"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Node"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
     }
   ],
   "preload": false,
@@ -8313,10 +8333,10 @@
         "allValue": ".*",
         "current": {
           "text": [
-            "0"
+            "All"
           ],
           "value": [
-            "0"
+            "$__all"
           ]
         },
         "datasource": {
@@ -8374,12 +8394,12 @@
     ]
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-3h",
     "to": "now"
   },
   "timepicker": {},
-  "timezone": "browser",
+  "timezone": "utc",
   "title": "Block Stream Metrics (CN -> BN)",
   "uid": "eeb41171-20de-401d-b13d-4a5d2d626b2b",
-  "version": 2
+  "version": 4
 }

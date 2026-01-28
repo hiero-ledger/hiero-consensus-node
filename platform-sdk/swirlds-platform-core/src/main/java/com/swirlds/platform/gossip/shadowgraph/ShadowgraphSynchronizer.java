@@ -12,18 +12,11 @@ import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.writeMyTipsAndEv
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.writeTheirTipsIHave;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.framework.Stoppable;
-import com.swirlds.common.threading.framework.Stoppable.StopBehavior;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
-import com.swirlds.common.threading.pool.ParallelExecutor;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils.TipsInfo;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
-import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -40,9 +33,16 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ThrowingRunnable;
+import org.hiero.consensus.concurrent.framework.Stoppable;
+import org.hiero.consensus.concurrent.framework.Stoppable.StopBehavior;
+import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
+import org.hiero.consensus.concurrent.pool.ParallelExecutor;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.monitoring.FallenBehindStatus;
 
 /**
  * The goal of the ShadowgraphSynchronizer is to compare graphs with a remote node, and update them so both sides have

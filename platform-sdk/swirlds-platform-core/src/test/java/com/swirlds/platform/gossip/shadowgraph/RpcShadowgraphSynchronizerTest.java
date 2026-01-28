@@ -11,9 +11,6 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -22,7 +19,6 @@ import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
 import com.swirlds.platform.metrics.SyncMetrics;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.time.Duration;
 import java.time.Instant;
@@ -30,9 +26,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -67,15 +65,12 @@ class RpcShadowgraphSynchronizerTest {
         final Configuration configuration = configurationBuilder.build();
 
         final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
-        final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
-
         this.platformContext = PlatformContext.create(
                 configuration,
                 new FakeTime(Instant.now(), Duration.ofMillis(1)),
                 new NoOpMetrics(),
                 fileSystemManager,
-                new NoOpRecycleBin(),
-                merkleCryptography);
+                new NoOpRecycleBin());
 
         this.syncMetrics = mock(SyncMetrics.class);
         this.selfId = NodeId.of(1);

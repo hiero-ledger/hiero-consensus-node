@@ -76,13 +76,17 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final RosterTransitionWeights weights,
             @NonNull final Executor executor,
             @NonNull final HistorySubmissions submissions,
+            @NonNull final WrapsMpcStateMachine machine,
             @NonNull final List<ProofKeyPublication> keyPublications,
             @NonNull final List<WrapsMessagePublication> wrapsMessagePublications,
             @NonNull final Map<Long, HistoryProofVote> votes,
             @NonNull final HistoryService historyService,
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistoryProver.Factory proverFactory,
-            @Nullable final HistoryProof sourceProof) {
+            @Nullable final HistoryProof sourceProof,
+            @NonNull final TssConfig tssConfig) {
+        requireNonNull(machine);
+        requireNonNull(tssConfig);
         this.selfId = selfId;
         this.executor = requireNonNull(executor);
         this.submissions = requireNonNull(submissions);
@@ -107,6 +111,7 @@ public class ProofControllerImpl implements ProofController {
                     : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
             this.prover = proverFactory.create(
                     selfId,
+                    tssConfig,
                     schnorrKeyPair,
                     sourceProof,
                     weights,
@@ -149,7 +154,6 @@ public class ProofControllerImpl implements ProofController {
             if (isActive) {
                 ensureProofKeyPublished();
             }
-            log.info("Construction #{} still waiting for hinTS verification key", construction.constructionId());
             return;
         }
         // Have the hinTS verification key, but not yet assembling the history or computing the WRAPS proof
@@ -192,16 +196,13 @@ public class ProofControllerImpl implements ProofController {
     @Override
     public boolean addWrapsMessagePublication(
             @NonNull final WrapsMessagePublication publication,
-            @NonNull final WritableHistoryStore writableHistoryStore,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final WritableHistoryStore writableHistoryStore) {
         requireNonNull(publication);
         requireNonNull(writableHistoryStore);
-        requireNonNull(tssConfig);
         if (construction.hasTargetProof()) {
             return false;
         }
-        return requireNonNull(prover)
-                .addWrapsSigningMessage(constructionId(), publication, writableHistoryStore, tssConfig);
+        return requireNonNull(prover).addWrapsSigningMessage(constructionId(), publication, writableHistoryStore);
     }
 
     @Override
@@ -230,6 +231,8 @@ public class ProofControllerImpl implements ProofController {
                 .map(Map.Entry::getKey)
                 .findFirst();
         maybeWinningProof.ifPresent(proof -> finishProof(historyStore, proof));
+        // Let our prover know about the vote to optimize its choice of explicit or congruent voting
+        requireNonNull(prover).observeProofVote(nodeId, vote, maybeWinningProof.isPresent());
     }
 
     @Override
@@ -262,7 +265,7 @@ public class ProofControllerImpl implements ProofController {
                 PROOF_COMPLETE_MSG,
                 construction.constructionId(),
                 isWrapsExtensible(proof));
-        historyService.onFinished(historyStore, construction);
+        historyService.onFinished(historyStore, construction, weights.targetNodeWeights());
     }
 
     /**

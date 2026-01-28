@@ -8,7 +8,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
 import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
 import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.hiero.base.CompareTo.isLessThan;
@@ -20,9 +19,9 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningEventHashOverride;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.common.utility.AutoCloseableWrapper;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -32,11 +31,8 @@ import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
@@ -71,12 +67,18 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the
@@ -153,7 +155,7 @@ public class SwirldsPlatform implements Platform {
      * Constructor.
      *
      * @param builder this object is responsible for building platform components and other things needed by the
-     *                platform
+     * platform
      */
     public SwirldsPlatform(@NonNull final PlatformComponentBuilder builder) {
         final PlatformBuildingBlocks blocks = builder.getBuildingBlocks();
@@ -176,19 +178,20 @@ public class SwirldsPlatform implements Platform {
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
         currentRoster = blocks.rosterHistory().getCurrentRoster();
 
-        registerRosterMetrics(platformContext.getMetrics(), currentRoster, selfId);
+        final Metrics metrics = platformContext.getMetrics();
+        registerRosterMetrics(metrics, currentRoster, selfId);
 
-        RuntimeMetrics.setup(platformContext.getMetrics());
+        RuntimeMetrics.setup(metrics);
 
         keysAndCerts = blocks.keysAndCerts();
 
-        EventCounter.registerEventCounterMetrics(platformContext.getMetrics());
+        EventCounter.registerEventCounterMetrics(metrics);
 
         final LatestCompleteStateNexus latestCompleteStateNexus = new DefaultLatestCompleteStateNexus(platformContext);
 
         savedStateController = new DefaultSavedStateController(platformContext);
 
-        final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(platformContext.getMetrics());
+        final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(metrics);
         final StateSignatureCollector stateSignatureCollector =
                 new DefaultStateSignatureCollector(platformContext, signedStateMetrics);
 
@@ -197,12 +200,12 @@ public class SwirldsPlatform implements Platform {
 
         blocks.statusActionSubmitterReference().set(platformCoordinator);
 
-        final Duration replayHealthThreshold = platformContext
-                .getConfiguration()
-                .getConfigData(PcesConfig.class)
-                .replayHealthThreshold();
+        final Configuration configuration = platformContext.getConfiguration();
+        final Duration replayHealthThreshold =
+                configuration.getConfigData(PcesConfig.class).replayHealthThreshold();
         final PcesReplayer pcesReplayer = new PcesReplayer(
-                platformContext,
+                configuration,
+                platformContext.getTime(),
                 platformComponents.pcesReplayerWiring().eventOutput(),
                 platformCoordinator::flushIntakePipeline,
                 platformCoordinator::flushTransactionHandler,
@@ -219,14 +222,10 @@ public class SwirldsPlatform implements Platform {
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        blocks.freezeCheckHolder()
-                .setFreezeCheckRef(instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()));
-
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
         final ReconnectController reconnectController = new ReconnectController(
                 currentRoster,
-                getContext().getMerkleCryptography(),
                 this,
                 platformContext,
                 platformCoordinator,
@@ -267,12 +266,10 @@ public class SwirldsPlatform implements Platform {
         platformCoordinator.updateRunningHash(runningEventHashOverride);
 
         // Load the minimum generation into the pre-consensus event writer
-        final String actualMainClassName = platformContext
-                .getConfiguration()
-                .getConfigData(StateConfig.class)
-                .getMainClassName(blocks.mainClassName());
+        final String actualMainClassName =
+                configuration.getConfigData(StateConfig.class).getMainClassName(blocks.mainClassName());
         final SignedStateFilePath statePath =
-                new SignedStateFilePath(platformContext.getConfiguration().getConfigData(StateCommonConfig.class));
+                new SignedStateFilePath(configuration.getConfigData(StateCommonConfig.class));
         final List<SavedStateInfo> savedStates =
                 statePath.getSavedStateFiles(actualMainClassName, selfId, blocks.swirldName());
         if (!savedStates.isEmpty()) {
@@ -307,8 +304,10 @@ public class SwirldsPlatform implements Platform {
             // We only load non-ancient events during start up, so the initial expired threshold will be
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
             // the expired threshold will continue to expand until it reaches its full size.
+            final int roundsNonAncient =
+                    configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
             platformCoordinator.updateEventWindow(
-                    EventWindowUtils.createEventWindow(consensusSnapshot, platformContext.getConfiguration()));
+                    EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
             platformCoordinator.overrideIssDetectorState(initialState.reserve("initialize issDetector"));
         }
 

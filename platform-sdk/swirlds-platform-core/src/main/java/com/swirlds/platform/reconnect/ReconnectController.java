@@ -11,13 +11,11 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise.ReservedSignedStateResult;
+import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
@@ -37,13 +35,14 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterRetriever;
 
 /**
@@ -58,7 +57,7 @@ import org.hiero.consensus.roster.RosterRetriever;
  * Callers are responsible to call this in a separated thread.
  *
  * @see FallenBehindMonitor
- * @see ReservedSignedStateResultPromise
+ * @see BlockingResourceProvider
  * @see PlatformCoordinator
  */
 public class ReconnectController implements Runnable {
@@ -67,14 +66,13 @@ public class ReconnectController implements Runnable {
 
     private final Roster roster;
     private final SignedStateValidator signedStateValidator;
-    private final MerkleCryptography merkleCryptography;
     private final Platform platform;
     private final PlatformContext platformContext;
     private final PlatformCoordinator platformCoordinator;
     private final StateLifecycleManager stateLifecycleManager;
     private final SavedStateController savedStateController;
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private final ReservedSignedStateResultPromise peerReservedSignedStateResultPromise;
+    private final BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultProvider;
     private final NodeId selfId;
     private final ReconnectConfig reconnectConfig;
     private final Time time;
@@ -84,23 +82,21 @@ public class ReconnectController implements Runnable {
 
     public ReconnectController(
             @NonNull final Roster roster,
-            @NonNull final MerkleCryptography merkleCryptography,
             @NonNull final Platform platform,
             @NonNull final PlatformContext platformContext,
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
             @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
-            @NonNull final ReservedSignedStateResultPromise peerReservedSignedStateResultPromise,
+            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultProvider,
             @NonNull final NodeId selfId,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final SignedStateValidator signedStateValidator) {
         this.roster = requireNonNull(roster);
         this.platformCoordinator = requireNonNull(platformCoordinator);
-        this.peerReservedSignedStateResultPromise = requireNonNull(peerReservedSignedStateResultPromise);
+        this.peerReservedSignedStateResultProvider = requireNonNull(peerReservedSignedStateResultProvider);
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
         this.signedStateValidator = requireNonNull(signedStateValidator);
-        this.merkleCryptography = requireNonNull(merkleCryptography);
         this.reconnectConfig = platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
         this.platform = requireNonNull(platform);
         this.platformContext = requireNonNull(platformContext);
@@ -110,19 +106,6 @@ public class ReconnectController implements Runnable {
         this.time = platformContext.getTime();
         this.selfId = selfId;
         this.startupTime = time.now();
-    }
-
-    /**
-     * Hash the working state to prepare for reconnect
-     */
-    private static void hashStateForReconnect(
-            final @NonNull MerkleCryptography merkleCryptography, final @NonNull MerkleNodeState workingState)
-            throws InterruptedException {
-        try {
-            merkleCryptography.digestTreeAsync(workingState.getRoot()).get();
-        } catch (final ExecutionException e) {
-            throw new IllegalStateException("Error encountered while hashing state for reconnect", e);
-        }
     }
 
     /**
@@ -160,7 +143,7 @@ public class ReconnectController implements Runnable {
                 logger.info(RECONNECT.getMarker(), "Queues have been cleared");
 
                 final MerkleNodeState currentState = stateLifecycleManager.getMutableState();
-                hashStateForReconnect(merkleCryptography, currentState);
+                currentState.getHash(); // hash the state
                 int failedReconnectsInARow = 0;
                 do {
                     final AttemptReconnectResult result = attemptReconnect(currentState);
@@ -206,7 +189,7 @@ public class ReconnectController implements Runnable {
         // unblocked
         logger.info(RECONNECT.getMarker(), "Waiting for a state to be obtained from a peer");
         try (final LockedResource<ReservedSignedStateResult> reservedStateResource =
-                        requireNonNull(peerReservedSignedStateResultPromise.awaitResolution());
+                        requireNonNull(peerReservedSignedStateResultProvider.waitForResource());
                 final ReservedSignedStateResult result = requireNonNull(reservedStateResource.getResource())) {
             if (result.isError()) {
                 return AttemptReconnectResult.error(result.throwable());
@@ -316,7 +299,8 @@ public class ReconnectController implements Runnable {
         }
     }
 
-    private record AttemptReconnectResult(boolean success, @Nullable Throwable throwable) {
+    private record AttemptReconnectResult(
+            boolean success, @Nullable Throwable throwable) {
         static AttemptReconnectResult ok() {
             return new AttemptReconnectResult(true, null);
         }

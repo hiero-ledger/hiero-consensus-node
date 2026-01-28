@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.ArrayDeque;
@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -60,11 +61,11 @@ public class CryptoBench extends VirtualMapBench {
     }
 
     private void initializeFixedAccounts(VirtualMap virtualMap) {
-        fixedKey1 = BenchmarkKey.longToKey(FIXED_KEY_ID1);
+        fixedKey1 = longToKey(FIXED_KEY_ID1);
         if (virtualMap.get(fixedKey1, BenchmarkValueCodec.INSTANCE) == null) {
             virtualMap.put(fixedKey1, new BenchmarkValue(0), BenchmarkValueCodec.INSTANCE);
         }
-        fixedKey2 = BenchmarkKey.longToKey(FIXED_KEY_ID2);
+        fixedKey2 = longToKey(FIXED_KEY_ID2);
         if (virtualMap.get(fixedKey2, BenchmarkValueCodec.INSTANCE) == null) {
             virtualMap.put(fixedKey2, new BenchmarkValue(0), BenchmarkValueCodec.INSTANCE);
         }
@@ -143,8 +144,8 @@ public class CryptoBench extends VirtualMapBench {
             for (int j = 0; j < numRecords; ++j) {
                 int keyId1 = keys[j * KEYS_PER_RECORD];
                 int keyId2 = keys[j * KEYS_PER_RECORD + 1];
-                Bytes key1 = BenchmarkKey.longToKey(keyId1);
-                Bytes key2 = BenchmarkKey.longToKey(keyId2);
+                Bytes key1 = longToKey(keyId1);
+                Bytes key2 = longToKey(keyId2);
                 BenchmarkValue value1 = virtualMap.get(key1, BenchmarkValueCodec.INSTANCE);
                 BenchmarkValue value2 = virtualMap.get(key2, BenchmarkValueCodec.INSTANCE);
 
@@ -243,14 +244,14 @@ public class CryptoBench extends VirtualMapBench {
 
             // Warm keys in parallel asynchronously
             final VirtualMap currentMap = virtualMap;
-            prefetchPool.submit(() -> Arrays.stream(keys).forEach(key -> prefetchPool.submit(() -> currentMap.warm(BenchmarkKey.longToKey(key)))));
+            prefetchPool.submit(() -> Arrays.stream(keys).forEach(key -> prefetchPool.submit(() -> currentMap.warm(longToKey(key)))));
 
             // Update values in order
             for (int j = 0; j < numRecords; ++j) {
                 int keyId1 = keys[j * KEYS_PER_RECORD];
                 int keyId2 = keys[j * KEYS_PER_RECORD + 1];
-                Bytes key1 = BenchmarkKey.longToKey(keyId1);
-                Bytes key2 = BenchmarkKey.longToKey(keyId2);
+                Bytes key1 = longToKey(keyId1);
+                Bytes key2 = longToKey(keyId2);
                 BenchmarkValue value1 = virtualMap.get(key1, BenchmarkValueCodec.INSTANCE);
                 BenchmarkValue value2 = virtualMap.get(key2, BenchmarkValueCodec.INSTANCE);
 
@@ -326,9 +327,9 @@ public class CryptoBench extends VirtualMapBench {
 
         @Override
         protected boolean onExecute() {
-            Bytes keyBytes1 = BenchmarkKey.longToKey(key1);
+            Bytes keyBytes1 = longToKey(key1);
             currentMap.warm(keyBytes1);
-            Bytes keyBytes2 = BenchmarkKey.longToKey(key2);
+            Bytes keyBytes2 = longToKey(key2);
             currentMap.warm(keyBytes2);
             out.send(keyBytes1, keyBytes2);
             return true;
@@ -466,9 +467,11 @@ public class CryptoBench extends VirtualMapBench {
     public static void main(String[] args) throws Exception {
         final CryptoBench bench = new CryptoBench();
         bench.setup();
+        bench.createLocal();
         bench.beforeTest();
         bench.transferPrefetch();
         bench.afterTest();
+        bench.destroyLocal();
         bench.destroy();
     }
 }

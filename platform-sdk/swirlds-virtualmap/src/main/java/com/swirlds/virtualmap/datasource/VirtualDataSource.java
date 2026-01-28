@@ -163,7 +163,20 @@ public interface VirtualDataSource {
      */
     void stopAndDisableBackgroundCompaction();
 
+    /**
+     * Returns the first leaf path stored in this data source.
+     */
     long getFirstLeafPath();
 
+    /**
+     * Returns the last leaf path stored in this data source.
+     */
     long getLastLeafPath();
+
+    /**
+     * Returns the height of hash chunks stored in this data source. If the data
+     * source is empty, the value from {@link com.swirlds.virtualmap.config.VirtualMapConfig}
+     * is returned.
+     */
+    int getHashChunkHeight();
 }

@@ -39,6 +39,8 @@ public interface FeeContext {
     @NonNull
     FeeCalculatorFactory feeCalculatorFactory();
 
+    SimpleFeeCalculator getSimpleFeeCalculator();
+
     /**
      * Get a readable store given the store's interface. This gives read-only access to the store.
      *
@@ -72,6 +74,16 @@ public interface FeeContext {
      * @return the number of signatures
      */
     int numTxnSignatures();
+
+    /**
+     * Returns the size of the full transaction in bytes.
+     * This is the length of the serialized Transaction message (signedTransactionBytes),
+     * which includes the transaction body, signatures, and all other transaction data.
+     * This represents the actual bytes received and processed by the node.
+     * <p>NOTE: this property should not be used for queries</p>
+     * @return the full transaction size in bytes
+     */
+    int numTxnBytes();
 
     /**
      * Dispatches the computation of fees for the given transaction body and synthetic payer ID.

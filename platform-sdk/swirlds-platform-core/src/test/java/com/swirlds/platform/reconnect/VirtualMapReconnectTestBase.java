@@ -16,7 +16,6 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapMetadata;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import org.hiero.base.constructable.ClassConstructorPair;
@@ -63,9 +62,6 @@ public abstract class VirtualMapReconnectTestBase {
         registry.registerConstructables("org.hiero");
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(
-                new ClassConstructorPair(ExternalVirtualMapMetadata.class, ExternalVirtualMapMetadata::new));
     }
 
     protected MerkleInternal createTreeForMap(VirtualMap map) {
@@ -80,14 +76,14 @@ public abstract class VirtualMapReconnectTestBase {
     }
 
     protected void reconnectMultipleTimes(int attempts) {
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final VirtualMap copy = teacherMap.copy();
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+        teacherMap.reserve();
+        learnerMap.reserve();
         try {
             for (int i = 0; i < attempts; i++) {
                 try {
                     final var node =
-                            MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+                            MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
                     node.release();
                     assertEquals(attempts - 1, i, "We should only succeed on the last try");
                 } catch (Exception e) {
@@ -97,8 +93,8 @@ public abstract class VirtualMapReconnectTestBase {
                 }
             }
         } finally {
-            teacherTree.release();
-            learnerTree.release();
+            teacherMap.release();
+            learnerMap.release();
             copy.release();
         }
     }

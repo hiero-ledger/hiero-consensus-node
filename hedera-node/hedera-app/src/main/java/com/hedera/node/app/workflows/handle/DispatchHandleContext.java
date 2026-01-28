@@ -37,6 +37,7 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
@@ -259,6 +260,15 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     }
 
     @Override
+    public int numTxnBytes() {
+        // serialized signed transaction is null for system transaction dispatches
+        return (int)
+                (txnInfo.serializedSignedTx() != null
+                        ? txnInfo.serializedSignedTx().length()
+                        : 0);
+    }
+
+    @Override
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
         requireNonNull(childTxBody);
@@ -300,6 +310,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 subType,
                 false,
                 storeFactory.asReadOnly());
+    }
+
+    @Override
+    public SimpleFeeCalculator getSimpleFeeCalculator() {
+        return feeManager.getSimpleFeeCalculator();
     }
 
     @NonNull

@@ -302,24 +302,6 @@ final class ConcurrentArray<T> {
         }
     }
 
-    public void set(final int index, final T element) {
-        if (index >= size()) {
-            throw new IndexOutOfBoundsException();
-        }
-        int arrIndex = 0;
-        SubArray<T> cur = head;
-        while (true) {
-            final T[] array = cur.array;
-            final int size = cur.size.get();
-            if (arrIndex + size > index) {
-                array[index - arrIndex] = element;
-                break;
-            }
-            arrIndex += size;
-            cur = cur.next;
-        }
-    }
-
     /**
      * Gets (estimated) memory overhead of this concurrent array. The overhead is from Java arrays
      * used by SubArray objects to store elements of this array. Even when this array is empty, a
@@ -371,7 +353,7 @@ final class ConcurrentArray<T> {
             throw new IllegalArgumentException("You can not call parallelTraverse on a mutable ConcurrentArray");
         }
 
-        final int BATCH = Runtime.getRuntime().availableProcessors() / 2;
+        final int batch = Runtime.getRuntime().availableProcessors() / 2;
 
         final StandardFuture<Void> result = new StandardFuture<>();
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
@@ -382,11 +364,11 @@ final class ConcurrentArray<T> {
             final T[] array = cur.array;
             final int size = cur.size.get();
             count.addAndGet(size);
-            for (int j = 0; j < BATCH; j++) {
+            for (int j = 0; j < batch; j++) {
                 final int fj = j;
                 final int arrayStart = nextIndex;
                 executor.execute(() -> {
-                    for (int i = fj; i < size; i += BATCH) {
+                    for (int i = fj; i < size; i += batch) {
                         final T element = array[i];
                         try {
                             action.accept(arrayStart + i, element);

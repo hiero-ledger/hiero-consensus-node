@@ -7,7 +7,6 @@ import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForSingleton;
 import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.computeClassId;
-import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -16,8 +15,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -77,9 +74,6 @@ public class MerkleTestBase extends StateTestBase {
     private static final String SINGLETON_CLASS_ID_SUFFIX = "SingletonLeaf";
     private static final String QUEUE_NODE_CLASS_ID_SUFFIX = "QueueNode";
 
-    /** Used by some tests that need to hash */
-    protected static final MerkleCryptography CRYPTO = TestMerkleCryptoFactory.getInstance();
-
     /**
      * This {@link ConstructableRegistry} is required for serialization tests. It is expensive to
      * configure it, so it is null unless {@link #setupConstructableRegistry()} has been called by
@@ -133,25 +127,19 @@ public class MerkleTestBase extends StateTestBase {
 
     /** Sets up the {@link #registry}, ready to be used for serialization tests */
     protected void setupConstructableRegistry() {
-        // Unfortunately, we need to configure the ConstructableRegistry for serialization tests and
-        // even for basic usage of the MerkleMap (it uses it internally to make copies of internal
-        // nodes).
+        // Unfortunately, we need to configure the ConstructableRegistry for serialization tests
         try {
             registry = ConstructableRegistry.getInstance();
 
             // It may have been configured during some other test, so we reset it
             registry.reset();
-            registry.registerConstructables("com.swirlds.merklemap");
             registry.registerConstructables("com.swirlds.merkledb");
-            registry.registerConstructables("com.swirlds.fcqueue");
             registry.registerConstructables("com.swirlds.virtualmap");
             registry.registerConstructables("com.swirlds.common.merkle");
             registry.registerConstructables("com.swirlds.common");
             registry.registerConstructables("org.hiero");
             registry.registerConstructables("com.swirlds.merkle");
             registry.registerConstructables("com.swirlds.merkle.tree");
-
-            registerVirtualMapConstructables(CONFIGURATION);
         } catch (ConstructableRegistryException ex) {
             throw new AssertionError(ex);
         }

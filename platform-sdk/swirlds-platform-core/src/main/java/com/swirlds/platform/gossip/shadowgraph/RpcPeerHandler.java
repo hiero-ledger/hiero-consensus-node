@@ -8,16 +8,12 @@ import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncGuard;
-import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
+import com.swirlds.platform.gossip.rpc.GossipRpcReceiverHandler;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
 import com.swirlds.platform.metrics.SyncMetrics;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
-import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -27,16 +23,20 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.monitoring.FallenBehindStatus;
 
 /**
  * Conversation logic for an RPC exchange between two nodes. At this moment mostly concerned with performing a sync,
  * using {@link RpcShadowgraphSynchronizer}, but in the future, it can extend to handle more responsibilities. Most of
  * its internal state was externalized to {@link RpcPeerState} for clarity.
  */
-public class RpcPeerHandler implements GossipRpcReceiver {
+public class RpcPeerHandler implements GossipRpcReceiverHandler {
 
     private static final Logger logger = LogManager.getLogger(RpcPeerHandler.class);
 
@@ -154,16 +154,10 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     }
 
     /**
-     * Start synchronization with remote side, if all checks are successful (things like enough time has passed since
-     * last synchronization, remote side has not fallen behind etc
-     *
-     * @param wantToExit           set to true if for some external reasons we would like to exit sync loop
-     * @param ignoreIncomingEvents we are in some kind of reduced capability state (for example caused by system being
-     *                             unhealthy) and we shouldn't be processing/requesting incoming events
-     * @return true if we should continue dispatching messages, false if we are in proper place to break rpc
-     * conversation
+     * {@inheritDoc}
      */
     // dispatch thread
+    @Override
     public boolean checkForPeriodicActions(final boolean wantToExit, final boolean ignoreIncomingEvents) {
         if (!isSyncCooldownComplete()) {
             this.syncMetrics.doNotSyncCooldown();
@@ -208,9 +202,10 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     }
 
     /**
-     * Clean all resources and deregister itself
+     * {@inheritDoc}
      */
     // protocol thread (which is equivalent to read-thread)
+    @Override
     public void cleanup() {
         clearInternalState();
         state.peerStillSendingEvents = false;

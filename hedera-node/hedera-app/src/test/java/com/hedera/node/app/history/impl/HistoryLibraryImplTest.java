@@ -4,11 +4,13 @@ package com.hedera.node.app.history.impl;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Set;
@@ -28,6 +30,11 @@ class HistoryLibraryImplTest {
     private HistoryLibrary library;
 
     private final HistoryLibraryImpl subject = new HistoryLibraryImpl();
+
+    @Test
+    void wrapsVerificationKeyIsTbd() {
+        assertArrayEquals(WRAPSVerificationKey.getCurrentKey(), subject.wrapsVerificationKey());
+    }
 
     @Test
     void computeHashBuildsCanonicalAddressBookAndWrapsResult() {
@@ -120,7 +127,7 @@ class HistoryLibraryImplTest {
 
         final var weights = new long[] {1L};
         final var publicKeys = new byte[1][];
-        publicKeys[0] = keys.verifyingKey();
+        publicKeys[0] = keys.publicKey();
         final var nodeIds = new long[] {123L};
         final var addressBook = new HistoryLibrary.AddressBook(weights, publicKeys, nodeIds);
 
@@ -132,7 +139,7 @@ class HistoryLibraryImplTest {
         assertNotNull(message);
 
         final var entropy = new byte[32];
-        final var privateKey = keys.signingKey();
+        final var privateKey = keys.privateKey();
 
         final var r1 = subject.runWrapsPhaseR1(entropy, message, privateKey);
         assertNotNull(r1);
@@ -150,5 +157,10 @@ class HistoryLibraryImplTest {
         assertNotNull(signature);
 
         assertDoesNotThrow(() -> subject.verifyAggregateSignature(message, publicKeys, signature));
+    }
+
+    @Test
+    void wrapsLibraryBridgeIsNotReady() {
+        assertFalse(subject.wrapsProverReady());
     }
 }

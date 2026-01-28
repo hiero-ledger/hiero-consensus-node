@@ -2,14 +2,17 @@
 package com.swirlds.platform.builder;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
+import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDirectory;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -22,17 +25,10 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
+import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
@@ -43,6 +39,7 @@ import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -55,13 +52,23 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.roster.RosterHistory;
 
 /**
@@ -84,6 +91,9 @@ public final class PlatformBuilder {
     private Configuration configuration;
     private ExecutorFactory executorFactory;
 
+    private EventCreatorModule eventCreatorModule;
+    private EventIntakeModule eventIntakeModule;
+
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
 
@@ -104,9 +114,9 @@ public final class PlatformBuilder {
     private KeysAndCerts keysAndCerts;
 
     /**
-     * The path to the configuration file (i.e. the file with the address book).
+     * The path to the settings file (i.e. the file with the optional settings).
      */
-    private final Path configPath = getAbsolutePath(DEFAULT_CONFIG_FILE_NAME);
+    private final Path settingsPath = getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME);
 
     /**
      * The wiring model to use for this platform.
@@ -315,7 +325,7 @@ public final class PlatformBuilder {
         final String testString = "testString";
         final Bytes testBytes = Bytes.wrap(testString.getBytes());
         final Signature signature = platformSigner.sign(testBytes.toByteArray());
-        if (!CryptoStatic.verifySignature(
+        if (!ConsensusCryptoUtils.verifySignature(
                 testBytes, signature.getBytes(), keysAndCerts.sigCert().getPublicKey())) {
             throw new IllegalStateException("The signing certificate does not match the signing private key.");
         }
@@ -361,6 +371,68 @@ public final class PlatformBuilder {
     }
 
     /**
+     * Provide the consensus event creator to use for this platform.
+     *
+     * @param eventCreatorModule the consensus event creator
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withEventCreatorModule(@NonNull final EventCreatorModule eventCreatorModule) {
+        throwIfAlreadyUsed();
+        this.eventCreatorModule = requireNonNull(eventCreatorModule);
+        return this;
+    }
+
+    private void initializeEventCreatorModule() {
+        if (this.eventCreatorModule == null) {
+            this.eventCreatorModule = createEventCreatorModule();
+        }
+
+        eventCreatorModule.initialize(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                secureRandomSupplier.get(),
+                keysAndCerts,
+                rosterHistory.getCurrentRoster(),
+                selfId,
+                execution,
+                execution);
+    }
+
+    /**
+     * Provide the consensus event intake to use for this platform.
+     *
+     * @param eventIntakeModule the consensus event intake module
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withEventIntakeModule(@NonNull final EventIntakeModule eventIntakeModule) {
+        throwIfAlreadyUsed();
+        this.eventIntakeModule = requireNonNull(eventIntakeModule);
+        return this;
+    }
+
+    private void initializeEventIntakeModule(
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @Nullable final EventPipelineTracker pipelineTracker) {
+        if (this.eventIntakeModule == null) {
+            this.eventIntakeModule = createEventIntakeModule();
+        }
+
+        eventIntakeModule.initialize(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory,
+                intakeEventCounter,
+                execution.getTransactionLimits(),
+                pipelineTracker);
+    }
+
+    /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
     private void throwIfAlreadyUsed() {
@@ -385,7 +457,7 @@ public final class PlatformBuilder {
             executorFactory = ExecutorFactory.create("platform", null, DEFAULT_UNCAUGHT_EXCEPTION_HANDLER);
         }
 
-        final boolean firstPlatform = doStaticSetup(configuration, configPath);
+        final boolean firstPlatform = doStaticSetup(configuration, settingsPath);
 
         final Roster currentRoster = rosterHistory.getCurrentRoster();
 
@@ -450,10 +522,21 @@ public final class PlatformBuilder {
             };
         }
 
-        var platformComponentWiring = PlatformComponents.create(platformContext, model);
+        final boolean eventPipelineMetricsEnabled = platformContext
+                .getConfiguration()
+                .getConfigData(PlatformMetricsConfig.class)
+                .eventPipelineMetricsEnabled();
+        final EventPipelineTracker pipelineTracker =
+                eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
+
+        initializeEventCreatorModule();
+        initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
+
+        final PlatformComponents platformComponentWiring =
+                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
 
         PlatformWiring.wire(platformContext, execution, platformComponentWiring, callbacks);
-        PlatformWiring.wireMetrics(platformContext, platformComponentWiring);
+        PlatformWiring.wireMetrics(platformComponentWiring, pipelineTracker);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformComponentWiring,
@@ -471,7 +554,7 @@ public final class PlatformBuilder {
                 snapshotOverrideConsumer,
                 intakeEventCounter,
                 secureRandomSupplier,
-                new FreezeCheckHolder(),
+                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
                 new AtomicReference<>(),
                 initialPcesFiles,
                 consensusEventStreamName,
@@ -484,7 +567,7 @@ public final class PlatformBuilder {
                 consensusStateEventHandler,
                 execution,
                 new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()),
-                new ReservedSignedStateResultPromise());
+                new BlockingResourceProvider<>());
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

@@ -4,6 +4,7 @@ package com.hedera.node.app.service.schedule.impl.calculator;
 import static com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl.countKeys;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.SCHEDULE_CREATE_CONTRACT_CALL_BASE;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -23,11 +24,17 @@ public class ScheduleCreateFeeCalculator implements ServiceFeeCalculator {
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        final var adminKey = txnBody.scheduleCreateOrThrow().adminKey();
+        final var op = txnBody.scheduleCreateOrThrow();
+        final var adminKey = op.adminKey();
         final long keys = adminKey != null ? countKeys(adminKey) : 0;
+        final var schedulesContractCall = op.scheduledTransactionBodyOrThrow().hasContractCall();
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.SCHEDULE_CREATE);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keys);
+        if (schedulesContractCall) {
+            // Add extra fee for scheduling a contract call
+            addExtraFee(feeResult, serviceDef, SCHEDULE_CREATE_CONTRACT_CALL_BASE, feeSchedule, 1);
+        }
     }
 
     @Override

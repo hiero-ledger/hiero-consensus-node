@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -62,6 +63,9 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
 
     @Mock
     private ScheduleID scheduleID;
+
+    @Mock
+    private Key adminKey;
 
     private DeleteScheduleTranslator subject;
 
@@ -187,5 +191,55 @@ class DeleteScheduleTranslatorTest extends CallAttemptTestBase {
         long gas = DeleteScheduleTranslator.gasRequirement(transactionBody, gasCalculator, mockEnhancement(), payerId);
         // then:
         assertEquals(expectedGas, gas);
+    }
+
+    @Test
+    void testScheduleDeleteProxyWithNonContractAdminKey() {
+        prepProxyCall();
+        given(schedule.adminKeyOrElse(Key.DEFAULT)).willReturn(adminKey);
+        given(schedule.adminKey()).willReturn(adminKey);
+        given(adminKey.hasContractID()).willReturn(false);
+        given(adminKey.hasDelegatableContractId()).willReturn(false);
+        given(adminKey.hasEcdsaSecp256k1()).willReturn(true);
+        // when:
+        callAndAssert();
+    }
+
+    @Test
+    void testScheduleDeleteProxyWithContractAdminKey() {
+        prepProxyCall();
+        given(schedule.adminKey()).willReturn(adminKey);
+        given(adminKey.hasContractID()).willReturn(true);
+        // when:
+        callAndAssert();
+    }
+
+    @Test
+    void testScheduleDeleteProxyWithDelegatableContractAdminKey() {
+        prepProxyCall();
+        given(schedule.adminKey()).willReturn(adminKey);
+        given(adminKey.hasContractID()).willReturn(false);
+        given(adminKey.hasDelegatableContractId()).willReturn(true);
+        // when:
+        callAndAssert();
+    }
+
+    private void prepProxyCall() {
+        given(nativeOperations.getAccount(payerId)).willReturn(B_CONTRACT);
+        given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(payerId);
+        given(verificationStrategies.activatingOnlyContractKeysFor(OWNER_BESU_ADDRESS, false, nativeOperations))
+                .willReturn(verificationStrategy);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
+        given(nativeOperations.getSchedule(any(ScheduleID.class))).willReturn(schedule);
+    }
+
+    private void callAndAssert() {
+        var input = bytesForRedirectScheduleTxn(
+                DeleteScheduleTranslator.DELETE_SCHEDULE_PROXY.selector(), NON_SYSTEM_LONG_ZERO_ADDRESS);
+        attempt = createHssCallAttempt(input, false, configuration, List.of(subject));
+        final var call = subject.callFrom(attempt);
+        // then:
+        assertThat(call).isInstanceOf(DispatchForResponseCodeHssCall.class);
     }
 }

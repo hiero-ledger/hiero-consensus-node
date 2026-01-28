@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.utility;
 
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_CYAN;
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_RED;
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_YELLOW;
-import static com.swirlds.common.formatting.TextEffect.GRAY;
-import static com.swirlds.common.formatting.TextEffect.WHITE;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_CYAN;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_RED;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_YELLOW;
+import static com.swirlds.base.formatting.TextEffect.GRAY;
+import static com.swirlds.base.formatting.TextEffect.WHITE;
 
-import com.swirlds.common.formatting.TextTable;
+import com.swirlds.base.formatting.TextTable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.iterators.MerkleIterationOrder;

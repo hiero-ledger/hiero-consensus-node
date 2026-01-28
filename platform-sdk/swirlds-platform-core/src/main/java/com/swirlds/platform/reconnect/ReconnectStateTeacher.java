@@ -1,25 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
+import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.platform.reconnect.ReconnectStateLearner.endReconnectHandshake;
 import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.threading.manager.ThreadManager;
+import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.SocketException;
@@ -27,6 +29,10 @@ import java.time.Duration;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -40,6 +46,12 @@ public class ReconnectStateTeacher {
 
     private final Connection connection;
     private final Duration reconnectSocketTimeout;
+
+    private final TeacherTreeView<Long> teacherView;
+    private final SigSet signatures;
+    private final long signingWeight;
+    private final Roster roster;
+    private final Hash hash;
 
     private final NodeId selfId;
     private final NodeId otherId;
@@ -55,7 +67,6 @@ public class ReconnectStateTeacher {
 
     private final ThreadManager threadManager;
     private final Time time;
-    private final PlatformContext platformContext;
 
     /**
      * @param platformContext        the platform context
@@ -65,6 +76,7 @@ public class ReconnectStateTeacher {
      * @param selfId                 this node's ID
      * @param otherId                the learner's ID
      * @param lastRoundReceived      the round of the state
+     * @param signedState            the state used for teaching; must be a signed VirtualMapState
      * @param statistics             reconnect metrics
      */
     public ReconnectStateTeacher(
@@ -76,9 +88,9 @@ public class ReconnectStateTeacher {
             @NonNull final NodeId selfId,
             @NonNull final NodeId otherId,
             final long lastRoundReceived,
+            @NonNull final SignedState signedState,
             @NonNull final ReconnectMetrics statistics) {
 
-        this.platformContext = Objects.requireNonNull(platformContext);
         this.time = Objects.requireNonNull(time);
         this.threadManager = Objects.requireNonNull(threadManager);
         this.connection = Objects.requireNonNull(connection);
@@ -89,6 +101,19 @@ public class ReconnectStateTeacher {
         this.lastRoundReceived = lastRoundReceived;
         this.statistics = Objects.requireNonNull(statistics);
         this.configuration = Objects.requireNonNull(platformContext.getConfiguration());
+
+        signatures = signedState.getSigSet();
+        signingWeight = signedState.getSigningWeight();
+        roster = signedState.getRoster();
+        hash = signedState.getState().getHash();
+        if (!(signedState.getState() instanceof VirtualMapState virtualMapState)) {
+            throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
+        }
+        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
+        // The teacher view will be closed by TeacherSynchronizer in reconnect() below
+        teacherView = virtualMapState.getRoot().buildTeacherView(reconnectConfig);
+
+        logReconnectStart(signedState);
     }
 
     /**
@@ -133,8 +158,7 @@ public class ReconnectStateTeacher {
      * @throws ReconnectStateException thrown when current thread is interrupted, or when any I/O related errors occur, or
      *                            when there is an error in the underlying protocol
      */
-    public void execute(final SignedState signedState) throws ReconnectStateException {
-
+    public void execute() throws ReconnectStateException {
         // If the connection object to be used here has been disconnected on another thread, we can
         // not reconnect with this connection.
         if (!connection.connected()) {
@@ -145,12 +169,11 @@ public class ReconnectStateTeacher {
                     connection.getOtherId());
             return;
         }
-        logReconnectStart(signedState);
         increaseSocketTimeout();
 
         try {
-            sendSignatures(signedState);
-            reconnect(signedState);
+            sendSignatures();
+            reconnect();
             endReconnectHandshake(connection);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -174,11 +197,9 @@ public class ReconnectStateTeacher {
                         lastRoundReceived));
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         logger.info(
-                RECONNECT.getMarker(),
-                """
+                RECONNECT.getMarker(), """
                         The following state will be sent to the learner:
-                        {}""",
-                () -> getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
+                        {}""", () -> getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
     }
 
     private void logReconnectFinish() {
@@ -197,7 +218,7 @@ public class ReconnectStateTeacher {
      *
      * @throws InterruptedException thrown if the current thread is interrupted
      */
-    private void reconnect(final SignedState signedState) throws InterruptedException, IOException {
+    private void reconnect() throws InterruptedException, IOException {
         logger.info(RECONNECT.getMarker(), "Starting synchronization in the role of the sender.");
         statistics.incrementSenderStartTimes();
 
@@ -206,15 +227,13 @@ public class ReconnectStateTeacher {
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
-                platformContext.getConfiguration(),
                 time,
                 threadManager,
-                new MerkleDataInputStream(connection.getDis()),
-                new MerkleDataOutputStream(connection.getDos()),
-                signedState.getState().getRoot(),
+                new SerializableDataInputStream(connection.getDis()),
+                new SerializableDataOutputStream(connection.getDos()),
+                teacherView,
                 connection::disconnect,
                 reconnectConfig);
-
         synchronizer.synchronize();
         connection.getDos().flush();
 
@@ -227,19 +246,20 @@ public class ReconnectStateTeacher {
      *
      * @throws IOException thrown when any I/O related errors occur
      */
-    private void sendSignatures(final SignedState signedState) throws IOException {
+    private void sendSignatures() throws IOException {
         final StringBuilder sb = new StringBuilder();
         sb.append("Sending signatures from nodes ");
-        formattedList(sb, signedState.getSigSet().iterator());
+        formattedList(sb, signatures.iterator());
         sb.append(" (signing weight = ")
-                .append(signedState.getSigningWeight())
+                .append(signingWeight)
                 .append("/")
-                .append(RosterUtils.computeTotalWeight(signedState.getRoster()))
+                .append(RosterUtils.computeTotalWeight(roster))
                 .append(") for state hash ")
-                .append(signedState.getState().getHash());
+                .append(hash);
 
         logger.info(RECONNECT.getMarker(), sb);
-        connection.getDos().writeSerializable(signedState.getSigSet(), true);
+        final WritableStreamingData wsd = new WritableStreamingData(connection.getDos());
+        signatures.serialize(wsd);
         connection.getDos().flush();
     }
 }

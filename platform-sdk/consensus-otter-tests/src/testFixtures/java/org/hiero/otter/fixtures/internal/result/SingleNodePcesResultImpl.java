@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
-import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.pces.impl.common.PcesFileManager.NO_LOWER_BOUND;
+import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDirectory;
 
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.event.preconsensus.PcesFile;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.impl.common.PcesFile;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
 /**

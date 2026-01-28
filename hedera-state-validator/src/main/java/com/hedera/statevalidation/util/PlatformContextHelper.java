@@ -6,12 +6,10 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * Provides singleton access to a configured {@link PlatformContext} instance.
@@ -22,10 +20,6 @@ public final class PlatformContextHelper {
 
     private static PlatformContext createPlatformContext() {
         return new PlatformContext() {
-            @Override
-            public MerkleCryptography getMerkleCryptography() {
-                return MerkleCryptographyFactory.create(ConfigUtils.getConfiguration());
-            }
 
             @Override
             public Configuration getConfiguration() {

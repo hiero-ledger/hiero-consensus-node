@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.permits;
 
-import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
-import static com.swirlds.common.units.TimeUnit.UNIT_SECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_SECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.CompareTo.isLessThan;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -108,11 +109,21 @@ public class SyncPermitProvider {
      * @param totalPermits    the total number of available permits
      */
     public SyncPermitProvider(@NonNull final PlatformContext platformContext, final int totalPermits) {
-        this.metrics = new SyncPermitMetrics(platformContext);
+        this(
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                platformContext.getConfiguration().getConfigData(SyncConfig.class),
+                totalPermits);
+    }
 
-        this.time = platformContext.getTime();
-
-        this.syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
+    public SyncPermitProvider(
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final SyncConfig syncConfig,
+            final int totalPermits) {
+        this.metrics = new SyncPermitMetrics(metrics);
+        this.time = time;
+        this.syncConfig = syncConfig;
         permitsRevokedPerSecond = syncConfig.permitsRevokedPerSecond();
         permitsReturnedPerSecond = syncConfig.permitsReturnedPerSecond();
         unhealthyGracePeriod = syncConfig.unhealthyGracePeriod();

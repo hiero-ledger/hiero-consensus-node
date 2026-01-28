@@ -9,7 +9,6 @@ import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContex
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -27,12 +26,6 @@ import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.merkle.route.MerkleRouteFactory;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
@@ -58,7 +51,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -73,6 +65,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.exceptions.ReferenceCountException;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
+import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -399,75 +395,6 @@ class VirtualMapTests extends VirtualTestBase {
         vm.release();
     }
 
-    // FUTURE WORK test deleting the same key two times in a row.
-    // FUTURE WORK Test that a deleted node's value cannot be subsequently read.
-
-    //    @Test
-    //    @Tag(TestComponentTags.FCMAP)
-    //    @DisplayName("Remove all leaves by always removing the first leaf")
-    //    void removeFirstLeaf() {
-    //        var fcm = createMap();
-    //        fcm.put(A_KEY, APPLE);
-    //        fcm.put(B_KEY, BANANA);
-    //        fcm.put(C_KEY, CHERRY);
-    //        fcm.put(D_KEY, DATE);
-    //        fcm.put(E_KEY, EGGPLANT);
-    //        fcm.put(F_KEY, FIG);
-    //        fcm.put(G_KEY, GRAPE);
-    //
-    //        var original = fcm;
-    //        fcm = fcm.copy();
-    //        CRYPTO.digestTreeSync(original);
-    //        original.release();
-    //
-    //        assertEquals(DATE, fcm.remove(D_KEY));
-    //        assertLeafOrder(fcm, A_KEY, E_KEY, C_KEY, F_KEY, B_KEY, G_KEY);
-    //        assertEquals(BANANA, fcm.remove(B_KEY));
-    //        assertLeafOrder(fcm, A_KEY, E_KEY, C_KEY, F_KEY, G_KEY);
-    //        assertEquals(CHERRY, fcm.remove(C_KEY));
-    //        assertLeafOrder(fcm, A_KEY, E_KEY, F_KEY, G_KEY);
-    //        assertEquals(APPLE, fcm.remove(A_KEY));
-    //        assertLeafOrder(fcm, G_KEY, E_KEY, F_KEY);
-    //        assertEquals(FIG, fcm.remove(F_KEY));
-    //        assertLeafOrder(fcm, G_KEY, E_KEY);
-    //        assertEquals(GRAPE, fcm.remove(G_KEY));
-    //        assertLeafOrder(fcm, E_KEY);
-    //        assertEquals(EGGPLANT, fcm.remove(E_KEY));
-    //
-    //        // FUTURE WORK validate hashing works as expected
-    //
-    //    }
-
-    //    @Test
-    //    @Tag(TestComponentTags.FCMAP)
-    //    @DisplayName("Remove a middle leaf")
-    //    void removeMiddleLeaf() {
-    //        var fcm = createMap();
-    //        fcm.put(A_KEY, APPLE);
-    //        fcm.put(B_KEY, BANANA);
-    //        fcm.put(C_KEY, CHERRY);
-    //        fcm.put(D_KEY, DATE);
-    //        fcm.put(E_KEY, EGGPLANT);
-    //        fcm.put(F_KEY, FIG);
-    //        fcm.put(G_KEY, GRAPE);
-    //
-    //        var original = fcm;
-    //        fcm = fcm.copy();
-    //        CRYPTO.digestTreeSync(original);
-    //        original.release();
-    //
-    //        assertEquals(FIG, fcm.remove(F_KEY));
-    //        assertEquals(DATE, fcm.remove(D_KEY));
-    //        assertEquals(APPLE, fcm.remove(A_KEY));
-    //        assertEquals(BANANA, fcm.remove(B_KEY));
-    //        assertEquals(EGGPLANT, fcm.remove(E_KEY));
-    //        assertEquals(CHERRY, fcm.remove(C_KEY));
-    //        assertEquals(GRAPE, fcm.remove(G_KEY));
-    //
-    //        // FUTURE WORK validate hashing works as expected
-    //
-    //    }
-
     @Test
     @DisplayName("Add a value and then remove it immediately")
     void removeValueJustAdded() {
@@ -569,33 +496,6 @@ class VirtualMapTests extends VirtualTestBase {
         assertTrue(ds.isClosed(), "Should now be released");
     }
 
-    /*
-     * Test iteration and hashing
-     **/
-
-    //    @Test
-    //    @Tag(TestComponentTags.FCMAP)
-    //    @DisplayName("Newly created maps have null hashes for everything")
-    //    void nullHashesOnNewMap() throws ExecutionException, InterruptedException {
-    //        var fcm = createMap();
-    //        fcm.put(A_KEY, APPLE);
-    //        fcm.put(B_KEY, BANANA);
-    //        fcm.put(C_KEY, CHERRY);
-    //        fcm.put(D_KEY, DATE);
-    //        fcm.put(E_KEY, EGGPLANT);
-    //        fcm.put(F_KEY, FIG);
-    //        fcm.put(G_KEY, GRAPE);
-    //
-    // FUTURE WORK Cannot iterate until after hashing, which invalidates the test
-    //        var completed = fcm;
-    //        fcm = fcm.copy();
-    //        completed.hash().get();
-    //        final var breadthItr = new MerkleBreadthFirstIterator<MerkleNode, MerkleNode>(completed);
-    //        while (breadthItr.hasNext()) {
-    //            assertNull(breadthItr.next().getHash());
-    //        }
-    //    }
-
     @Test
     @DisplayName("Hashed maps have non-null hashes on everything")
     void nonNullHashesOnHashedMap() {
@@ -610,7 +510,7 @@ class VirtualMapTests extends VirtualTestBase {
 
         final VirtualMap completed = fcm;
         fcm = fcm.copy();
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(completed);
+        completed.getHash(); // calculate hash
 
         final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
         while (breadthItr.hasNext()) {
@@ -633,7 +533,7 @@ class VirtualMapTests extends VirtualTestBase {
         fcm = fcm.copy();
 
         try {
-            final Hash firstHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(completed);
+            final Hash firstHash = completed.getHash();
             final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
             while (breadthItr.hasNext()) {
                 assertNotNull(breadthItr.next().getHash(), "Expected a value");
@@ -648,7 +548,7 @@ class VirtualMapTests extends VirtualTestBase {
 
             final VirtualMap second = fcm;
             fcm = copyAndRelease(fcm);
-            final Hash secondHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(second);
+            final Hash secondHash = second.getHash();
             assertNotSame(firstHash, secondHash, "Wrong value");
         } finally {
             fcm.release();
@@ -742,43 +642,6 @@ class VirtualMapTests extends VirtualTestBase {
         fcm.release();
         fcm2.release();
         completed.release();
-    }
-
-    /**
-     * This test validates that for the basic tree below, the routes are set correctly.
-     * When the tests are moved to the swirlds-test module, we should use a MerkleMap
-     * and insert one million elements, and insert the same elements into a
-     * {@link VirtualMap}. Then, we iterate over the routes of both maps and their
-     * routes should match.
-     *
-     * <pre>
-     *                      VirtualMap
-     *                         []
-     *                      /     \
-     *                     /       \
-     *                 Internal     B
-     *                 [1, 0]     [1, 1]
-     *                 /   \
-     *                /     \
-     *               A       C
-     *        [1, 0, 0]    [1, 0, 1]
-     * </pre>
-     */
-    @Test
-    void routesSetForBasicTree() {
-        final VirtualMap vm = createMap();
-        vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
-        vm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
-        vm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
-
-        final List<MerkleNode> nodes = new ArrayList<>();
-        vm.forEachNode(nodes::add);
-
-        assertEquals(MerkleRouteFactory.buildRoute(0, 0), nodes.get(0).getRoute(), "VirtualLeafNode A");
-        assertEquals(MerkleRouteFactory.buildRoute(0, 1), nodes.get(1).getRoute(), "VirtualLeafNode C");
-        assertEquals(MerkleRouteFactory.buildRoute(0), nodes.get(2).getRoute(), "VirtualInternalNode");
-        assertEquals(MerkleRouteFactory.buildRoute(1), nodes.get(3).getRoute(), "VirtualLeafNode B");
-        assertEquals(MerkleRouteFactory.buildRoute(), nodes.get(4).getRoute(), "VirtualMap");
     }
 
     /**
@@ -1412,15 +1275,6 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     void getVersion() {
         assertEquals(4, createMap().getVersion());
-    }
-
-    @Test
-    void postInitNoOpIfLearnerTreeViewIsSet() {
-        VirtualMap root = createMap();
-        VirtualMap anotherRoot = createMap();
-        anotherRoot.computeHash();
-        root.setupWithOriginalNode(anotherRoot);
-        assertDoesNotThrow(() -> root.postInit());
     }
 
     // based heavily on VirtualMapGroup::validateCopy(), but modified to just compare two VirtualMaps, instead of

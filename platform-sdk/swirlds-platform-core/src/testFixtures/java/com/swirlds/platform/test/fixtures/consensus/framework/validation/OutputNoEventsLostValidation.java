@@ -4,18 +4,18 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 import static org.assertj.core.api.Assertions.fail;
 
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.round.RoundCalculationUtils;
 
 @SuppressWarnings("unused") // issue tracked #6998
-/**
+/*
  * Validator that checks if the consensus mechanism does not return events more than once, either as stale or consensus.
  */
 public final class OutputNoEventsLostValidation implements ConsensusOutputValidation {

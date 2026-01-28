@@ -7,9 +7,10 @@ import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPh
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R3;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
+import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
+import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
@@ -19,16 +20,19 @@ import java.util.SplittableRandom;
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
-    private static final byte[] DUMMY_HINTS_KEY = new byte[1280];
     public static final SplittableRandom RANDOM = new SplittableRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
 
     @Override
-    public SigningAndVerifyingSchnorrKeys newSchnorrKeyPair() {
+    public byte[] wrapsVerificationKey() {
+        return WRAPSVerificationKey.getCurrentKey();
+    }
+
+    @Override
+    public SchnorrKeys newSchnorrKeyPair() {
         final var seed = new byte[32];
         RANDOM.nextBytes(seed);
-        final var wrapsKeys = WRAPS.generateSchnorrKeys(seed);
-        return new SigningAndVerifyingSchnorrKeys(wrapsKeys.privateKey(), wrapsKeys.publicKey());
+        return WRAPS.generateSchnorrKeys(seed);
     }
 
     @Override
@@ -131,7 +135,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 addressBook.publicKeys(),
                 addressBook.weights(),
                 null,
-                DUMMY_HINTS_KEY,
+                GENESIS_WRAPS_METADATA,
                 aggregatedSignature,
                 addressBook.signersMask(signers));
     }
@@ -165,8 +169,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     }
 
     @Override
-    public boolean isValidWraps(@NonNull final byte[] compressedProof) {
-        requireNonNull(compressedProof);
-        return WRAPS.verifyCompressedProof(compressedProof);
+    public boolean wrapsProverReady() {
+        return WRAPSLibraryBridge.isProofSupported();
     }
 }

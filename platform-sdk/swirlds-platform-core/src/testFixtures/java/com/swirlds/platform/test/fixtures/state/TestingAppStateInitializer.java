@@ -7,7 +7,6 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.block.stream.output.StateChanges.Builder;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
@@ -16,15 +15,11 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.CommittableWritableStates;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.roster.RosterStateId;
 
 /**
@@ -34,18 +29,6 @@ import org.hiero.consensus.roster.RosterStateId;
 public final class TestingAppStateInitializer {
 
     private TestingAppStateInitializer() {}
-
-    public static void registerConstructablesForStorage(@NonNull final Configuration configuration) {
-        try {
-            ConstructableRegistry registry = ConstructableRegistry.getInstance();
-            registry.registerConstructable(
-                    new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(configuration)));
-            registry.registerConstructable(new ClassConstructorPair(
-                    MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
-        } catch (ConstructableRegistryException e) {
-            throw new IllegalStateException(e);
-        }
-    }
 
     /**
      * Initialize the states for the given {@link MerkleNodeState}. This method will initialize both the

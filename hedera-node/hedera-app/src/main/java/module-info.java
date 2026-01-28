@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app {
     requires transitive com.hedera.cryptography.hints;
-    requires transitive com.hedera.cryptography.rpm;
     requires transitive com.hedera.cryptography.wraps;
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.app.service.addressbook.impl;
@@ -19,10 +18,8 @@ module com.hedera.node.app {
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
-    requires transitive com.hedera.pbj.grpc.client.helidon;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.platform.core;
@@ -35,7 +32,6 @@ module com.hedera.node.app {
     requires transitive io.grpc.stub;
     requires transitive io.grpc;
     requires transitive io.helidon.grpc.core;
-    requires transitive io.helidon.webclient.api;
     requires transitive io.helidon.webclient.grpc;
     requires transitive io.helidon.webclient.http2;
     requires transitive javax.inject;
@@ -51,15 +47,21 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.network.admin;
     requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.util;
+    requires com.hedera.pbj.grpc.client.helidon;
+    requires com.swirlds.common;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
+    requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.roster;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires io.grpc.netty;
     requires io.helidon.common.tls;
+    requires io.helidon.webclient.api;
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
@@ -130,6 +132,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.records.schemas;
     exports com.hedera.node.app.hints.schemas;
     exports com.hedera.node.app.blocks.impl.streaming.config;
+    exports com.hedera.node.app.history.schemas;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.hedera.node.app.config.ServicesConfigExtension;

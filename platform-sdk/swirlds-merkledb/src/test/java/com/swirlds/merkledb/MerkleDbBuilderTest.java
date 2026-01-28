@@ -17,7 +17,6 @@ import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
@@ -40,7 +39,6 @@ class MerkleDbBuilderTest {
         registry.registerConstructables("org.hiero");
         registry.registerConstructables("com.swirlds.merkledb");
         registry.registerConstructables("com.swirlds.virtualmap");
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
     }
 
     @AfterEach

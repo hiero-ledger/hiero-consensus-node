@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.pipeline;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.function.CheckedSupplier;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
@@ -23,6 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * <p>
@@ -479,12 +479,12 @@ public class VirtualPipeline {
                 break;
             }
             if ((next == copies.getFirst()) && shouldBeFlushed(copy)) {
-                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Flush {}", copy.getFastCopyVersion());
+                logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flush {}", copy.getFastCopyVersion());
                 flush(copy);
                 copies.remove(next);
             } else if (canBeMerged(next)) {
                 assert !copy.isMerged();
-                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Merge {}", copy.getFastCopyVersion());
+                logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Merge {}", copy.getFastCopyVersion());
                 merge(next);
                 copies.remove(next);
             }

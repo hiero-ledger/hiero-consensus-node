@@ -23,8 +23,8 @@ import org.hiero.base.crypto.Hash;
  *
  * <p>A chunk is identified by the chunk path, which is a parent of its two top-most hashes. For
  * example, the root chunk is identified with path 0 (0 is a parent of 1 and 2). If chunk height is 2,
- * the root chunk at path 0 contains hashes 1, 2, 3, 4, 5, and 6. Such chunk has 4 child chunks
- * identified by paths 3, 4, 5, and 6. For example, chunk 4 has hashes 9, 10, 19, 20, 21, and 22.
+ * the root chunk at path 0 contains hashes 1, 2, 3, 4, 5, and 6. Such a chunk has 4 child chunks
+ * identified by paths 3, 4, 5, and 6. The chunk at path 4 has hashes 9, 10, 19, 20, 21, and 22.
  * Note that a hash at a chunk path does not belong to the chunk, but to its parent chunk, except
  * the root node hash, which doesn't belong to any chunk.
  *
@@ -73,10 +73,7 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
     }
 
     public VirtualHashChunk(final long path, final int height) {
-        this(
-                path,
-                height,
-                new byte[getChunkSize(height) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]);
+        this(path, height, new byte[getChunkSize(height) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]);
     }
 
     public VirtualHashChunk copy() {
@@ -248,14 +245,18 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
      * @return
      *      Path index in the chunk, starting from 0
      */
-//    public int getPathIndexInChunk(final long path) {
-//        return getPathIndexInChunk(path, this.path, height);
-//    }
+    public int getPathIndexInChunk(final long path) {
+        return getPathIndexInChunk(path, this.path, height);
+    }
 
     /**
      * Returns an index, starting from 0, of the given path in a chunk that starts from the specified
      * first path. Paths are global, not relative to the chunk. Max index is {@link #getChunkSize()} - 1.
      * If the path is not in the chunk, an {@link IllegalArgumentException} is thrown.
+     *
+     * <p>If the path is at the last chunk rank, its index is just delta between the path and the first
+     * path at the last rank. However, paths at internal chunk ranks are handled differently. Such
+     * internal paths are mapped to the last rank at an index that corresponds to their left grand child.
      *
      * @param path
      *      Path to check
@@ -286,14 +287,14 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
     }
 
     /**
-     * Given a virtual path, returns chunk ID, so that chunks 0 to the ID cover
+     * Given a virtual path, returns the minimal chunk ID, so that chunks 0 to the ID cover
      * all hashes up to (and including) the path.
      *
      * @param maxPath Virtual path
      * @param chunkHeight Chunk height
      * @return Min chunk ID to cover all paths up to the given path
      */
-    public static long minChunkIdForPaths(final long maxPath, final int chunkHeight) {
+    public static long lastChunkIdForPaths(final long maxPath, final int chunkHeight) {
         assert maxPath > 0;
         // ID of a chunk that contains maxPath
         final long maxPathChunkId = pathToChunkId(maxPath, chunkHeight);
@@ -303,6 +304,24 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         final long maxPathInPrevRank = Path.getRightGrandChildPath(0, prevRank);
         final long prevRankPathChunkId = pathToChunkId(maxPathInPrevRank, chunkHeight);
         return Math.max(prevRankPathChunkId, maxPathChunkId);
+    }
+
+    /**
+     * Returns if this chunk contains a hash for the given path.
+     *
+     * <p>Note that chunks may store hashes at different paths. For example, if a chunk is
+     * at the root path, its height is 3, and a request to store a hash for path 5 is issued,
+     * the hash will actually be stored at path 11. For such a chunk, this method returns true
+     * for path 11, but false for path 5.
+     */
+    public boolean containsPath(final long path) {
+        return containsPath(path, this.path, height);
+    }
+
+    public static boolean containsPath(final long path, final long chunkPath, final int chunkHeight) {
+        final int chunkSize = getChunkSize(chunkHeight);
+        final long firstPathAtLastLevel = Path.getLeftGrandChildPath(chunkPath, chunkHeight);
+        return (path >= firstPathAtLastLevel) && (path <= firstPathAtLastLevel + chunkSize);
     }
 
     public long getPath(final int pathIndex) {
@@ -357,7 +376,17 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
     }
 
     /**
-     * TODO
+     * Returns a hash at the given path.
+     *
+     * <p>If the path is at the last chunk rank, its hash is stored as is in the chunk at
+     * the corresponding index. If the path is at an internal chunk rank, the path is
+     * mapped to the last rank. For example, if path N is at the last rank, this method
+     * will return the same value for N and Path.getParentPath(N).
+     *
+     * <p>This method can only be used for internal rank paths, if this chunk is partial,
+     * i.e. it spans beyond leaf path range. If the chunk is complete, and a hash for an
+     * internal rank path is needed, {@link #calcHash(long, long, long)} should be used
+     * instead.
      */
     public Hash getHashAtPath(final long path) {
         final int index = getPathIndexInChunk(path, this.path, height);
@@ -382,6 +411,16 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         setHashImpl(index, hash);
     }
 
+    /**
+     * Returns a hash at a given index. If the index is negative or greater than the size of
+     * the chunk, an {@link IllegalArgumentException} is thrown.
+     *
+     * <p>Since hashes are only stored at the last rank in the chunk, chunk size is
+     * 2 ^ chunkHeight. Index 0 corresponds to the first path at the last rank in the chunk.
+     *
+     * @param index the path index
+     * @return the hash at the given path
+     */
     public Hash getHashAtIndex(final int index) {
         if ((index < 0) || (index >= getChunkSize())) {
             throw new IllegalArgumentException("Wrong hash index: " + index);
@@ -389,32 +428,43 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         return getHashImpl(index);
     }
 
+    /**
+     * Calculates a hash at the chunk path. Note that this hash is not stored in and
+     * even doesn't belong to the current chunk, it belongs to the parent chunk.
+     */
     public Hash chunkRootHash(final long firstLeafPath, final long lastLeafPath) {
         return calcHash(height, 0, firstLeafPath, lastLeafPath);
     }
 
+    /**
+     * Calculates a hash at the given path. Chunks contain hashes at their last ranks only.
+     * Therefore, gashes for internal ranks need to be calculated.
+     *
+     * <p>This method accepts two additional parameters, the first and the last leaf paths.
+     * Some paths at the last chunk rank mey be outside the leaf range, in this case leaf
+     * hashes are stored at different paths.
+     */
     public Hash calcHash(final long path, final long firstLeafPath, final long lastLeafPath) {
         final int pathRank = Path.getRank(path);
         final int chunkRank = Path.getRank(this.path);
-        assert chunkRank <= pathRank;
+        assert pathRank >= chunkRank;
         assert pathRank <= chunkRank + height;
         return calcHash(chunkRank + height - pathRank, path, firstLeafPath, lastLeafPath);
     }
 
     private Hash calcHash(final long h, final long path, final long firstLeafPath, final long lastLeafPath) {
-        if ((h == 0) || ((path >= firstLeafPath) && (path <= lastLeafPath))) {
-            return getHashAtPath(path);
-        }
         if (path > lastLeafPath) {
             assert path == 2;
             return VirtualHasher.NO_PATH2_HASH;
-        } else {
-            assert h > 0;
-            final long leftPath = Path.getLeftChildPath(path);
-            final Hash leftHash = calcHash(h - 1, leftPath, firstLeafPath, lastLeafPath);
-            final long rightPath = Path.getRightChildPath(path);
-            final Hash rightHash = calcHash(h - 1, rightPath, firstLeafPath, lastLeafPath);
-            return VirtualHasher.hashInternal(leftHash, rightHash);
         }
+        if ((h == 0) || ((path >= firstLeafPath) && (path <= lastLeafPath))) {
+            return getHashAtPath(path);
+        }
+        assert h > 0;
+        final long leftPath = Path.getLeftChildPath(path);
+        final Hash leftHash = calcHash(h - 1, leftPath, firstLeafPath, lastLeafPath);
+        final long rightPath = Path.getRightChildPath(path);
+        final Hash rightHash = calcHash(h - 1, rightPath, firstLeafPath, lastLeafPath);
+        return VirtualHasher.hashInternal(leftHash, rightHash);
     }
 }

@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.platform.reconnect.api.ProtocolFactory;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 
 /**
  * The Swirlds public API module used by platform applications.
  */
 module com.swirlds.platform.core {
     uses EventCreatorModule;
+    uses EventIntakeModule;
+    uses ProtocolFactory;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;
     exports com.swirlds.platform.builder;
     exports com.swirlds.platform.network.communication.handshake;
-    exports com.swirlds.platform.cli;
     exports com.swirlds.platform.components;
     exports com.swirlds.platform.components.appcomm;
     exports com.swirlds.platform.components.common.output;
@@ -24,7 +27,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gui.hashgraph.internal;
     exports com.swirlds.platform.network.connection;
     exports com.swirlds.platform.network.connectivity;
-    exports com.swirlds.platform.event.validation;
     exports com.swirlds.platform.eventhandling;
     exports com.swirlds.platform.gui;
     exports com.swirlds.platform.gui.model;
@@ -38,19 +40,12 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.network.communication;
     exports com.swirlds.platform.network.protocol;
     exports com.swirlds.platform.network.topology;
-    exports com.swirlds.platform.recovery;
     exports com.swirlds.platform.state;
-    exports com.swirlds.platform.stats;
-    exports com.swirlds.platform.stats.atomic;
-    exports com.swirlds.platform.stats.cycle;
-    exports com.swirlds.platform.state.editor;
-    exports com.swirlds.platform.stats.simple;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state.address;
     exports com.swirlds.platform.gossip.sync;
     exports com.swirlds.platform.scratchpad;
     exports com.swirlds.platform.system;
-    exports com.swirlds.platform.system.address;
     exports com.swirlds.platform.system.transaction;
     exports com.swirlds.platform.system.state.notifications;
     exports com.swirlds.platform.system.status;
@@ -69,7 +64,8 @@ module com.swirlds.platform.core {
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.app,
             org.hiero.otter.fixtures,
-            org.hiero.otter.test;
+            org.hiero.otter.test,
+            org.hiero.consensus.pcli;
     exports com.swirlds.platform.event.linking to
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures;
@@ -84,35 +80,30 @@ module com.swirlds.platform.core {
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.test.clients;
-
-    opens com.swirlds.platform.cli to
-            info.picocli;
-
     exports com.swirlds.platform.event.preconsensus;
     exports com.swirlds.platform.gossip.sync.protocol;
     exports com.swirlds.platform.gossip;
     exports com.swirlds.platform.reconnect;
     exports com.swirlds.platform.gossip.shadowgraph;
-    exports com.swirlds.platform.recovery.emergencyfile;
     exports com.swirlds.platform.event;
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.event.orphan;
     exports com.swirlds.platform.components.consensus;
     exports com.swirlds.platform.state.snapshot;
     exports com.swirlds.platform.state.service.schemas;
     exports com.swirlds.platform.state.service;
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.config.internal;
-    exports com.swirlds.platform.freeze;
     exports com.swirlds.platform.network.protocol.rpc;
     exports com.swirlds.platform.state.iss to
             org.hiero.otter.test;
+    exports com.swirlds.platform.recovery.internal to
+            org.hiero.consensus.pcli;
+    exports com.swirlds.platform.reconnect.api;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.cli;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
@@ -121,23 +112,26 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.event.creator;
+    requires transitive org.hiero.consensus.event.intake;
+    requires transitive org.hiero.consensus.hashgraph;
+    requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.pces.impl;
+    requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
-    requires transitive com.fasterxml.jackson.annotation;
-    requires transitive com.fasterxml.jackson.databind;
-    requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
+    requires org.hiero.consensus.pces;
     requires com.fasterxml.jackson.core;
+    requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
-    requires com.google.common;
-    requires java.annotation;
     requires java.desktop;
     requires java.management;
     requires java.scripting;
@@ -148,4 +142,6 @@ module com.swirlds.platform.core {
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.swirlds.platform.config.PlatformConfigurationExtension;
+    provides com.swirlds.platform.reconnect.api.ProtocolFactory with
+            com.swirlds.platform.reconnect.ReconnectProtocolFactory;
 }

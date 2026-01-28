@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.util;
 
-import static com.swirlds.common.formatting.TextEffect.BLUE;
-import static com.swirlds.common.formatting.TextEffect.CYAN;
-import static com.swirlds.common.formatting.TextEffect.GRAY;
-import static com.swirlds.common.formatting.TextEffect.GREEN;
-import static com.swirlds.common.formatting.TextEffect.PURPLE;
-import static com.swirlds.common.formatting.TextEffect.RED;
-import static com.swirlds.common.formatting.TextEffect.WHITE;
-import static com.swirlds.common.formatting.TextEffect.YELLOW;
+import static com.swirlds.base.formatting.TextEffect.BLUE;
+import static com.swirlds.base.formatting.TextEffect.CYAN;
+import static com.swirlds.base.formatting.TextEffect.GRAY;
+import static com.swirlds.base.formatting.TextEffect.GREEN;
+import static com.swirlds.base.formatting.TextEffect.PURPLE;
+import static com.swirlds.base.formatting.TextEffect.RED;
+import static com.swirlds.base.formatting.TextEffect.WHITE;
+import static com.swirlds.base.formatting.TextEffect.YELLOW;
 
-import com.swirlds.common.formatting.TextEffect;
+import com.swirlds.base.formatting.TextEffect;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

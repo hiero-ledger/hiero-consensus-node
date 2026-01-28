@@ -22,17 +22,22 @@ import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
+import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
+import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -96,6 +101,20 @@ public interface FacilityInitModule {
     @Provides
     @ElementsIntoSet
     @Singleton
+    static Set<QueryFeeCalculator> provideConsensusQueryFeeCalculators(ConsensusServiceImpl consensusService) {
+        return consensusService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideTokenQueryFeeCalculators(TokenServiceImpl tokenService) {
+        return tokenService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
     static Set<ServiceFeeCalculator> provideScheduleServiceFeeCalculators(ScheduleServiceImpl scheduleService) {
         return scheduleService.serviceFeeCalculators();
     }
@@ -103,8 +122,57 @@ public interface FacilityInitModule {
     @Provides
     @ElementsIntoSet
     @Singleton
+    static Set<QueryFeeCalculator> provideScheduleQueryFeeCalculators(ScheduleServiceImpl scheduleService) {
+        return scheduleService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
     static Set<ServiceFeeCalculator> provideFileServiceFeeCalculators(FileServiceImpl fileService) {
         return fileService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideFileQueryFeeCalculators(FileServiceImpl fileService) {
+        return fileService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideContractServiceFeeCalculators(ContractServiceImpl contractService) {
+        return contractService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideUtilServiceFeeCalculators(UtilServiceImpl utilService) {
+        return utilService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideNetworkQueryFeeCalculators(NetworkServiceImpl networkService) {
+        return networkService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideAddressBookFeeCalculators(AddressBookServiceImpl addressBookService) {
+        return addressBookService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideContractQueryFeeCalculators(ContractServiceImpl contractService) {
+        return contractService.queryFeeCalculators();
     }
 
     @Provides

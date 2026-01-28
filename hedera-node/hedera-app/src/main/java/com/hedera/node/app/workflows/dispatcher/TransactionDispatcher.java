@@ -2,13 +2,12 @@
 package com.hedera.node.app.workflows.dispatcher;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -19,11 +18,9 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.config.data.FeesConfig;
-import com.hederahashgraph.api.proto.java.ExchangeRate;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.hapi.fees.FeeResult;
 
 /**
  * A {@code TransactionDispatcher} provides functionality to forward pre-check, pre-handle, and handle-transaction
@@ -38,6 +35,26 @@ public class TransactionDispatcher {
     public static final String TYPE_NOT_SUPPORTED = "This transaction type is not supported";
     public static final String SYSTEM_DELETE_WITHOUT_ID_CASE = "SystemDelete without IdCase";
     public static final String SYSTEM_UNDELETE_WITHOUT_ID_CASE = "SystemUndelete without IdCase";
+
+    /**
+     * No-op handler to simplify externalizing informational system txs in the consensus stream.
+     */
+    private static final TransactionHandler NOOP_HANDLER = new TransactionHandler() {
+        @Override
+        public void preHandle(@NonNull PreHandleContext context) {
+            // No-op
+        }
+
+        @Override
+        public void pureChecks(@NonNull PureChecksContext context) {
+            // No-op
+        }
+
+        @Override
+        public void handle(@NonNull HandleContext context) throws HandleException {
+            // No-op
+        }
+    };
 
     protected final TransactionHandlers handlers;
     protected final FeeManager feeManager;
@@ -149,32 +166,38 @@ public class TransactionDispatcher {
                     SCHEDULE_CREATE,
                     SCHEDULE_SIGN,
                     SCHEDULE_DELETE -> true;
-            case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE -> true;
+            case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE, SYSTEM_DELETE, SYSTEM_UNDELETE -> true;
+            case UTIL_PRNG, ATOMIC_BATCH -> true;
             case TOKEN_CREATION,
                     TOKEN_MINT,
                     TOKEN_BURN,
                     TOKEN_DELETION,
-                    TOKEN_PAUSE,
+                    TOKEN_FEE_SCHEDULE_UPDATE,
                     TOKEN_FREEZE,
+                    TOKEN_ASSOCIATE,
+                    TOKEN_DISSOCIATE,
+                    TOKEN_GRANT_KYC,
+                    TOKEN_PAUSE,
+                    TOKEN_REVOKE_KYC,
+                    TOKEN_REJECT,
+                    TOKEN_UNFREEZE,
                     TOKEN_UNPAUSE,
-                    TOKEN_UNFREEZE -> true;
+                    TOKEN_AIRDROP,
+                    TOKEN_CLAIM_AIRDROP,
+                    TOKEN_CANCEL_AIRDROP,
+                    TOKEN_UPDATE,
+                    TOKEN_UPDATE_NFTS,
+                    TOKEN_WIPE -> true;
+            case NODE_CREATE, NODE_UPDATE, NODE_DELETE -> true;
+            case CONTRACT_CREATE_INSTANCE,
+                    CONTRACT_DELETE_INSTANCE,
+                    CONTRACT_CALL,
+                    CONTRACT_UPDATE_INSTANCE,
+                    ETHEREUM_TRANSACTION,
+                    HOOK_STORE,
+                    HOOK_DISPATCH -> true;
             default -> false;
         };
-    }
-
-    private static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
-        final var hbarEquiv = rate.getHbarEquiv();
-        if (productWouldOverflow(amount, hbarEquiv)) {
-            return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
-        }
-        return amount * hbarEquiv / rate.getCentEquiv();
-    }
-
-    private static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
-        return new Fees(
-                tinycentsToTinybars(feeResult.node, rate),
-                tinycentsToTinybars(feeResult.network, rate),
-                tinycentsToTinybars(feeResult.service, rate));
     }
 
     /**
@@ -208,7 +231,7 @@ public class TransactionDispatcher {
             case CONTRACT_CALL -> handlers.contractCallHandler();
             case CONTRACT_DELETE_INSTANCE -> handlers.contractDeleteHandler();
             case ETHEREUM_TRANSACTION -> handlers.ethereumTransactionHandler();
-            case LAMBDA_SSTORE -> handlers.lambdaSStoreHandler();
+            case HOOK_STORE -> handlers.hookStoreHandler();
             case HOOK_DISPATCH -> handlers.hookDispatchHandler();
 
             case CRYPTO_CREATE_ACCOUNT -> handlers.cryptoCreateHandler();
@@ -282,6 +305,7 @@ public class TransactionDispatcher {
                     case FILE_ID -> handlers.fileSystemUndeleteHandler();
                     default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
                 };
+            case LEDGER_ID_PUBLICATION -> NOOP_HANDLER;
 
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };

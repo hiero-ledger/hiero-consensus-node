@@ -4,8 +4,8 @@ package com.hedera.node.app.history;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.hex;
 
-import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
+import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
@@ -26,12 +26,20 @@ public interface HistoryLibrary {
     Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
 
     /**
+     * A placeholder metadata for the genesis WRAPS proof.
+     */
+    byte[] GENESIS_WRAPS_METADATA = new byte[1288];
+
+    /**
      * An address book for use in the history library.
      * @param weights the weights of the nodes in the address book
      * @param publicKeys the public keys of the nodes in the address book
      * @param nodeIds the node ids
      */
-    record AddressBook(@NonNull long[] weights, @NonNull byte[][] publicKeys, @NonNull long[] nodeIds) {
+    record AddressBook(
+            @NonNull long[] weights,
+            @NonNull byte[][] publicKeys,
+            @NonNull long[] nodeIds) {
         public AddressBook {
             requireNonNull(weights);
             requireNonNull(publicKeys);
@@ -122,9 +130,14 @@ public interface HistoryLibrary {
     }
 
     /**
+     * The verification key for WRAPS proofs.
+     */
+    byte[] wrapsVerificationKey();
+
+    /**
      * Returns a new Schnorr key pair.
      */
-    SigningAndVerifyingSchnorrKeys newSchnorrKeyPair();
+    SchnorrKeys newSchnorrKeyPair();
 
     /**
      * Computes the hash of the given address book with the same algorithm used by the SNARK circuit.
@@ -248,8 +261,7 @@ public interface HistoryLibrary {
             @NonNull Set<Long> signers);
 
     /**
-     * Verifies a WRAPS proof.
-     * @return true if the proof is valid; false otherwise
+     * Returns whether the library is ready to be used.
      */
-    boolean isValidWraps(byte[] compressedProof);
+    boolean wrapsProverReady();
 }

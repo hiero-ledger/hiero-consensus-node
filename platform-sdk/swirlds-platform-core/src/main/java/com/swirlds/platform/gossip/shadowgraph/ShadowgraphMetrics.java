@@ -5,8 +5,8 @@ import static com.swirlds.metrics.api.FloatFormats.FORMAT_5_3;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.stats.AverageStat;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.statistics.AverageStat;
 
 /**
  * Encapsulates metrics for the shadowgraph.

@@ -39,17 +39,16 @@ import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.pces.config.PcesConfig;
 
 /**
  * Configuration utility that provides access to system properties and Hedera platform configuration.
@@ -108,7 +107,6 @@ public final class ConfigUtils {
                 .withConfigDataType(VersionConfig.class)
                 .withConfigDataType(LedgerConfig.class)
                 .withConfigDataType(TokensConfig.class)
-                .withConfigDataType(AddressBookConfig.class)
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(AccountsConfig.class)
                 .withConfigDataType(TssConfig.class)

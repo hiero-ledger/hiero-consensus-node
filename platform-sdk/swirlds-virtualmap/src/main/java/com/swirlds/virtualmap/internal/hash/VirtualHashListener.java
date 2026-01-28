@@ -4,7 +4,6 @@ package com.swirlds.virtualmap.internal.hash;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.crypto.Hash;
 
 /**
  * Listens to various events that occur during the hashing process.

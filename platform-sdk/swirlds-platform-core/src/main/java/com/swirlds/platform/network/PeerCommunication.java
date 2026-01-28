@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
-import com.google.common.collect.ImmutableList;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.framework.StoppableThread;
-import com.swirlds.common.threading.framework.TypedStoppableThread;
-import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.ThreadConfig;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
@@ -23,6 +18,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +28,10 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
+import org.hiero.consensus.concurrent.framework.StoppableThread;
+import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
+import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -48,7 +48,7 @@ public class PeerCommunication implements ConnectionTracker {
     private StaticTopology topology;
     private final KeysAndCerts ownKeysAndCerts;
     private final PlatformContext platformContext;
-    private ImmutableList<PeerInfo> peers;
+    private List<PeerInfo> peers;
     private final PeerInfo selfPeer;
     private DynamicConnectionManagers connectionManagers;
     private ThreadManager threadManager;
@@ -66,8 +66,8 @@ public class PeerCommunication implements ConnectionTracker {
      * Create manager of communication with neighbouring nodes for exchanging events.
      *
      * @param platformContext the platform context
-     * @param peers           the current list of peers
-     * @param selfPeer        this node's data
+     * @param peers the current list of peers
+     * @param selfPeer this node's data
      * @param ownKeysAndCerts private keys and public certificates for this node
      */
     public PeerCommunication(
@@ -78,7 +78,7 @@ public class PeerCommunication implements ConnectionTracker {
 
         this.ownKeysAndCerts = Objects.requireNonNull(ownKeysAndCerts);
         this.platformContext = Objects.requireNonNull(platformContext);
-        this.peers = ImmutableList.copyOf(Objects.requireNonNull(peers));
+        this.peers = Collections.unmodifiableList(Objects.requireNonNull(peers));
         this.selfPeer = Objects.requireNonNull(selfPeer);
         this.selfId = selfPeer.nodeId();
 
@@ -91,9 +91,9 @@ public class PeerCommunication implements ConnectionTracker {
     /**
      * Second half of constructor, to initialize things which cannot be passed in the constructor for whatever reasons
      *
-     * @param threadManager      the thread manager
+     * @param threadManager the thread manager
      * @param handshakeProtocols list of handshake protocols for new connections
-     * @param protocols          list of peer protocols for handling data for established connection
+     * @param protocols list of peer protocols for handling data for established connection
      */
     public void initialize(
             @NonNull final ThreadManager threadManager,
@@ -135,7 +135,7 @@ public class PeerCommunication implements ConnectionTracker {
      * data in added. Internally it will be first removed and then added, so there can be a short moment when it will
      * drop out of the network if disconnect happens at a bad moment.
      *
-     * @param added   peers to be added
+     * @param added peers to be added
      * @param removed peers to be removed
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
@@ -176,7 +176,7 @@ public class PeerCommunication implements ConnectionTracker {
             }
 
             // maybe sort peers before converting to list to preserve similar order for various interations/prinouts?
-            this.peers = ImmutableList.copyOf(newPeers.values());
+            this.peers = List.copyOf(newPeers.values());
             this.topology = new StaticTopology(peers, selfPeer.nodeId());
 
             connectionManagers.addRemovePeers(added, removed, topology);
@@ -344,7 +344,7 @@ public class PeerCommunication implements ConnectionTracker {
 /**
  * Represents a thread created for a specific context
  *
- * @param key    opaque context for which this thread is created
+ * @param key opaque context for which this thread is created
  * @param thread thread itself, to be started/stopped/forgotten depending on the key context
  */
 record DedicatedStoppableThread<E>(@NonNull E key, @Nullable StoppableThread thread) {}

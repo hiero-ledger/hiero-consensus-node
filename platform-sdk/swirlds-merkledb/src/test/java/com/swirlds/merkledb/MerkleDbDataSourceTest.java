@@ -137,8 +137,8 @@ class MerkleDbDataSourceTest {
                 final int rank = com.swirlds.virtualmap.internal.Path.getRank(i);
                 if (isLeaf || (rank % hashChunkHeight == 0)) {
                     final var hash = VirtualMapTestUtils.loadHash(dataSource, i, hashChunkHeight);
-                    assertEquals(hash(i), hash,
-                            "The hash for [" + i + "] should not have changed since it was created");
+                    assertEquals(
+                            hash(i), hash, "The hash for [" + i + "] should not have changed since it was created");
                 }
             }
 
@@ -166,27 +166,18 @@ class MerkleDbDataSourceTest {
         // 0 initial capacity
         assertThrows(IllegalStateException.class, () -> TestType.variable_variable
                 .dataType()
-                .createDataSource(
-                        Path.of("badInitialCapacityZero" + nextInt()),
-                        "badInitialZero",
-                        0,
-                        false,
-                        false));
+                .createDataSource(CONFIGURATION, testDirectory.resolve("badInitialCapacityZero" + nextInt()), "badInitialZero", 0, false, false));
         // negative initial capacity
         assertThrows(IllegalStateException.class, () -> TestType.variable_variable
                 .dataType()
                 .createDataSource(
-                        Path.of("badInitialCapacityNegative" + nextInt()),
-                        "badInitialNeg",
-                        -1,
-                        false,
-                        false));
+                        CONFIGURATION, testDirectory.resolve("badInitialCapacityNegative" + nextInt()), "badInitialNeg", -1, false, false));
     }
 
     @ParameterizedTest
     @EnumSource(TestType.class)
     void testRandomHashUpdates(final TestType testType) throws IOException {
-        final int testSize = 1000;
+        final int testSize = 2000;
         createAndApplyDataSource(testDirectory, "test2", testType, testSize, dataSource -> {
             final int chunkHeight = dataSource.getHashChunkHeight();
             // create some node hashes
@@ -208,8 +199,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     testSize,
                     testSize * 2,
-                    createHashChunkStream(
-                            testSize / 10 + 1, testSize * 2, i -> i * 10, chunkHeight),
+                    createHashChunkStream(testSize / 10 + 1, testSize * 2, i -> i * 10, chunkHeight),
                     Stream.empty(),
                     Stream.empty(),
                     false);
@@ -274,8 +264,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     firstLeafPath,
                     lastLeafPath,
-                    createHashChunkStream(
-                            firstLeafPath, lastLeafPath, i -> i, dataSource.getHashChunkHeight()),
+                    createHashChunkStream(firstLeafPath, lastLeafPath, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(firstLeafPath, lastLeafPath + 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty(),
@@ -283,7 +272,8 @@ class MerkleDbDataSourceTest {
             // check all the leaf data
             IntStream.range(firstLeafPath, lastLeafPath + 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // update all to i+10,000 in a random order
-            final int[] randomInts = shuffle(RANDOM, IntStream.range(firstLeafPath, lastLeafPath + 1).toArray());
+            final int[] randomInts = shuffle(
+                    RANDOM, IntStream.range(firstLeafPath, lastLeafPath + 1).toArray());
             dataSource.saveRecords(
                     firstLeafPath,
                     lastLeafPath,
@@ -583,7 +573,7 @@ class MerkleDbDataSourceTest {
         assertDoesNotThrow(
                 () -> TestType.long_fixed
                         .dataType()
-                        .createDataSource(testDirectory, "testDB", 1000, false, false)
+                        .createDataSource(CONFIGURATION, testDirectory, "testDB", 1000, false, false)
                         .close(),
                 "Should be possible to instantiate data source with merging disabled");
         // check db count
@@ -749,7 +739,7 @@ class MerkleDbDataSourceTest {
 
             // Restore
             final MerkleDbDataSource snapshot =
-                    testType.dataType().createDataSource(snapshotDbPath, dbName, size, false, false);
+                    testType.dataType().createDataSource(CONFIGURATION, snapshotDbPath, dbName, size, false, false);
             // Check all hashes are migrated successfully
             try {
                 for (long i = firstLeafPath; i <= lastLeafPath; i++) {
@@ -880,7 +870,7 @@ class MerkleDbDataSourceTest {
     @EnumSource(TestType.class)
     void closeWhileFlushingTest(final TestType testType) throws IOException, InterruptedException {
         final Path dbPath = testDirectory.resolve("merkledb-closeWhileFlushingTest-" + testType);
-        final MerkleDbDataSource dataSource = testType.dataType().createDataSource(dbPath, "vm", 1000, false, false);
+        final MerkleDbDataSource dataSource = testType.dataType().createDataSource(CONFIGURATION, dbPath, "vm", 1000, false, false);
 
         final int count = 20;
         final List<Bytes> keys = new ArrayList<>(count);
@@ -942,7 +932,7 @@ class MerkleDbDataSourceTest {
             CheckedConsumer<MerkleDbDataSource, Exception> dataSourceConsumer)
             throws IOException {
         final MerkleDbDataSource dataSource =
-                testType.dataType().createDataSource(testDirectory, name, size, false, false);
+                testType.dataType().createDataSource(CONFIGURATION, testDirectory, name, size, false, false);
         try {
             dataSourceConsumer.accept(dataSource);
         } catch (Throwable e) {

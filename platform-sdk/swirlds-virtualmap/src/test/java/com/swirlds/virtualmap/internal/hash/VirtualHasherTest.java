@@ -10,6 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -38,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Tests for the {@link VirtualHasher}.
@@ -56,7 +60,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final List<VirtualLeafBytes> leaves = new ArrayList<>();
         assertThrows(
                 NullPointerException.class,
-                () -> hasher.hash(null, leaves.iterator(), 1, 2, null, VIRTUAL_MAP_CONFIG),
+                () -> hasher.hash(CHUNK_HEIGHT, null, leaves.iterator(), 1, 2, null, VIRTUAL_MAP_CONFIG),
                 "Call should have produced an NPE");
     }
 
@@ -71,7 +75,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final VirtualHasher hasher = new VirtualHasher();
         assertThrows(
                 NullPointerException.class,
-                () -> hasher.hash(ds::loadHashChunk, null, 1, 2, null, VIRTUAL_MAP_CONFIG),
+                () -> hasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, null, 1, 2, null, VIRTUAL_MAP_CONFIG),
                 "Call should have produced an NPE");
     }
 
@@ -87,7 +91,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final VirtualHasher hasher = new VirtualHasher();
         final List<VirtualLeafBytes> leaves = new ArrayList<>();
         assertNull(
-                hasher.hash(ds::loadHashChunk, leaves.iterator(), 1, 2, null, VIRTUAL_MAP_CONFIG),
+                hasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, leaves.iterator(), 1, 2, null, VIRTUAL_MAP_CONFIG),
                 "Call should have returned a null hash");
     }
 
@@ -104,6 +108,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         // Empty dirty leaves stream -> null hash
         assertNull(
                 hasher.hash(
+                        CHUNK_HEIGHT,
                         ds::loadHashChunk,
                         emptyLeaves.iterator(),
                         Path.INVALID_PATH,
@@ -112,16 +117,16 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                         VIRTUAL_MAP_CONFIG),
                 "Call should have produced null");
         assertNull(
-                hasher.hash(ds::loadHashChunk, emptyLeaves.iterator(), Path.INVALID_PATH, 2, null, VIRTUAL_MAP_CONFIG),
+                hasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), Path.INVALID_PATH, 2, null, VIRTUAL_MAP_CONFIG),
                 "Call should have produced null");
         assertNull(
-                hasher.hash(ds::loadHashChunk, emptyLeaves.iterator(), 1, Path.INVALID_PATH, null, VIRTUAL_MAP_CONFIG),
+                hasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), 1, Path.INVALID_PATH, null, VIRTUAL_MAP_CONFIG),
                 "Call should have produced null");
         assertNull(
-                hasher.hash(ds::loadHashChunk, emptyLeaves.iterator(), 0, 2, null, VIRTUAL_MAP_CONFIG),
+                hasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), 0, 2, null, VIRTUAL_MAP_CONFIG),
                 "Call should have produced null");
         assertNull(
-                hasher.hash(ds::loadHashChunk, emptyLeaves.iterator(), 1, 0, null, VIRTUAL_MAP_CONFIG),
+                hasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), 1, 0, null, VIRTUAL_MAP_CONFIG),
                 "Call should have produced null");
         // Non-empty dirty leaves stream + empty leaf path range -> IllegalStateException
         final List<VirtualLeafBytes> nonEmptyLeaves = new ArrayList<>();
@@ -129,6 +134,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> hasher.hash(
+                        CHUNK_HEIGHT,
                         ds::loadHashChunk,
                         nonEmptyLeaves.iterator(),
                         Path.INVALID_PATH,
@@ -138,11 +144,11 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                 "Non-null leaves iterator + invalid paths should throw an exception");
         assertThrows(
                 IllegalArgumentException.class,
-                () -> hasher.hash(ds::loadHashChunk, nonEmptyLeaves.iterator(), 0, 2, null, VIRTUAL_MAP_CONFIG),
+                () -> hasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, nonEmptyLeaves.iterator(), 0, 2, null, VIRTUAL_MAP_CONFIG),
                 "Non-null leaves iterator + invalid paths should throw an exception");
         assertThrows(
                 IllegalArgumentException.class,
-                () -> hasher.hash(ds::loadHashChunk, nonEmptyLeaves.iterator(), 1, 0, null, VIRTUAL_MAP_CONFIG),
+                () -> hasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, nonEmptyLeaves.iterator(), 1, 0, null, VIRTUAL_MAP_CONFIG),
                 "Non-null leaves iterator + invalid paths should throw an exception");
     }
 
@@ -169,13 +175,12 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final Hash expected = hashTree(ds);
         final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyPaths.stream());
         final Hash rootHash = hasher.hash(
-                ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+                CHUNK_HEIGHT, ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
         assertEquals(expected, rootHash, "Hash value does not match expected");
 
         // Make sure the saver saw each dirty node exactly once.
-        final Set<Long> savedChunks = listener.unsortedChunks().stream()
-                .map(VirtualHashChunk::path)
-                .collect(Collectors.toSet());
+        final Set<Long> savedChunks =
+                listener.unsortedChunks().stream().map(VirtualHashChunk::path).collect(Collectors.toSet());
         final Set<VirtualHashChunk> seenChunks = new HashSet<>();
         for (final Long dirtyPath : dirtyPaths) {
             final long chunkPath = VirtualHashChunk.pathToChunkPath(dirtyPath, CHUNK_HEIGHT);
@@ -195,7 +200,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         assertCallsAreBalanced(listener);
 
         final Hash hashItAgain = hasher.hash(
-                ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+                CHUNK_HEIGHT, ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
         assertEquals(expected, hashItAgain, "Hash value does not match expected");
 
         for (int i = 0; i < leaves.size(); i++) {
@@ -208,7 +213,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         }
         leaves.sort(Comparator.comparing(VirtualLeafBytes::path));
         final Hash hashItOnceMore = hasher.hash(
-                ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+                CHUNK_HEIGHT, ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
         assertEquals(expected, hashItOnceMore, "Hash value does not match expected");
     }
 
@@ -332,13 +337,14 @@ class VirtualHasherTest extends VirtualHasherTestBase {
      * If this test fails, then there is a legitimate issue. If it passes, it only means that we
      * *may* not have a problem. So if this is intermittent, then we have a problem.
      */
-    @Test
+    @ParameterizedTest
+    @ValueSource(ints = {2, 3, 4, 5, 6})
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Test the same situation over and over and over")
-    void repeatedTest() throws Exception {
+    void repeatedTest(final int chunkHeight) throws Exception {
         final long firstLeafPath = 52L;
         final long lastLeafPath = firstLeafPath * 2;
-        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, CHUNK_HEIGHT);
+        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, chunkHeight);
         final VirtualHasher hasher = new VirtualHasher();
         final Hash expected = hashTree(ds);
         final List<Long> dirtyLeafPaths = List.of(
@@ -349,7 +355,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         for (int i = 0; i < 500; i++) {
             final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
             final Hash rootHash = hasher.hash(
-                    ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
+                    chunkHeight, ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
             assertEquals(expected, rootHash, "Expected equals");
         }
 
@@ -363,19 +369,19 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         for (int i = 0; i < 500; i++) {
             final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
             final Hash rootHash = hasher.hash(
-                    ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+                    chunkHeight, ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
             assertEquals(expected, rootHash, "Expected equals");
         }
     }
 
-    @Test
-    void test1() throws Exception {
+    @ParameterizedTest
+    @ValueSource(ints = {2, 3, 4, 5, 6})
+    void testAllDirtyLeaves(final int chunkHeight) throws Exception {
         final long firstLeafPath = 801;
         final long lastLeafPath = firstLeafPath * 2;
-        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, CHUNK_HEIGHT);
+        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, chunkHeight);
         final VirtualHasher hasher = new VirtualHasher();
         final Hash expected = hashTree(ds);
-        System.err.println("---");
         final List<Long> dirtyLeafPaths =
                 LongStream.range(firstLeafPath, lastLeafPath + 1).boxed().toList();
 
@@ -387,13 +393,12 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         };
         final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
         final Hash rootHash = hasher.hash(
-                ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+                chunkHeight, ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
         assertEquals(expected, rootHash, "Expected equals");
-        System.err.println("---");
 
         final List<VirtualLeafBytes> oneDirtyLeaf = List.of(ds.getLeaf((firstLeafPath + lastLeafPath) / 2));
         final Hash hashItAgain = hasher.hash(
-                ds::loadHashChunk, oneDirtyLeaf.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
+                chunkHeight, ds::loadHashChunk, oneDirtyLeaf.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
         assertEquals(expected, hashItAgain, "Expected equals");
     }
 
@@ -406,9 +411,17 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Verify methods on the listener are called at the right frequency")
     void listenerCallCounts() throws Exception {
+        // This test relies on hash chunk height to be 5
+        final int hashChunkHeight = 5;
+        final Configuration config = ConfigurationBuilder.create()
+                .withConfigDataType(VirtualMapConfig.class)
+                .withValue("virtualMap.virtualHasherChunkHeight", "" + hashChunkHeight)
+                .build();
+        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
+
         final long firstLeafPath = 52L;
         final long lastLeafPath = firstLeafPath * 2;
-        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, CHUNK_HEIGHT);
+        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, hashChunkHeight);
         final HashingListener listener = new HashingListener();
         final VirtualHasher hasher = new VirtualHasher();
         hashTree(ds);
@@ -416,7 +429,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                 53L, 56L, 59L, 63L, 66L, 72L, 76L, 77L, 80L, 81L, 82L, 83L, 85L, 87L, 88L, 94L, 96L, 100L, 104L);
 
         final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
-        hasher.hash(ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+        hasher.hash(hashChunkHeight, ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, virtualMapConfig);
 
         // Check the different callbacks were called the correct number of times
         assertEquals(1, listener.onHashingStartedCallCount, "Unexpected count");
@@ -460,7 +473,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         assertDoesNotThrow(
                 () -> {
                     hasher.hash(
-                            hashChunkReader, dirtyLeaves, firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+                            CHUNK_HEIGHT, hashChunkReader, dirtyLeaves, firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
                 },
                 "Hashing should not throw an exception");
     }

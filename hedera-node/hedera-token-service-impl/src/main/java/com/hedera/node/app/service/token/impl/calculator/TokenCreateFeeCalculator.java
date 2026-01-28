@@ -5,7 +5,6 @@ import static com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl.countKeys;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
@@ -26,7 +25,7 @@ public class TokenCreateFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_CREATE);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
         var op = txnBody.tokenCreationOrThrow();
         long keys = 0;
         if (op.hasAdminKey()) {
@@ -55,11 +54,8 @@ public class TokenCreateFeeCalculator implements ServiceFeeCalculator {
         }
         addExtraFee(feeResult, serviceDef, Extra.KEYS, feeSchedule, keys);
 
-        if (op.tokenType() == TokenType.FUNGIBLE_COMMON) {
-            addExtraFee(feeResult, serviceDef, Extra.TOKEN_CREATE_FUNGIBLE, feeSchedule, 1);
-        }
-        if (op.tokenType() == TokenType.NON_FUNGIBLE_UNIQUE) {
-            addExtraFee(feeResult, serviceDef, Extra.TOKEN_CREATE_NFT, feeSchedule, 1);
+        if (!op.customFees().isEmpty()) {
+            addExtraFee(feeResult, serviceDef, Extra.TOKEN_CREATE_WITH_CUSTOM_FEE, feeSchedule, 1);
         }
     }
 

@@ -23,7 +23,6 @@ jmhModuleInfo {
 }
 
 testModuleInfo {
-    requires("com.google.common")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
@@ -35,6 +34,8 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
+
+    runtimeOnly("com.swirlds.platform.core")
 }
 
 hammerModuleInfo {

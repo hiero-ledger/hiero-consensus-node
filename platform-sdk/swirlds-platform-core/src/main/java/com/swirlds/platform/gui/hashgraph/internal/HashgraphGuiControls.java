@@ -28,8 +28,6 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     private final Checkbox freezeCheckbox;
     /** if checked, color vertices only green (non-consensus) or blue (consensus) */
     private final Checkbox simpleColorsCheckbox;
-    /** if checked, use multiple columns per member to void lines crossing */
-    private final Checkbox expandCheckbox;
 
     // the following control which labels to print on each vertex
 
@@ -66,7 +64,6 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         freezeCheckbox = new Checkbox("Freeze: don't change this window");
         freezeCheckbox.addItemListener(freezeListener);
         simpleColorsCheckbox = new Checkbox("Colors: blue=consensus, green=not");
-        expandCheckbox = new Checkbox("Expand: wider so lines don't cross");
         labelRoundCheckbox = new Checkbox("Labels: Round created");
         labelVoteCheckbox = new Checkbox("Labels: Vote");
         labelEventHashCheckbox = new Checkbox("Labels: Event Hash (h)");
@@ -106,7 +103,6 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         comps = new Component[] {
             freezeCheckbox,
             simpleColorsCheckbox,
-            expandCheckbox,
             labelRoundCheckbox,
             labelVoteCheckbox,
             labelEventHashCheckbox,
@@ -119,16 +115,6 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
             labelDeGenCheckbox,
             displayLatestEvents
         };
-    }
-
-    /**
-     * Set the state of the expanded control
-     *
-     * @param expand
-     * 		the state to set it to
-     */
-    public void setExpanded(final boolean expand) {
-        expandCheckbox.setState(expand);
     }
 
     /**
@@ -218,11 +204,6 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     @Override
     public boolean isPictureFrozen() {
         return freezeCheckbox.getState();
-    }
-
-    @Override
-    public boolean isExpanded() {
-        return expandCheckbox.getState();
     }
 
     @Override

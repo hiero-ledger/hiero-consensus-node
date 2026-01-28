@@ -8,7 +8,6 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
 
@@ -71,7 +70,7 @@ public interface State extends FastCopyable, Hashable {
     /**
      * Returns a calculated hash of the state.
      */
-    @Nullable
+    @NonNull
     default Hash getHash() {
         throw new UnsupportedOperationException();
     }

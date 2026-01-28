@@ -18,7 +18,6 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
-import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,7 +29,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -75,9 +73,9 @@ class ReconnectHashListenerTest {
                 new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", null, true, false));
 
         final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
-        final int hashChunkHeight = VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight();
+        final int hashChunkHeight = ds.getHashChunkHeight();
         final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(
-                ds, hashChunkHeight, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
+                ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
 
         // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
         final int first = size - 1;
@@ -90,6 +88,7 @@ class ReconnectHashListenerTest {
             return new VirtualHashChunk(chunkPath, hashChunkHeight);
         };
         hasher.hash(
+                hashChunkHeight,
                 chunkPreloader,
                 LongStream.range(first, last + 1).mapToObj(this::leaf).iterator(),
                 first,
@@ -226,6 +225,11 @@ class ReconnectHashListenerTest {
         @Override
         public long getLastLeafPath() {
             return delegate.getLastLeafPath();
+        }
+
+        @Override
+        public int getHashChunkHeight() {
+            return delegate.getHashChunkHeight();
         }
 
         @Override

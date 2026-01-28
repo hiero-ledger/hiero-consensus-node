@@ -63,7 +63,7 @@ public class CloseFlushTest {
         for (int j = 0; j < 100; j++) {
             final Path storeDir = tmpFileDir.resolve("closeFlushTest-" + j);
             final VirtualDataSource dataSource =
-                    TestType.long_fixed.dataType().createDataSource(storeDir, "closeFlushTest", count, false, true);
+                    TestType.long_fixed.dataType().createDataSource(CONFIGURATION, storeDir, "closeFlushTest", count, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
             final VirtualDataSourceBuilder builder = new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION);
@@ -121,11 +121,6 @@ public class CloseFlushTest {
             super(configuration);
             this.delegate = delegate;
             this.exceptionSink = sink;
-        }
-
-        @Override
-        public long getClassId() {
-            return super.getClassId() + 1;
         }
 
         @NonNull
@@ -197,12 +192,19 @@ public class CloseFlushTest {
                     delegate.registerMetrics(metrics);
                 }
 
+                @Override
                 public long getFirstLeafPath() {
                     return delegate.getFirstLeafPath();
                 }
 
+                @Override
                 public long getLastLeafPath() {
                     return delegate.getLastLeafPath();
+                }
+
+                @Override
+                public int getHashChunkHeight() {
+                    return delegate.getHashChunkHeight();
                 }
 
                 @Override
