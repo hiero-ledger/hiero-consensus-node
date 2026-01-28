@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.hedera.hashgraph</groupId>
+        <artifactId>platform-sdk</artifactId>
+        <version>0.70.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>swirlds-logging-test-fixtures</artifactId>
+    <name>Swirlds Logging Test Fixtures</name>
+    <description>Test fixtures for swirlds-logging module</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.hedera.hashgraph</groupId>
+            <artifactId>swirlds-config-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.hedera.hashgraph</groupId>
+            <artifactId>swirlds-config-extensions-test-fixtures</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.hedera.hashgraph</groupId>
+            <artifactId>swirlds-logging</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.hedera.hashgraph</groupId>
+            <artifactId>swirlds-base-test-fixtures</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <sourceDirectory>../swirlds-logging/src/testFixtures/java</sourceDirectory>
+    </build>
+</project>
