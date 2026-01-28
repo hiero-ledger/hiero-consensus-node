@@ -8,8 +8,6 @@ import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TreeView;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
-import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -98,18 +96,6 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
     /**
      * {@inheritDoc}
      */
-    @Override
-    public long getClassId(final Long originalNode) {
-        checkValidNode(originalNode, originalState);
-        if (originalNode >= originalState.getLastLeafPath()) {
-            return VirtualLeafNode.CLASS_ID;
-        } else if (originalNode > ROOT_PATH) {
-            return VirtualInternalNode.CLASS_ID;
-        } else {
-            return VirtualMap.CLASS_ID;
-        }
-    }
-
     public Long getChild(final Long originalParent, final int childIndex) {
         checkValidInternal(originalParent, originalState);
         assert childIndex >= 0 && childIndex < 2 : "childIndex was not 1 or 2";

@@ -49,28 +49,6 @@ public non-sealed class PartialBinaryMerkleInternal extends AbstractMerkleIntern
     /**
      * {@inheritDoc}
      *
-     * In the binary case this is always BINARY_CHILD_COUNT (2).
-     */
-    @Override
-    public int getMinimumChildCount() {
-        return MIN_BINARY_CHILD_COUNT;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * In the binary case this is always BINARY_CHILD_COUNT (2).
-     *
-     * @return always BINARY_CHILD_COUNT (2), even if the children are null
-     */
-    @Override
-    public int getMaximumChildCount() {
-        return BINARY_CHILD_COUNT;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
      * If the index is either LEFT or RIGHT, then return the correct child
      * otherwise return an IllegalChildIndexException.
      *
