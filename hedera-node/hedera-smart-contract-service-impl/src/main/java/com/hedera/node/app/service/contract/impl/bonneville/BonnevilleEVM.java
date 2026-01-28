@@ -1515,7 +1515,13 @@ class BEVM {
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-        return _abstractCall(trace,str, stipend,to,Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,true);
+        Address contract = to; // _frame.getWorldUpdater().get(to);
+
+        var sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
+            ? FrameUtils.hookOwnerAddress(_frame)
+            : _frame.getRecipientAddress();
+
+        return _abstractCall(trace,str, stipend, to, contract, sender, Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen,true);
     }
 
     // Revert transaction
@@ -1833,10 +1839,11 @@ class BEVM {
         if( halt!=null ) return halt;
 
         // UInt256 already in AdrKey
-        return push( _recv.getStorageValue( ak._ui256 ) );
+        UInt256 val = _recv.getStorageValue( ak._ui256 );
+        return push( val );
     }
 
-    private ExceptionalHaltReason customSLoad() {
+    private ExceptionalHaltReason customSLoad( ) {
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         // Read key before SLOAD replaces it with value
         long key0 = STK0[_sp-1], key1 = STK1[_sp-1], key2 = STK2[_sp-1], key3 = STK3[_sp-1];
@@ -2113,8 +2120,12 @@ class BEVM {
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-        return _abstractCall(trace,str, stipend,to,value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
 
+        var recv_send = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
+            ? FrameUtils.hookOwnerAddress(_frame)
+            : _frame.getRecipientAddress();
+
+        return _abstractCall(trace,str, stipend, recv_send, to, recv_send, value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
     }
 
     // CustomCallOperation
@@ -2137,13 +2148,6 @@ class BEVM {
         return _abstractCall(trace,str, stipend, to, to, sender, value,hasValue,srcOff,srcLen,dstOff,dstLen,_frame.isStatic());
     }
 
-
-    private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address contract, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen, boolean isStatic ) {
-        var recipient_sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
-            ? FrameUtils.hookOwnerAddress(_frame)
-            : _frame.getRecipientAddress();
-        return _abstractCall(trace, str, stipend, recipient_sender, contract, recipient_sender, value, hasValue, srcOff, srcLen, dstOff, dstLen, isStatic );
-    }
 
     private ExceptionalHaltReason _abstractCall(SB trace, String str, long stipend, Address recipient, Address contract, Address sender, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen, boolean isStatic ) {
         Account contractAccount = _frame.getWorldUpdater().get(contract);
