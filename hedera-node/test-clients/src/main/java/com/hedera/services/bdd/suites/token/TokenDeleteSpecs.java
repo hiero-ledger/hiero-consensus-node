@@ -149,7 +149,7 @@ public class TokenDeleteSpecs {
                 getTokenInfo("tbd").logged(),
                 getAccountInfo(TOKEN_TREASURY).logged(),
                 cryptoTransfer(moving(1, "tbd").between(TOKEN_TREASURY, GENESIS))
-                        .hasKnownStatus(TOKEN_WAS_DELETED),
+                        .hasPrecheck(TOKEN_WAS_DELETED),
                 mintToken("tbd", 1).hasKnownStatus(TOKEN_WAS_DELETED),
                 burnToken("tbd", 1).hasKnownStatus(TOKEN_WAS_DELETED),
                 revokeTokenKyc("tbd", GENESIS).hasKnownStatus(TOKEN_WAS_DELETED),

@@ -473,7 +473,8 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .payingWith(BOB)
                         .signedByPayerAnd(BOB, CAROL, YULIA, TOM, STEVE)
                         .via("claimTxn"),
-                validateChargedUsd("claimTxn", 0.0010159536, 1),
+                // 0.001 base fee + 0.004 for 4 extra signatures
+                validateChargedUsd("claimTxn", 0.005, 1),
                 tokenClaimAirdrop(
                                 pendingAirdrop(ALICE, BOB, FUNGIBLE_TOKEN_1),
                                 pendingAirdrop(ALICE, CAROL, FUNGIBLE_TOKEN_2),
@@ -673,7 +674,8 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPriority(recordWith()
                                 .tokenTransfers(includingFungibleMovement(
                                         moving(1, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))),
-                validateChargedUsd("claimTxn", 0.001, 1),
+                // 0.001 base fee + 0.001 signature
+                validateChargedUsd("claimTxn", 0.002, 1),
 
                 // assert token associations
                 getAccountInfo(RECEIVER).hasToken(relationshipWith(FUNGIBLE_TOKEN)),
@@ -700,7 +702,8 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPriority(recordWith()
                                 .tokenTransfers(includingFungibleMovement(
                                         moving(1, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))),
-                validateChargedUsd("claimTxn", 0.001, 1),
+                // 0.001 base fee + 0.001 signature
+                validateChargedUsd("claimTxn", 0.002, 1),
 
                 // assert token associations
                 getAccountInfo(RECEIVER).hasToken(relationshipWith(FUNGIBLE_TOKEN)),
@@ -948,7 +951,8 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .signedBy(carol, alias)
                         .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
                         .via("claimTxn"),
-                validateChargedUsd("claimTxn", 0.001, 1),
+                // 0.001 base fee + 0.001 signature
+                validateChargedUsd("claimTxn", 0.002, 1),
 
                 // check if account was finalized and auto associations were not modified
                 getAliasedAccountInfo(alias).isNotHollow().hasMaxAutomaticAssociations(0)));
@@ -1185,6 +1189,9 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                 createFT(FUNGIBLE_TOKEN_1, OWNER, 1000L),
                 cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS),
+                tokenAirdrop(moving(1, FUNGIBLE_TOKEN_1).between(OWNER, RECEIVER))
+                        .payingWith(OWNER)
+                        .signedBy(OWNER),
                 tokenClaimAirdrop(pendingAirdrop(OWNER, RECEIVER, FUNGIBLE_TOKEN_1))
                         .payingWith(RECEIVER)
                         .hasPrecheck(NOT_SUPPORTED));

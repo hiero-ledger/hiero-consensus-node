@@ -765,7 +765,7 @@ public class CryptoApproveAllowanceSuite {
                         .blankMemo()
                         .logged(),
                 getTxnRecord(APPROVE_TXN),
-                validateChargedUsdWithin(APPROVE_TXN, 0.05238, 0.01),
+                validateChargedUsdWithin(APPROVE_TXN, 0.15, 0.01),
                 getAccountDetails(PAYER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1234,16 +1234,15 @@ public class CryptoApproveAllowanceSuite {
                         .via(BASE_APPROVE_TXN)
                         .blankMemo()
                         .logged(),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.0505, 0.1),
+                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.1, 0.1),
                 cryptoApproveAllowance()
                         .payingWith(SPENDER)
                         .addCryptoAllowance(SPENDER, ANOTHER_SPENDER, 100L)
                         .addCryptoAllowance(SPENDER, SECOND_SPENDER, 100L)
                         .addCryptoAllowance(SPENDER, THIRD_SPENDER, 100L)
                         .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.0509, 0.1));
+                        .blankMemo(),
+                validateChargedUsdWithin(BASE_APPROVE_TXN, 0.15, 0.1));
     }
 
     @HapiTest
@@ -1281,6 +1280,7 @@ public class CryptoApproveAllowanceSuite {
                 cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
+                        .signedBy(OWNER)
                         .addCryptoAllowance(OWNER, SPENDER, 100L)
                         .via(BASE_APPROVE_TXN)
                         .blankMemo()
@@ -1293,7 +1293,8 @@ public class CryptoApproveAllowanceSuite {
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via(APPROVE_TXN)
                         .blankMemo(),
-                validateChargedUsdWithin(APPROVE_TXN, 0.05238, 0.01),
+                // Total 3 allowance so price should be 3x0.5
+                validateChargedUsdWithin(APPROVE_TXN, 0.15, 0.01),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
