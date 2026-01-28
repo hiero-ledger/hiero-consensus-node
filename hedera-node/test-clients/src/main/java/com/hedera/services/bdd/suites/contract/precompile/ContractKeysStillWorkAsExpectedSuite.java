@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -59,6 +60,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 public class ContractKeysStillWorkAsExpectedSuite {
     @HapiTest
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> approvalFallbacksRequiredWithoutTopLevelSigAccess() {
         final AtomicReference<Address> fungibleTokenMirrorAddr = new AtomicReference<>();
         final AtomicReference<Address> nonFungibleTokenMirrorAddr = new AtomicReference<>();

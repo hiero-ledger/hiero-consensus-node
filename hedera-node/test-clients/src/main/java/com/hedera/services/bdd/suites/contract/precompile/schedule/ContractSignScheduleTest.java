@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
@@ -103,6 +104,7 @@ public class ContractSignScheduleTest {
         @HapiTest
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Signature executes schedule transaction")
+        @Tag(ONLY_SUBPROCESS)
         final Stream<DynamicTest> authorizeScheduleWithContract() {
             return hapiTest(
                     getScheduleInfo(SCHEDULE_A).isNotExecuted(),
@@ -153,6 +155,7 @@ public class ContractSignScheduleTest {
         @HapiTest
         @DisplayName("Signature executes schedule transaction")
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+        @Tag(ONLY_SUBPROCESS)
         final Stream<DynamicTest> authorizeScheduleWithContract() {
             return hapiTest(
                     scheduleCreate(SCHEDULE_C, cryptoTransfer(tinyBarsFromTo(CONTRACT, RECEIVER, 1)))
@@ -210,6 +213,7 @@ public class ContractSignScheduleTest {
 
         @HapiTest
         @DisplayName("Signature executes schedule transaction")
+        @Tag(ONLY_SUBPROCESS)
         final Stream<DynamicTest> authorizeScheduleWithContract() {
             return hapiTest(
                     getScheduleInfo(SCHEDULE_E).isNotExecuted(),
