@@ -51,6 +51,7 @@ import "services/state/token/nft.proto";
 import "services/state/token/staking_node_info.proto";
 import "services/state/token/token.proto";
 import "services/state/token/token_relation.proto";
+import "services/state/token/stake_period_info.proto";
 import "platform/state/platform_state.proto";
 import "services/timestamp.proto";
 import "services/auxiliary/tss/tss_message.proto";
@@ -490,6 +491,11 @@ enum StateIdentifier {
     STATE_ID_NODE_PAYMENTS = 55;
 
     /**
+     * A state identifier for the stake period info. Singleton state.
+     */
+    STATE_ID_STAKE_PERIOD_INFO = 56;
+
+    /**
      * A state identifier for the round receipts queue. Queue state.
      */
     STATE_ID_TRANSACTION_RECEIPTS = 126;
@@ -731,6 +737,13 @@ message SingletonUpdateChange {
          * Node payments SHALL be updated for every non-empty block.
          */
         com.hedera.hapi.node.state.token.NodePayments node_payments_value = 19;
+
+        /**
+         * A change to the stake period info singleton.
+         * <p>
+         * Stake period info SHALL be updated for every non-empty block.
+         */
+        com.hedera.hapi.node.state.token.StakePeriodInfo stake_period_info_value = 20;
     }
 }
 

@@ -46,6 +46,7 @@ import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableNodePaymentsStore;
 import com.hedera.node.app.service.token.ReadableNodeRewardsStore;
+import com.hedera.node.app.service.token.ReadableStakePeriodInfoStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -56,6 +57,7 @@ import com.hedera.node.app.service.token.impl.ReadableNetworkStakingRewardsStore
 import com.hedera.node.app.service.token.impl.ReadableNftStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableNodePaymentsStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableNodeRewardsStoreImpl;
+import com.hedera.node.app.service.token.impl.ReadableStakePeriodInfoStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
@@ -108,6 +110,10 @@ public class ReadableStoreFactory {
                 ReadableNodeRewardsStore.class,
                 new StoreEntry(
                         TokenService.NAME, (states, entityCounters) -> new ReadableNodeRewardsStoreImpl(states)));
+        newMap.put(
+                ReadableStakePeriodInfoStore.class,
+                new StoreEntry(
+                        TokenService.NAME, (states, entityCounters) -> new ReadableStakePeriodInfoStoreImpl(states)));
         // Topics
         newMap.put(ReadableTopicStore.class, new StoreEntry(ConsensusService.NAME, ReadableTopicStoreImpl::new));
         // Schedules
