@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.recovery;
 
-import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
@@ -27,6 +27,7 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -106,7 +107,7 @@ public final class EventRecoveryWorkflow {
             @NonNull final Path resultingStateDirectory,
             @NonNull final NodeId selfId,
             final boolean loadSigningKeys)
-            throws IOException {
+            throws IOException, ParseException {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(signedStateDir, "signedStateDir must not be null");
         Objects.requireNonNull(configurationFiles, "configurationFiles must not be null");
@@ -137,15 +138,17 @@ public final class EventRecoveryWorkflow {
         // FUTURE-WORK: Follow Browser approach
         final SwirldMain<? extends MerkleNodeState> hederaApp = HederaUtils.createHederaAppMain(platformContext);
 
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                platformContext.getConfiguration());
+
         final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
                 signedStateDir,
-                v -> hederaApp
-                        .stateRootFromVirtualMap(platformContext.getMetrics())
-                        .apply(v),
-                platformContext);
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), (Function<VirtualMap, MerkleNodeState>)
-                        hederaApp.stateRootFromVirtualMap(platformContext.getMetrics()));
+                platformContext,
+                stateLifecycleManager);
+
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
 
