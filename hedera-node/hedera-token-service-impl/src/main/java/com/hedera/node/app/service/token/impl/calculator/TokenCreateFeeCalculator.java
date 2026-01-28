@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.calculator;
 
-import static com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl.countKeys;
+import static org.hiero.hapi.fees.FeeKeyUtils.countKeys;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
