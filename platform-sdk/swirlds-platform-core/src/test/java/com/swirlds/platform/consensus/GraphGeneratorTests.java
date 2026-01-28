@@ -15,7 +15,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
@@ -34,6 +33,7 @@ import java.util.Random;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.Disabled;

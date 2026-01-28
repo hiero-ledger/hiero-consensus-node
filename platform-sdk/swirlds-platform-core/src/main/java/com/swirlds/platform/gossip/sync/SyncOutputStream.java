@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.sync;
 
-import static com.swirlds.common.io.extendable.ExtendableOutputStream.extendOutputStream;
+import static org.hiero.consensus.io.extendable.ExtendableOutputStream.extendOutputStream;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
-import com.swirlds.platform.network.SocketConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -17,6 +15,8 @@ import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.gossip.config.SocketConfig;
+import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
 
 public class SyncOutputStream extends SerializableDataOutputStream {
     private final CountingStreamExtension syncByteCounter;

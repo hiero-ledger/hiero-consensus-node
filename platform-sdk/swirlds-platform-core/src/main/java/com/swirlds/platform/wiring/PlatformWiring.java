@@ -15,8 +15,6 @@ import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
-import com.swirlds.platform.components.consensus.ConsensusEngine;
-import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
@@ -91,7 +89,7 @@ public class PlatformWiring {
         components
                 .pcesInlineWriterWiring()
                 .getOutputWire()
-                .solderTo(components.consensusEngineWiring().componentWiring().getInputWire(ConsensusEngine::addEvent));
+                .solderTo(components.hashgraphModule().eventInputWire());
 
         // Make sure events are persisted before being gossipped. This prevents accidental branching in the case
         // where an event is created, gossipped, and then the node crashes before the event is persisted.
@@ -123,7 +121,7 @@ public class PlatformWiring {
 
         components
                 .eventIntakeModule()
-                .validatedNonPersistedEventsOutputWire()
+                .validatedEventsOutputWire()
                 .solderTo(components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
         components
                 .branchDetectorWiring()
@@ -144,21 +142,14 @@ public class PlatformWiring {
                 .solderTo(components.eventIntakeModule().nonValidatedEventsInputWire(), INJECT);
 
         if (callbacks.staleEventConsumer() != null) {
-            final OutputWire<PlatformEvent> staleEvent = components
-                    .consensusEngineWiring()
-                    .getOutputWire()
-                    .buildTransformer("staleEvents", "consensusEngineOutput", ConsensusEngineOutput::staleEvents)
-                    .buildSplitter("staleEventsSplitter", "stale events");
+            final OutputWire<PlatformEvent> staleEvent =
+                    components.hashgraphModule().staleEventOutputWire();
             staleEvent.solderTo("staleEventCallback", "stale events", callbacks.staleEventConsumer());
         }
 
         // an output wire that filters out only pre-consensus events from the consensus engine
-        final OutputWire<PlatformEvent> consEngineAddedEvents = components
-                .consensusEngineWiring()
-                .getOutputWire()
-                .buildTransformer(
-                        "PreConsensusEvents", "consensusEngineOutput", ConsensusEngineOutput::preConsensusEvents)
-                .buildSplitter("PreConsensusEventsSplitter", "preConsensusEvents");
+        final OutputWire<PlatformEvent> consEngineAddedEvents =
+                components.hashgraphModule().preconsensusEventOutputWire();
         // pre-handle gets pre-consensus events from the consensus engine
         // the consensus engine ensures that all pre-consensus events either reach consensus of become stale
         consEngineAddedEvents.solderTo(components
@@ -219,10 +210,8 @@ public class PlatformWiring {
                 .eventOutput()
                 .solderTo(components.eventIntakeModule().unhashedEventsInputWire());
 
-        final OutputWire<ConsensusRound> consensusRoundOutputWire = components
-                .consensusEngineWiring()
-                .consensusRoundsOutputWire()
-                .buildSplitter("ConsensusRoundsSplitter", "consensus rounds");
+        final OutputWire<ConsensusRound> consensusRoundOutputWire =
+                components.hashgraphModule().consensusRoundOutputWire();
 
         components
                 .pcesReplayerWiring()
@@ -369,8 +358,7 @@ public class PlatformWiring {
         components
                 .platformMonitorWiring()
                 .getOutputWire()
-                .solderTo(
-                        components.consensusEngineWiring().getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
+                .solderTo(components.hashgraphModule().platformStatusInputWire(), INJECT);
         components
                 .platformMonitorWiring()
                 .getOutputWire()
@@ -385,7 +373,7 @@ public class PlatformWiring {
         if (callbacks.preconsensusEventConsumer() != null) {
             components
                     .eventIntakeModule()
-                    .validatedNonPersistedEventsOutputWire()
+                    .validatedEventsOutputWire()
                     .solderTo(
                             "preConsensusEventCallback", "pre-consensus events", callbacks.preconsensusEventConsumer());
         }
@@ -408,16 +396,6 @@ public class PlatformWiring {
                     .getOutputWire()
                     .solderForMonitoring(
                             platformEvent -> pipelineTracker.recordEvent("pces", platformEvent.getTimeReceived()));
-            pipelineTracker.registerMetric("consensus");
-            components
-                    .consensusEngineWiring()
-                    .getOutputWire()
-                    .solderForMonitoring(consensusEngineOutput -> pipelineTracker.recordEvents(
-                            "consensus",
-                            consensusEngineOutput.consensusRounds().stream()
-                                    .flatMap(round ->
-                                            round.getConsensusEvents().stream().map(PlatformEvent::getTimeReceived))
-                                    .toList()));
         }
     }
 
@@ -472,7 +450,6 @@ public class PlatformWiring {
      * the lifecycle. This method forces those wires to be built.
      */
     private static void buildUnsolderedWires(final PlatformComponents components) {
-        components.consensusEngineWiring().getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
         components.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
         components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
         components.eventWindowManagerWiring().getInputWire(EventWindowManager::updateEventWindow);

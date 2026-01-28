@@ -5,3 +5,5 @@ plugins {
 }
 
 description = "Default Consensus Gossip Implementation"
+
+mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
