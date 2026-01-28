@@ -42,7 +42,7 @@ import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -206,8 +206,8 @@ public class ServicesMain {
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
         final var fileSystemManager = FileSystemManager.create(platformConfig);
-        final var recycleBin =
-                RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        final var recycleBin = RecycleBinImpl.create(
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler =
                 hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext =
