@@ -6,7 +6,6 @@ import static com.swirlds.base.units.DataUnit.UNIT_MEGABYTES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.utility.LongRunningAverage;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;

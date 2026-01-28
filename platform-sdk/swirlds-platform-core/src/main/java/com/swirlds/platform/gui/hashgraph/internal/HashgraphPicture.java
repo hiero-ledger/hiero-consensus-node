@@ -236,13 +236,6 @@ public class HashgraphPicture extends JPanel {
         final FontMetrics fm = g.getFontMetrics();
         final int fa = fm.getMaxAscent();
         final int fd = fm.getMaxDescent();
-        final EventImpl e2 = event.getOtherParent() != null
-                        && RosterUtils.getIndex(
-                                        hashgraphSource.getRoster(),
-                                        event.getOtherParent().getCreatorId().id())
-                                != -1
-                ? event.getOtherParent()
-                : null;
         final Color color;
         if (selector.isSelected(event)) {
             color = Color.MAGENTA;

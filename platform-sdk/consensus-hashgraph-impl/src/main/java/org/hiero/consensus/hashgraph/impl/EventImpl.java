@@ -458,15 +458,6 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
-     * Check if the event has other parents.
-     *
-     * @return true if the event has other parents
-     */
-    public boolean hasOtherParent() {
-        return !getPlatformEvent().getOtherParents().isEmpty();
-    }
-
-    /**
      * @return returns {@link PlatformEvent#getTimeCreated()}}
      */
     public Instant getTimeCreated() {

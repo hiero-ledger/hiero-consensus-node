@@ -15,7 +15,7 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.state.impl;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
-    requires transitive org.hiero.consensus.pces.impl;
+    requires transitive org.hiero.consensus.utility;
     requires transitive com.google.common;
     requires transitive com.google.protobuf;
     requires transitive io.grpc.stub;
@@ -33,9 +33,9 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.roster;
-    requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;

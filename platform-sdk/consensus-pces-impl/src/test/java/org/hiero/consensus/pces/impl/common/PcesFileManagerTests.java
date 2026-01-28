@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.CompareTo;
-import org.hiero.consensus.pces.test.fixtures.PcesTestFilesGenerator;
+import org.hiero.consensus.pces.impl.PcesTestFilesGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

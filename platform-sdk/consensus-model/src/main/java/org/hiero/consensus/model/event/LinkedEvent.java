@@ -55,17 +55,6 @@ public class LinkedEvent<T extends LinkedEvent<T>> {
     }
 
     /**
-     * @return the other parent of this
-     */
-    public @Nullable T getOtherParent() {
-        final List<T> otherParents = getOtherParents();
-        if (otherParents.isEmpty()) {
-            return null;
-        }
-        return otherParents.getFirst();
-    }
-
-    /**
      * @return the other parents of this
      */
     public @NonNull List<T> getOtherParents() {

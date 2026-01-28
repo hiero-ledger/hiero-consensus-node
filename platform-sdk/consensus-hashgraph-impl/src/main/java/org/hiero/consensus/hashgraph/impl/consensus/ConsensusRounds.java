@@ -88,7 +88,7 @@ public class ConsensusRounds {
 
         // theorem says this witness can't be famous if round R+2 exists
         // if this is true, we immediately mark this witness as not famous without any elections
-        // also, if the witness is not in the AB, we decide that it's not famous
+        // also, if the witness is not in the roster, we decide that it's not famous
         if (maxRoundCreated >= witness.getRoundCreated() + 2
                 || !rosterEntryMap.containsKey(witness.getCreatorId().id())) {
             witness.setFamous(false);

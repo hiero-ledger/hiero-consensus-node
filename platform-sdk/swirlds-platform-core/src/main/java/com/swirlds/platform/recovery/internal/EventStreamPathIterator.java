@@ -3,7 +3,6 @@ package com.swirlds.platform.recovery.internal;
 
 import static com.swirlds.platform.recovery.internal.EventStreamLowerBound.UNBOUNDED;
 
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.utility.BinarySearch;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -15,6 +14,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**

@@ -38,7 +38,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
 
         // Load Configuration Definitions
         return Set.of(
-                BasicConfig.class,
                 MerkleDbConfig.class,
                 OSHealthCheckConfig.class,
                 PathsConfig.class,
@@ -50,7 +49,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 StateConfig.class,
                 TemporaryFileConfig.class,
                 FileSystemManagerConfig.class,
-                ThreadConfig.class,
                 UptimeConfig.class,
                 VirtualMapConfig.class,
                 WiringConfig.class,

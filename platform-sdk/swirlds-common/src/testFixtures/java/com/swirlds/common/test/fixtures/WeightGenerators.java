@@ -31,6 +31,8 @@ public final class WeightGenerators {
             GaussianWeightGenerator.withNetworkWeight(TOTAL_NETWORK_WEIGHT, 100_000);
     public static final WeightGenerator SINGLE_NODE_HAS_ALL =
             (long l, int i) -> WeightGenerators.singleNodeWithEntireWeight(i);
+    public static final WeightGenerator SINGLE_NODE_SUPERMAJORITY =
+            (long l, int i) -> WeightGenerators.singleNodeSupermajority(i);
 
     private static final long MINIMUM_NON_ZERO_WEIGHT = 1L;
 
@@ -201,6 +203,29 @@ public final class WeightGenerators {
                 nodeWeights.add(TOTAL_NETWORK_WEIGHT);
             } else {
                 nodeWeights.add(0L);
+            }
+        }
+        return nodeWeights;
+    }
+
+    /**
+     * Creates a list of node weights where a single node has a supermajority of the weight, 1000*numberOfNodes. All
+     * other nodes have a weight of 1.
+     *
+     * @param numberOfNodes the number of nodes to generate weight for
+     * @return test arguments
+     */
+    public static List<Long> singleNodeSupermajority(final int numberOfNodes) {
+
+        final List<Long> nodeWeights = new ArrayList<>(numberOfNodes);
+
+        for (int i = 0; i < numberOfNodes; i++) {
+
+            if (i == 0) {
+                // a single node has a supermajority of weight
+                nodeWeights.add(numberOfNodes * 1000L);
+            } else {
+                nodeWeights.add(1L);
             }
         }
         return nodeWeights;

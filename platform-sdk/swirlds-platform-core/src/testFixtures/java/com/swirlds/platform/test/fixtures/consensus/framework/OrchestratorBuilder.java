@@ -107,8 +107,10 @@ public class OrchestratorBuilder {
         for (final EventSource eventSource : eventSources) {
             eventSourceConfigurator.accept(eventSource);
         }
+        // randomise the number of other parents to increase test coverage
+        final int numOtherParents = random.nextInt(1, numberOfNodes);
         final StandardGraphGenerator graphGenerator =
-                new StandardGraphGenerator(platformContext, graphSeed, eventSources, roster);
+                new StandardGraphGenerator(platformContext, graphSeed, numOtherParents, eventSources, roster);
 
         // Make the graph generators create a fresh set of events.
         // Use the same seed so that they create identical graphs.

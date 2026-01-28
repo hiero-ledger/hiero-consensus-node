@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
@@ -25,6 +24,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.junit.extensions.ParamName;

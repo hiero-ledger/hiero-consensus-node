@@ -194,7 +194,7 @@ public final class FeeManager {
                         new SimpleFeeCalculatorImpl(schedule, serviceFeeCalculators, queryFeeCalculators);
                 return SUCCESS;
             } else {
-                logger.warn("Unable to validate fee schedule.");
+                logger.error("Unable to validate simple fee schedule.");
                 return ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
             }
         } catch (final BufferUnderflowException | ParseException ex) {

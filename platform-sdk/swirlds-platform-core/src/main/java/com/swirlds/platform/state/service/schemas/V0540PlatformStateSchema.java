@@ -11,7 +11,6 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
@@ -23,6 +22,7 @@ import java.time.Instant;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.hiero.consensus.config.BasicConfig;
 
 /**
  * Defines the {@link PlatformState} singleton and initializes it at genesis.

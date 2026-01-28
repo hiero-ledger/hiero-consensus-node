@@ -4,7 +4,6 @@ package org.hiero.consensus.pces.impl.common;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.consensus.pces.impl.common.PcesFileManager.NO_LOWER_BOUND;
 
-import com.swirlds.common.utility.UnmodifiableIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;

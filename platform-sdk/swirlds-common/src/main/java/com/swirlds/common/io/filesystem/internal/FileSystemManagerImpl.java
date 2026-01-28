@@ -6,7 +6,6 @@ import static java.nio.file.Files.exists;
 
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -14,6 +13,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.consensus.io.RecycleBin;
 
 /**
  * Manages the file system operations and organizes file creation within a specified root directory.
@@ -44,7 +44,7 @@ public class FileSystemManagerImpl implements FileSystemManager {
     private final Path savedPath;
     private final AtomicLong tmpFileNameIndex = new AtomicLong(0);
     /**
-     * Creates a {@link FileSystemManager} and a {@link com.swirlds.common.io.utility.RecycleBin} by searching {@code root}
+     * Creates a {@link FileSystemManager} and a {@link RecycleBin} by searching {@code root}
      * path in the {@link Configuration} class using
      * {@code FileSystemManagerConfig} record
      *
@@ -77,7 +77,7 @@ public class FileSystemManagerImpl implements FileSystemManager {
     }
 
     /**
-     * Creates a {@link FileSystemManager} and a {@link com.swirlds.common.io.utility.RecycleBin} by searching {@code root}
+     * Creates a {@link FileSystemManager} and a {@link RecycleBin} by searching {@code root}
      * path in the {@link Configuration} class using
      * {@code FileSystemManagerConfig} record
      *
