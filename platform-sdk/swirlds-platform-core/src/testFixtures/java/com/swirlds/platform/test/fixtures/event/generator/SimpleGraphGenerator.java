@@ -11,10 +11,6 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
-import com.swirlds.platform.gui.GuiEventStorage;
-import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
-import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,16 +21,7 @@ import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.consensus.crypto.DefaultEventHasher;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
-import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
-import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
-import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
-import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.orphan.DefaultOrphanBuffer;
-import org.hiero.consensus.orphan.OrphanBuffer;
 
 /**
  * A utility class for generating a graph of events.
@@ -55,25 +42,13 @@ public class SimpleGraphGenerator {
      * The timestamp of the previously emitted event.
      */
     private Instant latestEventTime;
-
-    /**
-     * The consensus implementation for determining birth rounds of events.
-     */
-    private ConsensusImpl consensus;
-
-    /** Used to assign nGen values to events. This value is used by consensus, so it must be set. */
-    private OrphanBuffer orphanBuffer;
-
-    /**
-     * The linker for events to use with the internal consensus.
-     */
-    private ConsensusLinker linker;
     /**
      * The source of all randomness for this class.
      */
     private final Random random;
 
-    final Configuration configuration;
+    private final GeneratorConsensus consensus;
+
     /**
      * Construct a new StandardEventGenerator.
      * <p>
@@ -89,14 +64,12 @@ public class SimpleGraphGenerator {
             final long seed,
             final int maxOtherParents,
             @NonNull final Roster roster) {
-        this.configuration = configuration;
         this.maxOtherParents = maxOtherParents;
         this.random = new Random(seed);
         this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
         this.roster = roster;
-        consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), roster);
-        linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
-        orphanBuffer = new DefaultOrphanBuffer(new NoOpMetrics(), new NoOpIntakeEventCounter());
+        consensus = new GeneratorConsensus(configuration, time, roster);
+
     }
 
 
@@ -141,7 +114,7 @@ public class SimpleGraphGenerator {
         final byte[] sig = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(sig);
 
-        final long birthRound = consensus.getLastRoundDecided() + 1;
+        final long birthRound = consensus.getCurrentBirthRound();
         final EventCore eventCore = EventCore.newBuilder()
                 .creatorNodeId(roster.rosterEntries().get(eventCreator).nodeId())
                 .birthRound(birthRound)
@@ -157,34 +130,8 @@ public class SimpleGraphGenerator {
 
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
         new DefaultEventHasher().hashEvent(platformEvent);
-        updateConsensus(platformEvent);
+        consensus.updateConsensus(platformEvent);
+        latestEventPerNode[eventCreator] = platformEvent.getDescriptor().eventDescriptor();
         return gossipEvent;
-    }
-
-    private void updateConsensus(@NonNull final PlatformEvent e) {
-        /* The event given to the internal consensus needs its own EventImpl & PlatformEvent for
-        metadata to be kept separate from the event that is returned to the caller.  The orphan
-        buffer assigns an nGen value. The SimpleLinker wraps the event in an EventImpl and links
-        it. The event must be hashed and have a descriptor built for its use in the SimpleLinker. */
-        final PlatformEvent copy = e.copyGossipedData();
-        final List<PlatformEvent> events = orphanBuffer.handleEvent(copy);
-        for (final PlatformEvent event : events) {
-            final EventImpl linkedEvent = linker.linkEvent(event);
-            if (linkedEvent == null) {
-                continue;
-            }
-            final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
-            if (consensusRounds.isEmpty()) {
-                continue;
-            }
-            // if we reach consensus, save the snapshot for future use
-            linker.setEventWindow(consensusRounds.getLast().getEventWindow());
-        }
-    }
-
-    @SuppressWarnings("unused") // useful for debugging
-    public HashgraphGuiSource createGuiSource() {
-        return new StandardGuiSource(
-                getRoster(), new GuiEventStorage(consensus, linker, configuration));
     }
 }
