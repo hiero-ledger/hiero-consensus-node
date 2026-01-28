@@ -25,6 +25,7 @@ import com.swirlds.config.api.ConfigProperty;
  * @param maxSocketAcceptThreads     maximum amount of threads which will be spawned to handle incoming SSL socket
  *                                   accepts, needed because of length SSL handshake; at same time, we don't want it to
  *                                   be unlimited, to not run out of threads on some kind of DOS
+ * @param quickAck                   use TCP_QUICKACK on sync sockets after each read
  */
 @ConfigData("socket")
 public record SocketConfig(
@@ -37,4 +38,5 @@ public record SocketConfig(
         @ConfigProperty(defaultValue = "true") boolean tcpNoDelay,
         @ConfigProperty(defaultValue = "false") boolean gzipCompression,
         @ConfigProperty(defaultValue = "10") int waitBetweenConnectionRetries,
-        @ConfigProperty(defaultValue = "30") int maxSocketAcceptThreads) {}
+        @ConfigProperty(defaultValue = "30") int maxSocketAcceptThreads,
+        @ConfigProperty(defaultValue = "true") boolean quickAck) {}
