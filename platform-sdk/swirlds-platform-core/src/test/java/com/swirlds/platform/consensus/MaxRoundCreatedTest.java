@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createDefaultPlatformContext;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -9,7 +10,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.test.fixtures.resource.ResourceLoader;
@@ -17,11 +17,12 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusRounds;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.pces.PcesFileReader;
-import org.hiero.consensus.pces.PcesFileTracker;
-import org.hiero.consensus.pces.PcesMultiFileIterator;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,7 +30,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Tests for the proper updating of {@link ConsensusRounds}'s maxRoundCreated variable.
  */
-public class MaxRoundCreatedTest extends PlatformTest {
+public class MaxRoundCreatedTest {
 
     private static final String RESOURCE_DIR = "com/swirlds/platform/consensus/maxRoundCreatedTest/";
     private static final String PCES_DIR = "preconsensusEvents";
