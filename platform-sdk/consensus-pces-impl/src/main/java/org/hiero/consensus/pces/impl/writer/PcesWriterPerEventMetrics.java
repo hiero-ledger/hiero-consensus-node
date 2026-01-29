@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.preconsensus;
+package org.hiero.consensus.pces.impl.writer;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static org.hiero.consensus.metrics.IntegerPairAccumulator.AVERAGE;
@@ -70,7 +70,7 @@ class PcesWriterPerEventMetrics {
     /**
      * reports the duration of the write operation
      */
-    void endFileWrite(long size) {
+    void endFileWrite(final long size) {
         avgWriteMetric.update(getDurationInNanos(writeStart), 1);
         this.avgEventSizeMetric.update(asInt(size), 1);
     }
