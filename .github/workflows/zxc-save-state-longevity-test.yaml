@@ -747,8 +747,8 @@ jobs:
       - name: Copy CN state
         run: |
           kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec -it network-node1-0 -c root-container -- bash -c \
-            "last=\$(ls -1t ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/$node/123 | head -n 1);\
-             cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/$node/123/; tar cfz /tmp/lastSnapshot.tgz \$last"
+            "last=\$(ls -1t ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/0/123 | head -n 1);\
+             cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/0/123/; tar cfz /tmp/lastSnapshot.tgz \$last"
 
           kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp network-node1-0:/tmp/lastSnapshot.tgz "${{ github.workspace }}"/state/lastSnapshot.tgz
 
