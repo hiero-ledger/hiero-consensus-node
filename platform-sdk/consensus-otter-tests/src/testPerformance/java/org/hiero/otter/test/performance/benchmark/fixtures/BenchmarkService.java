@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.app.services.benchmark;
+package org.hiero.otter.test.performance.benchmark.fixtures;
 
-import static com.swirlds.logging.legacy.LogMarker.BENCHMARK;
+import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.state.spi.WritableStates;
@@ -68,8 +68,8 @@ public class BenchmarkService implements OtterService {
             final long latencyMillis = consensusTimeMillis - submissionTimeMillis;
 
             log.info(
-                    BENCHMARK.getMarker(),
-                    "BENCHMARK: nonce={}, latency={}ms, submissionTime={}, consensusTime={}",
+                    DEMO_INFO.getMarker(),
+                    "BENCHMARK BenchmarkService: nonce={}, latency={}ms, submissionTime={}, consensusTime={}",
                     transaction.getNonce(),
                     latencyMillis,
                     submissionTimeMillis,
