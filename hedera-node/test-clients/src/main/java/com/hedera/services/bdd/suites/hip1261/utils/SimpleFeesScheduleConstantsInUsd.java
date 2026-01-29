@@ -38,6 +38,8 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOKEN_MINT_NFT_FEE_USD = 0.02;
     public static final double TOKEN_UPDATE_BASE_FEE = 0.001;
     public static final double TOKEN_UPDATE_NFT_FEE = 0.001;
+    public static final double TOKEN_TRANSFER_FULL_FEE = 0.001;
+    public static final double TOKEN_ASSOCIATE_FEE = 0.05;
 
     public static final double AIRDROPS_FEE_USD = 0.05;
     public static final double HOOK_UPDATES_FEE_USD = 1.0;
