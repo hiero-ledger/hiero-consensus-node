@@ -194,14 +194,20 @@ public class ThrottleAccumulator {
         if (throttleType == NOOP_THROTTLE) {
             return false;
         }
+        final int initialThrottleUsagesSize = throttleUsages == null ? 0 : throttleUsages.size();
         resetLastAllowedUse();
         lastTxnWasGasThrottled = false;
 
         if (shouldThrottleTxn(txnInfo, now, state, throttleUsages, gasThrottleAlwaysEnabled)) {
             reclaimLastAllowedUse();
             if (throttleUsages != null) {
-                // Clear throttleUsages when throttled
-                throttleUsages.clear();
+                // Remove only the usages added during this check to avoid discarding prior usage records
+                final int currentSize = throttleUsages.size();
+                if (currentSize > initialThrottleUsagesSize) {
+                    throttleUsages
+                            .subList(initialThrottleUsagesSize, currentSize)
+                            .clear();
+                }
             }
             return true;
         }
