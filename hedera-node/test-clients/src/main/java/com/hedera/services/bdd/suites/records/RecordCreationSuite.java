@@ -5,20 +5,18 @@ import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BA
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.including;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includingDeduction;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -33,7 +31,10 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -43,12 +44,6 @@ import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class RecordCreationSuite {
-
-    private static final long SLEEP_MS = 2_000L;
-    private static final String BEFORE = "before";
-    private static final String FUNDING_BEFORE = "fundingBefore";
-    private static final String STAKING_REWARD1 = "stakingReward";
-    private static final String NODE_REWARD1 = "nodeReward";
     private static final String FOR_ACCOUNT_FUNDING = "98";
     private static final String FOR_ACCOUNT_STAKING_REWARDS = "800";
     private static final String FOR_ACCOUNT_NODE_REWARD = "801";
@@ -79,10 +74,6 @@ public class RecordCreationSuite {
                         .memo(comfortingMemo)
                         .exposingFeesTo(feeObs)
                         .payingWith(PAYER),
-                balanceSnapshot(BEFORE, TO_ACCOUNT),
-                balanceSnapshot(FUNDING_BEFORE, FOR_ACCOUNT_FUNDING),
-                balanceSnapshot(STAKING_REWARD1, FOR_ACCOUNT_STAKING_REWARDS),
-                balanceSnapshot(NODE_REWARD1, FOR_ACCOUNT_NODE_REWARD),
                 sourcing(() -> cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
                         .memo(comfortingMemo)
                         .fee(feeObs.get().networkFee() + feeObs.get().nodeFee())
@@ -90,28 +81,39 @@ public class RecordCreationSuite {
                         .via(TXN_ID)
                         .hasKnownStatus(INSUFFICIENT_TX_FEE)
                         .logged()),
-                sourcing(() -> getAccountBalance(TO_ACCOUNT)
-                        .hasTinyBars(
-                                approxChangeFromSnapshot(BEFORE, +feeObs.get().nodeFee(), 5))
-                        .logged()),
-                sourcing(() -> getAccountBalance(FOR_ACCOUNT_FUNDING)
-                        .hasTinyBars(approxChangeFromSnapshot(
-                                FUNDING_BEFORE, (long) (+feeObs.get().networkFee() * 0.8 + 1), 5))
-                        .logged()),
-                sourcing(() -> getAccountBalance(FOR_ACCOUNT_STAKING_REWARDS)
-                        .hasTinyBars(approxChangeFromSnapshot(
-                                STAKING_REWARD1, (long) (+feeObs.get().networkFee() * 0.1), 5))
-                        .logged()),
-                sourcing(() -> getAccountBalance(FOR_ACCOUNT_NODE_REWARD)
-                        .hasTinyBars(approxChangeFromSnapshot(
-                                NODE_REWARD1, (long) (+feeObs.get().networkFee() * 0.1), 5))
-                        .logged()),
                 sourcing(() -> getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
                         .hasPriority(recordWith()
                                 .transfers(includingDeduction(
                                         PAYER,
                                         feeObs.get().networkFee() + feeObs.get().nodeFee()))
+                                .transfers(including(spec -> {
+                                    final var networkFee = feeObs.get().networkFee();
+                                    final var nodeFee = feeObs.get().nodeFee();
+                                    return TransferList.newBuilder()
+                                            .addAllAccountAmounts(List.of(
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(PAYER, spec))
+                                                            .setAmount(-(networkFee + nodeFee))
+                                                            .build(),
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(TO_ACCOUNT, spec))
+                                                            .setAmount(+nodeFee)
+                                                            .build(),
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(FOR_ACCOUNT_FUNDING, spec))
+                                                            .setAmount((long) (networkFee * 0.8 + 1))
+                                                            .build(),
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(FOR_ACCOUNT_STAKING_REWARDS, spec))
+                                                            .setAmount((long) (networkFee * 0.1))
+                                                            .build(),
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(FOR_ACCOUNT_NODE_REWARD, spec))
+                                                            .setAmount((long) (networkFee * 0.1))
+                                                            .build()))
+                                            .build();
+                                }))
                                 .status(INSUFFICIENT_TX_FEE))
                         .logged()));
     }
@@ -135,27 +137,41 @@ public class RecordCreationSuite {
                         .exposingFeesTo(feeObsWithTwoSignatures)
                         .payingWith(PAYER),
                 usableTxnIdNamed(TXN_ID).payerId(PAYER),
-                balanceSnapshot(BEFORE, TO_ACCOUNT),
-                balanceSnapshot(FUNDING_BEFORE, FOR_ACCOUNT_FUNDING),
-                balanceSnapshot(STAKING_REWARD1, FOR_ACCOUNT_STAKING_REWARDS),
-                balanceSnapshot(NODE_REWARD1, FOR_ACCOUNT_NODE_REWARD),
                 uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
                                 .memo(disquietingMemo)
                                 .payingWith(PAYER)
                                 .txnId(TXN_ID))
                         .payingWith(GENESIS),
-                // validate node is charged
                 sourcing(() -> {
                     final var signatureFee = feeObsWithTwoSignatures.get().networkFee()
                             - feeObsWithOneSignature.get().networkFee();
                     final var zeroSignatureFee = feeObsWithOneSignature.get().networkFee() - signatureFee;
-                    return getAccountBalance(TO_ACCOUNT)
-                            .hasTinyBars(approxChangeFromSnapshot(BEFORE, -zeroSignatureFee, 5000));
-                }),
-                sourcing(() -> getTxnRecord(TXN_ID)
-                        .assertingNothingAboutHashes()
-                        .hasPriority(recordWith().status(INVALID_ZERO_BYTE_IN_STRING))
-                        .logged()));
+                    return getTxnRecord(TXN_ID)
+                            .assertingNothingAboutHashes()
+                            .hasPriority(recordWith()
+                                    .transfers(includingDeduction(() -> 3L, zeroSignatureFee))
+                                    .transfers(including(spec -> TransferList.newBuilder()
+                                            .addAllAccountAmounts(List.of(
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(TO_ACCOUNT, spec))
+                                                            .setAmount(-zeroSignatureFee)
+                                                            .build(),
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(FOR_ACCOUNT_FUNDING, spec))
+                                                            .setAmount((long) (zeroSignatureFee * 0.8 + 1))
+                                                            .build(),
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(FOR_ACCOUNT_STAKING_REWARDS, spec))
+                                                            .setAmount((long) (zeroSignatureFee * 0.1))
+                                                            .build(),
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(FOR_ACCOUNT_NODE_REWARD, spec))
+                                                            .setAmount((long) (zeroSignatureFee * 0.1))
+                                                            .build()))
+                                            .build()))
+                                    .status(INVALID_ZERO_BYTE_IN_STRING))
+                            .logged();
+                }));
     }
 
     @LeakyHapiTest(
@@ -174,37 +190,39 @@ public class RecordCreationSuite {
                         .exposingFeesTo(feeObs)
                         .payingWith(PAYER),
                 usableTxnIdNamed(TXN_ID).payerId(PAYER),
-                balanceSnapshot(BEFORE, TO_ACCOUNT),
-                balanceSnapshot(FUNDING_BEFORE, FOR_ACCOUNT_FUNDING),
-                balanceSnapshot(STAKING_REWARD1, FOR_ACCOUNT_STAKING_REWARDS),
-                balanceSnapshot(NODE_REWARD1, FOR_ACCOUNT_NODE_REWARD),
                 sourcing(() -> uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
                                 .memo(comfortingMemo)
                                 .fee(feeObs.get().networkFee() - 1L)
                                 .payingWith(PAYER)
                                 .txnId(TXN_ID))
                         .payingWith(GENESIS)),
-                sleepFor(SLEEP_MS),
-                sourcing(() -> getAccountBalance(TO_ACCOUNT)
-                        .hasTinyBars(
-                                approxChangeFromSnapshot(BEFORE, -feeObs.get().networkFee(), 5))),
-                sourcing(() -> getAccountBalance(FOR_ACCOUNT_FUNDING)
-                        .hasTinyBars(approxChangeFromSnapshot(
-                                FUNDING_BEFORE, (long) (+feeObs.get().networkFee() * 0.8 + 1), 5))
-                        .logged()),
-                sourcing(() -> getAccountBalance(FOR_ACCOUNT_STAKING_REWARDS)
-                        .hasTinyBars(approxChangeFromSnapshot(
-                                STAKING_REWARD1, (long) (+feeObs.get().networkFee() * 0.1), 5))
-                        .logged()),
-                sourcing(() -> getAccountBalance(FOR_ACCOUNT_NODE_REWARD)
-                        .hasTinyBars(approxChangeFromSnapshot(
-                                NODE_REWARD1, (long) (+feeObs.get().networkFee() * 0.1), 5))
-                        .logged()),
                 sourcing(() -> getTxnRecord(TXN_ID)
                         .assertingNothingAboutHashes()
                         .hasPriority(recordWith()
                                 .transfers(includingDeduction(
                                         () -> 3L, feeObs.get().networkFee()))
+                                .transfers(including(spec -> {
+                                    final var networkFee = feeObs.get().networkFee();
+                                    return TransferList.newBuilder()
+                                            .addAllAccountAmounts(List.of(
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(TO_ACCOUNT, spec))
+                                                            .setAmount(-networkFee)
+                                                            .build(),
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(FOR_ACCOUNT_FUNDING, spec))
+                                                            .setAmount((long) (networkFee * 0.8 + 1))
+                                                            .build(),
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(FOR_ACCOUNT_STAKING_REWARDS, spec))
+                                                            .setAmount((long) (networkFee * 0.1))
+                                                            .build(),
+                                                    AccountAmount.newBuilder()
+                                                            .setAccountID(asId(FOR_ACCOUNT_NODE_REWARD, spec))
+                                                            .setAmount((long) (networkFee * 0.1))
+                                                            .build()))
+                                            .build();
+                                }))
                                 .status(INSUFFICIENT_TX_FEE))
                         .logged()));
     }
