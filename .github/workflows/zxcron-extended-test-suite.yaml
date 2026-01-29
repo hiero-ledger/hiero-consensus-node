@@ -38,7 +38,7 @@ env:
 jobs:
   parameters:
     name: Determine Configurable Parameters
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       solo-ge-0440: ${{ steps.set-parameters.outputs.solo-ge-0440 }}
       solo-version: ${{ steps.set-parameters.outputs.solo-version }}
@@ -63,7 +63,7 @@ jobs:
 
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
@@ -308,7 +308,7 @@ jobs:
 
   tag-for-promotion:
     name: Tag as XTS-Passing
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution
@@ -371,7 +371,7 @@ jobs:
 
   report-success:
     name: Report XTS execution success
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution
@@ -495,7 +495,7 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     needs:
       - fetch-xts-candidate
       - xts-execution

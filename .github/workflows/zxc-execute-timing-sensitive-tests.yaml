@@ -59,7 +59,7 @@ env:
 jobs:
   execute-timing-sensitive-tests:
     name: "Timing Sensitive Tests"
-    runs-on: hiero-cn-timing-sensitive-linux
+    runs-on: hl-cn-timing-sensitive-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

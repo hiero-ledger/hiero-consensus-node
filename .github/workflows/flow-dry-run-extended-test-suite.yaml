@@ -60,7 +60,7 @@ defaults:
 jobs:
   parameters:
     name: Workflow Parameters
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       solo-version: ${{ steps.params.outputs.solo-version }}
       helm-release-name: ${{ steps.params.outputs.helm-release-name }}

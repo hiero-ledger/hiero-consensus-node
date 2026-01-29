@@ -64,7 +64,7 @@ env:
 jobs:
   execute-integration-tests:
     name: "Integration Tests"
-    runs-on: hiero-cn-integration-linux
+    runs-on: hl-cn-integration-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
