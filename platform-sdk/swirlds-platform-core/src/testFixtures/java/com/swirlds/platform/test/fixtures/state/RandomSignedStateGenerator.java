@@ -447,11 +447,7 @@ public class RandomSignedStateGenerator {
     public static void releaseAllBuiltSignedStates() {
         builtSignedStates.get().forEach(signedState -> {
             try {
-                MerkleNode root = signedState.getState().getRoot();
-                releaseReservable(root);
-                while (root.getReservationCount() >= 0) {
-                    root.release();
-                }
+                releaseReservable(signedState.getState().getRoot());
             } catch (Exception e) {
                 logger.error("Exception while releasing state", e);
             }
