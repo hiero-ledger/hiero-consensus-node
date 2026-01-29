@@ -19,7 +19,6 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Registers configuration types for the platform.
@@ -42,7 +41,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
                 PlatformStatusConfig.class,
-                ReconnectConfig.class,
                 StateCommonConfig.class,
                 StateConfig.class,
                 TemporaryFileConfig.class,
