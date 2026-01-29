@@ -143,15 +143,15 @@ public enum TestType {
         }
 
         public MerkleDbDataSource createDataSource(
+                final Configuration configuration,
                 final Path dbPath,
                 final String name,
                 final int size,
-                final long hashesRamToDiskThreshold,
                 final boolean enableMerging,
                 boolean preferDiskBasedIndexes)
                 throws IOException {
-            MerkleDbDataSource dataSource = new MerkleDbDataSource(
-                    dbPath, CONFIGURATION, name, size, hashesRamToDiskThreshold, enableMerging, preferDiskBasedIndexes);
+            MerkleDbDataSource dataSource =
+                    new MerkleDbDataSource(dbPath, configuration, name, size, enableMerging, preferDiskBasedIndexes);
             dataSource.registerMetrics(getMetrics());
             return dataSource;
         }

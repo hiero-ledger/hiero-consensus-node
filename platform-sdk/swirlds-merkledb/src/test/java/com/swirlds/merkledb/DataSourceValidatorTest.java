@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -35,7 +36,7 @@ class DataSourceValidatorTest {
     @Test
     void testValidateValidDataSource() throws IOException {
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, 0, dataSource -> {
+                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, dataSource -> {
                     // check db count
                     MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
 
@@ -44,7 +45,7 @@ class DataSourceValidatorTest {
                     dataSource.saveRecords(
                             count - 1,
                             count * 2L - 2,
-                            IntStream.range(0, count - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                            createHashChunkStream((int) (count * 2L - 2), dataSource.getHashChunkHeight()),
                             IntStream.range(count - 1, count * 2 - 1)
                                     .mapToObj(
                                             i -> TestType.long_fixed.dataType().createVirtualLeafRecord(i)),
@@ -58,7 +59,7 @@ class DataSourceValidatorTest {
     @Test
     void testValidateInvalidDataSource() throws IOException {
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, 0, dataSource -> {
+                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, dataSource -> {
                     // check db count
                     MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
                     final var validator = new DataSourceValidator(dataSource);
@@ -66,7 +67,7 @@ class DataSourceValidatorTest {
                     dataSource.saveRecords(
                             count - 1,
                             count * 2L - 2,
-                            IntStream.range(0, count - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                            createHashChunkStream(count * 2 - 2, dataSource.getHashChunkHeight()),
                             // leaves are missing
                             Stream.empty(),
                             Stream.empty(),
