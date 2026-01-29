@@ -30,8 +30,6 @@ public class SimpleGraphGenerator {
 
     private final EventDescriptor[] latestEventPerNode;
 
-    private final GeneratorConfig generatorConfig;
-
     /**
      * The roster representing the event sources.
      */
@@ -48,21 +46,24 @@ public class SimpleGraphGenerator {
 
     private final GeneratorConsensus consensus;
     private final PbjStreamHasher hasher;
+    /** The seed used for all randomness */
+    long seed;
+    /** The maximum number of other parents an event can have */
+    int maxOtherParents;
 
     /**
-     * Construct a new StandardEventGenerator.
-     * <p>
-     * Note: once an event source has been passed to this constructor it should not be modified by the outer context.
      *
      * @param roster The roster to use.
      */
     public SimpleGraphGenerator(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
-            @NonNull final GeneratorConfig generatorConfig,
+            final long seed,
+            final int maxOtherParents,
             @NonNull final Roster roster) {
-        this.generatorConfig = generatorConfig;
-        this.random = Randotron.create(generatorConfig.seed());
+        this.seed = seed;
+        this.maxOtherParents = maxOtherParents;
+        this.random = Randotron.create(seed);
         this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
         this.roster = roster;
         this.consensus = new GeneratorConsensus(configuration, time, roster);
@@ -110,7 +111,7 @@ public class SimpleGraphGenerator {
             parents.add(latestEventPerNode[eventCreator]);
         }
         nodeIndices
-                .subList(0, Math.min(generatorConfig.maxOtherParents(), nodeIndices.size()))
+                .subList(0, Math.min(maxOtherParents, nodeIndices.size()))
                 .stream()
                 .map(i -> latestEventPerNode[i])
                 .filter(Objects::nonNull)
