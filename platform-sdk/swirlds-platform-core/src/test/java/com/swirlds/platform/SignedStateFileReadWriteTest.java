@@ -115,7 +115,7 @@ class SignedStateFileReadWriteTest {
         }
 
         final String fileString = sb.toString();
-        assertTrue(fileString.contains(hashInfoString), "hash info string not found");
+        assertTrue(fileString.contains(mnemonicString), "hash info string not found");
         state.release();
     }
 
