@@ -264,7 +264,10 @@ jobs:
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       custom-job-label: "XTS (main):"
-      enable-extended-test-suite: "true"
+      enable-timing-sensitive-test-suite: "true"
+      enable-hammer-test-suite: "true"
+      enable-hapi-test-suite: "true"
+      enable-otter-test-suite: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
     secrets:
@@ -302,6 +305,7 @@ jobs:
       enable-mirror-node-regression-panel: "true"
       enable-rpc-relay-regression-panel: "true"
       enable-block-node-regression-panel: "true"
+      enable-chaos-otter-test-suite: "true"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
