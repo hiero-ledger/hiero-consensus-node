@@ -64,12 +64,14 @@ public class CryptoServiceFeesSuite {
     private static final double BASE_FEE_CRYPTO_CREATE = 0.05;
     private static final double BASE_FEE_CRYPTO_DELETE = 0.005;
     private static final double BASE_FEE_CRYPTO_DELETE_ALLOWANCE = 0.05;
-    private static final double BASE_FEE_CRYPTO_UPDATE = 0.000214;
+    private static final double BASE_FEE_CRYPTO_UPDATE = 0.00022;
     private static final double BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE = 0.00022;
     private static final double BASE_FEE_HBAR_CRYPTO_TRANSFER = 0.0001;
     private static final double BASE_FEE_HTS_CRYPTO_TRANSFER = 0.001;
     private static final double BASE_FEE_NFT_CRYPTO_TRANSFER = 0.001;
     private static final double BASE_FEE_CRYPTO_GET_ACCOUNT_RECORDS = 0.0001;
+    private static final double BASE_FEE_CRYPTO_APPROVE_ALLOWANCE = 0.05;
+    private static final double ALLOWANCE_EXTRA = 0.05;
 
     private static final String CIVILIAN = "civilian";
     private static final String FEES_ACCOUNT = "feesAccount";
@@ -221,7 +223,7 @@ public class CryptoServiceFeesSuite {
                         .fee(ONE_HBAR)
                         .blankMemo()
                         .logged(),
-                validateChargedUsdWithin("approve", 0.05, 0.01),
+                validateChargedUsdWithin("approve", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
@@ -229,7 +231,8 @@ public class CryptoServiceFeesSuite {
                         .fee(ONE_HBAR)
                         .blankMemo()
                         .logged(),
-                validateChargedUsdWithin("approveTokenTxn", 0.05012, 0.01),
+                // first allowance is free
+                validateChargedUsdWithin("approveTokenTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
@@ -237,7 +240,8 @@ public class CryptoServiceFeesSuite {
                         .fee(ONE_HBAR)
                         .blankMemo()
                         .logged(),
-                validateChargedUsdWithin("approveNftTxn", 0.050101, 0.01),
+                // first NFT allowance is free
+                validateChargedUsdWithin("approveNftTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, true, List.of())
@@ -245,17 +249,18 @@ public class CryptoServiceFeesSuite {
                         .fee(ONE_HBAR)
                         .blankMemo()
                         .logged(),
-                validateChargedUsdWithin("approveForAllNftTxn", 0.05, 0.01),
+                validateChargedUsdWithin("approveForAllNftTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, SECOND_SPENDER, 100L)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SECOND_SPENDER, 100L)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, false, List.of(1L))
                         .via(APPROVE_TXN)
-                        .fee(ONE_HBAR)
+                        .fee(ONE_HBAR * 2)
                         .blankMemo()
                         .logged(),
-                validateChargedUsdWithin(APPROVE_TXN, 0.05238, 0.01),
+                // three allowances but the first is free
+                validateChargedUsdWithin(APPROVE_TXN, BASE_FEE_CRYPTO_APPROVE_ALLOWANCE + ALLOWANCE_EXTRA * 2, 0.01),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -272,7 +277,7 @@ public class CryptoServiceFeesSuite {
                         .fee(ONE_HBAR)
                         .blankMemo()
                         .logged(),
-                validateChargedUsdWithin("approveModifyCryptoTxn", 0.049375, 0.01),
+                validateChargedUsdWithin("approveModifyCryptoTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SECOND_SPENDER, 200L)
@@ -280,7 +285,7 @@ public class CryptoServiceFeesSuite {
                         .fee(ONE_HBAR)
                         .blankMemo()
                         .logged(),
-                validateChargedUsdWithin("approveModifyTokenTxn", 0.04943, 0.01),
+                validateChargedUsdWithin("approveModifyTokenTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, false, List.of())
@@ -288,7 +293,7 @@ public class CryptoServiceFeesSuite {
                         .fee(ONE_HBAR)
                         .blankMemo()
                         .logged(),
-                validateChargedUsdWithin("approveModifyNftTxn", 0.049375, 0.01),
+                validateChargedUsdWithin("approveModifyNftTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
