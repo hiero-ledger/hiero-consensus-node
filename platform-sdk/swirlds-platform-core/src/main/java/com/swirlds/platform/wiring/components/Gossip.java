@@ -3,11 +3,12 @@ package com.swirlds.platform.wiring.components;
 
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
+import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
-import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -32,7 +33,7 @@ public interface Gossip {
      * @param systemHealthInput   used to tell gossip the health of the system, carries the duration that the system has
      *                            been in an unhealthy state
      * @param platformStatusInput used to tell gossip the status of the platform
-     * @param syncLagOutput       used to report how many rounds we are behind other peers on average
+     * @param syncProgressOutput  used to report current sync status against specific peer
      */
     void bind(
             @NonNull WiringModel model,
@@ -46,5 +47,5 @@ public interface Gossip {
             @NonNull BindableInputWire<NoInput, Void> resumeInput,
             @NonNull BindableInputWire<Duration, Void> systemHealthInput,
             @NonNull BindableInputWire<PlatformStatus, Void> platformStatusInput,
-            @NonNull StandardOutputWire<Double> syncLagOutput);
+            @NonNull StandardOutputWire<SyncProgress> syncProgressOutput);
 }

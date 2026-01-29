@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -113,6 +114,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
+@Tag(ATOMIC_BATCH)
 public class AtomicBatchNegativeTest {
 
     @Nested
@@ -366,7 +368,7 @@ public class AtomicBatchNegativeTest {
         }
 
         @HapiTest
-        @DisplayName("Bach contract call with 6kb payload, will fail")
+        @DisplayName("Batch contract call with 6kb payload, will fail")
         //  BATCH_50
         public Stream<DynamicTest> exceedsTxnSizeLimit() {
             final var contract = "CalldataSize";
@@ -379,6 +381,7 @@ public class AtomicBatchNegativeTest {
                     contractCreate(contract),
                     atomicBatch(contractCall(contract, function, payload).batchKey(batchOperator))
                             .signedByPayerAnd(batchOperator)
+                            .payingWith(batchOperator)
                             .hasPrecheck(TRANSACTION_OVERSIZE)
                             // the submitted transaction exceeds 6144 bytes and will have its
                             // gRPC request terminated immediately
@@ -493,7 +496,9 @@ public class AtomicBatchNegativeTest {
     @Nested
     @DisplayName("Throttles - NEGATIVE")
     class ThrottlesNegative {
-        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
+        @LeakyHapiTest(
+                requirement = {THROTTLE_OVERRIDES},
+                throttles = "testSystemFiles/artificial-limits.json")
         @DisplayName("Bach contract call with more than the TPS limit")
         //  BATCH_47
         public Stream<DynamicTest> contractCallMoreThanTPSLimit() {
@@ -522,7 +527,9 @@ public class AtomicBatchNegativeTest {
                             .payingWith(payer));
         }
 
-        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
+        @LeakyHapiTest(
+                requirement = {THROTTLE_OVERRIDES},
+                throttles = "testSystemFiles/artificial-limits.json")
         @DisplayName("Verify inner transaction front end throttle leaks capacity")
         @Tag(MATS)
         public Stream<DynamicTest> frontEndThrottleLeaksCapacity() {

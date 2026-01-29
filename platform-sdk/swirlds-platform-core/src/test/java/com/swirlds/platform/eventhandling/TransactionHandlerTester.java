@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.eventhandling;
 
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -10,71 +11,75 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.PlatformStateUtils;
 import com.swirlds.platform.state.service.PlatformStateValueAccumulator;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
+import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.
  */
-public class TransactionHandlerTester {
+public class TransactionHandlerTester implements AutoCloseable {
     private final PlatformStateModifier platformState;
     private final StateLifecycleManager stateLifecycleManager;
     private final DefaultTransactionHandler defaultTransactionHandler;
     private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
     private final List<Round> handledRounds = new ArrayList<>();
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private final TestPlatformStateFacade platformStateFacade;
-    private final MerkleNodeState consensusState;
+    private final Instant freezeTime;
+    private final Instant consensusTimestamp;
 
     /**
      * Constructs a new {@link TransactionHandlerTester} with the given {@link Roster}.
      *
      */
     public TransactionHandlerTester() {
+
+        freezeTime = Instant.now();
+        consensusTimestamp = freezeTime.minusMillis(1);
+
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         platformState = new PlatformStateValueAccumulator();
-
-        consensusState = mock(MerkleNodeState.class);
-        when(consensusState.getRoot()).thenReturn(mock(MerkleNode.class));
-        platformStateFacade = mock(TestPlatformStateFacade.class);
+        final RandomSignedStateGenerator randomSignedStateGenerator = new RandomSignedStateGenerator();
+        final SignedState state = randomSignedStateGenerator.build();
 
         consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
-        when(consensusState.copy()).thenReturn(consensusState);
-        when(platformStateFacade.getWritablePlatformStateOf(consensusState)).thenReturn(platformState);
 
         when(consensusStateEventHandler.onSealConsensusRound(any(), any())).thenReturn(true);
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                vm -> state.getState(),
+                platformContext.getConfiguration());
+        stateLifecycleManager.initState(state.getState());
         doAnswer(i -> {
                     handledRounds.add(i.getArgument(0));
                     return null;
                 })
                 .when(consensusStateEventHandler)
-                .onHandleConsensusRound(any(), same(consensusState), any());
+                .onHandleConsensusRound(any(), same(stateLifecycleManager.getMutableState()), any());
         final StatusActionSubmitter statusActionSubmitter = submittedActions::add;
-        stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), vm -> consensusState);
-        stateLifecycleManager.initState(consensusState, true);
         defaultTransactionHandler = new DefaultTransactionHandler(
                 platformContext,
                 stateLifecycleManager,
                 statusActionSubmitter,
                 mock(SemanticVersion.class),
-                platformStateFacade,
                 consensusStateEventHandler,
                 NodeId.of(1));
     }
@@ -121,11 +126,27 @@ public class TransactionHandlerTester {
         return consensusStateEventHandler;
     }
 
-    public PlatformStateFacade getPlatformStateFacade() {
-        return platformStateFacade;
+    /**
+     * @return the list of legacy running hashes that were set on the state
+     */
+    public Hash getLegacyRunningHash() {
+        return PlatformStateUtils.legacyRunningEventHashOf(stateLifecycleManager.getMutableState());
     }
 
-    public State getConsensusState() {
-        return consensusState;
+    public void enableFreezePeriod() {
+        bulkUpdateOf(stateLifecycleManager.getMutableState(), platformStateModifier -> {
+            platformStateModifier.setConsensusTimestamp(consensusTimestamp);
+            platformStateModifier.setFreezeTime(freezeTime);
+        });
+    }
+
+    @Override
+    public void close() {
+        while (stateLifecycleManager.getLatestImmutableState().getRoot().getReservationCount() != -1) {
+            stateLifecycleManager.getLatestImmutableState().release();
+        }
+        while (stateLifecycleManager.getMutableState().getRoot().getReservationCount() != -1) {
+            stateLifecycleManager.getMutableState().release();
+        }
     }
 }

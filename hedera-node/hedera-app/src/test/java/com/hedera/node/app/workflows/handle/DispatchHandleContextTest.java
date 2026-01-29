@@ -84,6 +84,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -312,7 +313,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     void setup() {
         when(serviceScopeLookup.getServiceName(any())).thenReturn(TokenService.NAME);
         readableStoreFactory = new ReadableStoreFactory(baseState);
-        apiFactory = new ServiceApiFactory(stack, configuration, Map.of());
+        apiFactory = new ServiceApiFactory(stack, configuration, Map.of(), NodeFeeAccumulator.NOOP);
         storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, apiFactory);
         subject = createContext(txBody);
 
@@ -322,7 +323,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @Test
     void delegatesFeeChargingForPayer() {
         given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
-        given(feeCharging.charge(eq(subject.payer()), eq(subject), any(), eq(new Fees(0, 123L, 0))))
+        given(feeCharging.charge(eq(subject.payer()), eq(subject), any(), eq(new Fees(0, 0L, 123L))))
                 .willReturn(new Fees(0, 123L, 0));
         assertTrue(subject.tryToChargePayer(123L));
     }
@@ -337,7 +338,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     void delegatesFeeChargingForOtherAccount() {
         final var overridePayerId = AccountID.newBuilder().accountNum(12345).build();
         given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
-        given(feeCharging.charge(eq(overridePayerId), eq(subject), any(), eq(new Fees(0, 123L, 0))))
+        given(feeCharging.charge(eq(overridePayerId), eq(subject), any(), eq(new Fees(0, 0, 123L))))
                 .willReturn(new Fees(0, 122L, 0));
         assertFalse(subject.tryToCharge(overridePayerId, 123L));
     }

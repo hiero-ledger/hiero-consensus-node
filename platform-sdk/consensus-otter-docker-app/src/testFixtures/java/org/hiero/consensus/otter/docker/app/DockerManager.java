@@ -5,7 +5,6 @@ import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MARKER_FILE;
 import static org.hiero.consensus.otter.docker.app.ConsensusNodeMain.STARTED_MARKER_FILE_NAME;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
-import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJavaToolOptions;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
 import com.google.protobuf.Empty;
@@ -92,16 +91,19 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
 
         this.selfId = requestSelfId;
 
+        // Set the debug port for the node communication service as JVM arguments
+        // This ensures only the main process gets the debug agent, not tools like jps/jcmd
+        final int debugPort = getNodeCommunicationDebugPort(selfId);
         final ProcessBuilder processBuilder = new ProcessBuilder(
                 "java",
+                "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:" + debugPort,
+                "-Djdk.attach.allowAttachSelf=true",
+                "-XX:+StartAttachListener",
                 "-cp",
                 DOCKER_APP_JAR + ":" + DOCKER_APP_LIBS,
                 CONSENSUS_NODE_MAIN_CLASS,
                 String.valueOf(selfId.id()));
 
-        // Set the debug port for the node communication service in the java environment variable.
-        final int debugPort = getNodeCommunicationDebugPort(selfId);
-        processBuilder.environment().put("JAVA_TOOL_OPTIONS", getJavaToolOptions(debugPort));
         processBuilder.inheritIO();
 
         log.info("Starting NodeCommunicationService with self ID: {}", selfId.id());

@@ -17,7 +17,6 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSch
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
@@ -56,7 +55,6 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -71,6 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -485,8 +484,7 @@ class WritableHintsStoreImplTest {
                 DEFAULT_CONFIG,
                 startupNetworks,
                 storeMetricsService,
-                configProvider,
-                TEST_PLATFORM_STATE_FACADE);
+                configProvider);
         return state;
     }
 }

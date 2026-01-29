@@ -103,6 +103,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -173,7 +174,7 @@ public class EthereumSuite {
                         .bytecode(TOKEN_CREATE_CONTRACT)
                         .gasPrice(10L)
                         .maxGasAllowance(ONE_HUNDRED_HBARS)
-                        .gasLimit(4_000_000L)
+                        .gasLimit(5_000_000L)
                         .hasKnownStatusFrom(SUCCESS)
                         .via("deployTokenCreateContract"),
                 getContractInfo(TOKEN_CREATE_CONTRACT)
@@ -202,7 +203,7 @@ public class EthereumSuite {
                         .hasPriority(recordWith().transfers(includingDeduction("HAPI fees", RELAYER))));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
     final Stream<DynamicTest> baseRelayerCostAsExpected() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),

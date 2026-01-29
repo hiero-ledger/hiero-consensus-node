@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.hashgraph.internal;
 
-import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
@@ -9,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /**
  * This class is responsible for selecting events by clicking in the GUI.
@@ -73,7 +73,7 @@ public class EventSelector implements MouseListener {
 
         stronglySeen.clear();
         for (final EventImpl e : eventsInPicture) {
-            final int xEvent = metadata.xpos(null, e);
+            final int xEvent = metadata.xpos(e);
             final int yEvent = metadata.ypos(e);
             final double distanceSquared = Math.pow(xEvent - xClicked, 2) + Math.pow(yEvent - yClicked, 2);
             if (distanceSquared <= rSquared - 20) {

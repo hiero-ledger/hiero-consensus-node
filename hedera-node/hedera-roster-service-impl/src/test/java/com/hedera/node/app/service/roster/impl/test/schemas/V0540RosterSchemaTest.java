@@ -19,7 +19,6 @@ import com.hedera.node.app.spi.migrate.HederaMigrationContext;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
@@ -74,9 +73,6 @@ class V0540RosterSchemaTest {
     @Mock
     private State state;
 
-    @Mock
-    private PlatformStateFacade platformStateFacade;
-
     private State getState() {
         return state;
     }
@@ -85,7 +81,7 @@ class V0540RosterSchemaTest {
 
     @BeforeEach
     void setUp() {
-        subject = new V0540RosterSchema(onAdopt, canAdopt, rosterStoreFactory, this::getState, platformStateFacade);
+        subject = new V0540RosterSchema(onAdopt, canAdopt, rosterStoreFactory, this::getState);
     }
 
     @Test

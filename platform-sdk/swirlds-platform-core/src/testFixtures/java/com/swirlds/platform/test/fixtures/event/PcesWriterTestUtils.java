@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event;
 
-import static com.swirlds.common.units.DataUnit.UNIT_BYTES;
-import static com.swirlds.common.units.DataUnit.UNIT_KILOBYTES;
+import static com.swirlds.base.units.DataUnit.UNIT_BYTES;
+import static com.swirlds.base.units.DataUnit.UNIT_KILOBYTES;
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -10,13 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.test.fixtures.TransactionGenerator;
 import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
-import com.swirlds.platform.event.preconsensus.PcesFile;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,8 +22,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
+import org.hiero.consensus.pces.impl.common.PcesFile;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
 
 public class PcesWriterTestUtils {
     private PcesWriterTestUtils() {}

@@ -19,6 +19,7 @@ testModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
     requires("org.junit.platform.launcher")
+    requires("org.apache.commons.lang3")
     opensTo("org.junit.platform.commons")
 }
 
@@ -45,8 +46,6 @@ val yahCliJar =
 
         dependsOn(tasks.compileJava, tasks.classes, tasks.processResources)
     }
-
-tasks.assemble { dependsOn(yahCliJar) }
 
 tasks.register<Copy>("copyYahCli") {
     group = "copy"

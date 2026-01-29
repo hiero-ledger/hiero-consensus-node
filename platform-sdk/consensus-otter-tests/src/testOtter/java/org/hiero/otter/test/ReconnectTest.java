@@ -14,7 +14,6 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
-import com.swirlds.platform.consensus.ConsensusConfig_;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -22,13 +21,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
@@ -73,8 +73,7 @@ public class ReconnectTest {
                 .doNotAttemptToReconnect();
         assertContinuouslyThat(nodeToReconnect.newReconnectResult())
                 .hasNoFailedReconnects()
-                .hasMaximumReconnectTime(Duration.ofSeconds(10))
-                .hasMaximumTreeInitializationTime(Duration.ofSeconds(1));
+                .hasMaximumReconnectTime(Duration.ofSeconds(10));
         assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
         assertContinuouslyThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
                 .haveConsistentRounds();

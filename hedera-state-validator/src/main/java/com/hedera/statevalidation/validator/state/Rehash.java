@@ -2,15 +2,15 @@
 package com.hedera.statevalidation.validator.state;
 
 import static com.hedera.statevalidation.util.ParallelProcessingUtils.VALIDATOR_FORK_JOIN_POOL;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.statevalidation.report.SlackReportGenerator;
+import com.hedera.statevalidation.util.FutureMerkleHash;
+import com.hedera.statevalidation.util.junit.DeserializedSignedStateResolver;
 import com.hedera.statevalidation.util.junit.HashInfo;
 import com.hedera.statevalidation.util.junit.HashInfoResolver;
-import com.hedera.statevalidation.util.junit.StateResolver;
-import com.swirlds.common.merkle.hash.FutureMerkleHash;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, SlackReportGenerator.class, HashInfoResolver.class})
+@ExtendWith({DeserializedSignedStateResolver.class, SlackReportGenerator.class, HashInfoResolver.class})
 @Tag("rehash")
 public class Rehash {
 
@@ -61,14 +61,13 @@ public class Rehash {
     /**
      * This test validates the Merkle tree structure of the state.
      *
-     * @param deserializedSignedState The deserialized signed state, propagated by the StateResolver.
+     * @param deserializedSignedState The deserialized signed state, propagated by the DeserializedSignedStateResolver.
      * @param hashInfo                The hash info object, propagated by the HashInfoResolver.
      */
     @Test
     void validateMerkleTree(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
 
-        var platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-        var infoStringFromState = platformStateFacade.getInfoString(
+        var infoStringFromState = getInfoString(
                 deserializedSignedState.reservedSignedState().get().getState(), HASH_DEPTH);
 
         final var originalLines = Arrays.asList(hashInfo.content().split("\n")).getFirst();

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.platform.state.service.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -18,7 +19,6 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
@@ -26,7 +26,7 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.AfterEach;
@@ -55,14 +55,16 @@ class StateLifecycleManagerTests {
         final SwirldsPlatform platform = mock(SwirldsPlatform.class);
         final Roster roster = RandomRosterBuilder.create(Randotron.create()).build();
         when(platform.getRoster()).thenReturn(roster);
-        PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-        initialState = newState(platformStateFacade);
+        initialState = newState();
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
         stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), TestVirtualMapState::new);
-        stateLifecycleManager.initState(initialState, true);
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                VirtualMapStateTestUtils::createTestStateWithVM,
+                platformContext.getConfiguration());
+        stateLifecycleManager.initState(initialState);
     }
 
     @AfterEach
@@ -98,7 +100,7 @@ class StateLifecycleManagerTests {
     void initStateRefCount() {
         final SignedState ss1 = newSignedState();
         final Reservable state1 = ss1.getState().getRoot();
-        stateLifecycleManager.initState(ss1.getState(), false);
+        stateLifecycleManager.initStateOnReconnect(ss1.getState());
 
         assertEquals(
                 2,
@@ -112,7 +114,7 @@ class StateLifecycleManagerTests {
                 "The current consensus state should have a single reference count.");
 
         final SignedState ss2 = newSignedState();
-        stateLifecycleManager.initState(ss2.getState(), false);
+        stateLifecycleManager.initStateOnReconnect(ss2.getState());
         final MerkleNodeState consensusState2 = stateLifecycleManager.getMutableState();
 
         Reservable state2 = ss2.getState().getRoot();
@@ -156,9 +158,8 @@ class StateLifecycleManagerTests {
     @Test
     @DisplayName("initState() rejects second startup initialization")
     void initStateRejectsSecondStartup() {
-        final PlatformStateFacade psf = new PlatformStateFacade();
-        final MerkleNodeState another = newState(psf);
-        assertThrows(IllegalStateException.class, () -> stateLifecycleManager.initState(another, true));
+        final MerkleNodeState another = newState();
+        assertThrows(IllegalStateException.class, () -> stateLifecycleManager.initState(another));
         another.release();
     }
 
@@ -166,7 +167,7 @@ class StateLifecycleManagerTests {
     @DisplayName("initState() rejects immutable input state")
     void initStateRejectsImmutableInput() {
         final MerkleNodeState immutable = stateLifecycleManager.getLatestImmutableState();
-        assertThrows(MutabilityException.class, () -> stateLifecycleManager.initState(immutable, false));
+        assertThrows(MutabilityException.class, () -> stateLifecycleManager.initState(immutable));
     }
 
     @Test
@@ -175,7 +176,10 @@ class StateLifecycleManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), TestVirtualMapState::new);
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                VirtualMapStateTestUtils::createTestStateWithVM,
+                platformContext.getConfiguration());
         assertThrows(IllegalStateException.class, uninitialized::getMutableState);
     }
 
@@ -185,17 +189,41 @@ class StateLifecycleManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), TestVirtualMapState::new);
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                VirtualMapStateTestUtils::createTestStateWithVM,
+                platformContext.getConfiguration());
         assertThrows(IllegalStateException.class, uninitialized::getLatestImmutableState);
     }
 
-    private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
-        final String virtualMapLabel =
-                StateLifecycleManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+    @Test
+    @DisplayName("createStateFrom() creates a state without changing reservation count and the state of the manager")
+    void createStateFrom() {
+        // Create an independent state and get its root (VirtualMap)
+        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
+        final MerkleNodeState created = stateLifecycleManager.createStateFrom(state.getRoot());
+
+        // The created state should be non-null and reference the same root
+        assertSame(state.getRoot(), created.getRoot(), "createStateFrom should wrap the provided root");
+
+        // Reservation count should remain unchanged by createStateFrom
+        assertEquals(
+                0,
+                (created.getRoot()).getReservationCount(),
+                "createStateFrom must not alter the root reservation count");
+
+        // stateLifecycleManager remains unchanged
+        assertNotSame(state, stateLifecycleManager.getLatestImmutableState());
+        assertNotSame(state, stateLifecycleManager.getMutableState());
+
+        state.release();
+    }
+
+    private static MerkleNodeState newState() {
+        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
         TestingAppStateInitializer.initPlatformState(state);
 
-        platformStateFacade.setCreationSoftwareVersionTo(
+        setCreationSoftwareVersionTo(
                 state, SemanticVersion.newBuilder().major(nextInt(1, 100)).build());
 
         assertEquals(0, state.getRoot().getReservationCount(), "A brand new state should have no references.");

@@ -7,11 +7,11 @@ import static org.hiero.otter.fixtures.Capability.DETERMINISTIC_EXECUTION;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
-import com.swirlds.platform.consensus.ConsensusConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -20,7 +20,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.hiero.otter.fixtures.turtle.TurtleSpecs;
+import org.hiero.otter.fixtures.specs.TurtleSpecs;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -69,7 +69,7 @@ class DocExamplesTest {
                 network.newConsensusResults().results().getFirst().lastRoundNum();
 
         // This assertion will always pass with seed=42
-        assertThat(lastRound).isEqualTo(47L);
+        assertThat(lastRound).isEqualTo(48L);
     }
 
     // This test is used in the writing-tests.md file.

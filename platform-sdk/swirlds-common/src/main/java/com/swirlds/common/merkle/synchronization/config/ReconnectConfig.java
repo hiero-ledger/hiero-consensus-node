@@ -14,8 +14,6 @@ import java.time.Duration;
  *                                               allowed to reconnect. If -1 then a node is always allowed to reconnect.
  *                                               Respects {@link #active} -- if active is false then reconnect is never
  *                                               allowed.
- * @param fallenBehindThreshold                  The fraction of neighbors needed to tell us we have fallen behind
- *                                               before we initiate a reconnect.
  * @param asyncStreamTimeout                     The amount of time that an
  *                                               {@link
  *                                               com.swirlds.common.merkle.synchronization.streams.AsyncInputStream} and
@@ -46,7 +44,6 @@ import java.time.Duration;
 public record ReconnectConfig(
         @ConfigProperty(defaultValue = "true") boolean active,
         @ConfigProperty(defaultValue = "-1") int reconnectWindowSeconds,
-        @ConfigProperty(defaultValue = "0.50") double fallenBehindThreshold,
         @ConfigProperty(defaultValue = "300s") Duration asyncStreamTimeout,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
         @ConfigProperty(defaultValue = "10000") int asyncStreamBufferSize,

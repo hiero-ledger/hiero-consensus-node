@@ -7,7 +7,6 @@ import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createPartitionedOtherParentAffinityMatrix;
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
-import com.swirlds.common.utility.Threshold;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestNode;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestOrchestrator;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestUtils;
@@ -39,6 +38,8 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 import org.assertj.core.api.Assertions;
+import org.hiero.base.utility.Threshold;
+import org.hiero.consensus.hashgraph.impl.consensus.SyntheticSnapshot;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -609,7 +610,7 @@ public final class ConsensusTestDefinitions {
         // generate half of the events and validate
         orchestrator.generateEvents(0.5).validateAndClear(consensusOutputValidator);
         // freeze all the nodes
-        orchestrator.forEachNode(node -> node.getIntake().getFreezeCheckHolder().setFreezeCheckRef(i -> true));
+        orchestrator.forEachNode(node -> node.getIntake().setFreezeCheck(i -> true));
         // generate the rest of the events
         orchestrator.generateEvents(0.5);
         // validate that exactly 1 round reached consensus (the freeze round) and that its equal on all nodes

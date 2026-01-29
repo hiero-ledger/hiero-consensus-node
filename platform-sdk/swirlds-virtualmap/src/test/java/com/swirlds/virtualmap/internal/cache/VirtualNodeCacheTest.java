@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -25,7 +24,6 @@ import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -2045,63 +2043,6 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     }
 
     /**
-     * This test validates that serialization happens only on snapshot instances.
-     * if we try to serialize a non-snapshot instance, then an
-     * {@link IllegalStateException} is thrown.
-     *
-     * @throws IOException
-     * 		In case of error
-     */
-    @Test
-    @DisplayName("serialize should only be called on a snapshot")
-    void serializingBeforeSnapshot() throws IOException {
-        try (final InputOutputStream ioStream = new InputOutputStream()) {
-            final Exception exception = assertThrows(
-                    IllegalStateException.class,
-                    () -> ioStream.getOutput().writeSerializable(cache, true),
-                    "Serialization should be done on a snapshot");
-            assertEquals(
-                    "Trying to serialize a non-snapshot instance",
-                    exception.getMessage(),
-                    "Serialization is only valid on snapshot");
-        }
-    }
-
-    /**
-     * This test validates that the snapshot of a copy is serialized and
-     * deserialized correctly by matching its contents against the
-     * original cache (cache0).
-     *
-     * @throws IOException
-     * 		In case of error
-     */
-    @Test
-    @DisplayName("Deserialized cache matches its non-copied original cache")
-    void serializeAndDeserialize() throws IOException {
-        final List<CacheInfo> caches = createCaches();
-        final List<CacheInfo> snapshots = caches.stream()
-                .map(original ->
-                        new CacheInfo(original.cache.snapshot(), original.firstLeafPath, original.lastLeafPath))
-                .toList();
-
-        final List<CacheInfo> expectedCaches = createCaches();
-        for (int i = 0; i < snapshots.size(); i++) {
-            final CacheInfo snapshot = snapshots.get(i);
-            final CacheInfo expected = expectedCaches.get(i);
-
-            try (final InputOutputStream ioStream = new InputOutputStream()) {
-                ioStream.getOutput().writeSerializable(snapshot.cache, true);
-                ioStream.startReading();
-
-                final VirtualNodeCache deserializedCache = ioStream.getInput().readSerializable();
-                final CacheInfo deserializedInfo =
-                        new CacheInfo(deserializedCache, snapshot.firstLeafPath, snapshot.lastLeafPath);
-                validateSnapshot(expected, deserializedInfo, i);
-            }
-        }
-    }
-
-    /**
      * Creates a chain of 3 copies. The most recent copy is leaf-mutable. Each copy has some combination
      * of creates, updates, and/or deletes. To help with understanding this test, all three trees are produced
      * below. The leaves are described as <pre>({Letter}{+|' for add or update relative to the previous copy}</pre>.
@@ -2748,6 +2689,46 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         final Set<VirtualLeafBytes> dirtyLeaves0F =
                 cache0.dirtyLeavesForFlush(1, 2).collect(Collectors.toSet());
         assertEquals(Set.of(appleLeaf(1), bananaLeaf(2)), dirtyLeaves0F);
+    }
+
+    @Test
+    @DisplayName("Check merged node cache memory overhead")
+    void mergedCachesMemoryOverhead() {
+        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
+        cache0.putLeaf(appleLeaf(1));
+        final long cache0EstimatedSize = cache0.getEstimatedSize();
+
+        final VirtualNodeCache cache1 = cache0.copy();
+        cache1.putLeaf(bananaLeaf(2));
+        final long cache1EstimatedSize = cache1.getEstimatedSize();
+
+        final VirtualNodeCache cache2 = cache1.copy();
+        final long cache2EstimatedSize = cache2.getEstimatedSize();
+        assertEquals(0, cache2EstimatedSize); // empty
+
+        cache0.seal();
+        cache1.seal();
+        cache2.seal();
+
+        final int concurrentArraySubArrayCapacity = 1024; // keep in sync with ConcurrentArray
+        // One empty array (hashes) and two arrays with one element - total 3 sub-arrays
+        assertEquals(concurrentArraySubArrayCapacity * 3 * Long.BYTES + cache0EstimatedSize, cache0.getEstimatedSize());
+        assertEquals(concurrentArraySubArrayCapacity * 3 * Long.BYTES + cache1EstimatedSize, cache1.getEstimatedSize());
+        // Three empty sub-arrays in cache2
+        assertEquals(concurrentArraySubArrayCapacity * 3 * Long.BYTES, cache2.getEstimatedSize());
+
+        cache0.merge();
+        // Hashes arrays are empty. Two empty sub-arrays are merged into one empty sub-array
+        assertEquals(
+                concurrentArraySubArrayCapacity * 6 * Long.BYTES + cache0EstimatedSize + cache1EstimatedSize,
+                cache1.getEstimatedSize());
+
+        cache1.merge();
+        // Cache2 is empty, all its concurrent arrays / sub-arrays are empty. During merge, no new sub-arrays
+        // should be created
+        assertEquals(
+                concurrentArraySubArrayCapacity * 6 * Long.BYTES + cache0EstimatedSize + cache1EstimatedSize,
+                cache1.getEstimatedSize());
     }
 
     // ----------------------------------------------------------------------

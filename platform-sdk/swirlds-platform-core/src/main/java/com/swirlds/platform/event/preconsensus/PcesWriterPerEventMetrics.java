@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import static com.swirlds.common.metrics.IntegerPairAccumulator.AVERAGE;
-import static org.apache.logging.log4j.Level.CATEGORY;
+import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
+import static org.hiero.consensus.metrics.IntegerPairAccumulator.AVERAGE;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.IntegerPairAccumulator;
 
 /**
  * Used by {@link DefaultInlinePcesWriter} to keep track of the write and sync duration.
@@ -16,16 +16,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 class PcesWriterPerEventMetrics {
 
     private static final IntegerPairAccumulator.Config<Double> PCES_AVG_EVENT_SIZE =
-            new IntegerPairAccumulator.Config<>(CATEGORY, "pcesAvgEventSize", Double.class, AVERAGE)
+            new IntegerPairAccumulator.Config<>(PLATFORM_CATEGORY, "pcesAvgEventSize", Double.class, AVERAGE)
                     .withDescription("The average length in bytes of an event written in a pces file");
     private static final IntegerPairAccumulator.Config<Double> PCES_AVG_SYNC_DURATION =
-            new IntegerPairAccumulator.Config<>(CATEGORY, "pcesAvgSyncDuration", Double.class, AVERAGE)
+            new IntegerPairAccumulator.Config<>(PLATFORM_CATEGORY, "pcesAvgSyncDuration", Double.class, AVERAGE)
                     .withDescription("The amount of time it takes to complete a flush operation");
     private static final IntegerPairAccumulator.Config<Double> PCES_AVG_WRITE_DURATION =
-            new IntegerPairAccumulator.Config<>(CATEGORY, "pcesAvgWriteDuration", Double.class, AVERAGE)
+            new IntegerPairAccumulator.Config<>(PLATFORM_CATEGORY, "pcesAvgWriteDuration", Double.class, AVERAGE)
                     .withDescription("The amount of time it takes to complete a single write operation");
     private static final IntegerPairAccumulator.Config<Double> PCES_AVG_TOTAL_WRITE_DURATION =
-            new IntegerPairAccumulator.Config<>(CATEGORY, "pcesAvgTotalWriteDuration", Double.class, AVERAGE)
+            new IntegerPairAccumulator.Config<>(PLATFORM_CATEGORY, "pcesAvgTotalWriteDuration", Double.class, AVERAGE)
                     .withDescription("The amount of time it takes to write a single event to the stream");
 
     private final IntegerPairAccumulator<Double> avgWriteMetric;

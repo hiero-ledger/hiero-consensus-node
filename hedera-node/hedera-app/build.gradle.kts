@@ -9,7 +9,6 @@ description = "Hedera Application - Implementation"
 
 mainModuleInfo {
     annotationProcessor("dagger.compiler")
-    annotationProcessor("com.google.auto.service.processor")
 
     // This is needed to pick up and include the native libraries for the netty epoll transport
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
@@ -17,8 +16,10 @@ mainModuleInfo {
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
+    runtimeOnly("io.helidon.webclient.http2")
     runtimeOnly("com.hedera.pbj.grpc.client.helidon")
     runtimeOnly("com.hedera.pbj.grpc.helidon")
+    runtimeOnly("org.hiero.consensus.pcli")
 }
 
 testModuleInfo {
@@ -57,10 +58,17 @@ jmhModuleInfo {
     requires("com.hedera.node.app.hapi.utils")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.hedera.node.app.test.fixtures")
+    requires("com.hedera.node.config")
     requires("com.hedera.node.hapi")
     requires("com.hedera.pbj.runtime")
+    requires("com.swirlds.config.api")
+    requires("com.swirlds.config.extensions")
+    requires("com.swirlds.metrics.api")
+    requires("com.swirlds.platform.core")
+    requires("com.swirlds.state.api")
     requires("jmh.core")
     requires("org.hiero.base.crypto")
+    requires("org.hiero.consensus.model")
 }
 
 // Add all the libs dependencies into the jar manifest!

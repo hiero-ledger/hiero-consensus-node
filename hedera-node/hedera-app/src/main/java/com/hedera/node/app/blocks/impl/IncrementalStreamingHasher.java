@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.node.app.blocks.StreamingTreeHasher.INTERNAL_NODE_PREFIX;
+import static com.hedera.node.app.blocks.StreamingTreeHasher.LEAF_PREFIX;
+
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.MessageDigest;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -15,10 +18,6 @@ import java.util.List;
  * <p>This is not thread safe, it is assumed use by single thread.</p>
  */
 public class IncrementalStreamingHasher {
-    /** Prefix byte for hash contents for leaf nodes. */
-    private static final byte[] LEAF_PREFIX = new byte[] {0};
-    /** Prefix byte for hash contents for internal nodes. */
-    private static final byte[] INTERNAL_NODE_PREFIX = new byte[] {2};
     /** The hashing algorithm used for computing the hashes. */
     private final MessageDigest digest;
     /** A list to store intermediate hashes as we build the tree. */
@@ -33,6 +32,7 @@ public class IncrementalStreamingHasher {
             throw new IllegalArgumentException("digest must not be null");
         }
         this.digest = digest;
+        // These byte arrays should have already been hashed, so we can add them directly
         this.hashList.addAll(intermediateHashingState);
         this.leafCount = leafCount;
     }
@@ -58,13 +58,15 @@ public class IncrementalStreamingHasher {
      * Compute the Merkle tree root hash from the current state. This does not modify the internal state, so can be
      * called at any time and more leaves can be added afterward.
      *
-     * @return the Merkle tree root hash, or {@code Bytes.EMPTY} if no leaves exist
+     * @return the Merkle tree root hash, or {@link BlockStreamManager#ZERO_BLOCK_HASH} if no leaves exist
      */
     public byte[] computeRootHash() {
         if (hashList.isEmpty()) {
-            return Bytes.EMPTY.toByteArray();
+            // This value is precomputed as the hash of an empty tree; therefore it should _not_ be hashed as a leaf
+            return BlockStreamManager.ZERO_BLOCK_HASH.toByteArray();
         }
         if (hashList.size() == 1) {
+            // This value should already have been hashed as a leaf, and therefore should _not_ be re-hashed
             return hashList.getFirst();
         }
 
@@ -81,9 +83,7 @@ public class IncrementalStreamingHasher {
      * @return the intermediate hashing state
      */
     public List<Bytes> intermediateHashingState() {
-        return hashList.stream()
-                .map(b -> Bytes.wrap(Arrays.copyOf(b, b.length)))
-                .toList();
+        return hashList.stream().map(Bytes::wrap).toList();
     }
 
     /**

@@ -41,20 +41,21 @@ class CryptographyTests {
 
     @BeforeAll
     public static void startup() throws NoSuchAlgorithmException {
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Configuration configuration =
+                new TestConfigBuilder().withConfigDataType(CryptoConfig.class).getOrCreateConfig();
         cryptoConfig = configuration.getConfigData(CryptoConfig.class);
-
-        assertTrue(cryptoConfig.computeCpuDigestThreadCount() >= 1);
 
         executorService = Executors.newFixedThreadPool(PARALLELISM);
 
-        digestPool = new MessageDigestPool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 100);
+        digestPool = new MessageDigestPool(PARALLELISM, 100);
     }
 
     @AfterAll
     public static void shutdown() throws InterruptedException {
-        executorService.shutdown();
-        executorService.awaitTermination(2, TimeUnit.SECONDS);
+        if (executorService != null) {
+            executorService.shutdown();
+            executorService.awaitTermination(2, TimeUnit.SECONDS);
+        }
     }
 
     @ParameterizedTest
@@ -84,7 +85,7 @@ class CryptographyTests {
     @ParameterizedTest
     @ValueSource(ints = {1, 10, 49, 98, 101, 25_000, 50_005})
     void verifySyncEd25519Only(final int count) {
-        ed25519SignaturePool = new SignaturePool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 100, true);
+        ed25519SignaturePool = new SignaturePool(PARALLELISM, 100, true);
         final TransactionSignature[] signatures = new TransactionSignature[count];
 
         for (int i = 0; i < signatures.length; i++) {
@@ -96,7 +97,7 @@ class CryptographyTests {
     @ParameterizedTest
     @ValueSource(ints = {1, 10, 49, 98, 101, 25_000, 50_005})
     void verifySyncEcdsaSecp256k1Only(final int count) {
-        ecdsaSignaturePool = new EcdsaSignedTxnPool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 64);
+        ecdsaSignaturePool = new EcdsaSignedTxnPool(PARALLELISM, 64);
         final TransactionSignature[] signatures = new TransactionSignature[count];
 
         for (int i = 0; i < signatures.length; i++) {
@@ -107,7 +108,7 @@ class CryptographyTests {
 
     @Test
     void verifySyncInvalidEcdsaSecp256k1() {
-        ecdsaSignaturePool = new EcdsaSignedTxnPool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 64);
+        ecdsaSignaturePool = new EcdsaSignedTxnPool(PARALLELISM, 64);
         final TransactionSignature signature = ecdsaSignaturePool.next();
         final byte[] data = signature.getMessage().toByteArray();
         final byte[] publicKey = signature.getPublicKey().toByteArray();
@@ -132,7 +133,7 @@ class CryptographyTests {
 
     @Test
     void verifySyncInvalidEd25519() {
-        ed25519SignaturePool = new SignaturePool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 100, true);
+        ed25519SignaturePool = new SignaturePool(PARALLELISM, 100, true);
         final TransactionSignature signature = ed25519SignaturePool.next();
         final byte[] data = signature.getMessage().toByteArray();
         final byte[] publicKey = signature.getPublicKey().toByteArray();
@@ -158,14 +159,14 @@ class CryptographyTests {
 
     @Test
     void verifySyncEd25519Signature() {
-        ed25519SignaturePool = new SignaturePool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 100, true);
+        ed25519SignaturePool = new SignaturePool(PARALLELISM, 100, true);
         final TransactionSignature signature = ed25519SignaturePool.next();
         assertTrue(CRYPTOGRAPHY.verifySync(signature), "Should be a valid signature");
     }
 
     @Test
     void verifySyncEcdsaSignature() {
-        ecdsaSignaturePool = new EcdsaSignedTxnPool(cryptoConfig.computeCpuDigestThreadCount() * PARALLELISM, 64);
+        ecdsaSignaturePool = new EcdsaSignedTxnPool(PARALLELISM, 64);
         final TransactionSignature signature = ecdsaSignaturePool.next();
         assertTrue(CRYPTOGRAPHY.verifySync(signature), "Should be a valid signature");
     }

@@ -13,7 +13,7 @@ the central API to access the ledger state in all code & products.
 
 The Merkle tree is a rather complex data structure, and to make interaction easier, we need to hide this complexity behind an API.
 Another reason to have this API is to provide additional flexibility in changing the implementation details of the Merkle tree.
-As long as they are hidden, we are free to change them. This API will be critically important for the Block Node to 
+As long as they are hidden, we are free to change them. This API will be critically important for the Block Node to
 interact with the state without knowing the details of the Merkle tree.
 
 Note that this API is already implemented as a part of the Service Modularization project, but these classes will be moved
@@ -24,21 +24,20 @@ to a separate module as a part of this proposal.
 There are two issues that need to be addressed:
 
 * We need to have a public API for the Merkle tree that is simple and easy to use, residing in a separate module with a minimal set of dependencies.
-* The Merkle tree has to be fully expressed in terms of State API. Currently, `PlatformState` stands out and needs to be refactored. 
-See more details in the [Platform State](#platform-state) section.
+* The Merkle tree has to be fully expressed in terms of State API. Currently, `PlatformState` stands out and needs to be refactored.
+  See more details in the [Platform State](#platform-state) section.
 
 List of `swirlds-state-api` dependencies:
-```java
-    requires transitive com.hedera.node.hapi;
-    requires transitive com.swirlds.config.api;
-    requires transitive com.hedera.pbj.runtime;
-    requires transitive com.swirlds.virtualmap;
-    requires transitive com.swirlds.common;
-    requires transitive com.swirlds.merkledb;
-    requires transitive com.swirlds.merkle;
-    requires com.swirlds.fcqueue;
-```
 
+```java
+requires transitive com.hedera.node.hapi;
+requires transitive com.swirlds.config.api;
+requires transitive com.hedera.pbj.runtime;
+requires transitive com.swirlds.virtualmap;
+requires transitive com.swirlds.common;
+requires transitive com.swirlds.merkledb;
+requires transitive com.swirlds.merkle;
+```
 
 #### Singleton
 
@@ -48,6 +47,7 @@ A singleton is a node with 2 children:
 - the singleton value, which is a protobuf message
 
 In Java code it's represented by the following classes:
+
 ```java
 /**
  * Provides stateful access to a singleton type. Most state in Hedera is k/v state, represented by
@@ -109,7 +109,7 @@ public interface WritableSingletonState<T> extends ReadableSingletonState<T> {
 
 ## Requirements
 
-- `PlatformState` should be accessible via the State API 
+- `PlatformState` should be accessible via the State API
 - there should be a new module - `swirlds-state-api` - to host a set of interfaces, records, and abstract classes that represent the Hashgraph state.
   This module should have a minimal set of dependencies. The Block Node should not have a compile-time dependency
   on any other modules but this one to interact with the state.
@@ -121,9 +121,10 @@ public interface WritableSingletonState<T> extends ReadableSingletonState<T> {
 State API classes and interfaces will migrate to a designated module. The classes themselves will not change. `PlatformState` class will become a part of the public API.
 
 Usage example:
+
 ```java
 private PlatformState findPlatformState(LedgerState state) {
-  final ReadableStates states = state.getReadableStates(PlatformState.NAME);   
+  final ReadableStates states = state.getReadableStates(PlatformState.NAME);
   final ReadableSingletonState<PlatformState> platformState = states.getSingleton(PlatformState.PLATFORM_STATE_KEY);
   return platformState.get();
 }
@@ -133,8 +134,8 @@ private PlatformState findPlatformState(LedgerState state) {
 
 [### Platform State](#platform-state)
 
-Currently `PlatformState` is a special case node of the merkle tree. That is, it doesn't conform to State API. 
-As a part of the simplification effort **it should be refactored to a singleton state**. 
+Currently `PlatformState` is a special case node of the merkle tree. That is, it doesn't conform to State API.
+As a part of the simplification effort **it should be refactored to a singleton state**.
 As a part of this change, `PlatformState` should not be a `MerkleNode` anymore.
 
 Protobuf definition:

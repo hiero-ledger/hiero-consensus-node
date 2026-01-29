@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -251,6 +252,7 @@ import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DynamicTest;
 
 public class UtilVerbs {
     public static final int DEFAULT_COLLISION_AVOIDANCE_FACTOR = 2;
@@ -475,58 +477,69 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * application logs contain the given pattern.
-     *
+     * application logs contain the given text.
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must be present
+     * @param text the text that must be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
-    public static LogContainmentOp assertHgcaaLogContains(
-            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
-        return new LogContainmentOp(selector, APPLICATION_LOG, CONTAINS, pattern, delay);
+    public static LogContainmentOp assertHgcaaLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, APPLICATION_LOG, CONTAINS, text, null, delay);
     }
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * application logs do not contain the given pattern.
+     * application logs contain the given regex.
      *
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must not be present
+     * @param regex the regex that must be found
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
-    public static LogContainmentOp assertHgcaaLogDoesNotContain(
-            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
-        return new LogContainmentOp(selector, APPLICATION_LOG, DOES_NOT_CONTAIN, pattern, delay);
+    public static LogContainmentOp assertHgcaaLogContainsPattern(
+            @NonNull final NodeSelector selector, @NonNull final String regex, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, APPLICATION_LOG, CONTAINS, null, Pattern.compile(regex), delay);
     }
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * block node comms logs contain the given pattern.
-     *
+     * application logs do not contain the given text.
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must be present
+     * @param text the text that must be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
-    public static LogContainmentOp assertBlockNodeCommsLogContains(
-            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
-        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, CONTAINS, pattern, delay);
+    public static LogContainmentOp assertHgcaaLogDoesNotContainText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, APPLICATION_LOG, DOES_NOT_CONTAIN, text, null, delay);
     }
 
     /**
      * Returns an operation that delays for the given time and then validates that the selected nodes'
-     * block node comms logs do not contain the given pattern.
-     *
+     * block node comms logs contain the given text.
      * @param selector the selector for the node whose log to validate
-     * @param pattern the pattern that must not be present
+     * @param text the text that must be present
      * @param delay the delay before validation
      * @return the operation that validates the logs of the target network
      */
-    public static LogContainmentOp assertBlockNodeCommsLogDoesNotContain(
-            @NonNull final NodeSelector selector, @NonNull final String pattern, @NonNull final Duration delay) {
-        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, DOES_NOT_CONTAIN, pattern, delay);
+    public static LogContainmentOp assertBlockNodeCommsLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, CONTAINS, text, null, delay);
+    }
+
+    /**
+     * Returns an operation that delays for the given time and then validates that the selected nodes'
+     * block node comms logs do not contain the given text.
+     *
+     * @param selector the selector for the node whose log to validate
+     * @param text the text that must be present
+     * @param delay the delay before validation
+     * @return the operation that validates the logs of the target network
+     */
+    public static LogContainmentOp assertBlockNodeCommsLogDoesNotContainText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration delay) {
+        return new LogContainmentOp(selector, BLOCK_NODE_COMMS_LOG, DOES_NOT_CONTAIN, text, null, delay);
     }
 
     /**
@@ -2084,6 +2097,40 @@ public class UtilVerbs {
         });
     }
 
+    public static CustomSpecAssert validateChargedSimpleFees(
+            String name, String txn, double expectedUsd, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualUsdCharged = getChargedUsed(spec, txn);
+            assertEquals(
+                    expectedUsd,
+                    actualUsdCharged,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
+                    String.format(
+                            "%s: %s fee (%s) more than %.2f percent different than expected!",
+                            name, sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    @FunctionalInterface
+    public interface OpsProvider {
+        List<SpecOperation> provide();
+    }
+
+    public static Stream<DynamicTest> compareSimpleToOld(
+            OpsProvider provider, String txName, double simpleFee, double simpleDiff, double oldFee, double oldDiff) {
+        List<SpecOperation> opsList = new ArrayList<>();
+
+        opsList.add(overriding("fees.simpleFeesEnabled", "true"));
+        opsList.addAll(provider.provide());
+        opsList.add(validateChargedSimpleFees("Simple Fees", txName, simpleFee, simpleDiff));
+
+        opsList.add(overriding("fees.simpleFeesEnabled", "false"));
+        opsList.addAll(provider.provide());
+        opsList.add(validateChargedSimpleFees("Old Fees", txName, oldFee, oldDiff));
+
+        return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
+    }
+
     public static CustomSpecAssert validateChargedUsdWithChild(
             String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
@@ -2101,6 +2148,20 @@ public class UtilVerbs {
     public static CustomSpecAssert validateChargedUsdWithin(String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
             final var actualUsdCharged = getChargedUsed(spec, txn);
+            assertEquals(
+                    expectedUsd,
+                    actualUsdCharged,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
+                    String.format(
+                            "%s fee (%s) more than %.2f percent different than expected!",
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    public static CustomSpecAssert validateChargedUsdForQueries(
+            String txn, double expectedUsd, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualUsdCharged = getChargedUsedQuery(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
@@ -2835,6 +2896,23 @@ public class UtilVerbs {
         allRunFor(spec, subOp);
         final var rcd = subOp.getResponseRecord();
         return (1.0 * rcd.getTransactionFee())
+                / ONE_HBAR
+                / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
+    private static double getChargedUsedQuery(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        return (-1.0
+                        * rcd.getTransferList().getAccountAmountsList().stream()
+                                .filter(aa -> aa.getAmount() < 0)
+                                .mapToLong(AccountAmount::getAmount)
+                                .sum())
                 / ONE_HBAR
                 / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
                 * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()

@@ -5,17 +5,19 @@ import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDi
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
 import com.swirlds.common.test.fixtures.TransactionGenerator;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
 import com.swirlds.platform.test.fixtures.event.RandomEventUtils;
 import com.swirlds.platform.test.fixtures.event.TransactionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -59,11 +61,6 @@ public abstract class AbstractEventSource implements EventSource {
                     r, DEFAULT_AVG_TX_SIZE, DEFAULT_TX_SIZE_STD_DEV, DEFAULT_TX_COUNT_AVG, DEFAULT_TX_COUNT_STD_DEV);
 
     /**
-     * The number of events that have been emitted by this event source.
-     */
-    private long eventCount;
-
-    /**
      * A dynamic value generator that is used to determine the age of the other parent (for when we ask another node for
      * the other parent)
      */
@@ -97,8 +94,6 @@ public abstract class AbstractEventSource implements EventSource {
         nodeId = NodeId.UNDEFINED_NODE_ID;
         setNewEventWeight(1.0);
 
-        eventCount = 0;
-
         // with high probability, request the most recent event as an other parent to this node's events
         otherParentRequestIndex = new DynamicValueGenerator<>(integerPowerDistribution(0.95));
 
@@ -114,7 +109,6 @@ public abstract class AbstractEventSource implements EventSource {
         this.nodeId = that.nodeId;
         this.newEventWeight = that.newEventWeight.cleanCopy();
 
-        this.eventCount = 0;
         this.otherParentRequestIndex = that.otherParentRequestIndex.cleanCopy();
         this.otherParentProviderIndex = that.otherParentProviderIndex.cleanCopy();
         this.recentEventRetentionSize = that.recentEventRetentionSize;
@@ -135,7 +129,6 @@ public abstract class AbstractEventSource implements EventSource {
      */
     @Override
     public void reset() {
-        eventCount = 0;
         otherParentRequestIndex.reset();
         otherParentProviderIndex.reset();
     }
@@ -144,7 +137,7 @@ public abstract class AbstractEventSource implements EventSource {
      * {@inheritDoc}
      */
     @Override
-    public NodeId getNodeId() {
+    public @NonNull NodeId getNodeId() {
         return nodeId;
     }
 
@@ -181,23 +174,33 @@ public abstract class AbstractEventSource implements EventSource {
     public EventImpl generateEvent(
             @NonNull final Random random,
             final long eventIndex,
-            @Nullable final EventSource otherParent,
+            @NonNull final Collection<EventSource> otherParents,
             @NonNull final Instant timestamp,
             final long birthRound) {
         Objects.requireNonNull(random);
         Objects.requireNonNull(timestamp);
         final EventImpl event;
 
-        // The higher the index, the older the event. Use the oldest parent between the provided and requested value.
-        final int otherParentIndex = Math.max(
-                // event index (event age) that this node wants to use as it's other parent
-                getRequestedOtherParentAge(random, eventIndex),
-                // event index (event age) that the other node wants to provide as an other parent to this node
-                otherParent.getProvidedOtherParentAge(random, eventIndex));
+        final List<EventImpl> allParentEvents = new ArrayList<>(otherParents.size() + 1);
 
-        final EventImpl otherParentEvent =
-                otherParent == null ? null : otherParent.getRecentEvent(random, otherParentIndex);
         final EventImpl latestSelfEvent = getLatestEvent(random);
+        if (latestSelfEvent != null) {
+            allParentEvents.add(latestSelfEvent);
+        }
+
+        for (final EventSource otherParent : otherParents) {
+            // The higher the index, the older the event. Use the oldest parent between the provided and requested
+            // value.
+            final int otherParentIndex = Math.max(
+                    // event index (event age) that this node wants to use as it's other parent
+                    getRequestedOtherParentAge(random, eventIndex),
+                    // event index (event age) that the other node wants to provide as an other parent to this node
+                    otherParent.getProvidedOtherParentAge(random, eventIndex));
+            final EventImpl otherParentEvent = otherParent.getRecentEvent(random, otherParentIndex);
+            if (otherParentEvent != null) {
+                allParentEvents.add(otherParentEvent);
+            }
+        }
 
         event = RandomEventUtils.randomEventWithTimestamp(
                 random,
@@ -205,11 +208,8 @@ public abstract class AbstractEventSource implements EventSource {
                 timestamp,
                 birthRound,
                 transactionGenerator.generate(random),
-                latestSelfEvent,
-                otherParentEvent,
+                allParentEvents,
                 useFakeHashes);
-
-        eventCount++;
 
         // Although we could just set latestEvent directly, calling this method allows for dishonest implementations
         // to override standard behavior.

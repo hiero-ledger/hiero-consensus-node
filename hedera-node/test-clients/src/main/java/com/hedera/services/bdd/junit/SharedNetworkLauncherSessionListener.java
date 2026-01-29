@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.
 import static com.hedera.services.bdd.junit.support.TestPlanUtils.hasAnnotatedTestNode;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
+import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -18,12 +19,12 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
+import com.hedera.services.bdd.junit.support.validators.HighVolumePricingValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -89,6 +90,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         @Override
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
             REPEATABLE_KEY_GENERATOR.set(new RepeatableKeyGenerator());
+
+            // Validate high-volume pricing curves before starting any tests
+            HighVolumePricingValidator.validateGenesisFeeSchedule();
 
             // Skip standard setup if any test in the plan uses HapiBlockNode
             if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class))) {
@@ -167,9 +171,12 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             }
         }
 
-        private @Nullable HederaNetwork sharedRemoteNetworkIfRequested() {
+        private HederaNetwork sharedRemoteNetworkIfRequested() {
             final var sharedTargetYml = System.getProperty("hapi.spec.nodes.remoteYml");
-            return (sharedTargetYml != null) ? RemoteNetworkFactory.newWithTargetFrom(sharedTargetYml) : null;
+            return (sharedTargetYml != null)
+                    ? RemoteNetworkFactory.newWithTargetFrom(sharedTargetYml)
+                    : RemoteNetworkFactory.newWithTargetFrom(
+                            getDefaultInstance().remoteNodesYmlLoc());
         }
 
         /**

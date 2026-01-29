@@ -3,8 +3,7 @@ package com.swirlds.platform.network;
 
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.Certificate;
@@ -18,6 +17,7 @@ import java.util.stream.Collectors;
 import javax.security.auth.x500.X500Principal;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 
 /**
  * Identifies a connected peer from a list of trusted peers; it is used only to handle incoming connections
@@ -37,13 +37,12 @@ public class NetworkPeerIdentifier {
     /**
      * constructor
      *
-     * @param platformContext the platform context
-     * @param peers           list of peers
+     * @param time the source of time
+     * @param peers list of peers
      */
-    public NetworkPeerIdentifier(@NonNull final PlatformContext platformContext, @NonNull final List<PeerInfo> peers) {
-        Objects.requireNonNull(platformContext);
+    public NetworkPeerIdentifier(@NonNull final Time time, @NonNull final List<PeerInfo> peers) {
         Objects.requireNonNull(peers);
-        noPeerFoundLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(5));
+        noPeerFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(5));
 
         this.x501PrincipalsAndPeers = peers.stream()
                 .collect(Collectors.toMap(

@@ -40,6 +40,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -110,6 +111,7 @@ public class ParentTxnFactory {
     private final ChildDispatchFactory childDispatchFactory;
     private final TransactionChecker transactionChecker;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
+    private final NodeFeeAccumulator nodeFeeAccumulator;
 
     @Inject
     public ParentTxnFactory(
@@ -130,7 +132,8 @@ public class ParentTxnFactory {
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ChildDispatchFactory childDispatchFactory,
             @NonNull final TransactionChecker transactionChecker,
-            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders) {
+            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
+            @NonNull final NodeFeeAccumulator nodeFeeAccumulator) {
         this.configProvider = requireNonNull(configProvider);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
@@ -153,6 +156,7 @@ public class ParentTxnFactory {
                 .streamMode();
         this.transactionChecker = requireNonNull(transactionChecker);
         this.apiProviders = requireNonNull(apiProviders);
+        this.nodeFeeAccumulator = requireNonNull(nodeFeeAccumulator);
     }
 
     /**
@@ -190,6 +194,12 @@ public class ParentTxnFactory {
         final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
                 creatorInfo, platformTxn, readableStoreFactory, shortCircuitTxnCallback);
+        // In case we got this without a prehandle call, ensure there's metadata for quiescence controller
+        if (platformTxn.getMetadata() == null) {
+            log.error(
+                    "Transaction {} has no metadata (preHandleResult={}), creating one", platformTxn, preHandleResult);
+            platformTxn.setMetadata(preHandleResult);
+        }
         final var txnInfo = preHandleResult.txInfo();
         if (txnInfo == null) {
             log.error(
@@ -327,7 +337,7 @@ public class ParentTxnFactory {
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
-        final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders);
+        final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders, nodeFeeAccumulator);
         final var priceCalculator =
                 new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
         final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);

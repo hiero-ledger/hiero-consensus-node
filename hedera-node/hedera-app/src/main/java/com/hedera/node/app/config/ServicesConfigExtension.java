@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.config;
 
-import com.google.auto.service.AutoService;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FileID;
@@ -39,6 +38,7 @@ import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.ExpiryConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.GrpcUsageTrackerConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -49,6 +49,7 @@ import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.OpsDurationConfig;
+import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.RatesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -68,14 +69,12 @@ import com.hedera.node.config.validation.EmulatesMapValidator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.ConfigurationExtension;
 import com.swirlds.config.api.validation.ConfigValidator;
-import com.swirlds.platform.config.AddressBookConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
 /**
  * Sets up configuration for services.
  */
-@AutoService(ConfigurationExtension.class)
 public class ServicesConfigExtension implements ConfigurationExtension {
 
     @NonNull
@@ -83,7 +82,6 @@ public class ServicesConfigExtension implements ConfigurationExtension {
 
         return Set.of(
                 AccountsConfig.class,
-                AddressBookConfig.class,
                 NodesConfig.class,
                 ApiPermissionConfig.class,
                 AutoRenew2Config.class,
@@ -117,7 +115,9 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 AtomicBatchConfig.class,
                 VersionConfig.class,
                 TssConfig.class,
+                QuiescenceConfig.class,
                 JumboTransactionsConfig.class,
+                GovernanceTransactionsConfig.class,
                 GrpcUsageTrackerConfig.class,
                 OpsDurationConfig.class);
     }

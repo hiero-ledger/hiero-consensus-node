@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -110,6 +111,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
+@Tag(ATOMIC_BATCH)
 public class AtomicBatchTest {
     @HapiTest
     public Stream<DynamicTest> validateFeesForChildren() {
@@ -310,7 +312,9 @@ public class AtomicBatchTest {
                     getReceipt(transferTxn).andAnyChildReceipts().hasChildAutoAccountCreations(1));
         }
 
-        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
+        @LeakyHapiTest(
+                requirement = {THROTTLE_OVERRIDES},
+                throttles = "testSystemFiles/artificial-limits.json")
         @DisplayName("Batch contract call with the TPS limit")
         //  BATCH_02
         public Stream<DynamicTest> contractCallTPSLimit() {
@@ -334,7 +338,7 @@ public class AtomicBatchTest {
                             .payingWith(payer));
         }
 
-        @LeakyHapiTest
+        @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
         @DisplayName("Batch contract call with the gas limit")
         //  BATCH_03
         public Stream<DynamicTest> contractCallGasLimit() {

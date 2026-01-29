@@ -17,6 +17,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -101,6 +102,11 @@ public class ChildFeeContextImpl implements FeeContext {
     }
 
     @Override
+    public SimpleFeeCalculator getSimpleFeeCalculator() {
+        return feeManager.getSimpleFeeCalculator();
+    }
+
+    @Override
     public <T> @NonNull T readableStore(@NonNull final Class<T> storeInterface) {
         return context.readableStore(storeInterface);
     }
@@ -118,6 +124,11 @@ public class ChildFeeContextImpl implements FeeContext {
     @Override
     public int numTxnSignatures() {
         return verifier == null ? 0 : verifier.numSignaturesVerified();
+    }
+
+    @Override
+    public int numTxnBytes() {
+        return TransactionBody.PROTOBUF.measureRecord(body);
     }
 
     @Override
@@ -144,5 +155,10 @@ public class ChildFeeContextImpl implements FeeContext {
 
     public ExchangeRate activeRate() {
         return context.activeRate();
+    }
+
+    @Override
+    public long getGasPriceInTinycents() {
+        return feeManager.getGasPriceInTinyCents(consensusNow);
     }
 }

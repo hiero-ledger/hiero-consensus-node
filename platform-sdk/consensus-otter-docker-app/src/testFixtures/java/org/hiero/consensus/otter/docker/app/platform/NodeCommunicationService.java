@@ -11,7 +11,6 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
@@ -24,11 +23,10 @@ import java.util.concurrent.ThreadFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.otter.docker.app.EventMessageFactory;
 import org.hiero.consensus.otter.docker.app.OutboundDispatcher;
-import org.hiero.otter.fixtures.KeysAndCertsConverter;
-import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
@@ -36,6 +34,8 @@ import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
+import org.hiero.otter.fixtures.internal.KeysAndCertsConverter;
+import org.hiero.otter.fixtures.internal.ProtobufConverter;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 
@@ -115,6 +115,13 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
             return;
         }
 
+        dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
+
+        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
+            return dispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+        });
+
         if (consensusNodeManager != null) {
             responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
             log.info(ERROR.getMarker(), "Invalid request, platform already started: {}", request);
@@ -126,35 +133,22 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         final SemanticVersion version = ProtobufConverter.toPbj(request.getVersion());
         final KeysAndCerts keysAndCerts = KeysAndCertsConverter.fromProto(request.getKeysAndCerts());
 
-        consensusNodeManager = new ConsensusNodeManager(
-                selfId, platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
+        consensusNodeManager = new ConsensusNodeManager(selfId, platformConfig, genesisRoster, version, keysAndCerts);
 
-        setupStreamingEventDispatcher(responseObserver);
+        setupStreamingEventDispatcher();
 
         consensusNodeManager.start();
     }
 
     /**
      * Sets up all the streaming event dispatchers for the platform.
-     *
-     * @param responseObserver the observer to register for streaming events
      */
-    private void setupStreamingEventDispatcher(@NonNull final StreamObserver<EventMessage> responseObserver) {
-        dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
-
-        // Capture the dispatcher in a final variable so the lambda remains valid
-        final OutboundDispatcher currentDispatcher = dispatcher;
-
+    private void setupStreamingEventDispatcher() {
         consensusNodeManager.registerPlatformStatusChangeListener(
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
 
         consensusNodeManager.registerConsensusRoundListener(
-                rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
-
-        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
-            return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
-        });
+                round -> dispatcher.enqueue(EventMessageFactory.fromConsensusRound(round)));
     }
 
     /**

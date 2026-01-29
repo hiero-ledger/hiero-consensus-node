@@ -1,0 +1,16 @@
+{
+  "block": "4",
+  "blockHash": "YxsYuYCAbtS+7UwGslBPMd10nl8hnkbMGbeN5ewBUqYMaDb1wSEF5tKXIaisPzwr",
+  "previousBlockHash": "I0ChsB0BRRNDH7CIpjGMEUSHv3N7bKHivQKa/cXRHJxMD/GcifNaCExwQdmfY7/R",
+  "blockTimestamp": {
+    "seconds": "1767744175",
+    "nanos": 898747000
+  },
+  "siblingHashesFromPrevBlockRoot": [{
+    "siblingHash": "h+QJQEKsmCzKz0MhnxERiDEeGIzxyeo5U8hZwZX2aVThKZm+4KWFRR5W9GcmNJs6"
+  }, {
+    "siblingHash": "RNTgGz49T2CudBOxhuvW5jgmc32GbmvUCnB5IaeEHzUuKPuulSPTkOzB5t9zK6Fq"
+  }, {
+    "siblingHash": "0ucoGyOgFpzUzk6Y81qhhg3M2Cq2jq76djXY4JLD66a86/6rIcaeFWQ8hXATbqu8"
+  }]
+}

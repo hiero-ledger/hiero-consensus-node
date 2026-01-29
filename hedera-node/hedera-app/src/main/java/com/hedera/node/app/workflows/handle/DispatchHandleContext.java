@@ -37,6 +37,7 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
@@ -213,7 +214,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                                     accountId,
                                     this,
                                     ValidationResult.newSuccess(creatorInfo.accountId()),
-                                    new Fees(0, amount, 0))
+                                    new Fees(0, 0, amount))
                             .totalFee()
                     == amount;
         }
@@ -230,6 +231,15 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         } else {
             feeCharging.refund(accountId, this, new Fees(0, amount, 0));
         }
+    }
+
+    @Override
+    public void refundServiceFee(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot refund negative amount " + amount);
+        }
+        feeCharging.refund(accountId, this, new Fees(0, 0, amount));
     }
 
     @NonNull
@@ -250,6 +260,15 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     }
 
     @Override
+    public int numTxnBytes() {
+        // serialized signed transaction is null for system transaction dispatches
+        return (int)
+                (txnInfo.serializedSignedTx() != null
+                        ? txnInfo.serializedSignedTx().length()
+                        : 0);
+    }
+
+    @Override
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
         requireNonNull(childTxBody);
@@ -260,6 +279,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     @Override
     public ExchangeRate activeRate() {
         return feeManager.getExchangeRateManager().activeRate(consensusNow);
+    }
+
+    @Override
+    public long getGasPriceInTinycents() {
+        return feeManager.getGasPriceInTinyCents(consensusNow);
     }
 
     @NonNull
@@ -286,6 +310,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 subType,
                 false,
                 storeFactory.asReadOnly());
+    }
+
+    @Override
+    public SimpleFeeCalculator getSimpleFeeCalculator() {
+        return feeManager.getSimpleFeeCalculator();
     }
 
     @NonNull
@@ -437,14 +466,15 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             final var batchInnerTxnBytes = options.dispatchMetadata()
                     .getMetadata(INNER_TRANSACTION_BYTES, Bytes.class)
                     .orElseThrow();
-            childPreHandleResult = preHandleWorkflow.preHandleTransaction(
-                    creatorInfo,
-                    storeFactory.asReadOnly(),
-                    storeFactory.readableStore(ReadableAccountStore.class),
-                    batchInnerTxnBytes,
-                    maybeReusablePreHandleResult,
-                    (s, b) -> {},
-                    InnerTransaction.YES);
+            childPreHandleResult = requireNonNull(preHandleWorkflow)
+                    .preHandleTransaction(
+                            creatorInfo,
+                            storeFactory.asReadOnly(),
+                            storeFactory.readableStore(ReadableAccountStore.class),
+                            batchInnerTxnBytes,
+                            maybeReusablePreHandleResult,
+                            (s, b) -> {},
+                            InnerTransaction.YES);
         }
 
         final var childDispatch = childDispatchFactory.createChildDispatch(

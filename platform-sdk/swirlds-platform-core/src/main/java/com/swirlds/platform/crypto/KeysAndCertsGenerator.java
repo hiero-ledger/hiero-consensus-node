@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.crypto;
 
+import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
-import java.security.PrivateKey;
 import java.security.SecureRandom;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.crypto.SigningFactory;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -44,6 +42,9 @@ import org.hiero.consensus.roster.RosterUtils;
  * changing the algorithms as the standard changes.
  */
 public class KeysAndCertsGenerator {
+    private static final int MASTER_KEY_MULTIPLIER = 157;
+    private static final int SWIRLD_ID_MULTIPLIER = 163;
+    private static final int BITS_IN_BYTE = 8;
 
     private static final int SIG_SEED = 2;
     private static final int AGR_SEED = 0;
@@ -51,86 +52,27 @@ public class KeysAndCertsGenerator {
     private KeysAndCertsGenerator() {}
 
     /**
-     * Creates an instance holding all the keys and certificates. It reads its own key pairs from privateKeyStore
-     * and publicKeyStore, creates the agreement key if absent, and remembers the trust stores.
-     *
-     * @param nodeId the node identifier
-     * @param privateKeyStore read the 2 keyPairs (signing,agreement) from this store
-     * @param publicStores    all public certificates
-     * @throws KeyStoreException         if the supplied key store is not initialized
-     * @throws UnrecoverableKeyException if a required key cannot be recovered (e.g., the given password is wrong).
-     * @throws NoSuchAlgorithmException  if the algorithm for recovering a required key cannot be found
-     * @throws KeyLoadingException       if a required certificate is missing or is not an instance of X509Certificate
-     */
-    public static KeysAndCerts loadExistingAndCreateAgrKeyIfMissing(
-            final NodeId nodeId, final char[] password, final KeyStore privateKeyStore, final PublicStores publicStores)
-            throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException, KeyLoadingException,
-                    NoSuchProviderException, KeyGeneratingException {
-        final String signingName = KeyCertPurpose.SIGNING.storeName(nodeId);
-        // get the signing key pair and cert, these must exist.
-        final KeyPair signingKeyPair = getKeyPair(privateKeyStore, password, signingName);
-        final X509Certificate signingCert = publicStores.getCertificate(KeyCertPurpose.SIGNING, nodeId);
-
-        // get the agreement key pair and cert, if they exist, otherwise generate them.
-        final String agreementName = KeyCertPurpose.AGREEMENT.storeName(nodeId);
-        KeyPair agreementKeyPair;
-        X509Certificate agreementCert;
-        try {
-            agreementKeyPair = getKeyPair(privateKeyStore, password, agreementName);
-            agreementCert = publicStores.getCertificate(KeyCertPurpose.AGREEMENT, nodeId);
-        } catch (final KeyLoadingException
-                | KeyStoreException
-                | NoSuchAlgorithmException
-                | UnrecoverableKeyException e) {
-            // failed to load agreement key or cert from disk, attempt to generate them
-            agreementKeyPair = generateAgreementKeyPair();
-            // generate the agreement certificate with the signing certificate as the issuer.
-            final String dnA = CryptoStatic.distinguishedName(KeyCertPurpose.AGREEMENT.storeName(nodeId));
-            agreementCert = CryptoStatic.generateCertificate(
-                    dnA,
-                    agreementKeyPair,
-                    signingCert.getSubjectX500Principal().getName(),
-                    signingKeyPair,
-                    SecureRandom.getInstanceStrong());
-            // add agreement certificate to public stores for later retrieval.
-            publicStores.setCertificate(KeyCertPurpose.AGREEMENT, agreementCert, nodeId);
-        }
-
-        return new KeysAndCerts(signingKeyPair, agreementKeyPair, signingCert, agreementCert);
-    }
-
-    private static KeyPair getKeyPair(final KeyStore privateKeyStore, final char[] password, final String storeName)
-            throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException, KeyLoadingException {
-        final Certificate certificate = privateKeyStore.getCertificate(storeName);
-        if (certificate == null) {
-            throw new KeyLoadingException(String.format("Certificate '%s' not found!", storeName));
-        }
-        Key privateKey = privateKeyStore.getKey(storeName, password);
-        if (privateKey instanceof PrivateKey pk) {
-            return new KeyPair(certificate.getPublicKey(), pk);
-        }
-        throw new KeyLoadingException(String.format("Key '%s' is not an instance of PrivateKey!", storeName));
-    }
-
-    /**
      * Creates an instance holding all the keys and certificates. This also generates the key pairs and certs and CSPRNG
      * state. The key pairs are generated as a function of the seed. The seed is the combination of the three
      * parameters. The signing key pair is used to sign all 3 certs.
      *
      * @param nodeId the node identifier
-     * @param masterKey    master key used to derive key pairs for many identities in many swirlds
-     * @param swirldId     which swirlds is running
-     * @param memberId     which identity is acting as a member in this swirld (because one human user might have
-     *                     several identities running in a given swirld)
-     * @param publicStores all public certificates
      */
-    public static KeysAndCerts generate(
-            final NodeId nodeId,
-            final byte[] masterKey,
-            final byte[] swirldId,
-            final byte[] memberId,
-            final PublicStores publicStores)
+    public static KeysAndCerts generate(final NodeId nodeId)
             throws NoSuchAlgorithmException, NoSuchProviderException, KeyStoreException, KeyGeneratingException {
+
+        final byte[] masterKey = new byte[CryptoConstants.SYM_KEY_SIZE_BYTES];
+        final byte[] swirldId = new byte[CryptoConstants.HASH_SIZE_BYTES];
+        final int i = (int) nodeId.id();
+        for (int j = 0; j < masterKey.length; j++) {
+            masterKey[j] = (byte) (j * MASTER_KEY_MULTIPLIER);
+        }
+        for (int j = 0; j < swirldId.length; j++) {
+            swirldId[j] = (byte) (j * SWIRLD_ID_MULTIPLIER);
+        }
+        masterKey[0] = (byte) i;
+        masterKey[1] = (byte) (i >> BITS_IN_BYTE);
+        final byte[] memberId = CommonUtils.intToBytes(i);
 
         // deterministic CSPRNG, used briefly then discarded
         final SecureRandom sigDetRandom = DetRandomProvider.getDetRandom();
@@ -146,13 +88,7 @@ public class KeysAndCertsGenerator {
         agrDetRandom.setSeed(memberId);
         agrDetRandom.setSeed(AGR_SEED);
 
-        final KeysAndCerts keysAndCerts = generate(nodeId, sigDetRandom, agrDetRandom);
-
-        // add to the trust store (which have references stored here and in the caller)
-        publicStores.setCertificate(KeyCertPurpose.SIGNING, keysAndCerts.sigCert(), nodeId);
-        publicStores.setCertificate(KeyCertPurpose.AGREEMENT, keysAndCerts.agrCert(), nodeId);
-
-        return keysAndCerts;
+        return generate(nodeId, SigningSchema.RSA, sigDetRandom, agrDetRandom);
     }
 
     /**
@@ -160,6 +96,7 @@ public class KeysAndCertsGenerator {
      * used to sign both certs.
      *
      * @param nodeId       the node ID used for the certificate distinguished names
+     * @param schema       the signing schema to use for the signing key pair
      * @param sigDetRandom the source of randomness for generating the signing key pair
      * @param agrDetRandom the source of randomness for generating the agreement key pair
      * @return the generated keys and certs
@@ -167,18 +104,15 @@ public class KeysAndCertsGenerator {
     @NonNull
     public static KeysAndCerts generate(
             @NonNull final NodeId nodeId,
+            @NonNull final SigningSchema schema,
             @NonNull final SecureRandom sigDetRandom,
             @NonNull final SecureRandom agrDetRandom)
             throws NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
-        final KeyPairGenerator sigKeyGen =
-                KeyPairGenerator.getInstance(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_PROVIDER);
         final KeyPairGenerator agrKeyGen =
                 KeyPairGenerator.getInstance(CryptoConstants.AGR_TYPE, CryptoConstants.AGR_PROVIDER);
-
-        sigKeyGen.initialize(CryptoConstants.SIG_KEY_SIZE_BITS, sigDetRandom);
         agrKeyGen.initialize(CryptoConstants.AGR_KEY_SIZE_BITS, agrDetRandom);
 
-        final KeyPair sigKeyPair = sigKeyGen.generateKeyPair();
+        final KeyPair sigKeyPair = SigningFactory.generateKeyPair(schema, sigDetRandom);
         final KeyPair agrKeyPair = agrKeyGen.generateKeyPair();
 
         final String nodeName = RosterUtils.formatNodeName(nodeId);
@@ -187,10 +121,10 @@ public class KeysAndCertsGenerator {
 
         // create the 2 certs (java.security.cert.Certificate)
         // both are signed by sigKeyPair, so sigCert is self-signed
-        final X509Certificate sigCert =
-                CryptoStatic.generateCertificate(dnS, sigKeyPair, dnS, sigKeyPair, sigDetRandom);
-        final X509Certificate agrCert =
-                CryptoStatic.generateCertificate(dnA, agrKeyPair, dnS, sigKeyPair, agrDetRandom);
+        final X509Certificate sigCert = CryptoStatic.generateCertificate(
+                dnS, sigKeyPair, dnS, sigKeyPair, sigDetRandom, schema.getSigningAlgorithm());
+        final X509Certificate agrCert = CryptoStatic.generateCertificate(
+                dnA, agrKeyPair, dnS, sigKeyPair, agrDetRandom, schema.getSigningAlgorithm());
         return new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert);
     }
 

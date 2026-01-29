@@ -304,10 +304,11 @@ public class HandleHederaOperations implements HederaOperations {
      * {@inheritDoc}
      */
     @Override
-    public void updateLambdaStorageSlots(@NonNull final AccountID accountId, int netChangeInSlotsUsed) {
+    public void updateHookStorageSlots(@NonNull final AccountID accountId, int netChangeInSlotsUsed) {
         requireNonNull(accountId);
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        tokenServiceApi.updateLambdaStorageSlots(accountId, netChangeInSlotsUsed);
+        // Inside a hook's EVM transaction we never care whether the hook owner is a contract
+        tokenServiceApi.updateHookStorageSlots(accountId, netChangeInSlotsUsed, false);
     }
 
     /**

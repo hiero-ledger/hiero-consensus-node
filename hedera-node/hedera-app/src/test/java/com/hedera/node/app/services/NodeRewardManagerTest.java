@@ -50,7 +50,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -67,6 +66,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.roster.RosterStateId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -333,5 +333,46 @@ class NodeRewardManagerTest {
                         .build())
                 .freezeTime(freezeTime == null ? null : asTimestamp(freezeTime))
                 .build();
+    }
+
+    /**
+     * Tests that when the network is down for multiple days, only ONE node reward
+     * distribution is triggered when the network comes back up, not one for each missed day.
+     * <p>
+     * This is the current expected behavior - the system only checks if we're in a "later" period,
+     * not how many periods were skipped.
+     */
+    @Test
+    void testMaybeRewardActiveNodesAfterMultiDayOutageOnlyRewardsOnce() {
+        // Simulate a 3-day outage: last reward payment was 3 days ago
+        final var threeDaysAgo = NOW.minusSeconds(3 * 24 * 60 * 60);
+        final var networkStakingRewards = NetworkStakingRewards.newBuilder()
+                .totalStakedStart(0)
+                .totalStakedRewardStart(0)
+                .pendingRewards(0)
+                .lastNodeRewardPaymentsTime(asTimestamp(threeDaysAgo))
+                .stakingRewardsActivated(true)
+                .build();
+        givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), networkStakingRewards);
+        nodeRewardManager = new NodeRewardManager(
+                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+        when(exchangeRateManager.getTinybarsFromTinycents(anyLong(), any())).thenReturn(5000L);
+
+        // First call - should reward
+        final var result1 = nodeRewardManager.maybeRewardActiveNodes(state, NOW, systemTransactions);
+        assertTrue(result1, "First reward after multi-day outage should succeed");
+
+        // Verify rewards were dispatched exactly once
+        verify(systemTransactions, times(1))
+                .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
+
+        // The lastNodeRewardPaymentsTime should now be updated to NOW
+        // So a second call in the same period should NOT reward again
+        final var result2 = nodeRewardManager.maybeRewardActiveNodes(state, NOW, systemTransactions);
+        assertFalse(result2, "Second reward in same period should not happen");
+
+        // Still only one dispatch
+        verify(systemTransactions, times(1))
+                .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
     }
 }

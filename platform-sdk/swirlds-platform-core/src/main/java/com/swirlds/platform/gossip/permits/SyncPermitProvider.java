@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.permits;
 
-import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
-import static com.swirlds.common.units.TimeUnit.UNIT_SECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_SECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.CompareTo.isLessThan;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.gossip.sync.config.SyncConfig;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import org.hiero.consensus.gossip.config.SyncConfig;
 
 /**
  * Manages sync permits.
@@ -104,15 +105,27 @@ public class SyncPermitProvider {
     /**
      * Constructor.
      *
-     * @param platformContext the platform context
-     * @param totalPermits    the total number of available permits
+     * @param configuration the platform configuration
+     * @param metrics the metrics system
+     * @param time source of time
+     * @param totalPermits the total number of available permits
      */
-    public SyncPermitProvider(@NonNull final PlatformContext platformContext, final int totalPermits) {
-        this.metrics = new SyncPermitMetrics(platformContext);
+    public SyncPermitProvider(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            final int totalPermits) {
+        this(metrics, time, configuration.getConfigData(SyncConfig.class), totalPermits);
+    }
 
-        this.time = platformContext.getTime();
-
-        this.syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
+    public SyncPermitProvider(
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final SyncConfig syncConfig,
+            final int totalPermits) {
+        this.metrics = new SyncPermitMetrics(metrics);
+        this.time = time;
+        this.syncConfig = syncConfig;
         permitsRevokedPerSecond = syncConfig.permitsRevokedPerSecond();
         permitsReturnedPerSecond = syncConfig.permitsReturnedPerSecond();
         unhealthyGracePeriod = syncConfig.unhealthyGracePeriod();

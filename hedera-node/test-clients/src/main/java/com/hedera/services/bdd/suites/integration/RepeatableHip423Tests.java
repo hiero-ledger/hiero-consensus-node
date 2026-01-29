@@ -76,7 +76,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.exposeMaxSchedulable;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
@@ -842,7 +842,7 @@ public class RepeatableHip423Tests {
                     embeddedHedera.setRoundDuration(DEFAULT_ROUND_DURATION);
                 }),
                 // Verify the second transaction in the same second did not recreate the iterator
-                assertHgcaaLogDoesNotContain(
+                assertHgcaaLogDoesNotContainText(
                         byNodeId(0L), "Unknown k/v state key SCHEDULES_BY_ID", Duration.ofMillis(100L)));
     }
 

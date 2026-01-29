@@ -68,7 +68,7 @@ public class CloseFlushTest {
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
             final VirtualDataSourceBuilder builder = new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION);
-            VirtualMap map = new VirtualMap("closeFlushTest", builder, CONFIGURATION);
+            VirtualMap map = new VirtualMap(builder, CONFIGURATION);
             for (int i = 0; i < count; i++) {
                 final Bytes key = ExampleLongKey.longToKey(i);
                 final ExampleFixedValue value = new ExampleFixedValue(i);
@@ -122,11 +122,6 @@ public class CloseFlushTest {
             super(configuration);
             this.delegate = delegate;
             this.exceptionSink = sink;
-        }
-
-        @Override
-        public long getClassId() {
-            return super.getClassId() + 1;
         }
 
         @NonNull

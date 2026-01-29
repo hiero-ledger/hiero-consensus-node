@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.base.example.ext;
 
-import com.google.auto.service.AutoService;
-import com.swirlds.common.config.BasicCommonConfig;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.prometheus.PrometheusConfig;
 import com.swirlds.config.api.ConfigurationExtension;
 import com.swirlds.platform.base.example.server.BaseExampleRestApiConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.concurrent.config.BasicCommonConfig;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 
 /**
  * Registers configuration types for the platform.
  */
-@AutoService(ConfigurationExtension.class)
 public class BaseConfigurationExtension implements ConfigurationExtension {
 
     /**

@@ -5,15 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.manager.AdHocThreadManager;
+import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
-import com.swirlds.platform.crypto.PublicStores;
-import com.swirlds.platform.gossip.ProtocolConfig;
 import com.swirlds.platform.network.PeerCommunication;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
@@ -30,6 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
+import org.hiero.consensus.gossip.config.ProtocolConfig;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
@@ -43,7 +43,7 @@ public class PeerCommunicationTests {
     private static final int LOOP_WAIT = 500;
 
     private Map<NodeId, KeysAndCerts> perNodeCerts;
-    private PlatformContext platformContext;
+    private Configuration configuration;
     private List<PeerInfo> allPeers;
     private PeerCommunication[] peerCommunications;
     private final List<TestPeerProtocol> protocolsForDebug = Collections.synchronizedList(new ArrayList<>());
@@ -62,9 +62,8 @@ public class PeerCommunicationTests {
         configurationBuilder.withValue("socket.timeoutSyncClientSocket", "100");
         configurationBuilder.withValue("socket.timeoutSyncClientConnect", "100");
 
-        final Configuration configuration = configurationBuilder.build();
+        this.configuration = configurationBuilder.build();
 
-        this.platformContext = PlatformContext.create(configuration);
         events.clear();
         protocolsForDebug.clear();
     }
@@ -87,8 +86,7 @@ public class PeerCommunicationTests {
         this.allPeers = new ArrayList<>();
         for (int i = 0; i < nodeCount; i++) {
             NodeId nodeId = NodeId.of(i);
-            KeysAndCerts keysAndCerts =
-                    KeysAndCertsGenerator.generate(nodeId, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+            KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId);
             perNodeCerts.put(nodeId, keysAndCerts);
             allPeers.add(new PeerInfo(nodeId, "127.0.0.1", portBase + i, keysAndCerts.sigCert()));
         }
@@ -102,10 +100,14 @@ public class PeerCommunicationTests {
         for (int i = 0; i < allPeers.size(); i++) {
             var selfPeer = allPeers.get(i);
             var pc = new PeerCommunication(
-                    platformContext, new ArrayList<>(), selfPeer, perNodeCerts.get(selfPeer.nodeId()));
+                    configuration,
+                    new NoOpMetrics(),
+                    Time.getCurrent(),
+                    new ArrayList<>(),
+                    selfPeer,
+                    perNodeCerts.get(selfPeer.nodeId()));
 
-            final ProtocolConfig protocolConfig =
-                    platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
+            final ProtocolConfig protocolConfig = configuration.getConfigData(ProtocolConfig.class);
             final VersionCompareHandshake versionCompareHandshake = new VersionCompareHandshake(
                     SemanticVersion.newBuilder().major(1).build(), !protocolConfig.tolerateMismatchedVersion());
             final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
@@ -113,7 +115,7 @@ public class PeerCommunicationTests {
             List<Protocol> protocols = new ArrayList<>();
             var testProtocol = new TestProtocol(selfPeer.nodeId(), events, protocolsForDebug);
             protocols.add(testProtocol);
-            protocols.add(HeartbeatProtocol.create(platformContext, pc.getNetworkMetrics()));
+            protocols.add(HeartbeatProtocol.create(configuration, Time.getCurrent(), pc.getNetworkMetrics()));
 
             pc.initialize(threadManager, handshakeProtocols, protocols);
 
