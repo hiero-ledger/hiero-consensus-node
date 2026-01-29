@@ -256,7 +256,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Most of the ingredients in the block hash are directly in the BlockStreamInfo
         // Branch 1: lastBlockHash
         final var prevBlockHash = blockStreamInfo.blockNumber() <= 0L
-                ? ZERO_BLOCK_HASH
+                ? HASH_OF_ZERO
                 : BlockRecordInfoUtils.blockHashByBlockNumber(
                         blockStreamInfo.trailingBlockHashes(),
                         blockStreamInfo.blockNumber() - 1,
@@ -318,7 +318,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         log.info("Initialized block stream from state with last block hash {}", calculatedLastBlockHash.toHex());
 
         // Only add the last hash if it's not the marker zero block hash
-        if (!Objects.equals(calculatedLastBlockHash, ZERO_BLOCK_HASH)) {
+        if (!Objects.equals(calculatedLastBlockHash, HASH_OF_ZERO)) {
             previousBlockHashes.addLeaf(calculatedLastBlockHash.toByteArray());
         }
     }
@@ -381,7 +381,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     /**
      * Initializes the block stream manager after a restart or during reconnect with the hash of the last block
      * incorporated in the state used in the restart or reconnect. (At genesis, this hash should be the
-     * {@link #ZERO_BLOCK_HASH}.)
+     * {@link #HASH_OF_ZERO}.)
      *
      * @param blockHash the hash of the last block
      */
@@ -1181,7 +1181,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * again until combined with another hash.
      * <p>
      * While {@code prevBlockHash} could programmatically be null, in practice it never should be. Even
-     * in the case of the genesis block, this value should be {@link BlockStreamManager#ZERO_BLOCK_HASH}. For
+     * in the case of the genesis block, this value should be {@link BlockStreamManager#HASH_OF_ZERO}. For
      * all other blocks, it should be the actual previous block's root hash.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
      * leaf level, depth six) to top (the root, depth one)
@@ -1230,7 +1230,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Level 4 first sibling (right child)
             new MerkleSiblingHash(false, depth4Node2)
             // Level 3 has no sibling because reserved roots 9-16 aren't represented as real subroots in the tree. It's
-            // just a single child node hash operation
+            // just a single child node hash operation. NOTE: if any of the reserved roots are ever included in the
+            // tree,
+            // this level's hash will need to be re-added as an internal node here.
             // Level 2's _left_ sibling–the block's timestamp–is represented explicitly outside these sibling hashes
         });
     }

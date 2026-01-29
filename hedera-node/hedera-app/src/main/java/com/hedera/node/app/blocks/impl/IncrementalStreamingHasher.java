@@ -58,12 +58,12 @@ public class IncrementalStreamingHasher {
      * Compute the Merkle tree root hash from the current state. This does not modify the internal state, so can be
      * called at any time and more leaves can be added afterward.
      *
-     * @return the Merkle tree root hash, or {@link BlockStreamManager#ZERO_BLOCK_HASH} if no leaves exist
+     * @return the Merkle tree root hash, or {@link BlockStreamManager#HASH_OF_ZERO} if no leaves exist
      */
     public byte[] computeRootHash() {
         if (hashList.isEmpty()) {
             // This value is precomputed as the hash of an empty tree; therefore it should _not_ be hashed as a leaf
-            return BlockStreamManager.ZERO_BLOCK_HASH.toByteArray();
+            return BlockStreamManager.HASH_OF_ZERO.toByteArray();
         }
         if (hashList.size() == 1) {
             // This value should already have been hashed as a leaf, and therefore should _not_ be re-hashed
