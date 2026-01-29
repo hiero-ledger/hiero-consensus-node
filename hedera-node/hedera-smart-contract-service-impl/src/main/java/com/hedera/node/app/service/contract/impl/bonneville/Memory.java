@@ -110,6 +110,13 @@ public class Memory {
         return Bytes.wrap(_mem,off,len);
     }
 
+    // Copy from src to dst for len, extending as needed.
+    void copy( int dst, int src, int len ) {
+        growMem(Math.max(src,dst)+len);
+        System.arraycopy(_mem,dst,_mem,src,len);
+    }
+
+
     Bytes copyBytes(int off, int len) {
         return Bytes.wrap(Arrays.copyOfRange(_mem,off,off+len),0,len);
     }

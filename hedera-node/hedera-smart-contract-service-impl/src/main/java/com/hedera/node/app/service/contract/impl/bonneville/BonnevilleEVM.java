@@ -119,8 +119,8 @@ public class BonnevilleEVM extends HEVM {
         /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "xor ", "not ", "byte", "shl ", "shr ", "sar ", "1E  ", "1F  ",
         /* 20 */ "kecc", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
         /* 30 */ "addr", "bala", "orig", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "gasP", "xSiz", "xCop", "retZ", "retC", "hash",
-        /* 40 */ "blkH", "Coin", "time", "numb", "seed", "limi", "chid", "sbal", "fee ", "msiz", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
-        /* 50 */ "pop ", "mld ", "mst ", "mst8", "Csld", "Csst", "jmp ", "jmpi", "pc  ", "59  ", "gas ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
+        /* 40 */ "blkH", "Coin", "time", "numb", "seed", "limi", "chid", "sbal", "fee ", "msiz", "blbH", "blob", "4C  ", "4D  ", "4E  ", "4F  ",
+        /* 50 */ "pop ", "mld ", "mst ", "mst8", "Csld", "Csst", "jmp ", "jmpi", "pc  ", "59  ", "gas ", "noop", "tLd ", "tSt ", "mcpy", "psh0",
         };
 
     // Used in create()
@@ -468,10 +468,16 @@ class BEVM {
         return Address.wrap(Bytes.wrap(bs));
     }
 
+    private UInt256 popUInt256() {
+        assert _sp > 0;         // Caller already checked for stack underflow
+        long x0 = STK0[--_sp], x1 = STK1[_sp], x2 = STK2[_sp], x3 = STK3[_sp];
+        return UI256.intern(x0,x1,x2,x3);
+    }
+
     // -----------------------------------------------------------
     // Execute bytecodes until done
     BEVM run(boolean topLevel) {
-        SB trace = null; // new SB();
+        SB trace = new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null ) {
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
@@ -552,7 +558,9 @@ class BEVM {
             case 0x46 -> customChainId();
             case 0x47 -> selfBalance();
             case 0x48 -> baseFee();
-            case      0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F -> ExceptionalHaltReason.INVALID_OPERATION;
+            case 0x49 -> blobHash();
+            case 0x4A -> blobBaseFee();
+            case 0x4B, 0x4C, 0x4D, 0x4E, 0x4F -> ExceptionalHaltReason.INVALID_OPERATION;
 
             case 0x50 -> pop();
 
@@ -580,7 +588,9 @@ class BEVM {
             case 0x59 -> msize();
             case 0x5A -> gas();
             case 0x5B -> noop();// Jump Destination, a no-op
-            case 0x5C, 0x5D, 0x5E -> ExceptionalHaltReason.INVALID_OPERATION;
+            case 0x5C -> tLoad();
+            case 0x5D -> tStore();
+            case 0x5E -> mCopy();
 
             // Stack manipulation
             case 0x5F -> push0Op();
@@ -1616,6 +1626,36 @@ class BEVM {
         return push(_gas);
     }
 
+    private ExceptionalHaltReason tLoad() {
+        var halt = useGas(_gasCalc.getTransientLoadOperationGasCost());
+        if( halt!=null ) return halt;
+        UInt256 slot = popUInt256();
+        UInt256 val = (UInt256)_frame.getTransientStorageValue(_frame.getRecipientAddress(), slot);
+        return push(val);
+    }
+
+    private ExceptionalHaltReason tStore() {
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
+        var halt = useGas(_gasCalc.getTransientStoreOperationGasCost());
+        if( halt!=null ) return halt;
+        UInt256 key = popUInt256();
+        UInt256 val = popUInt256();
+        _frame.setTransientStorageValue(_frame.getRecipientAddress(), key, val);
+        return null;
+    }
+
+    private ExceptionalHaltReason mCopy() {
+        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        int dst = popInt();
+        int src = popInt();
+        int len = popInt();
+        var halt = useGas(copyCost(Math.max(src, dst),len,3));
+        if( halt!=null ) return halt;
+        _mem.copy(dst,src,len);
+        return null;
+    }
+
     private ExceptionalHaltReason gasPrice() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
@@ -1696,6 +1736,27 @@ class BEVM {
         if( maybeBaseFee.isEmpty() )
             return ExceptionalHaltReason.INVALID_OPERATION;
         return push((UInt256)maybeBaseFee.orElseThrow().toBytes());
+    }
+
+    private ExceptionalHaltReason blobHash() {
+        var halt = useGas(3);
+        if( halt!=null ) return halt;
+        int idx = popInt();
+        var maybeVerHashes = _frame.getVersionedHashes();
+        if( maybeVerHashes.isEmpty() )
+            return push0();
+        var verHashes = maybeVerHashes.get();
+        if( !(0 <= idx && idx < verHashes.size()) )
+            return push0();
+        var verHash = verHashes.get(idx);
+        return push((UInt256)verHash.toBytes());
+    }
+
+    private ExceptionalHaltReason blobBaseFee() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        Wei blobGasPrice = _frame.getBlobGasPrice();
+        return push((UInt256)blobGasPrice.toBytes());
     }
 
     // ---------------------
