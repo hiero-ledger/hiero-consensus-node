@@ -5,6 +5,7 @@ import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Emits events from a graph created by a {@link GraphGenerator}.
@@ -28,6 +29,20 @@ public interface EventEmitter {
         final List<EventImpl> events = new ArrayList<>(numberOfEvents);
         for (int i = 0; i < numberOfEvents; i++) {
             events.add(emitEvent());
+        }
+        return events;
+    }
+
+    /**
+     * Get the next sequence of events as PlatformEvents.
+     *
+     * @param numberOfEvents
+     * 		The number of events to get.
+     */
+    default List<PlatformEvent> emitPlatformEvents(final int numberOfEvents) {
+        final List<PlatformEvent> events = new ArrayList<>(numberOfEvents);
+        for (int i = 0; i < numberOfEvents; i++) {
+            events.add(emitEvent().getBaseEvent());
         }
         return events;
     }

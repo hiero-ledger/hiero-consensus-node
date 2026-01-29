@@ -20,7 +20,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -56,8 +55,7 @@ public class TestEventUtils {
             @Nullable final Map<NodeId, KeysAndCerts> keysAndCertsMap) {
         final StandardEventEmitter eventEmitter = new EventEmitterFactory(context, random, roster).newStandardEmitter();
 
-        Stream<PlatformEvent> stream =
-                eventEmitter.emitEvents(numEvents).stream().map(EventImpl::getBaseEvent);
+        Stream<PlatformEvent> stream = eventEmitter.emitPlatformEvents(numEvents).stream();
 
         if (keysAndCertsMap != null) {
             final var signers = generateSigners(keysAndCertsMap, v -> (Signer) new PlatformSigner(v));
