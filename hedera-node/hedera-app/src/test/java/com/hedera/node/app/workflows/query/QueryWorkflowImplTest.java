@@ -30,6 +30,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
@@ -105,6 +106,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
 import org.mockito.stubbing.Answer;
 
 @ExtendWith(MockitoExtension.class)
@@ -1102,13 +1104,13 @@ class QueryWorkflowImplTest extends AppTestBase {
                             .build()));
         }
 
-        @Mock
+        @Mock(strictness = LENIENT)
         private QueryContext queryContext;
 
         @Mock
         private FeesConfig feesConfig;
 
-        @Mock
+        @Mock(strictness = LENIENT)
         private SimpleFeeCalculator simpleFeeCalculator;
 
         @Mock
@@ -1228,7 +1230,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                 .when(ingestChecker)
                 .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
-        final var getTopicInfoHandler = mock(ConsensusGetTopicInfoHandler.class);
+        final var getTopicInfoHandler = mock(ConsensusGetTopicInfoHandler.class, withSettings().strictness(Strictness.LENIENT));
         when(getTopicInfoHandler.requiresNodePayment(any())).thenReturn(true);
         when(getTopicInfoHandler.requiresNodePayment(any())).thenReturn(true);
         when(getTopicInfoHandler.extractHeader(query)).thenReturn(queryHeader);
