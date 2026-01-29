@@ -1,0 +1,81 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "meta",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "mintAndRevert",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "revertMeta1",
+        "type": "bytes[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "revertMeta2",
+        "type": "bytes[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "successMeta",
+        "type": "bytes[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "throttledMeta",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "testMultipleRevertsNoExtraReclaim",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "meta1",
+        "type": "bytes[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "meta2",
+        "type": "bytes[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "meta3",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "testNoDoubleReclaim",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
