@@ -106,7 +106,6 @@ import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509C
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
-import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -119,6 +118,7 @@ import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCancelAirdrop;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop;
+import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.SignedTransaction;
 import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
