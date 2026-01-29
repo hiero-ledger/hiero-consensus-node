@@ -5,8 +5,6 @@ plugins {
     id("org.hiero.gradle.feature.benchmark")
 }
 
-mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
-
 description = "Default Consensus Hashgraph Implementation"
 
 tasks.test {

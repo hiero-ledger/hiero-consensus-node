@@ -4,10 +4,7 @@ plugins {
     id("org.hiero.gradle.feature.publish-artifactregistry")
 }
 
-mainModuleInfo {
-    annotationProcessor("com.google.auto.service.processor")
-    annotationProcessor("org.apache.logging.log4j.core")
-}
+mainModuleInfo { annotationProcessor("org.apache.logging.log4j.core") }
 
 testModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")

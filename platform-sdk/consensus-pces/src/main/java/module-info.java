@@ -8,7 +8,6 @@ module org.hiero.consensus.pces {
 
     requires transitive com.swirlds.config.api;
     requires static transitive com.github.spotbugs.annotations;
-    requires static transitive com.google.auto.service;
 
     provides ConfigurationExtension with
             PcesConfigurationExtension;

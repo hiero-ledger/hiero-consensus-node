@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import com.google.auto.service.AutoService;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
@@ -19,7 +18,6 @@ import org.hiero.consensus.monitoring.FallenBehindMonitor;
 /**
  * Factory for creating the {@link ReconnectStateSyncProtocol}.
  */
-@AutoService(ProtocolFactory.class)
 public class ReconnectProtocolFactory implements ProtocolFactory {
 
     /**

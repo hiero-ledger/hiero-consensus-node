@@ -8,10 +8,7 @@ plugins {
 
 description = "Consensus Utility"
 
-mainModuleInfo {
-    annotationProcessor("com.swirlds.config.processor")
-    annotationProcessor("com.google.auto.service.processor")
-}
+mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
     requires("com.swirlds.common")

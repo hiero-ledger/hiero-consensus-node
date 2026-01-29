@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.logging.log4j.factory;
 
-import com.google.auto.service.AutoService;
 import com.swirlds.logging.api.Level;
 import com.swirlds.logging.api.Loggers;
 import com.swirlds.logging.api.extensions.emergency.EmergencyLogger;
@@ -13,7 +12,6 @@ import org.apache.logging.log4j.spi.Provider;
  * <p>
  * This will allow the {@link BaseLoggerContextFactory} to be used as backend for the slf4j api
  */
-@AutoService(Provider.class)
 public class BaseLoggingProvider extends Provider {
     /**
      * The priority of this provider.

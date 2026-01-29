@@ -25,7 +25,6 @@ module com.swirlds.platform.base.example {
     requires jdk.management;
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;
-    requires static com.google.auto.service;
 
     provides ConfigurationExtension with
             BaseConfigurationExtension;

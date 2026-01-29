@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.logging.log4j.factory;
 
-import com.google.auto.service.AutoService;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.api.extensions.provider.LogProvider;
 import com.swirlds.logging.api.extensions.provider.LogProviderFactory;
@@ -17,7 +16,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * @see Log4JProvider
  * @see LogProvider
  */
-@AutoService(LogProviderFactory.class)
 public class Log4JProviderFactory implements LogProviderFactory {
     /**
      * Creates a new instance of the Log4JProvider.

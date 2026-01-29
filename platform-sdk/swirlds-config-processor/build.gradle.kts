@@ -4,8 +4,6 @@ plugins {
     id("org.hiero.gradle.feature.publish-artifactregistry")
 }
 
-mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
-
 testModuleInfo { requires("org.junit.jupiter.api") }
 
 tasks.register<AntlrTask>("generateParser") {
@@ -16,6 +14,6 @@ tasks.register<AntlrTask>("generateParser") {
     outputDirectory =
         File(
             sourceSets.main.get().java.sourceDirectories.singleFile,
-            "com/swirlds/config/processor/antlr/generated"
+            "com/swirlds/config/processor/antlr/generated",
         )
 }
