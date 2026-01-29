@@ -129,7 +129,7 @@ public class EventGraphPipeline {
         boolean filter(@NonNull PlatformEvent event);
 
         @Override
-        default boolean test(PlatformEvent event) {
+        default boolean test(@NonNull PlatformEvent event) {
             return filter(event);
         }
     }
@@ -148,7 +148,7 @@ public class EventGraphPipeline {
         PlatformEvent map(@NonNull PlatformEvent event);
 
         @Override
-        default PlatformEvent apply(PlatformEvent event) {
+        default PlatformEvent apply(@NonNull PlatformEvent event) {
             return map(event);
         }
     }

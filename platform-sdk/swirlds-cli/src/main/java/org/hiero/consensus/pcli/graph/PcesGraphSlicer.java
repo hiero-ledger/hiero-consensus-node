@@ -49,7 +49,7 @@ public class PcesGraphSlicer {
     private final PbjStreamHasher eventHasher;
     private final Map<NodeId, PlatformSigner> signers;
     private final PlatformContext context;
-    private final Function<EventCore, EventCore> eventOverwriter;
+    private final Function<EventCore, EventCore> eventCoreModifier;
     private final EventGraphPipeline graphPipeline;
 
     /** The PCES writer, initialized before processing and closed after. */
@@ -67,7 +67,7 @@ public class PcesGraphSlicer {
 
     private PcesGraphSlicer(@NonNull final Builder builder) {
         Objects.requireNonNull(builder.keysAndCertsMap, "keysAndCertsMap is required");
-        Objects.requireNonNull(builder.graphEventOverwriter, "graphEventOverwriter is required");
+        Objects.requireNonNull(builder.graphEventCoreModifier, "graphEventOverwriter is required");
         Objects.requireNonNull(builder.graphEventFilter, "graphEventFilter is required");
         Objects.requireNonNull(builder.existingPcesFilesLocation, "existingPcesFilesLocation is required");
         Objects.requireNonNull(builder.exportPcesFileLocation, "exportPcesFileLocation is required");
@@ -77,7 +77,7 @@ public class PcesGraphSlicer {
         this.eventHasher = new PbjStreamHasher();
         this.signers = generateSigners(builder.keysAndCertsMap, PlatformSigner::new);
         this.context = builder.context != null ? builder.context : createDefaultPlatformContext();
-        this.eventOverwriter = builder.graphEventOverwriter;
+        this.eventCoreModifier = builder.graphEventCoreModifier;
 
         final PcesEventGraphSource rawSource =
                 new PcesEventGraphSource(builder.existingPcesFilesLocation, this.context);
@@ -106,7 +106,7 @@ public class PcesGraphSlicer {
     public static class Builder {
         private PlatformContext context;
         private Map<NodeId, KeysAndCerts> keysAndCertsMap;
-        private Function<EventCore, EventCore> graphEventOverwriter;
+        private Function<EventCore, EventCore> graphEventCoreModifier;
         private Predicate<PlatformEvent> graphEventFilter;
         private Path existingPcesFilesLocation;
         private Path exportPcesFileLocation;
@@ -145,8 +145,8 @@ public class PcesGraphSlicer {
          * @return this builder
          */
         @NonNull
-        public Builder graphEventOverwriter(@NonNull final Function<EventCore, EventCore> graphEventOverwriter) {
-            this.graphEventOverwriter = Objects.requireNonNull(graphEventOverwriter);
+        public Builder graphEventCoreModifier(@NonNull final Function<EventCore, EventCore> graphEventOverwriter) {
+            this.graphEventCoreModifier = Objects.requireNonNull(graphEventOverwriter);
             return this;
         }
 
@@ -196,7 +196,7 @@ public class PcesGraphSlicer {
          * @return this builder
          */
         @NonNull
-        public Builder consensusSnapshot(final ConsensusSnapshot consensusSnapshot) {
+        public Builder consensusSnapshot(@NonNull final ConsensusSnapshot consensusSnapshot) {
             this.consensusSnapshot = consensusSnapshot;
             return this;
         }
@@ -223,7 +223,7 @@ public class PcesGraphSlicer {
     private PlatformEvent process(@NonNull final PlatformEvent event) {
         // Event needs to be already hashed
         // Create the new event core with modified properties
-        final EventCore newEventCore = eventOverwriter.apply(event.getEventCore());
+        final EventCore newEventCore = eventCoreModifier.apply(event.getEventCore());
 
         // Get parent descriptors from previously migrated events
         final List<EventDescriptor> parents = event.getAllParents().stream()

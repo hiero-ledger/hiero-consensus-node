@@ -37,6 +37,7 @@ public class TestEventUtils {
     /**
      * Creates signers for a map of keysAndCerts
      */
+    @NonNull
     public static <S extends Signer> Map<NodeId, S> generateSigners(
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCertsMap, @NonNull final Function<KeysAndCerts, S> toS) {
         final Map<NodeId, S> signers = new HashMap<>();
