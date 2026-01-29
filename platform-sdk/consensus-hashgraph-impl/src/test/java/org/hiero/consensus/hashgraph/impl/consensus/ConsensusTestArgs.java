@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED;
 import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED_REAL_WEIGHT;
@@ -62,19 +62,7 @@ public class ConsensusTestArgs {
     }
 
     static Stream<ConsensusTestParams> partitionTests() {
-        return Stream.of(
-                // Uses balanced weights for 4 so that each partition can continue to create events.
-                // This limitation if one of the test, not the consensus algorithm.
-                // new ConsensusTestParams(4, BALANCED_REAL_WEIGHT,
-                // BALANCED_REAL_WEIGHT_DESC),
-
-                // Use uneven stake such that no single node has a strong minority and could be
-                // put in a partition by itself and no longer generate events. This limitation if
-                // one
-                // of the test, not the consensus algorithm.
-                // new ConsensusTestParams(5, INCREMENTING,
-                // INCREMENTAL_NODE_WEIGHT_DESC),
-                new ConsensusTestParams(9, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC));
+        return Stream.of(new ConsensusTestParams(9, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC));
     }
 
     static Stream<ConsensusTestParams> subQuorumPartitionTests() {
