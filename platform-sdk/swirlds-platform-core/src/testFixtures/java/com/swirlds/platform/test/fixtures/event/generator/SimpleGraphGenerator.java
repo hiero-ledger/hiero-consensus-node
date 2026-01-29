@@ -8,8 +8,8 @@ import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.HapiUtils;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -17,9 +17,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Random;
 import java.util.stream.IntStream;
-import org.hiero.base.crypto.SignatureType;
+import java.util.stream.Stream;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
 
@@ -44,7 +43,7 @@ public class SimpleGraphGenerator {
     /**
      * The source of all randomness for this class.
      */
-    private final Random random;
+    private final Randotron random;
 
     private final GeneratorConsensus consensus;
 
@@ -61,7 +60,7 @@ public class SimpleGraphGenerator {
             @NonNull final GeneratorConfig generatorConfig,
             @NonNull final Roster roster) {
         this.generatorConfig = generatorConfig;
-        this.random = new Random(generatorConfig.seed());
+        this.random = Randotron.create(generatorConfig.seed());
         this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
         this.roster = roster;
         consensus = new GeneratorConsensus(configuration, time, roster);
@@ -115,9 +114,6 @@ public class SimpleGraphGenerator {
                 .filter(Objects::nonNull)
                 .forEach(parents::add);
 
-        final byte[] sig = new byte[SignatureType.RSA.signatureLength()];
-        random.nextBytes(sig);
-
         final long birthRound = consensus.getCurrentBirthRound();
         final EventCore eventCore = EventCore.newBuilder()
                 .creatorNodeId(roster.rosterEntries().get(eventCreator).nodeId())
@@ -125,11 +121,16 @@ public class SimpleGraphGenerator {
                 .timeCreated(HapiUtils.asTimestamp(getNextTimestamp()))
                 .coin(random.nextInt(0, roster.rosterEntries().size()+1))
                 .build();
+
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
                 .parents(parents)
-                .signature(Bytes.wrap(sig))
-                //TODO transactions
+                .signature(random.nextSignatureBytes())
+                .transactions(
+                        Stream.generate(()->random.randomBytes(1, 100))
+                                .limit(random.nextInt(0, 5))
+                                .toList()
+                )
                 .build();
 
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
