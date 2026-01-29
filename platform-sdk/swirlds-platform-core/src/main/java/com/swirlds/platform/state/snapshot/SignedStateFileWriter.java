@@ -17,6 +17,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -128,10 +129,14 @@ public final class SignedStateFileWriter {
         requireNonNull(reservedSignedState);
         requireNonNull(stateLifecycleManager);
 
+        final Configuration configuration = platformContext.getConfiguration();
+        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         final SignedState signedState = reservedSignedState.get();
+
         try {
             //noinspection DataFlowIssue -- it is checked in isStateToSave()
-            if (signedState.isStateToSave()
+            if (stateConfig.saveStateAsync()
+                    && signedState.isStateToSave()
                     && signedState.getStateToDiskReason().equals(StateToDiskReason.PERIODIC_SNAPSHOT)) {
                 // Creating the snapshot asynchronously is the optimization which allows it to be created faster within
                 // the `VirtualMap#flush`, because it is done without one extra data source snapshot as data source and
@@ -168,11 +173,11 @@ public final class SignedStateFileWriter {
         writeMetadataFile(selfId, directory, signedState);
         final Roster currentRoster = signedState.getRoster();
         writeRosterFile(directory, currentRoster);
-        writeSettingsUsed(directory, platformContext.getConfiguration());
+        writeSettingsUsed(directory, configuration);
 
         if (selfId != null) {
             copyPcesFilesRetryOnFailure(
-                    platformContext.getConfiguration(),
+                    configuration,
                     selfId,
                     directory,
                     ancientThresholdOf(signedState.getState()),
