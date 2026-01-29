@@ -3,12 +3,12 @@ package org.hiero.consensus.pces.impl.writer;
 
 import static com.swirlds.base.units.DataUnit.UNIT_BYTES;
 import static com.swirlds.base.units.DataUnit.UNIT_KILOBYTES;
-import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.TransactionGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
@@ -54,7 +54,7 @@ public class PcesWriterTestUtils {
                 final byte[] bytes = new byte[transactionSize];
                 random.nextBytes(bytes);
 
-                transactions[index] = createAppPayloadWrapper(bytes);
+                transactions[index] = new TransactionWrapper(Bytes.wrap(bytes));
             }
             return transactions;
         };
