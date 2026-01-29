@@ -207,9 +207,9 @@ public class TestScenario implements Closeable {
                 }
             } else if (adapter instanceof MetricsFramework.GaugeAdapter gauge) {
                 if (adapter.labelsCount() == 0) {
-                    gauge.set(random.nextLong());
+                    gauge.set(random.nextLong(100L));
                 } else {
-                    gauge.set(random.nextLong(), getCachedOrCreatedLabelValuesRandom(random));
+                    gauge.set(random.nextLong(100L), getCachedOrCreatedLabelValuesRandom(random));
                 }
             }
         }

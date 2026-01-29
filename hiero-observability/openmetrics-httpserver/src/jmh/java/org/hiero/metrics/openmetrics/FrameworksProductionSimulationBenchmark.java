@@ -21,7 +21,7 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
 /**
- * JMH benchmark Hiero metrics and HTTP server in production like environment.
+ * JMH benchmark for Hiero metrics and HTTP server in production-like environment.
  * Test scenario:
  * <ul>
  *   <li><b>Init phase</b> - Initialize the framework, generate metrics based on provided configuration.</li>
@@ -90,8 +90,8 @@ public class FrameworksProductionSimulationBenchmark {
                 "-XX:ZAllocationSpikeTolerance=2",
                 "-XX:+ZGenerational"
             })
-    @Warmup(iterations = 1, time = 1)
     @Threads(8)
+    @Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
     @Measurement(iterations = 200, time = 3, timeUnit = TimeUnit.SECONDS)
     public void callOpenMetricsEndpoint() throws InterruptedException {
         Random random = ThreadLocalRandom.current();

@@ -95,7 +95,7 @@ public class FrameworksHttpLatencyComparisonBenchmark {
                 "-XX:ZAllocationSpikeTolerance=2",
                 "-XX:+ZGenerational"
             })
-    @Warmup(iterations = 1, time = 1)
+    @Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
     @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
     public void callOpenMetricsEndpoint() throws IOException, InterruptedException {
         // make some updates to metrics
