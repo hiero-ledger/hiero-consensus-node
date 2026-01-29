@@ -27,6 +27,7 @@ module org.hiero.otter.fixtures {
     requires transitive org.testcontainers;
     requires com.hedera.node.app.hapi.utils;
     requires com.swirlds.config.extensions;
+    requires com.swirlds.merkledb;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.utility;
@@ -48,7 +49,6 @@ module org.hiero.otter.fixtures {
     requires org.apache.commons.lang3;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
-    requires com.swirlds.merkledb;
     requires static com.github.spotbugs.annotations;
 
     exports org.hiero.otter.fixtures;
