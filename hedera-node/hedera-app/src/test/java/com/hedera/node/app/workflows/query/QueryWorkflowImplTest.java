@@ -1230,7 +1230,8 @@ class QueryWorkflowImplTest extends AppTestBase {
                 .when(ingestChecker)
                 .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
-        final var getTopicInfoHandler = mock(ConsensusGetTopicInfoHandler.class, withSettings().strictness(Strictness.LENIENT));
+        final var getTopicInfoHandler =
+                mock(ConsensusGetTopicInfoHandler.class, withSettings().strictness(Strictness.LENIENT));
         when(getTopicInfoHandler.requiresNodePayment(any())).thenReturn(true);
         when(getTopicInfoHandler.requiresNodePayment(any())).thenReturn(true);
         when(getTopicInfoHandler.extractHeader(query)).thenReturn(queryHeader);
