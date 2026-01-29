@@ -15,6 +15,6 @@ public class ReconnectConfigurationExtension implements ConfigurationExtension {
      */
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of();
+        return Set.of(ReconnectConfig.class);
     }
 }
