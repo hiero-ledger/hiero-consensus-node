@@ -179,12 +179,23 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 // Now do the first upgrade
                 getVersionInfo().exposingServicesVersionTo(startVersion::set),
-                nodeUpdate("0").grpcCertificateHash(newNode0CertHash.toByteArray()),
                 prepareFakeUpgrade(),
                 validateCandidateRoster(DabEnabledUpgradeTest::hasClassicRosterMetadata),
+                doingContextual(spec -> spec.subProcessNetworkOrThrow()
+                        .setOneTimeOverrideCustomizer(network -> network.copyBuilder()
+                                .nodeMetadata(network.nodeMetadata().stream()
+                                        .map(meta -> meta.nodeOrThrow().nodeId() == 0L
+                                                ? meta.copyBuilder()
+                                                        .node(meta.nodeOrThrow()
+                                                                .copyBuilder()
+                                                                .grpcCertificateHash(newNode0CertHash))
+                                                        .build()
+                                                : meta)
+                                        .toList())
+                                .build())),
                 upgradeToNextConfigVersion(),
                 assertGetVersionInfoMatches(startVersion::get),
-                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
+                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
                 getFileContents(NODE_DETAILS).andValidate(bytes -> {
                     final var node0CertHash = AddressBookPojo.nodeDetailsFrom(bytes).getEntries().stream()
                             .filter(entry -> entry.getNodeId() == 0L)
