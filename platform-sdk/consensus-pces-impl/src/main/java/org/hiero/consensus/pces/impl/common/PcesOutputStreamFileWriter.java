@@ -2,8 +2,6 @@
 package org.hiero.consensus.pces.impl.common;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.io.extendable.ExtendableOutputStream;
-import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.FileDescriptor;
@@ -12,6 +10,8 @@ import java.io.IOException;
 import java.io.SyncFailedException;
 import java.nio.file.Path;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.io.extendable.ExtendableOutputStream;
+import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
 
 /**
  * Writes events to a file using an output stream.
