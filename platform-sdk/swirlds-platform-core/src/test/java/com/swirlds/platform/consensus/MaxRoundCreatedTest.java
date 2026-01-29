@@ -18,11 +18,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusRounds;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.pces.impl.common.PcesFileReader;
-import org.hiero.consensus.pces.impl.common.PcesFileTracker;
-import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
+import org.hiero.consensus.pces.impl.test.fixtures.PcesFileIteratorFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -70,14 +69,12 @@ public class MaxRoundCreatedTest {
         final Roster roster = Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile())));
 
         final PlatformContext context = createDefaultPlatformContext();
-        final PcesFileTracker pcesFileTracker = PcesFileReader.readFilesFromDisk(
-                context.getConfiguration(), context.getRecycleBin(), pcesDir, 0, false);
 
         final TestIntake intake = new TestIntake(context, roster);
         final ConsensusOutput output = intake.getOutput();
 
         ConsensusRound latestRound = null;
-        final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);
+        final IOIterator<PlatformEvent> eventIterator = PcesFileIteratorFactory.createIterator(pcesDir);
 
         while (eventIterator.hasNext()) {
             final PlatformEvent event = eventIterator.next();
