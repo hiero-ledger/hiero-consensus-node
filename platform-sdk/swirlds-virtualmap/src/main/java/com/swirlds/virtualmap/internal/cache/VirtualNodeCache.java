@@ -268,12 +268,6 @@ public final class VirtualNodeCache implements FastCopyable {
     private final AtomicLong estimatedLeavesSizeInBytes = new AtomicLong(0);
 
     /**
-     * Estimated size of all leaf keys in dirtyLeafPaths. This size is calculated similar to
-     * {@link #estimatedLeavesSizeInBytes} above.
-     */
-    private final AtomicLong estimatedLeafPathsSizeInBytes = new AtomicLong(0);
-
-    /**
      * Estimated size of all hashes in dirtyHashes. This size is updated on every hash operation
      * (put, delete).
      */
@@ -463,7 +457,6 @@ public final class VirtualNodeCache implements FastCopyable {
         purge(dirtyHashChunks, idToDirtyHashChunkIndex, virtualMapConfig);
 
         estimatedLeavesSizeInBytes.set(0);
-        estimatedLeafPathsSizeInBytes.set(0);
         estimatedHashesSizeInBytes.set(0);
 
         dirtyLeaves = null;
@@ -512,7 +505,6 @@ public final class VirtualNodeCache implements FastCopyable {
             p.dirtyHashChunks.merge(dirtyHashChunks);
             // Estimated sizes include both mutations and concurrent array overheads
             p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
-            p.estimatedLeafPathsSizeInBytes.addAndGet(estimatedLeafPathsSizeInBytes.get());
             p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
             p.mergedCopy.set(true);
 
@@ -543,11 +535,10 @@ public final class VirtualNodeCache implements FastCopyable {
         dirtyLeaves.seal();
         dirtyHashChunks.seal();
         dirtyLeafPaths.seal();
-
         // Update estimated size to include concurrent arrays storage overhead
         estimatedHashesSizeInBytes.addAndGet(dirtyHashChunks.estimatedStorageMemoryOverhead());
-        estimatedLeavesSizeInBytes.addAndGet(dirtyLeaves.estimatedStorageMemoryOverhead());
-        estimatedLeafPathsSizeInBytes.addAndGet(dirtyLeafPaths.estimatedStorageMemoryOverhead());
+        estimatedLeavesSizeInBytes.addAndGet(dirtyLeaves.estimatedStorageMemoryOverhead() +
+                dirtyLeafPaths.estimatedStorageMemoryOverhead());
     }
 
     // --------------------------------------------------------------------------------------------
@@ -1092,46 +1083,20 @@ public final class VirtualNodeCache implements FastCopyable {
      */
     private void updateKeyAtPath(final Bytes value, final long path) {
         pathToDirtyLeafIndex.compute(path, (key, mutation) -> {
-            // If there is no mutation or the mutation isn't for this version, then we need to create a new mutation.
-            // Note that this code DEPENDS on hashing only a single round at a time. VirtualPipeline
-            // enforces this constraint.
-            Mutation<Long, Bytes> nextMutation = mutation;
-            Mutation<Long, Bytes> previousMutation = null;
-            while (nextMutation != null && nextMutation.version > fastCopyVersion.get()) {
-                previousMutation = nextMutation;
-                nextMutation = nextMutation.next;
-            }
-            long sizeDelta = 0;
-            if (nextMutation == null || nextMutation.version != fastCopyVersion.get()) {
+            if (mutation == null || mutation.version != fastCopyVersion.get()) {
                 // It must be that there is *NO* mutation in the dirtyPaths for this cache version.
                 // I don't have an easy way to assert it programmatically, but by inspection, it must be true.
                 // Create a mutation for this version pointing to the next oldest mutation (if any).
-                nextMutation = new Mutation<>(nextMutation, path, value, fastCopyVersion.get());
-                nextMutation.setDeleted(value == null);
+                mutation = new Mutation<>(mutation, path, value, fastCopyVersion.get());
+                mutation.setDeleted(value == null);
                 // Hold a reference to this newest mutation in this cache
-                dirtyLeafPaths.add(nextMutation);
-                if (value != null) {
-                    sizeDelta += value.length();
-                }
-            } else if (nextMutation.value != value) {
-                assert nextMutation.notFiltered();
+                dirtyLeafPaths.add(mutation);
+            } else if (mutation.value != value) {
+                assert mutation.notFiltered();
                 // This mutation already exists in this version. Simply update its value and deleted status
-                if (nextMutation.value != null) {
-                    sizeDelta -= nextMutation.value.length();
-                }
-                nextMutation.value = value;
-                nextMutation.setDeleted(value == null);
-                if (value != null) {
-                    sizeDelta += nextMutation.value.length();
-                }
+                mutation.value = value;
+                mutation.setDeleted(value == null);
             }
-            if (previousMutation != null) {
-                assert previousMutation.notFiltered();
-                previousMutation.next = nextMutation;
-            } else {
-                mutation = nextMutation;
-            }
-            estimatedLeafPathsSizeInBytes.addAndGet(sizeDelta);
             return mutation;
         });
     }
@@ -1234,7 +1199,6 @@ public final class VirtualNodeCache implements FastCopyable {
             // Create a new mutation
             final Mutation<Bytes, VirtualLeafBytes> newerMutation =
                     new Mutation<>(mutation, leaf.keyBytes(), leaf, fastCopyVersion.get());
-            sizeDelta += 128; // Mutation + key Bytes + VirtualLeafBytes overhead
             dirtyLeaves.add(newerMutation);
             mutation = newerMutation;
             sizeDelta += leaf.getSizeInBytes();
@@ -1379,9 +1343,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * all keys in dirtyLeafPaths, and all hashes in dirtyHashes.
      */
     public long getEstimatedSize() {
-        return estimatedLeavesSizeInBytes.get()
-                + estimatedLeafPathsSizeInBytes.get()
-                + estimatedHashesSizeInBytes.get();
+        return estimatedLeavesSizeInBytes.get() + estimatedHashesSizeInBytes.get();
     }
 
     /**
