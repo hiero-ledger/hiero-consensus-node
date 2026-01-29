@@ -21,7 +21,6 @@ public class TokenPauseFeeCalculator implements ServiceFeeCalculator {
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
-        final var op = txnBody.tokenPauseOrThrow();
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_PAUSE);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
     }

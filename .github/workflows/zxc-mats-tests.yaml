@@ -225,6 +225,7 @@ jobs:
       enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-network-log-capture: "true"
       mats-suffix: "MATS"
     secrets:

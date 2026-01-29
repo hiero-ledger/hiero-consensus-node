@@ -225,9 +225,10 @@ public class SwirldsPlatform implements Platform {
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
         final ReconnectController reconnectController = new ReconnectController(
+                configuration,
+                platformContext.getTime(),
                 currentRoster,
                 this,
-                platformContext,
                 platformCoordinator,
                 stateLifecycleManager,
                 savedStateController,
@@ -235,7 +236,7 @@ public class SwirldsPlatform implements Platform {
                 blocks.reservedSignedStateResultPromise(),
                 selfId,
                 blocks.fallenBehindMonitor(),
-                new DefaultSignedStateValidator(platformContext));
+                new DefaultSignedStateValidator(configuration));
 
         final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
                 .setComponent("platform-core")

@@ -21,7 +21,6 @@ public class TokenUnpauseFeeCalculator implements ServiceFeeCalculator {
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
-        final var op = txnBody.tokenUnpauseOrThrow();
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_UNPAUSE);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
     }

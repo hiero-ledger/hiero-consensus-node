@@ -4,7 +4,8 @@ module org.hiero.consensus.pces.impl {
             com.swirlds.platform.core,
             com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.pcli,
-            org.hiero.otter.fixtures;
+            org.hiero.otter.fixtures,
+            org.hiero.consensus.pces.impl.test.fixtures;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
