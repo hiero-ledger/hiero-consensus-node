@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -150,6 +151,7 @@ public class AirdropSystemContractTest {
 
     @HapiTest
     @DisplayName("Airdrop NFT")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> airdropNft(
             @NonNull @Account(maxAutoAssociations = -1) final SpecAccount receiver,
             @NonNull @NonFungibleToken(numPreMints = 1) final SpecNonFungibleToken nft) {
@@ -220,6 +222,7 @@ public class AirdropSystemContractTest {
 
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Multiple Airdrop NFT transactions")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> airdropNfts(
             @NonNull @NonFungibleToken(numPreMints = 1) final SpecNonFungibleToken nft1,
             @NonNull @NonFungibleToken(numPreMints = 1) final SpecNonFungibleToken nft2,
@@ -351,6 +354,7 @@ public class AirdropSystemContractTest {
 
     @HapiTest
     @DisplayName("Airdrop 10 token and NFT")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> airdrop10TokenAndNft(
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
@@ -580,6 +584,7 @@ public class AirdropSystemContractTest {
 
     @HapiTest
     @DisplayName("Airdrop fails when the token does not exist")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> airdropFailsWhenTokenDoesNotExist(
             @NonNull @Account(maxAutoAssociations = -1) final SpecAccount receiver,
             @NonNull @Account final SpecAccount accountAsToken) {
@@ -591,6 +596,7 @@ public class AirdropSystemContractTest {
 
     @HapiTest
     @DisplayName("Airdrop fails with nft serials out of bound")
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> failToUpdateNFTsMetadata(
             @NonNull @NonFungibleToken(numPreMints = 1) final SpecNonFungibleToken nft,
             @NonNull @Account(maxAutoAssociations = -1) final SpecAccount receiver) {

@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.precompile.token.address_167;
 
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType.HAPI_IS_TOKEN;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -50,6 +51,7 @@ public class TokenAndTypeCheckSuite {
 
     @HapiTest
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> checkTokenAndTypeStandardCases() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
@@ -95,6 +97,7 @@ public class TokenAndTypeCheckSuite {
     // Should just return false on isToken() check for missing token type
     @HapiTest
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> checkTokenAndTypeNegativeCases() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final var notAnAddress = new byte[20];

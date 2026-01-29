@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.records;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -31,6 +32,7 @@ public class LogsSuite {
 
     @HapiTest
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> log0Works() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
@@ -47,6 +49,7 @@ public class LogsSuite {
 
     @HapiTest
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> log1Works() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
@@ -66,6 +69,7 @@ public class LogsSuite {
     }
 
     @HapiTest
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> log2Works() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
@@ -86,6 +90,7 @@ public class LogsSuite {
     }
 
     @HapiTest
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> log3Works() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
@@ -107,6 +112,7 @@ public class LogsSuite {
     }
 
     @HapiTest
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> log4Works() {
         return hapiTest(
                 uploadInitCode(CONTRACT),

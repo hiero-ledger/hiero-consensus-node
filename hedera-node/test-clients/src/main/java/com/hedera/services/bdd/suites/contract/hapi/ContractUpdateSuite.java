@@ -2,7 +2,9 @@
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -56,6 +58,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -75,6 +78,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@TargetEmbeddedMode(CONCURRENT)
 public class ContractUpdateSuite {
     private static final long ONE_DAY = 60L * 60L * 24L;
     public static final String ADMIN_KEY = "adminKey";
@@ -468,6 +472,7 @@ public class ContractUpdateSuite {
 
     @LeakyHapiTest(overrides = {"ledger.maxAutoAssociations"})
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     final Stream<DynamicTest> tryContractUpdateWithMaxAutoAssociations() {
         return hapiTest(
                 overriding("ledger.maxAutoAssociations", "5000"),

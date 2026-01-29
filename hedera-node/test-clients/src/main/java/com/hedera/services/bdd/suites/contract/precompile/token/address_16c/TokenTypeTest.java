@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.token.address_16c;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
@@ -39,6 +40,7 @@ public class TokenTypeTest {
     @HapiTest
     @DisplayName("get token type")
     @Tag(MATS)
+    @Tag(ONLY_SUBPROCESS)
     public Stream<DynamicTest> cannotUpdateMissingToken() {
         return hapiTest(
                 overriding("contracts.systemContract.hts.addresses", "359,364"),
