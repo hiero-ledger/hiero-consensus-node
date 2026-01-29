@@ -24,6 +24,7 @@ import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallLocalFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
@@ -34,7 +35,6 @@ import com.hedera.node.app.service.contract.impl.calculator.ContractUpdateFeeCal
 import com.hedera.node.app.service.contract.impl.calculator.EthereumFeeCalculator;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;

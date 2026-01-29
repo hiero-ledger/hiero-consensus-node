@@ -2,9 +2,6 @@
 package com.swirlds.platform.network;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.config.BasicConfig;
-import com.swirlds.platform.config.ThreadConfig;
-import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.communication.ProtocolNegotiatorThread;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
@@ -32,6 +29,10 @@ import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.config.BasicConfig;
+import org.hiero.consensus.config.ThreadConfig;
+import org.hiero.consensus.gossip.config.SocketConfig;
+import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 

@@ -4,7 +4,6 @@ package com.swirlds.platform.test.fixtures.event;
 import static java.lang.Integer.max;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -18,7 +17,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -103,21 +104,9 @@ public final class EventUtils {
         final Set<EventImpl> eventsEncountered = new HashSet<>();
 
         for (final EventImpl event : events) {
-            final EventImpl selfParent = event.getSelfParent();
-            final EventImpl otherParent = event.getOtherParent();
-
-            if (selfParent != null) {
-                if (!eventsEncountered.contains(selfParent)) {
-                    return false;
-                }
+            if (event.getAllParents().stream().anyMatch(Predicate.not(eventsEncountered::contains))) {
+                return false;
             }
-
-            if (otherParent != null) {
-                if (!eventsEncountered.contains(otherParent)) {
-                    return false;
-                }
-            }
-
             eventsEncountered.add(event);
         }
         return true;
@@ -182,7 +171,8 @@ public final class EventUtils {
     }
 
     /**
-     * Calculate the age of an event's other parent. Helper method for gatherOtherParentAges.
+     * Calculate the age of an event's other parent. Helper method for gatherOtherParentAges. This method expects that
+     * an event will not have more than a single other parent.
      *
      * @param events a list of events
      * @param eventIndex the index of the event to be considered. The age of the event's other
@@ -191,10 +181,13 @@ public final class EventUtils {
     private static int calculateOtherParentAge(final List<EventImpl> events, final int eventIndex) {
 
         final EventImpl event = events.get(eventIndex);
-        final EventImpl otherParent = event.getOtherParent();
-        if (otherParent == null) {
+        if (event.getOtherParents().isEmpty()) {
             return 0;
         }
+        if (event.getOtherParents().size() > 1) {
+            throw new IllegalArgumentException("Event has more than one other parent.");
+        }
+        final EventImpl otherParent = event.getOtherParents().getFirst();
         final NodeId otherParentNode = otherParent.getCreatorId();
 
         int age = 0;
