@@ -4,10 +4,8 @@ package com.swirlds.platform.test.fixtures.event.generator;
 import static com.swirlds.platform.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
-import com.hedera.hapi.platform.event.GossipEvent;
-import com.hedera.hapi.util.HapiUtils;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.Configuration;
@@ -19,8 +17,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.event.UnsignedEvent;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A utility class for generating a graph of events.
@@ -46,6 +47,7 @@ public class SimpleGraphGenerator {
     private final Randotron random;
 
     private final GeneratorConsensus consensus;
+    private final PbjStreamHasher hasher;
 
     /**
      * Construct a new StandardEventGenerator.
@@ -63,8 +65,8 @@ public class SimpleGraphGenerator {
         this.random = Randotron.create(generatorConfig.seed());
         this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
         this.roster = roster;
-        consensus = new GeneratorConsensus(configuration, time, roster);
-
+        this.consensus = new GeneratorConsensus(configuration, time, roster);
+        this.hasher = new PbjStreamHasher();
     }
 
 
@@ -115,27 +117,22 @@ public class SimpleGraphGenerator {
                 .forEach(parents::add);
 
         final long birthRound = consensus.getCurrentBirthRound();
-        final EventCore eventCore = EventCore.newBuilder()
-                .creatorNodeId(roster.rosterEntries().get(eventCreator).nodeId())
-                .birthRound(birthRound)
-                .timeCreated(HapiUtils.asTimestamp(getNextTimestamp()))
-                .coin(random.nextInt(0, roster.rosterEntries().size()+1))
-                .build();
+        final List<Bytes> transactions = Stream.generate(() -> random.randomBytes(1, 100))
+                .limit(random.nextInt(0, 5))
+                .toList();
+        final int coin = random.nextInt(0, roster.rosterEntries().size() + 1);
+        final UnsignedEvent unsignedEvent = new UnsignedEvent(
+                NodeId.of(roster.rosterEntries().get(eventCreator).nodeId()),
+                parents.stream().map(EventDescriptorWrapper::new).toList(),
+                birthRound,
+                getNextTimestamp(),
+                transactions,
+                coin
+        );
+        hasher.hashUnsignedEvent(unsignedEvent);
 
-        final GossipEvent gossipEvent = GossipEvent.newBuilder()
-                .eventCore(eventCore)
-                .parents(parents)
-                .signature(random.nextSignatureBytes())
-                .transactions(
-                        Stream.generate(()->random.randomBytes(1, 100))
-                                .limit(random.nextInt(0, 5))
-                                .toList()
-                )
-                .build();
-
-        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, random.nextSignatureBytes());
         platformEvent.signalPrehandleCompletion();
-        new DefaultEventHasher().hashEvent(platformEvent);
         consensus.updateConsensus(platformEvent);
         latestEventPerNode[eventCreator] = platformEvent.getDescriptor().eventDescriptor();
         return platformEvent;
