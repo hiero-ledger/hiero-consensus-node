@@ -563,7 +563,7 @@ public class SyncMetrics {
      */
     public SyncPhase reportSyncPhase(@NonNull final NodeId node, @NonNull final SyncPhase syncPhase) {
         final PhaseTimer<SyncPhase> phaseMetric = syncPhasePerNode.computeIfAbsent(
-                node, nodeId -> new PhaseTimerBuilder<>(metrics, time, "platform", SyncPhase.class)
+                node, nodeId -> new PhaseTimerBuilder<>(metrics, time, PLATFORM_CATEGORY, SyncPhase.class)
                         .enableFractionalMetrics()
                         .setInitialPhase(SyncPhase.OUTSIDE_OF_RPC)
                         .setMetricsNamePrefix(String.format("sync_phase_%02d", nodeId.id()))
@@ -631,7 +631,7 @@ public class SyncMetrics {
             final @NonNull String name, final @NonNull LinkedBlockingQueue<T> underlyingQueue) {
         return new MeasuredBlockingQueue<>(
                 underlyingQueue,
-                new Config(metrics, "platform", name)
+                new Config(metrics, PLATFORM_CATEGORY, name)
                         .withMaxSizeMetricEnabled(true)
                         .withMinSizeMetricEnabled(true));
     }
