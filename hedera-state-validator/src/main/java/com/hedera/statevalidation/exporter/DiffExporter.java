@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.exporter;
 
-import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static com.hedera.statevalidation.util.StateUtils.extractStateIdFromKey;
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.ParallelProcessingUtils;
 import com.hedera.statevalidation.util.StateUtils;
@@ -26,8 +25,16 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Exports the differences between two states to JSON files. This class iterates over all the keys in the first state,
+ * collects the entries that are absent in the second state (modifications and deletions), then iterates over the second state
+ * and collects the entries that are absent in the first state (additions). Then the collected results are sorted by key
+ * and written to JSON files.
+ */
 public class DiffExporter {
 
+    private static final String STATE_1_DIFF_JSON = "state1-diff.json";
+    private static final String STATE_2_DIFF_JSON = "state2-diff.json";
     private final File resultDir;
     private final MerkleNodeState state1;
     private final MerkleNodeState state2;
@@ -51,6 +58,9 @@ public class DiffExporter {
         }
     }
 
+    /**
+     * Exports the differences between two states to JSON files.
+     */
     public void export() {
         final long startTimestamp = System.currentTimeMillis();
         final VirtualMap vm1 = (VirtualMap) state1.getRoot();
@@ -72,8 +82,8 @@ public class DiffExporter {
         state1Entries.sort(Comparator.comparing(e -> e.keyBytes));
         state2Entries.sort(Comparator.comparing(e -> e.keyBytes));
 
-        createOutputFile(state1Entries, "state1-diff.json");
-        createOutputFile(state2Entries, "state2-diff.json");
+        createOutputFile(state1Entries, STATE_1_DIFF_JSON);
+        createOutputFile(state2Entries, STATE_2_DIFF_JSON);
 
         System.out.printf("Diff time: %d seconds%n", (System.currentTimeMillis() - startTimestamp) / 1000);
     }
@@ -91,12 +101,22 @@ public class DiffExporter {
         }
     }
 
+    /**
+     * Traverses the source virtual map and compares its entries with the target virtual map.
+     * Collects the differences between the two states and populates the provided lists with the results.
+     *
+     * @param vmSource source VirtualMap
+     * @param vmTarget target VirtualMap
+     * @param isFirstPass whether this is the first pass of the traversal
+     * @param state1Entries list to collect entries absent in the second state
+     * @param state2Entries list to collect entries absent in the first state
+     */
     private void traverseAndCompare(
-            final VirtualMap vmSource,
-            final VirtualMap vmTarget,
+            @NonNull final VirtualMap vmSource,
+            @NonNull final VirtualMap vmTarget,
             boolean isFirstPass,
-            final List<DiffEntry> state1Entries,
-            final List<DiffEntry> state2Entries) {
+            @NonNull final List<DiffEntry> state1Entries,
+            @NonNull final List<DiffEntry> state2Entries) {
         final VirtualMapMetadata metadata = vmSource.getMetadata();
         final long firstLeafPath = metadata.getFirstLeafPath();
         final long lastLeafPath = metadata.getLastLeafPath();
@@ -107,7 +127,7 @@ public class DiffExporter {
                         System.out.println("Objects processed: " + currentCount);
                     }
 
-                    VirtualLeafBytes sourceLeaf = null;
+                    VirtualLeafBytes<?> sourceLeaf = null;
                     try {
                         sourceLeaf = vmSource.getRecords().findLeafRecord(path);
                     } catch (final Exception e) {
@@ -123,17 +143,14 @@ public class DiffExporter {
 
                     try {
                         if (expectedStateId != -1) {
-                            final ReadableSequentialData keyData = keyBytes.toReadableSequentialData();
-                            final int tag = keyData.readVarInt(false);
-                            final int actualStateId =
-                                    tag >> TAG_FIELD_OFFSET == 1 ? keyData.readVarInt(false) : tag >> TAG_FIELD_OFFSET;
+                            final int actualStateId = extractStateIdFromKey(keyBytes);
                             if (expectedStateId != actualStateId) {
                                 return;
                             }
                         }
 
                         // Check in target map
-                        final VirtualLeafBytes targetLeaf =
+                        final VirtualLeafBytes<?> targetLeaf =
                                 vmTarget.getRecords().findLeafRecord(keyBytes);
 
                         if (isFirstPass) {

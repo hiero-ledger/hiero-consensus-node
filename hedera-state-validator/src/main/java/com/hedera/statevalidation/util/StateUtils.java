@@ -2,6 +2,7 @@
 package com.hedera.statevalidation.util;
 
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
+import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.ConfigUtils.resetConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
@@ -57,6 +58,8 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -70,6 +73,7 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
@@ -95,7 +99,10 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 @SuppressWarnings({"rawtypes", "resource"})
 public final class StateUtils {
 
-    public static final String DEFAULT = "DEFAULT";
+    /**
+     * Default state key
+     */
+    private static final String DEFAULT = "DEFAULT";
 
     private static final Map<String, MerkleNodeState> states = new HashMap<>();
     private static final Map<String, DeserializedSignedState> deserializedSignedStates = new HashMap<>();
@@ -171,9 +178,10 @@ public final class StateUtils {
             // need to create copy of the loaded state to make it mutable
             final HashedReservedSignedState hashedSignedState =
                     copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
-            final MerkleNodeState mns = hashedSignedState.state().get().getState();
-            states.put(key, mns);
-            initServiceMigrator(mns, platformContext, serviceRegistry);
+            final MerkleNodeState state = hashedSignedState.state().get().getState();
+            states.put(key, state);
+            initServiceMigrator(state, platformContext, serviceRegistry);
+            ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -345,5 +353,16 @@ public final class StateUtils {
         }
 
         throw new IllegalArgumentException(String.format("No state ID found for %s.%s", serviceName, stateKey));
+    }
+
+    /**
+     * Extracts state id from the provided key bytes.
+     * @param keyBytes key bytes to extract state id from
+     * @return resulting state id
+     */
+    public static int extractStateIdFromKey(Bytes keyBytes) {
+        final ReadableSequentialData keyData = keyBytes.toReadableSequentialData();
+        final int tag = keyData.readVarInt(false);
+        return tag >> TAG_FIELD_OFFSET == 1 ? keyData.readVarInt(false) : tag >> TAG_FIELD_OFFSET;
     }
 }

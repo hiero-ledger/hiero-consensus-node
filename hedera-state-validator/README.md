@@ -261,7 +261,7 @@ where `k` is a key, and `v` is a value.
 
 ## Diff
 
-[DiffCommand](src/main/java/com/hedera/statevalidation/DiffCommand.java) compares two states and two files that can be used to create a diff.
+[DiffCommand](src/main/java/com/hedera/statevalidation/DiffCommand.java) compares two states, and the comparison results in two files that can be used to create a diff.
 
 ### Usage
 
@@ -287,7 +287,7 @@ java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
 
 ### Notes
 
-- The command generates two files: `state1-diff.json` and `state2-diff.json` in the parent directory of the specified `--out` directory.
+- The command generates two files: `state1-diff.json` and `state2-diff.json` in the specified `--out` directory.
 - `state1-diff.json` contains entries that were either deleted in the second state or modified (showing the old value).
 - `state2-diff.json` contains entries that were either added in the second state or modified (showing the new value).
 - Service name and state key should both be either omitted or specified.
