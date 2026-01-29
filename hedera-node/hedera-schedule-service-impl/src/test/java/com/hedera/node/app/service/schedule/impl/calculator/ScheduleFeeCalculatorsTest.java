@@ -21,6 +21,7 @@ import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -49,6 +50,9 @@ class ScheduleFeeCalculatorsTest {
     @Mock
     private FeeContext feeContext;
 
+    @Mock
+    private CongestionMultipliers congestionMultipliers;
+
     private SimpleFeeCalculatorImpl feeCalculator;
 
     @BeforeEach
@@ -60,7 +64,8 @@ class ScheduleFeeCalculatorsTest {
                         new ScheduleCreateFeeCalculator(),
                         new ScheduleSignFeeCalculator(),
                         new ScheduleDeleteFeeCalculator()),
-                Set.of(new ScheduleGetInfoFeeCalculator()));
+                Set.of(new ScheduleGetInfoFeeCalculator()),
+                congestionMultipliers);
     }
 
     static Stream<TestCase> provideTestCases() {

@@ -189,8 +189,8 @@ public final class FeeManager {
                     org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(bytes);
             if (isValid(schedule)) {
                 this.simpleFeesSchedule = schedule;
-                this.simpleFeeCalculator =
-                        new SimpleFeeCalculatorImpl(schedule, serviceFeeCalculators, queryFeeCalculators);
+                this.simpleFeeCalculator = new SimpleFeeCalculatorImpl(
+                        schedule, serviceFeeCalculators, queryFeeCalculators, congestionMultipliers);
                 return SUCCESS;
             } else {
                 logger.error("Unable to validate simple fee schedule.");

@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.throttle.annotations.GasThrottleMultiplier;
 import com.hedera.node.app.workflows.TransactionInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -50,15 +50,14 @@ public class CongestionMultipliers {
      *
      * @return the max congestion multiplier
      */
-    public long maxCurrentMultiplier(
-            @NonNull final TransactionInfo txnInfo, @NonNull final ReadableStoreFactory storeFactory) {
+    public long maxCurrentMultiplier(@NonNull final TransactionInfo txnInfo, @NonNull final StoreFactory storeFactory) {
         return maxCurrentMultiplier(txnInfo.txBody(), txnInfo.functionality(), storeFactory);
     }
 
     public long maxCurrentMultiplier(
             @NonNull final TransactionBody body,
             @NonNull final HederaFunctionality functionality,
-            @NonNull final ReadableStoreFactory storeFactory) {
+            @NonNull final StoreFactory storeFactory) {
         return Math.max(
                 gasThrottleMultiplier.currentMultiplier(),
                 utilizationScaledThrottleMultiplier.currentMultiplier(body, functionality, storeFactory));

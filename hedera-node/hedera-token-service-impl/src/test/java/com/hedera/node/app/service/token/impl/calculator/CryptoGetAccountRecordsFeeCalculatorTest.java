@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.token.CryptoGetAccountRecordsQuery;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeContext;
 import java.util.List;
 import java.util.Set;
@@ -32,14 +33,17 @@ class CryptoGetAccountRecordsFeeCalculatorTest {
     @Mock
     private FeeContext feeContext;
 
+    @Mock
+    private CongestionMultipliers congestionMultipliers;
+
     private SimpleFeeCalculatorImpl feeCalculator;
     private FeeSchedule testSchedule;
 
     @BeforeEach
     void setUp() {
         testSchedule = createTestFeeSchedule();
-        feeCalculator =
-                new SimpleFeeCalculatorImpl(testSchedule, Set.of(), Set.of(new CryptoGetAccountRecordsFeeCalculator()));
+        feeCalculator = new SimpleFeeCalculatorImpl(
+                testSchedule, Set.of(), Set.of(new CryptoGetAccountRecordsFeeCalculator()), congestionMultipliers);
     }
 
     @Nested

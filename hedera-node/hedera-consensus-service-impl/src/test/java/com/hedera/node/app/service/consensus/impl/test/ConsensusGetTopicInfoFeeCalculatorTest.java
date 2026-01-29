@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusGetTopicInfoQuery;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusGetTopicInfoFeeCalculator;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import java.util.List;
@@ -34,11 +35,14 @@ public class ConsensusGetTopicInfoFeeCalculatorTest {
     @Mock
     private QueryContext queryContext;
 
+    @Mock
+    private CongestionMultipliers congestionMultipliers;
+
     @BeforeEach
     void setUp() {
         FeeSchedule testSchedule = createTestFeeSchedule();
-        feeCalculator =
-                new SimpleFeeCalculatorImpl(testSchedule, Set.of(), Set.of(new ConsensusGetTopicInfoFeeCalculator()));
+        feeCalculator = new SimpleFeeCalculatorImpl(
+                testSchedule, Set.of(), Set.of(new ConsensusGetTopicInfoFeeCalculator()), congestionMultipliers);
     }
 
     @Test

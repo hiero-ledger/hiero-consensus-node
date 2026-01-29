@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
+
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
@@ -28,19 +34,19 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
     private final Map<Query.QueryOneOfType, QueryFeeCalculator> queryFeeCalculators;
 
-    public SimpleFeeCalculatorImpl(FeeSchedule feeSchedule, Set<ServiceFeeCalculator> serviceFeeCalculators) {
-        this(feeSchedule, serviceFeeCalculators, Set.of());
-    }
+    private final CongestionMultipliers congestionMultipliers;
 
     public SimpleFeeCalculatorImpl(
-            FeeSchedule feeSchedule,
-            Set<ServiceFeeCalculator> serviceFeeCalculators,
-            Set<QueryFeeCalculator> queryFeeCalculators) {
+            @NonNull FeeSchedule feeSchedule,
+            @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators,
+            @NonNull Set<QueryFeeCalculator> queryFeeCalculators,
+            @NonNull CongestionMultipliers congestionMultipliers) {
         this.feeSchedule = feeSchedule;
         this.serviceFeeCalculators = serviceFeeCalculators.stream()
                 .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
         this.queryFeeCalculators = queryFeeCalculators.stream()
                 .collect(Collectors.toMap(QueryFeeCalculator::getQueryType, Function.identity()));
+        this.congestionMultipliers = congestionMultipliers;
     }
 
     /**
@@ -72,6 +78,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Calculates fees for transactions per HIP-1261.
      * Node fee includes BYTES (full transaction size) and SIGNATURES extras.
      * Service fee is transaction-specific.
+     * If congestion multipliers are configured and a store factory is available,
+     * the congestion multiplier will be applied to the total fee.
      *
      * @param txnBody the transaction body
      * @param feeContext the fee context containing signature count and full transaction bytes
@@ -96,7 +104,42 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
-        return result;
+
+        // Apply congestion multiplier if available
+        return applyCongestionMultiplier(txnBody, feeContext, result);
+    }
+
+    /**
+     * Applies the congestion multiplier to the fee result.
+     * Gets the ReadableStoreFactory from the FeeContext implementation.
+     *
+     * @param txnBody the transaction body
+     * @param feeContext the fee context (provides store access)
+     * @param result the base fee result
+     * @return a new FeeResult with congestion multiplier applied, or the original if no multiplier
+     */
+    private FeeResult applyCongestionMultiplier(
+            @NonNull final TransactionBody txnBody,
+            @Nullable final FeeContext feeContext,
+            @NonNull final FeeResult result) {
+        if (feeContext == null) {
+            return result;
+        }
+
+        try {
+            final HederaFunctionality functionality = functionOf(txnBody);
+            final long congestionMultiplier =
+                    congestionMultipliers.maxCurrentMultiplier(txnBody, functionality, feeContext.storeFactory());
+            if (congestionMultiplier <= 1) {
+                return result;
+            }
+            return new FeeResult(
+                    clampedMultiply(result.getServiceTotalTinycents(), congestionMultiplier),
+                    clampedMultiply(result.getNodeTotalTinycents(), congestionMultiplier),
+                    result.getNetworkMultiplier());
+        } catch (UnknownHederaFunctionality e) {
+            return result;
+        }
     }
 
     @Override

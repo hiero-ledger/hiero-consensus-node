@@ -13,6 +13,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.hapi.node.util.UtilPrngTransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.service.util.impl.calculator.AtomicBatchFeeCalculator;
 import com.hedera.node.app.service.util.impl.calculator.UtilPrngFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -43,13 +44,19 @@ class UtilServiceFeeCalculatorsTest {
     @Mock
     private FeeContext feeContext;
 
+    @Mock
+    private CongestionMultipliers congestionMultipliers;
+
     private SimpleFeeCalculatorImpl feeCalculator;
 
     @BeforeEach
     void setUp() {
         var testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(
-                testSchedule, Set.of(new AtomicBatchFeeCalculator(), new UtilPrngFeeCalculator()), Set.of());
+                testSchedule,
+                Set.of(new AtomicBatchFeeCalculator(), new UtilPrngFeeCalculator()),
+                Set.of(),
+                congestionMultipliers);
     }
 
     static Stream<TestCase> provideTestCases() {

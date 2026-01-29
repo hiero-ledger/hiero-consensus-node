@@ -14,6 +14,7 @@ import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeCreateFeeCalculator;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeDeleteFeeCalculator;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeUpdateFeeCalculator;
@@ -53,6 +54,9 @@ class AddressBookFeeCalculatorsTest {
     @Mock
     private FeeContext feeContext;
 
+    @Mock
+    private CongestionMultipliers congestionMultipliers;
+
     private SimpleFeeCalculatorImpl feeCalculator;
 
     @BeforeEach
@@ -60,7 +64,9 @@ class AddressBookFeeCalculatorsTest {
         var testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(
                 testSchedule,
-                Set.of(new NodeCreateFeeCalculator(), new NodeUpdateFeeCalculator(), new NodeDeleteFeeCalculator()));
+                Set.of(new NodeCreateFeeCalculator(), new NodeUpdateFeeCalculator(), new NodeDeleteFeeCalculator()),
+                Set.of(),
+                congestionMultipliers);
     }
 
     static Stream<TestCase> provideTestCases() {

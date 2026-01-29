@@ -10,6 +10,7 @@ import com.hedera.hapi.node.hooks.*;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -33,12 +34,16 @@ class CryptoUpdateFeeCalculatorTest {
     @Mock
     private FeeContext feeContext;
 
+    @Mock
+    private CongestionMultipliers congestionMultipliers;
+
     private SimpleFeeCalculatorImpl feeCalculator;
 
     @BeforeEach
     void setUp() {
         final var testSchedule = createTestFeeSchedule();
-        feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new CryptoUpdateFeeCalculator()));
+        feeCalculator = new SimpleFeeCalculatorImpl(
+                testSchedule, Set.of(new CryptoUpdateFeeCalculator()), Set.of(), congestionMultipliers);
     }
 
     @Nested
@@ -178,8 +183,8 @@ class CryptoUpdateFeeCalculatorTest {
                                     makeExtraIncluded(Extra.KEYS, 1)))) // Only 1 key included
                     .build();
 
-            feeCalculator =
-                    new SimpleFeeCalculatorImpl(scheduleWithLowKeyLimit, Set.of(new CryptoUpdateFeeCalculator()));
+            feeCalculator = new SimpleFeeCalculatorImpl(
+                    scheduleWithLowKeyLimit, Set.of(new CryptoUpdateFeeCalculator()), Set.of(), congestionMultipliers);
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
 
             // Create a KeyList with 5 keys (4 over the included count of 1)
@@ -231,8 +236,8 @@ class CryptoUpdateFeeCalculatorTest {
                                     makeExtraIncluded(Extra.KEYS, 1)))) // Only 1 key included
                     .build();
 
-            feeCalculator =
-                    new SimpleFeeCalculatorImpl(scheduleWithLowKeyLimit, Set.of(new CryptoUpdateFeeCalculator()));
+            feeCalculator = new SimpleFeeCalculatorImpl(
+                    scheduleWithLowKeyLimit, Set.of(new CryptoUpdateFeeCalculator()), Set.of(), congestionMultipliers);
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
 
             // Create exactly 1 key (at the included count boundary)

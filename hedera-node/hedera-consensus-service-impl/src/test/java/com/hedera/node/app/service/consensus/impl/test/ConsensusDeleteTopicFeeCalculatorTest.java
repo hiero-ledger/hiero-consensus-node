@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusDeleteTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import java.util.List;
@@ -36,13 +37,17 @@ public class ConsensusDeleteTopicFeeCalculatorTest {
     @Mock
     private FeeContext feeContext;
 
+    @Mock
+    private CongestionMultipliers congestionMultipliers;
+
     private SimpleFeeCalculatorImpl feeCalculator;
     private FeeSchedule testSchedule;
 
     @BeforeEach
     void setUp() {
         testSchedule = createTestFeeSchedule();
-        feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new ConsensusDeleteTopicFeeCalculator()));
+        feeCalculator = new SimpleFeeCalculatorImpl(
+                testSchedule, Set.of(new ConsensusDeleteTopicFeeCalculator()), Set.of(), congestionMultipliers);
     }
 
     @Nested

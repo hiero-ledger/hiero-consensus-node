@@ -59,6 +59,7 @@ import com.hedera.node.app.service.token.impl.ReadableNodeRewardsStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
+import com.hedera.node.app.spi.store.StoreFactory;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.state.State;
@@ -78,7 +79,7 @@ import org.hiero.consensus.roster.ReadableRosterStoreImpl;
  * <p>The initial implementation creates all known stores hard-coded. In a future version, this will be replaced by a
  * dynamic approach.
  */
-public class ReadableStoreFactory {
+public class ReadableStoreFactory implements StoreFactory {
     // This is the hard-coded part that needs to be replaced by a dynamic approach later,
     // e.g. services have to register their stores
     private static final Map<Class<?>, StoreEntry> STORE_FACTORY = createFactoryMap();
@@ -200,6 +201,24 @@ public class ReadableStoreFactory {
             return storeInterface.cast(store);
         }
         throw new IllegalArgumentException("No store of class " + storeInterface + " is available");
+    }
+
+    @Override
+    @NonNull
+    public <T> T readableStore(@NonNull final Class<T> storeInterface) {
+        return getStore(storeInterface);
+    }
+
+    @Override
+    @NonNull
+    public <T> T writableStore(@NonNull final Class<T> storeInterface) {
+        throw new UnsupportedOperationException("ReadableStoreFactory does not support writable stores");
+    }
+
+    @Override
+    @NonNull
+    public <T> T serviceApi(@NonNull final Class<T> apiInterface) {
+        throw new UnsupportedOperationException("ReadableStoreFactory does not support service APIs");
     }
 
     private record StoreEntry(

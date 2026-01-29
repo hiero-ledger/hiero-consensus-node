@@ -25,6 +25,7 @@ import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallLocalFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
@@ -57,6 +58,9 @@ public class ContractServiceFeeCalculatorsTest {
     @Mock
     private FeeContext feeContext;
 
+    @Mock
+    private CongestionMultipliers congestionMultipliers;
+
     private SimpleFeeCalculatorImpl feeCalculator;
 
     @BeforeEach
@@ -73,7 +77,8 @@ public class ContractServiceFeeCalculatorsTest {
                 Set.of(
                         new ContractCallLocalFeeCalculator(),
                         new ContractGetInfoFeeCalculator(),
-                        new ContractGetByteCodeFeeCalculator()));
+                        new ContractGetByteCodeFeeCalculator()),
+                congestionMultipliers);
     }
 
     @Test
