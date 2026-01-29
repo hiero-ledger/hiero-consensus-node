@@ -7,8 +7,10 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RosterWithKeys;
+import com.swirlds.platform.test.fixtures.event.signer.EventSigner;
+import com.swirlds.platform.test.fixtures.event.signer.RandomEventSigner;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Random;
 
 /**
  * Builder for creating {@link SimpleGraphGenerator} instances with optional parameters.
@@ -24,6 +26,7 @@ public class SimpleGraphGeneratorBuilder {
     private Integer maxOtherParents;
     private Roster roster;
     private Integer numNodes;
+    private boolean realSignatures = false;
 
     /**
      * Creates a new builder instance.
@@ -88,6 +91,9 @@ public class SimpleGraphGeneratorBuilder {
         if(numNodes != null) {
             throw new IllegalStateException("Cannot set roster when numNodes is already set");
         }
+        if(realSignatures){
+            throw new IllegalStateException("Cannot supply roster when realSignatures is enabled");
+        }
         this.roster = roster;
         return this;
     }
@@ -106,43 +112,65 @@ public class SimpleGraphGeneratorBuilder {
         return this;
     }
 
+    public SimpleGraphGeneratorBuilder realSignatures(final boolean realSignatures) {
+        if(realSignatures && roster != null) {
+            throw new IllegalStateException("Cannot use realSignatures with a supplied roster");
+        }
+        this.realSignatures = realSignatures;
+        return this;
+    }
+
     /**
      * Builds the {@link SimpleGraphGenerator} with the configured parameters.
      *
      * @return a new SimpleGraphGenerator instance
      */
     public SimpleGraphGenerator build() {
-        // Apply defaults
-        final Configuration actualConfiguration = configuration != null
-                ? configuration
-                : new TestConfigBuilder().getOrCreateConfig();
-
-        final Time actualTime = time != null ? time : Time.getCurrent();
-
-        final long actualSeed = seed != null ? seed : DEFAULT_SEED;
-
-        final int actualMaxOtherParents = maxOtherParents != null ? maxOtherParents : DEFAULT_MAX_OTHER_PARENTS;
-
-        // Determine the roster
-        final Roster actualRoster;
-        if (roster != null) {
-            actualRoster = roster;
-        } else {
-            final int nodeCount = numNodes != null ? numNodes : DEFAULT_NUM_NODES;
-            actualRoster = RandomRosterBuilder.create(Randotron.create(actualSeed))
-                    .withSize(nodeCount)
-                    .withRealKeysEnabled(false)
-                    .build();
-        }
-
-        final Randotron randotron = Randotron.create(actualSeed);
-
         return new SimpleGraphGenerator(
-                actualConfiguration,
-                actualTime,
-                actualSeed,
-                actualMaxOtherParents,
-                actualRoster,
-                ue->randotron.nextSignatureBytes());
+                getConfiguration(),
+                getTime(),
+                getSeed(),
+                getMaxOtherParents(),
+                getRoster(),
+                getEventSigner());
+    }
+
+    private Configuration getConfiguration() {
+        return configuration != null ? configuration : new TestConfigBuilder().getOrCreateConfig();
+    }
+
+    private Time getTime() {
+        return time != null ? time : Time.getCurrent();
+    }
+
+    private long getSeed() {
+        return seed != null ? seed : DEFAULT_SEED;
+    }
+
+    private int getMaxOtherParents() {
+        return maxOtherParents != null ? maxOtherParents : DEFAULT_MAX_OTHER_PARENTS;
+    }
+
+    private Roster getRoster() {
+        if (roster != null) {
+            return roster;
+        }
+        final int nodeCount = numNodes != null ? numNodes : DEFAULT_NUM_NODES;
+        if(realSignatures){
+            final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(Randotron.create(getSeed()))
+                    .withSize(nodeCount)
+                    .withRealKeysEnabled(true)
+                    .buildWithKeys();
+        }else{
+
+        }
+        return RandomRosterBuilder.create(Randotron.create(getSeed()))
+                .withSize(nodeCount)
+                .withRealKeysEnabled(false)
+                .build();
+    }
+
+    private EventSigner getEventSigner() {
+        return realSignatures ? null : new RandomEventSigner(getSeed());
     }
 }
