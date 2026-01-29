@@ -154,6 +154,18 @@ public class SyncMetrics {
             .withDescription("Number of times per second we do not sync because of the fair selector");
     private final CountPerSecond doNotSyncFairSelector;
 
+    private static final CountPerSecond.Config BROADCAST_EVENTS_SENT_COUNTER_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "broadcastEventsSent")
+            .withUnit("hz")
+            .withDescription("Number of times per second an event was sent over broadcast to the remote nodes");
+    private final CountPerSecond broadcastEventsSentCounter;
+
+    private static final CountPerSecond.Config BROADCAST_EVENTS_RECEIVED_COUNTER_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "broadcastEventsReceived")
+            .withUnit("hz")
+            .withDescription("Number of times per second an event was received by broadcast from the remote nodes");
+    private final CountPerSecond broadcastEventsReceivedCounter;
+
     private final IntegerGauge.Config RPC_READ_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "rpcReadThreadRunning")
             .withDescription("number of rpc thread running in read mode");
@@ -171,6 +183,18 @@ public class SyncMetrics {
             .withDescription("number of syncs running concurrently");
 
     private final RunningAverageMetric tipsPerSync;
+
+    private static final IntegerGauge.Config BROADCAST_DISABLED_DUE_TO_LAG_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "broadcastDisabledDueToLag")
+            .withDescription("How many broadcast peers are disabled due to the too large ping");
+
+    private static final IntegerGauge.Config BROADCAST_DISABLED_DUE_TO_OVERLOAD_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "broadcastDisabledDueToOverload")
+            .withDescription("How many broadcast peers are disabled due to the output queue being too large");
+
+    private final IntegerGauge broadcastDisabledDueToLag;
+
+    private final IntegerGauge broadcastDisabledDueToOverload;
 
     private final AverageStat syncIndicatorDiff;
     private final AverageStat eventRecRate;
@@ -229,11 +253,15 @@ public class SyncMetrics {
         doNotSyncNoPermits = new CountPerSecond(metrics, DO_NOT_SYNC_NO_PERMITS_CONFIG);
         doNotSyncIntakeCounter = new CountPerSecond(metrics, DO_NOT_SYNC_INTAKE_COUNTER_CONFIG);
         doNotSyncFairSelector = new CountPerSecond(metrics, DO_NOT_SYNC_FAIR_SELECTOR_CONFIG);
+        broadcastEventsSentCounter = new CountPerSecond(metrics, BROADCAST_EVENTS_SENT_COUNTER_CONFIG);
+        broadcastEventsReceivedCounter = new CountPerSecond(metrics, BROADCAST_EVENTS_RECEIVED_COUNTER_CONFIG);
 
         rpcReadThreadRunning = metrics.getOrCreate(RPC_READ_THREAD_RUNNING_CONFIG);
         rpcWriteThreadRunning = metrics.getOrCreate(RPC_WRITE_THREAD_RUNNING_CONFIG);
         rpcDispatchThreadRunning = metrics.getOrCreate(RPC_DISPATCH_THREAD_RUNNING_CONFIG);
         syncsInProgress = metrics.getOrCreate(SYNCS_IN_PROGRESS_CONFIG);
+        broadcastDisabledDueToLag = metrics.getOrCreate(BROADCAST_DISABLED_DUE_TO_LAG_CONFIG);
+        broadcastDisabledDueToOverload = metrics.getOrCreate(BROADCAST_DISABLED_DUE_TO_OVERLOAD_CONFIG);
 
         avgSyncDuration = new AverageAndMaxTimeStat(
                 metrics,
@@ -324,6 +352,7 @@ public class SyncMetrics {
 
     /**
      * Out metric csv report needs all the metrics upfront to not get confused
+     *
      * @param peers list of all peers to pre-create dynamic metrics
      */
     private void precreateDynamicMetrics(final List<PeerInfo> peers) {
@@ -338,8 +367,8 @@ public class SyncMetrics {
     /**
      * Supplies the event window numbers of a sync for statistics
      *
-     * @param self   event window of our graph at the start of the sync
-     * @param other  event window of their graph at the start of the sync
+     * @param self  event window of our graph at the start of the sync
+     * @param other event window of their graph at the start of the sync
      */
     public void eventWindow(@NonNull final EventWindow self, @NonNull final EventWindow other) {
         syncIndicatorDiff.update(self.ancientThreshold() - other.ancientThreshold());
@@ -544,6 +573,20 @@ public class SyncMetrics {
     }
 
     /**
+     * Event was sent over broadcast to remote nodes (as opposed to sending events over sync)
+     */
+    public void broadcastEventSent() {
+        broadcastEventsSentCounter.count();
+    }
+
+    /**
+     * Event was received over broadcast from remote nodes (as opposed to receiving events over sync)
+     */
+    public void broadcastEventReceived() {
+        broadcastEventsReceivedCounter.count();
+    }
+
+    /**
      * Report size of the outgoing queue
      *
      * @param size size of the queue
@@ -657,5 +700,23 @@ public class SyncMetrics {
      */
     public void syncFinished() {
         syncsInProgress.add(-1);
+    }
+
+    /**
+     * Broadcast was disabled or enabled due to ping lag between the nodes
+     *
+     * @param disabled is broadcast disabled
+     */
+    public void disabledBroadcastDueToLag(final boolean disabled) {
+        broadcastDisabledDueToLag.add(disabled ? 1 : -1);
+    }
+
+    /**
+     * Broadcast was disabled or enabled due to rpc queue size for a peer
+     *
+     * @param disabled is broadcast disabled
+     */
+    public void disabledBroadcastDueToOverload(final boolean disabled) {
+        broadcastDisabledDueToOverload.add(disabled ? 1 : -1);
     }
 }

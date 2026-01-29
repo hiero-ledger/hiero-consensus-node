@@ -124,6 +124,11 @@ public class RpcPeerProtocolTests {
                 }
 
                 @Override
+                public void setCommunicationOverloaded(final boolean overloaded) {
+                    // no-op
+                }
+
+                @Override
                 public void receiveSyncData(@NonNull final SyncData syncMessage) {
                     maybeSendSync();
                     receivedSyncData = true;
@@ -172,6 +177,11 @@ public class RpcPeerProtocolTests {
                         throw new RuntimeException(e);
                     }
                     cleanup();
+                }
+
+                @Override
+                public void receiveBroadcastEvent(@NonNull final GossipEvent gossipEvent) {
+                    // no-op
                 }
             });
 
