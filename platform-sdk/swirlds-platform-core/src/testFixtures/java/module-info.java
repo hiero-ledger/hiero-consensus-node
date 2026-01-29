@@ -60,4 +60,5 @@ open module com.swirlds.platform.core.test.fixtures {
     exports com.swirlds.platform.test.fixtures.state.manager;
     exports com.swirlds.platform.test.fixtures.addressbook;
     exports com.swirlds.platform.test.fixtures.gui;
+    exports com.swirlds.platform.test.fixtures.event.signer;
 }

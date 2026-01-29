@@ -8,6 +8,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Random;
 
 /**
  * Builder for creating {@link SimpleGraphGenerator} instances with optional parameters.
@@ -134,6 +135,14 @@ public class SimpleGraphGeneratorBuilder {
                     .build();
         }
 
-        return new SimpleGraphGenerator(actualConfiguration, actualTime, actualSeed, actualMaxOtherParents, actualRoster);
+        final Randotron randotron = Randotron.create(actualSeed);
+
+        return new SimpleGraphGenerator(
+                actualConfiguration,
+                actualTime,
+                actualSeed,
+                actualMaxOtherParents,
+                actualRoster,
+                ue->randotron.nextSignatureBytes());
     }
 }

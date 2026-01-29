@@ -19,7 +19,7 @@ public class HashgraphGui {
      *             events will be shown
      */
     public static void main(final String[] args) {
-        final int initialEvents = 0;
+        final int initialEvents = 20;
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();

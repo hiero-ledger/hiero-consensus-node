@@ -9,6 +9,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.test.fixtures.event.signer.EventSigner;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -46,10 +47,9 @@ public class SimpleGraphGenerator {
 
     private final GeneratorConsensus consensus;
     private final PbjStreamHasher hasher;
-    /** The seed used for all randomness */
-    long seed;
     /** The maximum number of other parents an event can have */
-    int maxOtherParents;
+    private final int maxOtherParents;
+    private final EventSigner eventSigner;
 
     /**
      *
@@ -60,14 +60,15 @@ public class SimpleGraphGenerator {
             @NonNull final Time time,
             final long seed,
             final int maxOtherParents,
-            @NonNull final Roster roster) {
-        this.seed = seed;
+            @NonNull final Roster roster,
+            @NonNull final EventSigner eventSigner) {
         this.maxOtherParents = maxOtherParents;
         this.random = Randotron.create(seed);
         this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
         this.roster = roster;
         this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.hasher = new PbjStreamHasher();
+        this.eventSigner = eventSigner;
     }
 
 
@@ -132,7 +133,7 @@ public class SimpleGraphGenerator {
         );
         hasher.hashUnsignedEvent(unsignedEvent);
 
-        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, random.nextSignatureBytes());
+        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, eventSigner.signEvent(unsignedEvent));
         platformEvent.signalPrehandleCompletion();
         consensus.updateConsensus(platformEvent);
         latestEventPerNode[eventCreator] = platformEvent.getDescriptor().eventDescriptor();
