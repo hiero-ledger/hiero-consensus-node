@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl.test.fixtures;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.impl.common.PcesFile;
@@ -27,7 +29,8 @@ public final class PcesFileIteratorFactory {
      * @return IOIterator over all events
      * @throws IOException if an I/O error occurs
      */
-    public static IOIterator<PlatformEvent> createIterator(final Path directory) throws IOException {
+    @NonNull
+    public static IOIterator<PlatformEvent> createIterator(@NonNull final Path directory) throws IOException {
         return createIterator(directory, 0);
     }
 
@@ -39,10 +42,11 @@ public final class PcesFileIteratorFactory {
      * @return IOIterator over all events with birth round &gt;= lowerBound
      * @throws IOException if an I/O error occurs
      */
-    public static IOIterator<PlatformEvent> createIterator(final Path directory, final long lowerBound)
+    @NonNull
+    public static IOIterator<PlatformEvent> createIterator(@NonNull final Path directory, final long lowerBound)
             throws IOException {
         final List<PcesFile> files;
-        try (var stream = Files.walk(directory)) {
+        try (final Stream<Path> stream = Files.walk(directory)) {
             files = stream.filter(p -> p.toString().endsWith(".pces"))
                     .map(p -> {
                         try {
