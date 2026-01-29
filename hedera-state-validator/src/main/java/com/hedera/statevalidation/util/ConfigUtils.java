@@ -57,11 +57,9 @@ public final class ConfigUtils {
 
     private ConfigUtils() {}
 
-    public static String STATE_DIR = System.getProperty("state.dir");
+    public static String STATE_DIR;
 
-    public static String STATE_FILE_NAME = "SignedState.swh";
-
-    public static String TMP_DIR = System.getProperty("tmp.dir", "");
+    public static String TMP_DIR;
 
     public static String NODE_NAME = System.getProperty("node.name");
 
@@ -93,6 +91,8 @@ public final class ConfigUtils {
     private static Configuration configuration;
 
     private static void initConfiguration() {
+        STATE_DIR = System.getProperty("state.dir");
+        TMP_DIR = System.getProperty("tmp.dir", "");
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(VirtualMapConfig.class)
@@ -135,6 +135,10 @@ public final class ConfigUtils {
                     new SimpleConfigSource().withValue("temporaryFiles.temporaryFilePath", TMP_DIR));
         }
         configuration = configurationBuilder.build();
+    }
+
+    public static void resetConfiguration() {
+        configuration = null;
     }
 
     public static Configuration getConfiguration() {
