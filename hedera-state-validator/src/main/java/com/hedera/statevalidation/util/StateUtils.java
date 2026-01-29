@@ -2,7 +2,6 @@
 package com.hedera.statevalidation.util;
 
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
-import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.ConfigUtils.resetConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
@@ -58,8 +57,6 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -353,16 +350,5 @@ public final class StateUtils {
         }
 
         throw new IllegalArgumentException(String.format("No state ID found for %s.%s", serviceName, stateKey));
-    }
-
-    /**
-     * Extracts state id from the provided key bytes.
-     * @param keyBytes key bytes to extract state id from
-     * @return resulting state id
-     */
-    public static int extractStateIdFromKey(Bytes keyBytes) {
-        final ReadableSequentialData keyData = keyBytes.toReadableSequentialData();
-        final int tag = keyData.readVarInt(false);
-        return tag >> TAG_FIELD_OFFSET == 1 ? keyData.readVarInt(false) : tag >> TAG_FIELD_OFFSET;
     }
 }

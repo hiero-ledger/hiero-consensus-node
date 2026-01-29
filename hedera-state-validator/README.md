@@ -261,7 +261,7 @@ where `k` is a key, and `v` is a value.
 
 ## Diff
 
-[DiffCommand](src/main/java/com/hedera/statevalidation/DiffCommand.java) compares two states, and the comparison results in two files that can be used to create a diff.
+The [DiffCommand](src/main/java/com/hedera/statevalidation/DiffCommand.java) class compares two states and generates two files that can be used to create a diff.
 
 ### Usage
 

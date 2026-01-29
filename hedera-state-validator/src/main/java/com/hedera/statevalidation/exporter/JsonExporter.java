@@ -3,7 +3,7 @@ package com.hedera.statevalidation.exporter;
 
 import static com.hedera.statevalidation.util.ConfigUtils.MAX_OBJ_PER_FILE;
 import static com.hedera.statevalidation.util.ConfigUtils.PRETTY_PRINT_ENABLED;
-import static com.hedera.statevalidation.util.StateUtils.extractStateIdFromKey;
+import static com.swirlds.state.merkle.StateKeyUtils.extractStateIdFromStateKeyOneOf;
 import static java.lang.StrictMath.toIntExact;
 import static java.util.Objects.requireNonNull;
 
@@ -165,7 +165,7 @@ public class JsonExporter {
                 final StateValue stateValue;
                 try {
                     // normalize stateId for singletons
-                    final int actualStateId = extractStateIdFromKey(keyBytes);
+                    final int actualStateId = extractStateIdFromStateKeyOneOf(keyBytes);
                     if (expectedStateId != -1 && expectedStateId != actualStateId) {
                         continue;
                     }

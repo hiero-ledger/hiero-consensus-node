@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.exporter;
 
-import static com.hedera.statevalidation.util.StateUtils.extractStateIdFromKey;
+import static com.swirlds.state.merkle.StateKeyUtils.extractStateIdFromStateKeyOneOf;
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
@@ -143,7 +143,7 @@ public class DiffExporter {
 
                     try {
                         if (expectedStateId != -1) {
-                            final int actualStateId = extractStateIdFromKey(keyBytes);
+                            final int actualStateId = extractStateIdFromStateKeyOneOf(keyBytes);
                             if (expectedStateId != actualStateId) {
                                 return;
                             }
