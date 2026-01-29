@@ -12,8 +12,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_APPEND_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_CREATE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_DELETE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_UPDATE_FEE_USD;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -26,14 +32,9 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of FileServiceFeesSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
 class AtomicFileServiceFeesSuite {
-
     private static final String MEMO = "Really quite something!";
     private static final String CIVILIAN = "civilian";
     private static final String KEY = "key";
-    private static final double BASE_FEE_FILE_CREATE = 0.05;
-    private static final double BASE_FEE_FILE_UPDATE = 0.05;
-    private static final double BASE_FEE_FILE_DELETE = 0.007;
-    private static final double BASE_FEE_FILE_APPEND = 0.05;
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String ATOMIC_BATCH = "atomicBatch";
 
@@ -57,7 +58,11 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("fileCreateBasic", ATOMIC_BATCH, BASE_FEE_FILE_CREATE, 5));
+                withOpContext((spec, log) -> validateInnerTxnChargedUsd(
+                        "fileCreateBasic",
+                        ATOMIC_BATCH,
+                        FILE_CREATE_FEE_USD + expectedFeeFromBytesFor(spec, log, "fileCreateBasic"),
+                        5)));
     }
 
     @HapiTest
@@ -79,7 +84,11 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("fileUpdateBasic", ATOMIC_BATCH, BASE_FEE_FILE_UPDATE, 5));
+                withOpContext((spec, log) -> validateInnerTxnChargedUsd(
+                        "fileUpdateBasic",
+                        ATOMIC_BATCH,
+                        FILE_UPDATE_FEE_USD + expectedFeeFromBytesFor(spec, log, "fileUpdateBasic"),
+                        5)));
     }
 
     @HapiTest
@@ -99,7 +108,7 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("fileDeleteBasic", ATOMIC_BATCH, BASE_FEE_FILE_DELETE, 10));
+                validateInnerTxnChargedUsd("fileDeleteBasic", ATOMIC_BATCH, FILE_DELETE_FEE_USD, 10));
     }
 
     @HapiTest
@@ -136,6 +145,10 @@ class AtomicFileServiceFeesSuite {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(baseAppend, ATOMIC_BATCH, BASE_FEE_FILE_APPEND, 5));
+                withOpContext((spec, log) -> validateInnerTxnChargedUsd(
+                        baseAppend,
+                        ATOMIC_BATCH,
+                        FILE_APPEND_FEE_USD + expectedFeeFromBytesFor(spec, log, baseAppend),
+                        5)));
     }
 }
