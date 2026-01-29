@@ -4,7 +4,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
@@ -17,7 +17,6 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Hash;
 
 /**
  * This is a mechanism to flush data (dirty hashes, dirty leaves, deleted leaves) to disk
@@ -26,7 +25,7 @@ import org.hiero.base.crypto.Hash;
  * the old (learner) state tree outside the new leaf path range. Second, {@link ReconnectHashListener},
  * which listens for hash updates from virtual hasher.
  *
- * <p>This flusher is thread safe, its methods like {@link #updateHash(long, Hash)},
+ * <p>This flusher is thread safe, its methods like {@link #updateHashChunk(VirtualHashChunk)},
  * {@link #updateLeaf(VirtualLeafBytes)}, and {@link #deleteLeaf(VirtualLeafBytes)} can
  * be called from multiple threads. However, some of the calling threads may be blocked
  * till the currently accumulated data is flushed to disk.
@@ -47,13 +46,15 @@ public class ReconnectHashLeafFlusher {
 
     private List<VirtualLeafBytes> updatedLeaves;
     private List<VirtualLeafBytes> deletedLeaves;
-    private List<VirtualHashRecord> updatedHashes;
+    private List<VirtualHashChunk> updatedHashChunks;
 
     // Flushes are initiated from onNodeHashed(). While a flush is in progress, other nodes
     // are still hashed in parallel, so it may happen that enough nodes are hashed to
     // start a new flush, while the previous flush is not complete yet. This flag is
     // protection from that
     private final AtomicBoolean flushInProgress = new AtomicBoolean(false);
+
+    private final int hashChunkHeight;
 
     private final int flushInterval;
 
@@ -64,6 +65,7 @@ public class ReconnectHashLeafFlusher {
             final int flushInterval,
             @NonNull final VirtualMapStatistics statistics) {
         this.dataSource = Objects.requireNonNull(dataSource);
+        this.hashChunkHeight = this.dataSource.getHashChunkHeight();
         this.flushInterval = flushInterval;
         this.statistics = Objects.requireNonNull(statistics);
     }
@@ -80,9 +82,9 @@ public class ReconnectHashLeafFlusher {
         if ((this.firstLeafPath == 0) && (this.lastLeafPath == 0)) {
             this.firstLeafPath = firstLeafPath;
             this.lastLeafPath = lastLeafPath;
-            assert (updatedHashes == null) && (updatedLeaves == null) && (deletedLeaves == null)
+            assert (updatedHashChunks == null) && (updatedLeaves == null) && (deletedLeaves == null)
                     : "Reconnect must not be started yet";
-            updatedHashes = new ArrayList<>();
+            updatedHashChunks = new ArrayList<>();
             updatedLeaves = new ArrayList<>();
             deletedLeaves = new ArrayList<>();
         } else {
@@ -93,26 +95,26 @@ public class ReconnectHashLeafFlusher {
         }
     }
 
-    void updateHash(final long path, final Hash hash) {
-        assert (updatedHashes != null) && (updatedLeaves != null) && (deletedLeaves != null)
+    void updateHashChunk(@NonNull final VirtualHashChunk chunk) {
+        assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "updateHash called without start";
-        actionAndCheckFlush(() -> updatedHashes.add(new VirtualHashRecord(path, hash)));
+        actionAndCheckFlush(() -> updatedHashChunks.add(chunk));
     }
 
     void updateLeaf(final VirtualLeafBytes leaf) {
-        assert (updatedHashes != null) && (updatedLeaves != null) && (deletedLeaves != null)
+        assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "updateLeaf called without start";
         actionAndCheckFlush(() -> updatedLeaves.add(leaf));
     }
 
     void deleteLeaf(final VirtualLeafBytes leaf) {
-        assert (updatedHashes != null) && (updatedLeaves != null) && (deletedLeaves != null)
+        assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "deleteLeaf called without start";
         actionAndCheckFlush(() -> deletedLeaves.add(leaf));
     }
 
     private void actionAndCheckFlush(final Runnable action) {
-        final List<VirtualHashRecord> dirtyHashesToFlush;
+        final List<VirtualHashChunk> dirtyHashChunksToFlush;
         final List<VirtualLeafBytes> dirtyLeavesToFlush;
         final List<VirtualLeafBytes> deletedLeavesToFlush;
         synchronized (this) {
@@ -120,8 +122,8 @@ public class ReconnectHashLeafFlusher {
             if (!isFlushNeeded() || !flushInProgress.compareAndSet(false, true)) {
                 return;
             }
-            dirtyHashesToFlush = updatedHashes;
-            updatedHashes = new ArrayList<>();
+            dirtyHashChunksToFlush = updatedHashChunks;
+            updatedHashChunks = new ArrayList<>();
             dirtyLeavesToFlush = updatedLeaves;
             updatedLeaves = new ArrayList<>();
             deletedLeavesToFlush = deletedLeaves;
@@ -129,7 +131,7 @@ public class ReconnectHashLeafFlusher {
         }
         // Call flush() outside of the synchronized block to make sure updateHash(), updateLeaf(), and
         // deleteLeaf() aren't blocked on other threads
-        flush(dirtyHashesToFlush, dirtyLeavesToFlush, deletedLeavesToFlush);
+        flush(dirtyHashChunksToFlush, dirtyLeavesToFlush, deletedLeavesToFlush);
     }
 
     private boolean isFlushNeeded() {
@@ -137,38 +139,38 @@ public class ReconnectHashLeafFlusher {
             // All data is flushed in finish() only
             return false;
         }
-        return (updatedHashes.size() >= flushInterval)
+        return (updatedHashChunks.size() * VirtualHashChunk.getChunkSize(hashChunkHeight) >= flushInterval)
                 || (updatedLeaves.size() >= flushInterval)
                 || (deletedLeaves.size() >= flushInterval);
     }
 
     synchronized void finish() {
-        assert (updatedHashes != null) && (updatedLeaves != null) && (deletedLeaves != null)
+        assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "finish called without start";
-        final List<VirtualHashRecord> dirtyHashesToFlush = updatedHashes;
+        final List<VirtualHashChunk> dirtyHashChunksToFlush = updatedHashChunks;
         final List<VirtualLeafBytes> dirtyLeavesToFlush = updatedLeaves;
         final List<VirtualLeafBytes> deletedLeavesToFlush = deletedLeaves;
-        updatedHashes = null;
+        updatedHashChunks = null;
         updatedLeaves = null;
         deletedLeaves = null;
         assert !flushInProgress.get() : "Flush must not be in progress when reconnect is finished";
         flushInProgress.set(true);
         // Nodes / leaves lists may be empty, but a flush is still needed to make sure
         // all stale leaves are removed from the data source
-        flush(dirtyHashesToFlush, dirtyLeavesToFlush, deletedLeavesToFlush);
+        flush(dirtyHashChunksToFlush, dirtyLeavesToFlush, deletedLeavesToFlush);
     }
 
     // Since flushes may take quite some time, this method is called outside synchronized blocks.
     private void flush(
-            @NonNull final List<VirtualHashRecord> hashesToFlush,
+            @NonNull final List<VirtualHashChunk> hashChunksToFlush,
             @NonNull final List<VirtualLeafBytes> leavesToFlush,
             @NonNull final List<VirtualLeafBytes> leavesToDelete) {
         assert flushInProgress.get() : "Flush in progress flag must be set";
         try {
             logger.info(
                     VIRTUAL_MERKLE_STATS.getMarker(),
-                    "Reconnect flush: {} updated hashes, {} updated leaves, {} deleted leaves",
-                    hashesToFlush.size(),
+                    "Reconnect flush: {} updated hash chunks, {} updated leaves, {} deleted leaves",
+                    hashChunksToFlush.size(),
                     leavesToFlush.size(),
                     leavesToDelete.size());
             // flush it down
@@ -177,7 +179,7 @@ public class ReconnectHashLeafFlusher {
                 dataSource.saveRecords(
                         firstLeafPath,
                         lastLeafPath,
-                        hashesToFlush.stream(),
+                        hashChunksToFlush.stream(),
                         leavesToFlush.stream(),
                         leavesToDelete.stream(),
                         true);

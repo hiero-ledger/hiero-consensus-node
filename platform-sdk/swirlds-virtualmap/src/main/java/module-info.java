@@ -13,6 +13,7 @@ open module com.swirlds.virtualmap {
     exports com.swirlds.virtualmap.internal to
             com.swirlds.merkle,
             com.swirlds.merkledb,
+            com.swirlds.merkledb.test.fixtures,
             com.swirlds.virtualmap.test.fixtures,
             com.swirlds.platform.core,
             com.swirlds.state.impl,
