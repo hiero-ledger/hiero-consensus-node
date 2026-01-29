@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.logging.internal;
 
-import static com.swirlds.logging.legacy.LogMarker.BENCHMARK;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 import static com.swirlds.logging.legacy.LogMarker.ERROR;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -60,8 +59,7 @@ public final class LogConfigHelper {
             STATE_TO_DISK,
             DEMO_INFO,
             TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT,
-            MERKLE_DB,
-            BENCHMARK));
+            MERKLE_DB));
 
     private static final Set<LogMarker> IGNORED_CONSOLE_MARKERS = Set.of(STARTUP, MERKLE_DB, VIRTUAL_MERKLE_STATS);
 
