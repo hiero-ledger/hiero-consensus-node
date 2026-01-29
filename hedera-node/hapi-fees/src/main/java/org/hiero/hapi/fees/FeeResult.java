@@ -168,13 +168,12 @@ public class FeeResult {
 
     @Override
     public String toString() {
-        return "FeeResult{" + "totalFee=" + this.totalTinycents() +
-                ", serviceBaseFee=" + getServiceBaseFeeTinycents() +
-                ", serviceDetails=" + getServiceExtraDetails() +
-                ", nodeBaseFee=" + getNodeBaseFeeTinycents() +
-                ", nodeDetails=" + getNodeExtraDetails() +
-                ", networkMultiplier=" + getNetworkMultiplier() +
-                ", networkFee=" + getNetworkTotalTinycents() +
-                '}';
+        return "FeeResult{" + "totalFee=" + this.totalTinycents() + ", serviceBaseFee="
+                + getServiceBaseFeeTinycents() + ", serviceDetails="
+                + getServiceExtraDetails() + ", nodeBaseFee="
+                + getNodeBaseFeeTinycents() + ", nodeDetails="
+                + getNodeExtraDetails() + ", networkMultiplier="
+                + getNetworkMultiplier() + ", networkFee="
+                + getNetworkTotalTinycents() + '}';
     }
 }
