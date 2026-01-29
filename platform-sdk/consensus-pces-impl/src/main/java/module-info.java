@@ -1,7 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.impl.DefaultPcesModule;
 
-// SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.pces.impl {
     exports org.hiero.consensus.pces.impl.common to
             com.swirlds.platform.core,
@@ -26,5 +26,6 @@ module org.hiero.consensus.pces.impl {
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
-    provides PcesModule with DefaultPcesModule;
+    provides PcesModule with
+            DefaultPcesModule;
 }
