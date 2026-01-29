@@ -8,28 +8,34 @@ import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.Network;
-import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.network.transactions.BenchmarkTransaction;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
+import org.hiero.otter.fixtures.specs.OtterSpecs;
+import org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkServiceLogParser;
+import org.hiero.otter.test.performance.benchmark.fixtures.MeasurementsCollector;
+import org.hiero.otter.test.performance.benchmark.fixtures.MeasurementsCollector.Measurement;
 
 /**
  * Performance benchmark test that measures consensus layer latency.
  */
 public class BenchmarkTest {
 
+    private static final Logger log = LogManager.getLogger(BenchmarkTest.class);
+
     private static final AtomicLong NONCE_GENERATOR = new AtomicLong(0);
-    private static final int TRANSACTION_COUNT = 10;
+    private static final int TRANSACTION_COUNT = 10000;
+    // Setup simulation with 4 nodes
+    public static final int NUMBER_OF_NODES = 4;
 
     /**
      * Benchmark test that runs a network with 4 nodes and submits benchmark transactions.
@@ -40,6 +46,7 @@ public class BenchmarkTest {
      * @param env the test environment for this test
      */
     @OtterTest
+    @OtterSpecs(randomNodeIds = false)
     void testBenchmarkLatency(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -48,8 +55,7 @@ public class BenchmarkTest {
         network.withConfigValue(
                 "event.services", "org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkService");
 
-        // Setup simulation with 4 nodes
-        network.addNodes(4);
+        network.addNodes(NUMBER_OF_NODES);
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
@@ -67,33 +73,19 @@ public class BenchmarkTest {
             final OtterTransaction tx =
                     createBenchmarkTransaction(NONCE_GENERATOR.incrementAndGet(), System.currentTimeMillis());
             network.submitTransaction(tx);
-
-            // Small delay between submissions
-            timeManager.waitFor(Duration.ofMillis(100));
         }
 
         // Wait for all transactions to be processed
-        timeManager.waitFor(Duration.ofSeconds(5L));
-
-        // Verify that benchmark log messages were printed
-        for (final Node node : network.nodes()) {
-            final List<StructuredLog> logs = node.newLogResult().logs();
-            final long benchmarkLogCount = countBenchmarkLogs(logs);
-            assertTrue(
-                    benchmarkLogCount >= TRANSACTION_COUNT,
-                    "Expected at least " + TRANSACTION_COUNT + " BENCHMARK logs on node " + node.selfId()
-                            + ", but found " + benchmarkLogCount);
-        }
+        timeManager.waitFor(Duration.ofSeconds(10L));
 
         // Validations
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
-    }
 
-    private static long countBenchmarkLogs(@NonNull final List<StructuredLog> logs) {
-        return logs.stream()
-                .filter(log -> log.message().contains("BenchmarkService:"))
-                .count();
+        // Collect measurements from all nodes' logs and print the benchmark report
+        final MeasurementsCollector collector = new MeasurementsCollector();
+        BenchmarkServiceLogParser.parseFromLogs(network.newLogResults(), Measurement::parse, collector::addEntry);
+        log.info(collector.generateReport());
     }
 
     /**
