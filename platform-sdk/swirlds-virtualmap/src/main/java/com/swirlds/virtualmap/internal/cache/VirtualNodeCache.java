@@ -1119,33 +1119,33 @@ public final class VirtualNodeCache implements FastCopyable {
     public VirtualHashChunk preloadHashChunk(final long path) {
         final long hashChunkId = VirtualHashChunk.chunkPathToChunkId(path, hashChunkHeight);
         return idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
-                    Mutation<Long, VirtualHashChunk> nextMutation = mutation;
-                    while (nextMutation != null && nextMutation.version > fastCopyVersion.get()) {
-                        nextMutation = nextMutation.next;
+                Mutation<Long, VirtualHashChunk> nextMutation = mutation;
+                while (nextMutation != null && nextMutation.version > fastCopyVersion.get()) {
+                    nextMutation = nextMutation.next;
+                }
+                long sizeDelta = 0;
+                if (nextMutation == null) {
+                    VirtualHashChunk hashChunk = loadHashChunk(hashChunkId);
+                    if (hashChunk == null) {
+                        final long hashChunkPath =
+                                VirtualHashChunk.chunkIdToChunkPath(hashChunkId, hashChunkHeight);
+                        hashChunk = new VirtualHashChunk(hashChunkPath, hashChunkHeight);
                     }
-                    long sizeDelta = 0;
-                    if (nextMutation == null) {
-                        VirtualHashChunk hashChunk = loadHashChunk(hashChunkId);
-                        if (hashChunk == null) {
-                            final long hashChunkPath =
-                                    VirtualHashChunk.chunkIdToChunkPath(hashChunkId, hashChunkHeight);
-                            hashChunk = new VirtualHashChunk(hashChunkPath, hashChunkHeight);
-                        }
-                        nextMutation = new Mutation<>(null, hashChunkId, hashChunk, fastCopyVersion.get());
-                        dirtyHashChunks.add(nextMutation);
-                        sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-                    } else if (nextMutation.version != fastCopyVersion.get()) {
-                        final VirtualHashChunk hashChunk = nextMutation.value.copy();
-                        nextMutation = new Mutation<>(nextMutation, hashChunkId, hashChunk, fastCopyVersion.get());
-                        dirtyHashChunks.add(nextMutation);
-                        sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-                    } else {
-                        assert nextMutation.notFiltered();
-                    }
-                    estimatedHashesSizeInBytes.addAndGet(sizeDelta);
-                    return nextMutation;
-                })
-                .value;
+                    nextMutation = new Mutation<>(null, hashChunkId, hashChunk, fastCopyVersion.get());
+                    dirtyHashChunks.add(nextMutation);
+                    sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                } else if (nextMutation.version != fastCopyVersion.get()) {
+                    final VirtualHashChunk hashChunk = nextMutation.value.copy();
+                    nextMutation = new Mutation<>(nextMutation, hashChunkId, hashChunk, fastCopyVersion.get());
+                    dirtyHashChunks.add(nextMutation);
+                    sizeDelta += (long) hashChunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                } else {
+                    assert nextMutation.notFiltered();
+                }
+                estimatedHashesSizeInBytes.addAndGet(sizeDelta);
+                return nextMutation;
+            })
+            .value;
     }
 
     /**
