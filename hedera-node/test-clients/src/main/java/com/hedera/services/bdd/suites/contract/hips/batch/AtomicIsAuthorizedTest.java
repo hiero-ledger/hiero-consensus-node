@@ -2,8 +2,8 @@
 package com.hedera.services.bdd.suites.contract.hips.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPrivateKey;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -83,7 +83,7 @@ import org.junit.jupiter.api.Tag;
  * when the {@code contracts.systemContract.accountService.isAuthorizedRawEnabled} feature flag is on (which is
  * true by default in  the current release.)
  */
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 @SuppressWarnings("java:S1192") // "String literals should not be duplicated" - would impair readability here
 class AtomicIsAuthorizedTest {

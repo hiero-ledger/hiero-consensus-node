@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -40,6 +41,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of UpdateFailuresSpec. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
+@Tag(ATOMIC_BATCH)
 class AtomicUpdateFailuresSpec {
 
     private static final long A_LOT = 1_234_567_890L;

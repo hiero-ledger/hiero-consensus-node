@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
@@ -44,7 +44,7 @@ import org.junit.jupiter.api.Tag;
  * to decrease the expiration time of any entity, so we cannot test the behavior of the network when
  * the auto-created account is about to expire.
  */
-@Tag(CRYPTO)
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicAutoAccountUpdateSuite {
 

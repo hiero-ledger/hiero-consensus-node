@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
-@DisplayName("evmValidation")
+@DisplayName("atomicEvmValidation")
 @HapiTestLifecycle
 class AtomicEvmValidationTest {
 

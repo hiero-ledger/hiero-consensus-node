@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -51,6 +52,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TopicCreateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
+@Tag(ATOMIC_BATCH)
 class AtomicTopicCreateSuite {
 
     public static final String TEST_TOPIC = "testTopic";

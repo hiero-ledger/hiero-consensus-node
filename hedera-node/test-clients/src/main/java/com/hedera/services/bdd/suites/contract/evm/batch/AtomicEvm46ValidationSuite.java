@@ -2,8 +2,8 @@
 package com.hedera.services.bdd.suites.contract.evm.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
@@ -83,7 +83,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of Evm46ValidationSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 class AtomicEvm46ValidationSuite {
 
     private static final long FIRST_NONEXISTENT_CONTRACT_NUM = 4303224382569680425L;

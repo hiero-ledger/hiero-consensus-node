@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.leaky.batch;
 import static com.google.protobuf.ByteString.EMPTY;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -155,6 +156,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of LeakyContractTestsSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
+@Tag(ATOMIC_BATCH)
 @OrderedInIsolation
 @HapiTestLifecycle
 class AtomicLeakyContractTestsSuite {

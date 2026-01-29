@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.crypto.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -73,7 +73,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of AutoAccountCreationUnlimitedAssociationsSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
-@Tag(CRYPTO)
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
 

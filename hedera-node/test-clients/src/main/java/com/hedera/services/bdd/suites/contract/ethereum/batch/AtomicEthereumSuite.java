@@ -3,8 +3,8 @@ package com.hedera.services.bdd.suites.contract.ethereum.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -138,7 +138,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of EthereumSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 @SuppressWarnings("java:S5960")
 class AtomicEthereumSuite {
     public static final long GAS_LIMIT = 1_000_000;
