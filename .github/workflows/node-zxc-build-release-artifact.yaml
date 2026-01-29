@@ -704,7 +704,7 @@ jobs:
 
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
-    runs-on: hl-cn-default-lin-sm
+    runs-on: hl-cn-default-lin-lg
     outputs:
       create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
     needs:
