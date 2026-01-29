@@ -113,7 +113,7 @@ public class Memory {
     // Copy from src to dst for len, extending as needed.
     void copy( int dst, int src, int len ) {
         growMem(Math.max(src,dst)+len);
-        System.arraycopy(_mem,dst,_mem,src,len);
+        System.arraycopy(_mem,src,_mem,dst,len);
     }
 
 

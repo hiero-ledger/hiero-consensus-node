@@ -5,6 +5,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.SidecarType;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
+import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeSizeOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
 import com.hedera.node.app.service.contract.impl.exec.processors.*;
@@ -17,7 +18,6 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import com.swirlds.config.api.Configuration;
-
 
 import com.google.common.collect.ImmutableList;
 import com.hedera.node.config.data.ContractsConfig;
@@ -477,7 +477,7 @@ class BEVM {
     // -----------------------------------------------------------
     // Execute bytecodes until done
     BEVM run(boolean topLevel) {
-        SB trace = new SB();
+        SB trace = null; // new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null ) {
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
@@ -2263,10 +2263,13 @@ class BEVM {
             throw new TODO();
         Bytes src = _mem.asBytes(srcOff, srcLen);
 
+        // Get the bytecodes to execute
         Code code = CodeV0.EMPTY_CODE;
         // Pre-compiled system contracts have no code
         HederaSystemContract hsys = _bevm._call instanceof CustomMessageCallProcessor cmcp ? cmcp.systemContractsRead(contract) : null;
-        if( hsys == null ) {
+        // System contracts have no code
+        boolean expectCode = hsys == null && !_adrChk.isSystemAccount(contract);
+        if( expectCode ) {
             // No account, so child frame always returns success
             if( contractAccount==null )
                 return push(1);
@@ -2308,25 +2311,33 @@ class BEVM {
         assert child.getState() == MessageFrame.State.NOT_STARTED;
         _tracing.traceContextEnter(child);
         PublicMessageCallProcessor msg = _bevm._call;
+
         msg.start(child, _tracing);
 
-        if( hsys != null ) {
-            //assert child.getState() == MessageFrame.State.COMPLETED_SUCCESS;
-        } else {
+        if( expectCode ) {
             assert child.getState() == MessageFrame.State.CODE_EXECUTING;
             // ----------------------------
             // Recursively call
             _bevm.runToHalt(this,child,_tracing);
             // ----------------------------
+        } else {
+            //assert child.getState() == MessageFrame.State.COMPLETED_SUCCESS;
         }
 
         switch( child.getState() ) {
         case MessageFrame.State.CODE_SUSPENDED:    throw new TODO("Should not reach here");
         case MessageFrame.State.CODE_SUCCESS:      msg.codeSuccess(child, _tracing);  break; // Sets COMPLETED_SUCCESS
-        case MessageFrame.State.EXCEPTIONAL_HALT:  FrameUtils.exceptionalHalt(child); break;
         case MessageFrame.State.REVERT:            msg.revert(child);  break;
         case MessageFrame.State.COMPLETED_SUCCESS: break; // Precompiled sys contracts hit here
         case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
+        case MessageFrame.State.EXCEPTIONAL_HALT:  {
+            FrameUtils.exceptionalHalt(child);
+            var haltReason = child.getExceptionalHaltReason().get();
+            // Specifically, only INVALID_CONTRACT_ID from the child halts the parent also.
+            // TODO: This check should happen before we even attempt to make a child
+            if( haltReason.equals(CustomExceptionalHaltReason.INVALID_CONTRACT_ID) )
+                halt = haltReason;
+        }
         };
 
         _tracing.traceContextExit(child);
@@ -2347,7 +2358,8 @@ class BEVM {
 
         if( trace != null )
             System.out.println(trace.clear().p("RETURN ").p(str).nl());
-        return push(child.getState()==MessageFrame.State.COMPLETED_SUCCESS ? 1 : 0);
+        push(child.getState()==MessageFrame.State.COMPLETED_SUCCESS ? 1 : 0);
+        return halt;
     }
 
     // This call will create the "to" address, so it doesn't need to be present
@@ -2363,4 +2375,5 @@ class BEVM {
             && !_adrChk.isSystemAccount(to)
             && FrameUtils.contractRequired(_frame, to, _flags);
     }
+
 }
