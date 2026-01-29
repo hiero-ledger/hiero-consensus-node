@@ -107,7 +107,7 @@ class SignedStateFileReadWriteTest {
         final Path hashInfoFile = testDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
         assertTrue(exists(hashInfoFile), "file should exist");
 
-        final String hashInfoString = Mnemonics.generateMnemonic(state.getHash());
+        final String mnemonicString = Mnemonics.generateMnemonic(state.getHash());
 
         final StringBuilder sb = new StringBuilder();
         try (final BufferedReader br = new BufferedReader(new FileReader(hashInfoFile.toFile()))) {
