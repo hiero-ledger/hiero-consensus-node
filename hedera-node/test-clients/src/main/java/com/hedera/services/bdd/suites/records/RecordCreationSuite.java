@@ -139,11 +139,12 @@ public class RecordCreationSuite {
                 balanceSnapshot(FUNDING_BEFORE, FOR_ACCOUNT_FUNDING),
                 balanceSnapshot(STAKING_REWARD1, FOR_ACCOUNT_STAKING_REWARDS),
                 balanceSnapshot(NODE_REWARD1, FOR_ACCOUNT_NODE_REWARD),
-                uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
+                sourcing(() -> uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
                                 .memo(disquietingMemo)
                                 .payingWith(PAYER)
                                 .txnId(TXN_ID))
-                        .payingWith(GENESIS),
+                        .payingWith(GENESIS)),
+                sleepFor(SLEEP_MS),
                 // validate node is charged
                 sourcing(() -> {
                     final var signatureFee = feeObsWithTwoSignatures.get().networkFee()
