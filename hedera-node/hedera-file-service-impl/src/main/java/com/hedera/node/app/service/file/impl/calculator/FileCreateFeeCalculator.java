@@ -9,9 +9,9 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.hapi.fees.FeeKeyUtils;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
@@ -27,7 +27,7 @@ public class FileCreateFeeCalculator implements ServiceFeeCalculator {
         long keyCount = 0L;
         if (op.hasKeys()) {
             keyCount = txnBody.fileCreateOrThrow().keys().keys().stream()
-                    .mapToLong(SimpleFeeCalculatorImpl::countKeys)
+                    .mapToLong(FeeKeyUtils::countKeys)
                     .sum();
         }
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_CREATE);

@@ -83,6 +83,11 @@ on:
         type: string
         required: false
         default: "false"
+      enable-hapi-tests-atomic-batch:
+        description: "HAPI Testing (atomic batch) Enabled"
+        type: string
+        required: false
+        default: "false"
       mats-suffix:
         description: "MATS Tag Suffix designation"
         type: string
@@ -90,7 +95,7 @@ on:
         default: ""
     secrets:
       access-token:
-        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
       gradle-cache-username:
         description: "The username used to authenticate with the Gradle Build Cache Node."
@@ -825,6 +830,70 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+  hapi-tests-atomic-batch:
+    name: "HAPI Tests (Atomic Batch)"
+    if: ${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}
+    runs-on: hiero-cn-hapi-linux-large
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
+
+      - name: HAPI Testing (Atomic Batch)
+        id: gradle-hapi-atomic-batch
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiTestAtomicBatch${{ inputs.mats-suffix || '' }}
+
+      - name: Publish HAPI Test (Atomic Batch) Report
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        with:
+          check_name: "Node: HAPI Test (Atomic Batch) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload HAPI Test (Atomic Batch) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: HAPI Test (Atomic Batch) Report
+          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload HAPI Test (Atomic Batch) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-network-log-capture && steps.gradle-hapi-atomic-batch.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Atomic Batch) Network Logs
+          path: |
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Atomic Batch) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ steps.gradle-hapi-atomic-batch.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Atomic Batch) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
+          retention-days: 7
+
   set-failure-mode:
     name: "Set Failure Mode"
     runs-on: hiero-network-node-linux-medium
@@ -840,6 +909,7 @@ jobs:
       - hapi-tests-nd-reconnect
       - hapi-tests-iss
       - hapi-tests-bn-comms
+      - hapi-tests-atomic-batch
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
@@ -862,6 +932,7 @@ jobs:
             "${{ needs.hapi-tests-nd-reconnect.result || 'skipped' }}"
             "${{ needs.hapi-tests-iss.result || 'skipped' }}"
             "${{ needs.hapi-tests-bn-comms.result || 'skipped' }}"
+            "${{ needs.hapi-tests-atomic-batch.result || 'skipped' }}"
           )
 
           # final outputs
