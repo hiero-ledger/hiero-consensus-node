@@ -2,7 +2,6 @@
 package com.swirlds.platform.reconnect;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.reconnect.api.ProtocolFactory;
@@ -14,6 +13,7 @@ import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Factory for creating the {@link ReconnectStateSyncProtocol}.

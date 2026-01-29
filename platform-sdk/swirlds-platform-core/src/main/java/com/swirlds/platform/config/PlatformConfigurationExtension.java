@@ -4,7 +4,6 @@ package com.swirlds.platform.config;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.platform.NodeIdConverter;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
@@ -20,6 +19,7 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Registers configuration types for the platform.

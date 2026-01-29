@@ -10,7 +10,6 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.Utilities;
@@ -38,6 +37,7 @@ import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * This protocol is responsible for synchronizing an out of date state either local acting as lerner or remote acting as teacher
