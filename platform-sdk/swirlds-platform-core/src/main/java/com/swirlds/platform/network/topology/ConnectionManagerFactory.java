@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.topology;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.network.ConnectionManager;
 import com.swirlds.platform.network.ConnectionTracker;
 import com.swirlds.platform.network.InboundConnectionManager;
@@ -28,19 +29,21 @@ public interface ConnectionManagerFactory {
     /**
      * Creates new outbound connection manager
      *
-     * @param selfId            self's node id
-     * @param otherPeer         information about the peer we are supposed to connect to
-     * @param platformContext   the platform context
+     * @param configuration platform configuration
+     * @param time source of time
+     * @param selfId self's node id
+     * @param otherPeer information about the peer we are supposed to connect to
      * @param connectionTracker connection tracker for all platform connections
-     * @param ownKeysAndCerts   private keys and public certificates
+     * @param ownKeysAndCerts private keys and public certificates
      * @return new outbound connection manager for these values
      */
     ConnectionManager createOutboundConnectionManager(
-            @NonNull final NodeId selfId,
-            @NonNull final PeerInfo otherPeer,
-            @NonNull final PlatformContext platformContext,
-            @NonNull final ConnectionTracker connectionTracker,
-            @NonNull final KeysAndCerts ownKeysAndCerts);
+            @NonNull Configuration configuration,
+            @NonNull Time time,
+            @NonNull NodeId selfId,
+            @NonNull PeerInfo otherPeer,
+            @NonNull ConnectionTracker connectionTracker,
+            @NonNull KeysAndCerts ownKeysAndCerts);
 
     /**
      * Default implementation of factory, returning real {@link InboundConnectionManager} and
@@ -54,13 +57,14 @@ public interface ConnectionManagerFactory {
 
         @Override
         public OutboundConnectionManager createOutboundConnectionManager(
-                @NonNull NodeId selfId,
-                @NonNull PeerInfo otherPeer,
-                @NonNull PlatformContext platformContext,
-                @NonNull ConnectionTracker connectionTracker,
-                @NonNull KeysAndCerts ownKeysAndCerts) {
+                @NonNull final Configuration configuration,
+                @NonNull final Time time,
+                @NonNull final NodeId selfId,
+                @NonNull final PeerInfo otherPeer,
+                @NonNull final ConnectionTracker connectionTracker,
+                @NonNull final KeysAndCerts ownKeysAndCerts) {
             return new OutboundConnectionManager(
-                    selfId, otherPeer, platformContext, connectionTracker, ownKeysAndCerts);
+                    configuration, time, selfId, otherPeer, connectionTracker, ownKeysAndCerts);
         }
     };
 }

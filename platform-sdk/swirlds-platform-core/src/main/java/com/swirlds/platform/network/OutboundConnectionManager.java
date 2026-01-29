@@ -6,7 +6,8 @@ import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 import static com.swirlds.logging.legacy.LogMarker.TCP_CONNECT_EXCEPTIONS;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
@@ -35,7 +36,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
 public class OutboundConnectionManager implements ConnectionManager {
-    private final PlatformContext platformContext;
+    private final Configuration configuration;
     private final NodeId selfId;
     private final ConnectionTracker connectionTracker;
     private final SocketConfig socketConfig;
@@ -57,28 +58,30 @@ public class OutboundConnectionManager implements ConnectionManager {
     /**
      * Creates new outbound connection manager
      *
-     * @param selfId            self's node id
-     * @param otherPeer         information about the peer we are supposed to connect to
-     * @param platformContext   the platform context
+     * @param configuration platform configuration
+     * @param time source of time
+     * @param selfId self's node id
+     * @param otherPeer information about the peer we are supposed to connect to
      * @param connectionTracker connection tracker for all platform connections
-     * @param ownKeysAndCerts   private keys and public certificates
+     * @param ownKeysAndCerts private keys and public certificates
      */
     public OutboundConnectionManager(
+            @NonNull final Configuration configuration,
+            @NonNull final Time time,
             @NonNull final NodeId selfId,
             @NonNull final PeerInfo otherPeer,
-            @NonNull final PlatformContext platformContext,
             @NonNull final ConnectionTracker connectionTracker,
             @NonNull final KeysAndCerts ownKeysAndCerts) {
 
-        this.platformContext = Objects.requireNonNull(platformContext);
+        this.configuration = Objects.requireNonNull(configuration);
         this.selfId = Objects.requireNonNull(selfId);
         this.connectionTracker = Objects.requireNonNull(connectionTracker);
         this.otherPeer = otherPeer;
-        this.socketConfig = platformContext.getConfiguration().getConfigData(SocketConfig.class);
-        this.gossipConfig = platformContext.getConfiguration().getConfigData(GossipConfig.class);
-        this.socketExceptionLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
+        this.socketConfig = configuration.getConfigData(SocketConfig.class);
+        this.gossipConfig = configuration.getConfigData(GossipConfig.class);
+        this.socketExceptionLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         this.socketFactory = NetworkUtils.createSocketFactory(
-                selfId, Collections.singletonList(otherPeer), ownKeysAndCerts, platformContext.getConfiguration());
+                selfId, Collections.singletonList(otherPeer), ownKeysAndCerts, configuration);
     }
 
     /**
@@ -132,21 +135,14 @@ public class OutboundConnectionManager implements ConnectionManager {
                     networkEndpoint.hostname().getHostAddress(), networkEndpoint.port());
 
             dos = SyncOutputStream.createSyncOutputStream(
-                    platformContext, clientSocket.getOutputStream(), socketConfig.bufferSize());
+                    configuration, clientSocket.getOutputStream(), socketConfig.bufferSize());
             dis = SyncInputStream.createSyncInputStream(
-                    platformContext, clientSocket.getInputStream(), socketConfig.bufferSize());
+                    configuration, clientSocket.getInputStream(), socketConfig.bufferSize());
 
             logger.debug(NETWORK.getMarker(), "`connect` : finished, {} connected to {}", selfId, otherPeer.nodeId());
 
             return SocketConnection.create(
-                    selfId,
-                    otherPeer.nodeId(),
-                    connectionTracker,
-                    true,
-                    clientSocket,
-                    dis,
-                    dos,
-                    platformContext.getConfiguration());
+                    selfId, otherPeer.nodeId(), connectionTracker, true, clientSocket, dis, dos, configuration);
         } catch (final SSLHandshakeException e) {
             NetworkUtils.close(clientSocket, dis, dos);
             socketExceptionLogger.warn(

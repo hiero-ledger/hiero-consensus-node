@@ -2,11 +2,8 @@
 package com.swirlds.platform.network;
 
 import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.KeyCertPurpose;
@@ -43,13 +40,11 @@ import org.junit.jupiter.api.Test;
 class NetworkPeerIdentifierTest {
     private static final Pattern NODE_NAME_PATTERN = Pattern.compile("^node(\\d+)$");
 
-    final PlatformContext platformContext = mock(PlatformContext.class);
     List<PeerInfo> peerInfoList = null;
     PublicStores publicStores = null;
 
     @BeforeEach
     void setUp() throws URISyntaxException, KeyLoadingException, KeyStoreException {
-        when(platformContext.getTime()).thenReturn(Time.getCurrent());
         final KeyStore publicKeys = loadKeys(
                 ResourceLoader.getFile("preGeneratedKeysAndCerts/").resolve("publicMainnet.pfx"),
                 "password".toCharArray());
@@ -99,7 +94,7 @@ class NetworkPeerIdentifierTest {
     void testExtractPeerInfoWorksForMainnet() throws KeyStoreException, InvalidAlgorithmParameterException {
         final PKIXParameters params = new PKIXParameters(publicStores.agrTrustStore());
         final Set<TrustAnchor> trustAnchors = params.getTrustAnchors();
-        final NetworkPeerIdentifier peerIdentifier = new NetworkPeerIdentifier(platformContext, peerInfoList);
+        final NetworkPeerIdentifier peerIdentifier = new NetworkPeerIdentifier(Time.getCurrent(), peerInfoList);
         final Set<PeerInfo> matches = new HashSet<>();
 
         final Certificate[] certificates =
@@ -119,7 +114,7 @@ class NetworkPeerIdentifierTest {
      */
     @Test
     void testReturnsIntendedPeerForMainnet() throws KeyStoreException {
-        final NetworkPeerIdentifier peerIdentifier = new NetworkPeerIdentifier(platformContext, peerInfoList);
+        final NetworkPeerIdentifier peerIdentifier = new NetworkPeerIdentifier(Time.getCurrent(), peerInfoList);
         // pick a node's agreement certificate, node20
         final Certificate certUnderTest = publicStores.agrTrustStore().getCertificate("a-node20");
 
@@ -150,7 +145,7 @@ class NetworkPeerIdentifierTest {
         final Certificate[] certificates = new Certificate[] {rsaCert};
 
         final PeerInfo matchedPeer =
-                new NetworkPeerIdentifier(platformContext, peerInfoList).identifyTlsPeer(certificates);
+                new NetworkPeerIdentifier(Time.getCurrent(), peerInfoList).identifyTlsPeer(certificates);
         Assertions.assertNull(matchedPeer);
     }
 }

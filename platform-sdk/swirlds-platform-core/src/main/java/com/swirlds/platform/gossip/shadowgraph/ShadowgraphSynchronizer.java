@@ -2,15 +2,16 @@
 package com.swirlds.platform.gossip.shadowgraph;
 
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.filterLikelyDuplicates;
+import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.SyncMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -90,31 +91,33 @@ public class ShadowgraphSynchronizer {
     /**
      * Constructs a new ShadowgraphSynchronizer.
      *
-     * @param platformContext      the platform context
-     * @param numberOfNodes        number of nodes in the network
-     * @param syncMetrics          metrics for sync
-     * @param fallenBehindMonitor  an instance of the fallenBehind Monitor which tracks if the node has fallen behind
-     * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
-     * @param syncLagHandler       callback for reporting median sync lag
+     * @param configuration the platform configuration
+     * @param metrics the metrics system
+     * @param time source of time
+     * @param numberOfNodes number of nodes in the network
+     * @param syncMetrics metrics for sync
+     * @param fallenBehindMonitor an instance of the fallenBehind Monitor which tracks if the node has fallen behind
+     * @param intakeEventCounter used for tracking events in the intake pipeline per peer
+     * @param syncLagHandler callback for reporting median sync lag
      */
     public ShadowgraphSynchronizer(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             final int numberOfNodes,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final Consumer<SyncProgress> syncLagHandler) {
 
-        Objects.requireNonNull(platformContext);
-
-        this.time = platformContext.getTime();
-        this.shadowGraph = new Shadowgraph(platformContext, numberOfNodes, intakeEventCounter);
+        this.time = requireNonNull(time);
+        this.shadowGraph = new Shadowgraph(metrics, numberOfNodes, intakeEventCounter);
         this.numberOfNodes = numberOfNodes;
-        this.syncMetrics = Objects.requireNonNull(syncMetrics);
-        this.fallenBehindMonitor = Objects.requireNonNull(fallenBehindMonitor);
-        this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
+        this.syncMetrics = requireNonNull(syncMetrics);
+        this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
+        this.intakeEventCounter = requireNonNull(intakeEventCounter);
 
-        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
+        final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
         this.nonAncestorFilterThreshold = syncConfig.nonAncestorFilterThreshold();
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
@@ -153,10 +156,10 @@ public class ShadowgraphSynchronizer {
             @NonNull final EventWindow myEventWindow,
             @NonNull final EventWindow theirEventWindow) {
 
-        Objects.requireNonNull(selfId);
-        Objects.requireNonNull(knownSet);
-        Objects.requireNonNull(myEventWindow);
-        Objects.requireNonNull(theirEventWindow);
+        requireNonNull(selfId);
+        requireNonNull(knownSet);
+        requireNonNull(myEventWindow);
+        requireNonNull(theirEventWindow);
 
         // add to knownSet all the ancestors of each known event
         final Set<ShadowEvent> knownAncestors = shadowGraph.findAncestors(

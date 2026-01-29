@@ -10,9 +10,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.Utilities;
@@ -80,12 +78,8 @@ class OutboundConnectionCreatorTest {
         final SocketFactory socketFactory = mock(SocketFactory.class);
         doAnswer(i -> socket).when(socketFactory).createClientSocket(any(), anyInt());
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(getConfig())
-                .build();
-
         final OutboundConnectionCreator occ = new OutboundConnectionCreator(
-                platformContext,
+                getConfig(),
                 thisNode,
                 mock(ConnectionTracker.class),
                 socketFactory,
@@ -168,12 +162,8 @@ class OutboundConnectionCreatorTest {
         final SocketFactory socketFactory = mock(SocketFactory.class);
         doAnswer(i -> socket).when(socketFactory).createClientSocket(any(), anyInt());
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(getConfig())
-                .build();
-
         final OutboundConnectionCreator occ = new OutboundConnectionCreator(
-                platformContext,
+                getConfig(),
                 thisNode,
                 mock(ConnectionTracker.class),
                 socketFactory,

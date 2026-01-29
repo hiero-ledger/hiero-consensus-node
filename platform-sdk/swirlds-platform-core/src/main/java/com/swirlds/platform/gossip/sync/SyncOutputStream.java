@@ -3,7 +3,7 @@ package com.swirlds.platform.gossip.sync;
 
 import static org.hiero.consensus.io.extendable.ExtendableOutputStream.extendOutputStream;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -32,14 +32,11 @@ public class SyncOutputStream extends SerializableDataOutputStream {
     }
 
     public static SyncOutputStream createSyncOutputStream(
-            @NonNull final PlatformContext platformContext, @NonNull final OutputStream out, final int bufferSize) {
+            @NonNull final Configuration configuration, @NonNull final OutputStream out, final int bufferSize) {
         CountingStreamExtension syncByteCounter = new CountingStreamExtension();
         CountingStreamExtension connectionByteCounter = new CountingStreamExtension();
 
-        final boolean compress = platformContext
-                .getConfiguration()
-                .getConfigData(SocketConfig.class)
-                .gzipCompression();
+        final boolean compress = configuration.getConfigData(SocketConfig.class).gzipCompression();
 
         final OutputStream meteredStream = extendOutputStream(out, connectionByteCounter);
 

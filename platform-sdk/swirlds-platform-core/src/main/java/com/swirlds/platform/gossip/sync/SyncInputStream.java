@@ -3,7 +3,7 @@ package com.swirlds.platform.gossip.sync;
 
 import static org.hiero.consensus.io.extendable.ExtendableInputStream.extendInputStream;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -29,14 +29,11 @@ public class SyncInputStream extends SerializableDataInputStream {
     }
 
     public static SyncInputStream createSyncInputStream(
-            @NonNull final PlatformContext platformContext, @NonNull final InputStream in, final int bufferSize) {
+            @NonNull final Configuration configuration, @NonNull final InputStream in, final int bufferSize) {
 
         final CountingStreamExtension syncCounter = new CountingStreamExtension();
 
-        final boolean compress = platformContext
-                .getConfiguration()
-                .getConfigData(SocketConfig.class)
-                .gzipCompression();
+        final boolean compress = configuration.getConfigData(SocketConfig.class).gzipCompression();
 
         final InputStream meteredStream = extendInputStream(in, syncCounter);
 

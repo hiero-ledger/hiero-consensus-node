@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
+import static java.util.Objects.requireNonNull;
+
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
@@ -10,7 +13,6 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
@@ -31,14 +33,17 @@ public class ReconnectStateSyncProtocol implements Protocol {
     private final ThreadManager threadManager;
     private final FallenBehindMonitor fallenBehindManager;
 
+    private final Configuration configuration;
+    private final Metrics metrics;
     private final Time time;
-    private final PlatformContext platformContext;
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
     private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise;
     private final StateLifecycleManager stateLifecycleManager;
 
     public ReconnectStateSyncProtocol(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle,
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
@@ -48,16 +53,17 @@ public class ReconnectStateSyncProtocol implements Protocol {
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final StateLifecycleManager stateLifecycleManager) {
 
-        this.platformContext = Objects.requireNonNull(platformContext);
-        this.threadManager = Objects.requireNonNull(threadManager);
-        this.reconnectStateTeacherThrottle = Objects.requireNonNull(reconnectStateTeacherThrottle);
-        this.lastCompleteSignedState = Objects.requireNonNull(lastCompleteSignedState);
-        this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
-        this.reconnectMetrics = Objects.requireNonNull(reconnectMetrics);
-        this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
-        this.time = Objects.requireNonNull(platformContext.getTime());
-        this.reservedSignedStateResultPromise = Objects.requireNonNull(reservedSignedStateResultPromise);
-        this.stateLifecycleManager = Objects.requireNonNull(stateLifecycleManager);
+        this.configuration = requireNonNull(configuration);
+        this.metrics = requireNonNull(metrics);
+        this.time = requireNonNull(time);
+        this.threadManager = requireNonNull(threadManager);
+        this.reconnectStateTeacherThrottle = requireNonNull(reconnectStateTeacherThrottle);
+        this.lastCompleteSignedState = requireNonNull(lastCompleteSignedState);
+        this.reconnectSocketTimeout = requireNonNull(reconnectSocketTimeout);
+        this.reconnectMetrics = requireNonNull(reconnectMetrics);
+        this.fallenBehindManager = requireNonNull(fallenBehindManager);
+        this.reservedSignedStateResultPromise = requireNonNull(reservedSignedStateResultPromise);
+        this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
     }
 
     /**
@@ -67,16 +73,17 @@ public class ReconnectStateSyncProtocol implements Protocol {
     @Override
     public ReconnectStatePeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
         return new ReconnectStatePeerProtocol(
-                platformContext,
+                configuration,
+                metrics,
+                time,
                 threadManager,
-                Objects.requireNonNull(peerId),
+                requireNonNull(peerId),
                 reconnectStateTeacherThrottle,
                 lastCompleteSignedState,
                 reconnectSocketTimeout,
                 reconnectMetrics,
                 fallenBehindManager,
                 platformStatus::get,
-                time,
                 reservedSignedStateResultPromise,
                 stateLifecycleManager);
     }

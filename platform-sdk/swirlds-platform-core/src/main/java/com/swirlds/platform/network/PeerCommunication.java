@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
-import com.swirlds.common.context.PlatformContext;
+import static java.util.Objects.requireNonNull;
+
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.communication.ProtocolNegotiatorThread;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
@@ -19,7 +23,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
@@ -48,7 +51,8 @@ public class PeerCommunication implements ConnectionTracker {
     private final NetworkMetrics networkMetrics;
     private StaticTopology topology;
     private final KeysAndCerts ownKeysAndCerts;
-    private final PlatformContext platformContext;
+    private final Configuration configuration;
+    private final Time time;
     private List<PeerInfo> peers;
     private final PeerInfo selfPeer;
     private DynamicConnectionManagers connectionManagers;
@@ -66,25 +70,30 @@ public class PeerCommunication implements ConnectionTracker {
     /**
      * Create manager of communication with neighbouring nodes for exchanging events.
      *
-     * @param platformContext the platform context
+     * @param configuration the platform configuration
+     * @param metrics the metrics system
+     * @param time source of time
      * @param peers the current list of peers
      * @param selfPeer this node's data
      * @param ownKeysAndCerts private keys and public certificates for this node
      */
     public PeerCommunication(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final List<PeerInfo> peers,
             @NonNull final PeerInfo selfPeer,
             @NonNull final KeysAndCerts ownKeysAndCerts) {
 
-        this.ownKeysAndCerts = Objects.requireNonNull(ownKeysAndCerts);
-        this.platformContext = Objects.requireNonNull(platformContext);
-        this.peers = Collections.unmodifiableList(Objects.requireNonNull(peers));
-        this.selfPeer = Objects.requireNonNull(selfPeer);
+        this.configuration = requireNonNull(configuration);
+        this.time = requireNonNull(time);
+        this.ownKeysAndCerts = requireNonNull(ownKeysAndCerts);
+        this.peers = Collections.unmodifiableList(requireNonNull(peers));
+        this.selfPeer = requireNonNull(selfPeer);
         this.selfId = selfPeer.nodeId();
 
-        this.networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfPeer.nodeId(), peers);
-        platformContext.getMetrics().addUpdater(networkMetrics::update);
+        this.networkMetrics = new NetworkMetrics(metrics, selfPeer.nodeId(), peers);
+        metrics.addUpdater(networkMetrics::update);
 
         this.topology = new StaticTopology(peers, selfPeer.nodeId());
     }
@@ -106,11 +115,11 @@ public class PeerCommunication implements ConnectionTracker {
         this.protocolList = protocols;
 
         this.connectionManagers = new DynamicConnectionManagers(
-                selfId, peers, platformContext, this, ownKeysAndCerts, topology, ConnectionManagerFactory.DEFAULT);
+                configuration, time, selfId, peers, this, ownKeysAndCerts, topology, ConnectionManagerFactory.DEFAULT);
 
         this.connectionServer = createConnectionServer();
 
-        final ThreadConfig threadConfig = platformContext.getConfiguration().getConfigData(ThreadConfig.class);
+        final ThreadConfig threadConfig = configuration.getConfigData(ThreadConfig.class);
 
         this.connectionServerThread = new StoppableThreadConfiguration<>(threadManager)
                 .setPriority(threadConfig.threadPrioritySync())
@@ -140,8 +149,8 @@ public class PeerCommunication implements ConnectionTracker {
      * @param removed peers to be removed
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
-        Objects.requireNonNull(added);
-        Objects.requireNonNull(removed);
+        requireNonNull(added);
+        requireNonNull(removed);
 
         if (added.isEmpty() && removed.isEmpty()) {
             return;
@@ -198,7 +207,7 @@ public class PeerCommunication implements ConnectionTracker {
      */
     @Override
     public void newConnectionOpened(@NonNull final Connection sc) {
-        Objects.requireNonNull(sc);
+        requireNonNull(sc);
         networkMetrics.connectionEstablished(sc);
     }
 
@@ -207,7 +216,7 @@ public class PeerCommunication implements ConnectionTracker {
      */
     @Override
     public void connectionClosed(final boolean outbound, @NonNull final Connection conn) {
-        Objects.requireNonNull(conn);
+        requireNonNull(conn);
         networkMetrics.recordDisconnect(conn);
     }
 
@@ -243,8 +252,8 @@ public class PeerCommunication implements ConnectionTracker {
 
     private List<DedicatedStoppableThread<NodeId>> buildProtocolThreads(Collection<NodeId> peers) {
 
-        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
-        final BasicConfig basicConfig = platformContext.getConfiguration().getConfigData(BasicConfig.class);
+        final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
+        final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
         final Duration hangingThreadDuration = basicConfig.hangingThreadDuration();
         final ArrayList<DedicatedStoppableThread<NodeId>> syncProtocolThreads =
                 new ArrayList<DedicatedStoppableThread<NodeId>>();
@@ -265,7 +274,7 @@ public class PeerCommunication implements ConnectionTracker {
                                     new NegotiationProtocols(protocolList.stream()
                                             .map(protocol -> protocol.createPeerInstance(otherId))
                                             .toList()),
-                                    platformContext.getTime()))
+                                    time))
                             .build()));
         }
         return syncProtocolThreads;
@@ -273,7 +282,7 @@ public class PeerCommunication implements ConnectionTracker {
 
     private PeerConnectionServer createConnectionServer() {
         var inboundConnectionHandler = new InboundConnectionHandler(
-                platformContext, this, peers, selfId, connectionManagers::newConnection, platformContext.getTime());
+                configuration, time, this, peers, selfId, connectionManagers::newConnection);
         // allow other members to create connections to me
         // Assume all ServiceEndpoints use the same port and use the port from the first endpoint.
         // Previously, this code used a "local port" corresponding to the internal endpoint,
@@ -282,17 +291,13 @@ public class PeerCommunication implements ConnectionTracker {
         // The assumption must be correct, otherwise, if ports were indeed different, then the old code
         // using the AddressBook would never have listened on a port associated with the external endpoint,
         // thus not allowing anyone to connect to the node from outside the local network, which we'd have noticed.
-        var socketFactory =
-                NetworkUtils.createSocketFactory(selfId, peers, ownKeysAndCerts, platformContext.getConfiguration());
+        var socketFactory = NetworkUtils.createSocketFactory(selfId, peers, ownKeysAndCerts, configuration);
         return new PeerConnectionServer(
                 threadManager,
                 selfPeer.port(),
                 inboundConnectionHandler,
                 socketFactory,
-                platformContext
-                        .getConfiguration()
-                        .getConfigData(SocketConfig.class)
-                        .maxSocketAcceptThreads());
+                configuration.getConfigData(SocketConfig.class).maxSocketAcceptThreads());
     }
 
     /**
@@ -302,7 +307,7 @@ public class PeerCommunication implements ConnectionTracker {
      * @param things thread to start
      */
     private void registerDedicatedThreads(final @NonNull Collection<DedicatedStoppableThread<NodeId>> things) {
-        Objects.requireNonNull(things);
+        requireNonNull(things);
         dedicatedThreadsToModify.addAll(things);
     }
 

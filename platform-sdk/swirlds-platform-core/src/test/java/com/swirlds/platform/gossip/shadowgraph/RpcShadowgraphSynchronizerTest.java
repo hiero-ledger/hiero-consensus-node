@@ -8,9 +8,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -45,7 +42,7 @@ class RpcPeerHandlerTest {
             new SyncData(EventWindow.getGenesisEventWindow(), List.of(), false);
     public static final SyncData EMPTY_SYNC_MESSAGE_IGNORE_EVENTS =
             new SyncData(EventWindow.getGenesisEventWindow(), List.of(), true);
-    private PlatformContext platformContext;
+    private FakeTime time;
     private SyncMetrics syncMetrics;
     private FallenBehindMonitor fallenBehindManager;
     private NodeId selfId;
@@ -60,22 +57,14 @@ class RpcPeerHandlerTest {
     void testSetup() throws Exception {
         ConstructableRegistry.getInstance().registerConstructables("");
 
-        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
+        final Configuration configuration = ConfigurationBuilder.create()
                 .withSource(SystemEnvironmentConfigSource.getInstance())
                 .withSource(SystemPropertiesConfigSource.getInstance())
-                .autoDiscoverExtensions();
+                .autoDiscoverExtensions()
+                .withValue("reconnect.fallenBehindThreshold", "0")
+                .build();
 
-        configurationBuilder.withValue("reconnect.fallenBehindThreshold", "0");
-
-        final Configuration configuration = configurationBuilder.build();
-
-        final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
-        this.platformContext = PlatformContext.create(
-                configuration,
-                new FakeTime(Instant.now(), Duration.ofMillis(1)),
-                new NoOpMetrics(),
-                fileSystemManager,
-                new NoOpRecycleBin());
+        this.time = new FakeTime(Instant.now(), Duration.ofMillis(1));
 
         this.syncMetrics = mock(SyncMetrics.class);
         this.selfId = NodeId.of(1);
@@ -86,7 +75,14 @@ class RpcPeerHandlerTest {
         this.syncProgressReporter = mock(Consumer.class);
         this.intakeCounter = new NoOpIntakeEventCounter();
         this.synchronizer = new ShadowgraphSynchronizer(
-                platformContext, NUM_NODES, syncMetrics, fallenBehindManager, intakeCounter, syncProgressReporter);
+                configuration,
+                new NoOpMetrics(),
+                time,
+                NUM_NODES,
+                syncMetrics,
+                fallenBehindManager,
+                intakeCounter,
+                syncProgressReporter);
 
         this.synchronizer.updateEventWindow(EventWindow.getGenesisEventWindow());
 
@@ -109,7 +105,7 @@ class RpcPeerHandlerTest {
                 otherNodeId,
                 Duration.ofMillis(5),
                 syncMetrics,
-                platformContext.getTime(),
+                time,
                 intakeCounter,
                 eventHandler,
                 syncGuard,
@@ -177,7 +173,7 @@ class RpcPeerHandlerTest {
 
         // emulate disconnect
         conversation.cleanup();
-        ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
+        time.tick(Duration.ofSeconds(10));
         Mockito.clearInvocations(gossipSender);
 
         // try starting new sync, even if old was broken in middle of receiving events
@@ -254,17 +250,17 @@ class RpcPeerHandlerTest {
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
-        ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
+        time.tick(Duration.ofSeconds(10));
         conversation.checkForPeriodicActions(false, false);
-        ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
+        time.tick(Duration.ofSeconds(10));
         conversation.checkForPeriodicActions(false, false);
-        ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
+        time.tick(Duration.ofSeconds(10));
         conversation.checkForPeriodicActions(false, false);
-        ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
+        time.tick(Duration.ofSeconds(10));
         Mockito.verifyNoMoreInteractions(gossipSender);
         Mockito.clearInvocations(gossipSender);
         conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 10, 5), List.of(), false));
-        ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
+        time.tick(Duration.ofSeconds(10));
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
     }

@@ -521,7 +521,9 @@ public class PlatformComponentBuilder {
             final ProtocolFactory factory =
                     ServiceLoader.load(ProtocolFactory.class).findFirst().orElseThrow();
             final Protocol reconnectProtocol = factory.createProtocol(
-                    blocks.platformContext(),
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
                     threadManager,
                     latestCompleteState,
                     blocks.reservedSignedStateResultPromise(),
@@ -529,7 +531,9 @@ public class PlatformComponentBuilder {
                     blocks.stateLifecycleManager());
 
             gossip = new SyncGossipModular(
-                    blocks.platformContext(),
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
                     threadManager,
                     blocks.keysAndCerts(),
                     blocks.rosterHistory().getCurrentRoster(),
