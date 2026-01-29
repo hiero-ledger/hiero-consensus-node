@@ -49,6 +49,16 @@ public class ConsensusTestOrchestrator {
         nodes.forEach(node -> node.addEvents(numEvents));
     }
 
+    @SuppressWarnings("unused") // useful for debugging
+    public void runGui() {
+        final ConsensusTestNode node = nodes.stream().findAny().orElseThrow();
+        new TestGuiSource(
+                platformContext,
+                node.getEventEmitter().getGraphGenerator().getRoster(),
+                new ListEventProvider(node.getOutput().getAddedEvents()))
+                .runGui();
+    }
+
     /** Generates all events defined in the input */
     public ConsensusTestOrchestrator generateAllEvents() {
         return generateEvents(1d);
