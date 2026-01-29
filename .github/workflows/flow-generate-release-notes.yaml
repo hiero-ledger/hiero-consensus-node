@@ -6,6 +6,10 @@ on:
       - "v*.*.*"
   workflow_dispatch:
     inputs:
+      ref:
+        description: "Branch, tag, or commit to build"
+        required: false
+        type: string
       version:
         description: "Release Version Number (ex: 0.59.2):"
         type: string
@@ -26,11 +30,25 @@ permissions:
   actions: read
 
 jobs:
-  generate-release-notes:
-    name: Generate Release Notes
+  generate-release-notes-tag:
+    name: Generate Release Notes (Tag)
     uses: ./.github/workflows/zxc-create-github-release.yaml
+    if: ${{ github.event_name == 'push' }}
     with:
-      release-version: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.version }}
+      ref: ${{ github.sha }}
+      release-version: ${{ github.ref_name }}
+      create-release-notes: true
+      create-release: false
+    secrets:
+      gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+  generate-release-notes-dispatch:
+    name: Generate Release Notes (Workflow Dispatch)
+    uses: ./.github/workflows/zxc-create-github-release.yaml
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      release-version: ${{ inputs.version || github.ref_name }}
       create-release-notes: true
       create-release: false
       dry-run: ${{ inputs.dry-run-enabled }}

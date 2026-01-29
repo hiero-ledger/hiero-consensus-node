@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createDefaultPlatformContext;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
-import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -18,7 +19,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class CoinRoundTest extends PlatformTest {
+public class CoinRoundTest {
 
     /**
      * A test that reads in a set of PCES event files and checks that the coin round occurred. The test expects the

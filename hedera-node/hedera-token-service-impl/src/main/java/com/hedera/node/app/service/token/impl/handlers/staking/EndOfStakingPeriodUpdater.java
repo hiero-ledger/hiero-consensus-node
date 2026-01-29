@@ -47,13 +47,14 @@ import org.apache.logging.log4j.Logger;
 public class EndOfStakingPeriodUpdater {
     private static final Logger log = LogManager.getLogger(EndOfStakingPeriodUpdater.class);
 
-    private static final String END_OF_PERIOD_MEMO = "End of staking period calculation record";
     // The exact choice of precision will not have a large effect on the per-hbar reward rate
     private static final MathContext MATH_CONTEXT = new MathContext(8, RoundingMode.DOWN);
 
     private final AccountsConfig accountsConfig;
     private final StakingRewardsHelper stakeRewardsHelper;
     private final EntityIdFactory entityIdFactory;
+
+    public static final String END_OF_PERIOD_MEMO = "End of staking period calculation record";
 
     /**
      * Constructs an {@link EndOfStakingPeriodUpdater} instance.
@@ -183,8 +184,6 @@ public class EndOfStakingPeriodUpdater {
                 maxRewardRate,
                 stakingRewardsStore.pendingRewards(),
                 unreservedStakingRewardBalance,
-                stakingConfig.rewardBalanceThreshold(),
-                stakingConfig.maxStakeRewarded(),
                 END_OF_PERIOD_MEMO);
         log.info("Exporting:\n{}", nodeStakes);
         return context.addPrecedingChildRecordBuilder(NodeStakeUpdateStreamBuilder.class, NODE_STAKE_UPDATE)
