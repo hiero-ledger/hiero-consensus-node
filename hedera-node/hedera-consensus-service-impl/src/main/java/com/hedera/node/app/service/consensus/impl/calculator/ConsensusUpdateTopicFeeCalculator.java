@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.calculator;
 
+import static org.hiero.hapi.fees.FeeKeyUtils.countKeys;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -24,13 +25,18 @@ public class ConsensusUpdateTopicFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.consensusUpdateTopicOrThrow();
         long keys = 0;
         if (op.hasAdminKey()) {
-            keys += 1;
+            keys += countKeys(op.adminKeyOrThrow());
         }
         if (op.hasFeeScheduleKey()) {
-            keys += 1;
+            keys += countKeys(op.feeScheduleKeyOrThrow());
         }
         if (op.hasSubmitKey()) {
-            keys += 1;
+            keys += countKeys(op.submitKeyOrThrow());
+        }
+        if (op.hasFeeExemptKeyList()) {
+            for (var key : op.feeExemptKeyList().keys()) {
+                keys += countKeys(key);
+            }
         }
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_UPDATE_TOPIC);
