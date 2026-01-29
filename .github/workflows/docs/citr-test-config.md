@@ -29,7 +29,7 @@ There are several test suites that are run in the CITR environment, each with it
 
 - MATS is triggered by the [Node: Build Application](/.github/workflows/node-flow-build-application.yaml) workflow.
 - The PR Check equivalent checks are triggered by the [Node: PR Checks](/.github/workflows/node-flow-pull-request-checks.yaml) workflow.
-- MATS Dry-Run is triggered manually via the [ZXF: [CITR] MATS Dry Run](/.github/workflows/zxf-dry-run-mats-suite.yaml) workflow.
+- MATS Dry-Run is triggered manually via the [ZXF: [CITR] MATS Dry Run](/.github/workflows/flow-dry-run-mats-suite.yaml) workflow.
 
 ### Included Tests
 
@@ -65,7 +65,7 @@ There are several test suites that are run in the CITR environment, each with it
 ### Workflows
 
 - XTS is triggered by the [ZXCron: [CITR] Extended Test Suite](/.github/workflows/zxcron-extended-test-suite.yaml) workflow.
-- XTS Dry Run is triggered manually via the [ZXF: [CITR] XTS Dry Run](/.github/workflows/zxf-dry-run-extended-test-suite.yaml) workflow.
+- XTS Dry Run is triggered manually via the [ZXF: [CITR] XTS Dry Run](/.github/workflows/flow-dry-run-extended-test-suite.yaml) workflow.
 
 ### Included Tests
 
