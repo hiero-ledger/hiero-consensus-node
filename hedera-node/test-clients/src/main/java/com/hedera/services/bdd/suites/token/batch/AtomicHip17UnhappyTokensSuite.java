@@ -56,7 +56,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(TOKEN)
 @Tag(MATS)
 class AtomicHip17UnhappyTokensSuite {
-
     private static final String ANOTHER_USER = "AnotherUser";
     private static final String ANOTHER_KEY = "AnotherKey";
 
@@ -134,7 +133,7 @@ class AtomicHip17UnhappyTokensSuite {
                                 tokenDelete(NFT_DELETED).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
                 cryptoTransfer(TokenMovement.movingUnique(NFT_DELETED, 2L).between(TOKEN_TREASURY, ANOTHER_USER))
-                        .hasPrecheck(TOKEN_WAS_DELETED));
+                        .hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     @HapiTest

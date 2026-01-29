@@ -479,7 +479,7 @@ class AtomicBatchTokenServiceEndToEndTests {
 
                     // confirm token was deleted
                     cryptoTransfer(movingUnique(NFT_FOR_END_TO_END, 5L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                            .hasPrecheck(TOKEN_WAS_DELETED)));
+                            .hasKnownStatus(TOKEN_WAS_DELETED)));
         }
 
         @HapiTest
@@ -526,7 +526,7 @@ class AtomicBatchTokenServiceEndToEndTests {
 
                     // confirm token was deleted
                     cryptoTransfer(movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                            .hasPrecheck(TOKEN_WAS_DELETED)));
+                            .hasKnownStatus(TOKEN_WAS_DELETED)));
         }
 
         @HapiTest
@@ -1933,7 +1933,7 @@ class AtomicBatchTokenServiceEndToEndTests {
                         cryptoTransfer(moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                                 .payingWith(OWNER)
                                 .via("transferAfterDeleteTxn")
-                                .hasPrecheck(TOKEN_WAS_DELETED),
+                                .hasKnownStatus(TOKEN_WAS_DELETED),
 
                         // validate account balances and token info
                         getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_BURN, 5L),
@@ -2151,7 +2151,7 @@ class AtomicBatchTokenServiceEndToEndTests {
                                         tokenTransferOwner)
                                 .payingWith(BATCH_OPERATOR)
                                 .via("batchTxn")
-                                .hasKnownStatus(TOKEN_WAS_DELETED),
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
                         withOpContext((spec, log) -> validateChargedUsd(
                                 "batchTxn",
                                 BASE_FEE_BATCH_TRANSACTION + expectedFeeFromBytesFor(spec, log, "batchTxn"))),
@@ -2533,7 +2533,7 @@ class AtomicBatchTokenServiceEndToEndTests {
                         cryptoTransfer(moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                                 .payingWith(OWNER)
                                 .via("transferAfterDeleteTxn")
-                                .hasPrecheck(TOKEN_WAS_DELETED),
+                                .hasKnownStatus(TOKEN_WAS_DELETED),
 
                         // validate account balances and token info
                         getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_BURN, 100L),
