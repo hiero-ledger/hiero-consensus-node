@@ -62,6 +62,17 @@ public class ConsensusTestArgs {
     }
 
     static Stream<ConsensusTestParams> partitionTests() {
+        // Uses balanced weights for 4 so that each partition can continue to create events.
+        // This limitation if one of the test, not the consensus algorithm.
+        // new ConsensusTestParams(4, BALANCED_REAL_WEIGHT,
+        // BALANCED_REAL_WEIGHT_DESC),
+
+        // Use uneven stake such that no single node has a strong minority and could be
+        // put in a partition by itself and no longer generate events. This limitation if
+        // one
+        // of the test, not the consensus algorithm.
+        // new ConsensusTestParams(5, INCREMENTING,
+        // INCREMENTAL_NODE_WEIGHT_DESC),
         return Stream.of(new ConsensusTestParams(9, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC));
     }
 
