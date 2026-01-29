@@ -1,0 +1,52 @@
+/**
+ * # TSS Signed Proof
+ * Message for a block proof or state proof signature produced by the TSS
+ * Threshold Signature Scheme.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream;
+
+// spdx-license-identifier: apache-2.0
+option java_package = "com.hedera.hapi.block.stream.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream">>> this comment is special code for setting pbj compiler java package
+option java_multiple_files = true;
+
+/**
+ * A proof containing a TSS signature for a single block.
+ */
+message TssSignedBlockProof {
+    /**
+     * A TSS signature for one block.<br/>
+     * This is a single signature representing the collection of partial
+     * signatures from nodes holding strictly greater than 2/3 of the
+     * current network "weight" in aggregate. The signature is produced by
+     * cryptographic "aggregation" of the partial signatures to produce a
+     * single signature that can be verified with the network public key,
+     * but could not be produced by fewer nodes than required to meet the
+     * threshold for network stake "weight".<br/>
+     * This signature data is a complex aggregation of values needed to verify
+     * the network signature, and may include WRAPS data to prove the chain of
+     * trust for an address book as well as additional information relevant
+     * to the current address book.
+     * <p>
+     * This message MUST make use of the "TSS" signature scheme and associated
+     * "combined" signature data format, which provides the necessary
+     * cryptographic guarantees and data elements.<br/>
+     * This signature SHALL use a TSS signature to provide a single "signature"
+     * that represents the consensus signature of consensus nodes.<br/>
+     * The exact subset of nodes that signed SHALL neither be known nor
+     * tracked, but it SHALL be cryptographically verifiable that the
+     * threshold was met if the signature itself can be validated with
+     * the network identity (A.K.A. ledger ID) and network WRAPS
+     * verification key.
+     */
+    bytes block_signature = 1;
+}
