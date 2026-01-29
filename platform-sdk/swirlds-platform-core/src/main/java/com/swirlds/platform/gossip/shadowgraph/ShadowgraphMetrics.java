@@ -4,7 +4,7 @@ package com.swirlds.platform.gossip.shadowgraph;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_5_3;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.metrics.statistics.AverageStat;
 
@@ -18,11 +18,11 @@ public class ShadowgraphMetrics {
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics system
      */
-    public ShadowgraphMetrics(@NonNull final PlatformContext platformContext) {
+    public ShadowgraphMetrics(@NonNull final Metrics metrics) {
         indicatorsWaitingForExpiry = new AverageStat(
-                platformContext.getMetrics(),
+                metrics,
                 PLATFORM_CATEGORY,
                 "indicatorsWaitingForExpiry",
                 "the average number of indicators waiting to be expired by the shadowgraph",
