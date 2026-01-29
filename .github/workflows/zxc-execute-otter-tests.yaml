@@ -55,7 +55,7 @@ on:
     outputs:
       failure-mode:
         description: "Indicates the failure mode of the job, if any."
-        value: ${{ jobs.otter.outputs.failure-mode }}
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
 
 defaults:
   run:
@@ -80,8 +80,6 @@ jobs:
     name: "Full Otter Tests"
     runs-on: hl-cn-otter-full-lin
     if: ${{ inputs.enable-full-otter-tests }}
-    outputs:
-      failure-mode: ${{ steps.calculate-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -100,7 +98,7 @@ jobs:
 
       - name: Full Otter Testing
         id: gradle-full-otter-tests
-        if: ${{ inputs.enable-full-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-full-otter-tests && !cancelled() }}
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
@@ -108,7 +106,7 @@ jobs:
 
       - name: Publish Full Otter Testing Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        if: ${{ inputs.enable-full-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-full-otter-tests && !cancelled() }}
         with:
           check_name: "Node: Otter Tests Results"
           json_thousands_separator: ","
@@ -117,7 +115,7 @@ jobs:
 
       - name: Upload Full Otter Tests Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-full-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-full-otter-tests && !cancelled() }}
         with:
           name: Otter Tests Report
           path: "**/consensus-otter-tests/build/test-results/testContainer/TEST-*.xml"
@@ -135,8 +133,6 @@ jobs:
     name: "Fast Otter Tests"
     runs-on: hl-cn-otter-fast-lin
     if: ${{ inputs.enable-fast-otter-tests }}
-    outputs:
-      failure-mode: ${{ steps.calculate-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -155,7 +151,7 @@ jobs:
 
       - name: Fast Otter Testing
         id: gradle-fast-otter-tests
-        if: ${{ inputs.enable-fast-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && !cancelled() }}
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
@@ -163,7 +159,7 @@ jobs:
 
       - name: Publish Fast Otter Testing Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        if: ${{ inputs.enable-fast-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && !cancelled() }}
         with:
           check_name: "Node: Otter Tests Results"
           json_thousands_separator: ","
@@ -172,7 +168,7 @@ jobs:
 
       - name: Upload Fast Otter Tests Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-fast-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && !cancelled() }}
         with:
           name: Otter Tests Report
           path: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
@@ -198,8 +194,6 @@ jobs:
     name: "Chaos Otter Tests"
     runs-on: hl-cn-otter-chaos-lin
     if: ${{ inputs.enable-chaos-otter-tests }}
-    outputs:
-      failure-mode: ${{ steps.calculate-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -214,10 +208,11 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
 
       - name: Chaos Otter Testing
         id: gradle-chaos-otter-tests
-        if: ${{ inputs.enable-chaos-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && !cancelled() }}
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
@@ -225,7 +220,7 @@ jobs:
 
       - name: Publish Chaos Otter Testing Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        if: ${{ inputs.enable-chaos-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && !cancelled() }}
         with:
           check_name: "Node: Chaos Otter Tests Result"
           json_thousands_separator: ","
@@ -234,7 +229,7 @@ jobs:
 
       - name: Upload Chaos Otter Test Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-chaos-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && !cancelled() }}
         with:
           name: Chaos Otter Test Report
           path: "**/consensus-otter-tests/build/test-results/testChaos/TEST-*.xml"
@@ -283,7 +278,7 @@ jobs:
           failure_mode="none"
 
           has_failure() {
-            local arr=("@")
+            local arr=("$@")
             for status in "${arr[@]}"; do
               [[ "${status}" == "failure" ]] && return 0
             done
