@@ -17,12 +17,10 @@ import com.swirlds.config.extensions.export.ConfigExport;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.config.extensions.sources.YamlConfigSource;
 import com.swirlds.platform.JVMPauseDetectorThread;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.internal.ConfigMappings;
 import com.swirlds.platform.config.internal.PlatformConfigUtils;
 import com.swirlds.platform.config.legacy.ConfigurationException;
-import com.swirlds.platform.gui.WindowConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.health.OSHealthChecker;
 import com.swirlds.platform.health.clock.OSClockSpeedSourceChecker;
@@ -32,7 +30,6 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.awt.Dimension;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -43,13 +40,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import javax.swing.JFrame;
-import javax.swing.UIManager;
-import javax.swing.UnsupportedLookAndFeelException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -118,21 +113,6 @@ public final class BootstrapUtils {
                         OSClockSpeedSourceChecker::performClockSourceSpeedCheck,
                         OSEntropyChecker::performEntropyChecks,
                         osFileSystemChecker::performFileSystemCheck));
-    }
-
-    /**
-     * Sets up the browser window
-     */
-    public static void setupBrowserWindow()
-            throws UnsupportedLookAndFeelException, ClassNotFoundException, InstantiationException,
-                    IllegalAccessException {
-        // discover the inset size and set the look and feel
-        UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
-        final JFrame jframe = new JFrame();
-        jframe.setPreferredSize(new Dimension(200, 200));
-        jframe.pack();
-        WindowConfig.setInsets(jframe.getInsets());
-        jframe.dispose();
     }
 
     /**
