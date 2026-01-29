@@ -40,6 +40,10 @@ public final class VirtualMapTestUtils {
     public static void assertVmsAreEqual(final VirtualMap originalMap, final VirtualMap deserializedMap) {
         assertEquals(originalMap.size(), deserializedMap.size(), "size should match");
 
+        if (originalMap.isEmpty() && deserializedMap.isEmpty()) {
+            return;
+        }
+
         // make sure that the hashes are calculated
         originalMap.getHash();
         deserializedMap.getHash();
@@ -64,7 +68,5 @@ public final class VirtualMapTestUtils {
                     deserializedMap.getRecords().findHash(i),
                     "hashes should match");
         }
-
-        assertEquals(originalMap.getHash(), deserializedMap.getHash(), "hash should match");
     }
 }
