@@ -469,6 +469,9 @@ tasks.register<Test>("testRepeatable") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     modularity.inferModulePath.set(false)
+
+    // Debug on port 5006, since on Windows+WSL some other JVM grabs port 5005
+    jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006")
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
