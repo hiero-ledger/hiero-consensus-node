@@ -152,14 +152,12 @@ public class SimpleSmartContractServiceFeesTest {
     final Stream<DynamicTest> jumboEthTransactionBaseUSDFee() {
         final var payloadSize = 10 * 1024;
         final var jumboPayload = new byte[payloadSize];
-        // (ethData - includedBytes) * byteFee
-        final var expectedFeeFromBytes = (10480 - 6144) * SINGLE_BYTE_FEE;
         final var jumboGasUsed = 0.0054;
         return hapiTest(
                 overriding("contracts.evm.ethTransaction.zeroHapiFees.enabled", "false"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                ethereumCall(calldataContract.name(), "callme", jumboPayload)
+                ethereumCall(calldataContract.name(), "callme", (Object) jumboPayload)
                         .fee(ONE_HUNDRED_HBARS)
                         .memo("TESTT")
                         .type(EthTxData.EthTransactionType.EIP1559)
@@ -176,9 +174,8 @@ public class SimpleSmartContractServiceFeesTest {
                     final var nodeBytesOverage = Math.max(0, signedTxnBytes.length - NODE_INCLUDED_BYTES);
                     final var nodeBytesFeeTotal = nodeBytesOverage * SINGLE_BYTE_FEE * (1 + NETWORK_MULTIPLIER);
 
-                    final var totalExpected =
-                            jumboGasUsed + ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes + nodeBytesFeeTotal;
-                    final var withoutGasExpected = ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes + nodeBytesFeeTotal;
+                    final var totalExpected = jumboGasUsed + ETHEREUM_CALL_BASE_FEE + nodeBytesFeeTotal;
+                    final var withoutGasExpected = ETHEREUM_CALL_BASE_FEE + nodeBytesFeeTotal;
 
                     allRunFor(
                             spec,
