@@ -844,7 +844,6 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive state "${{ env.GS_ROOT_SAVED_STATES_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/"
           echo Done: see results in "${{ env.GS_ROOT_SAVED_STATES_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/"
 
-
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
     name: Calculate Result
