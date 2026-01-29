@@ -158,9 +158,9 @@ class FileServiceFeeCalculatorsTest {
                                         SystemDeleteTransactionBody.newBuilder().build())
                                 .build(),
                         1,
-                        100000L,
-                        50000000L,
-                        200000L),
+                        0,
+                        0,
+                        0),
                 new TestCase(
                         new FileSystemUndeleteFeeCalculator(),
                         TransactionBody.newBuilder()
@@ -168,9 +168,9 @@ class FileServiceFeeCalculatorsTest {
                                         .build())
                                 .build(),
                         1,
-                        100000L,
-                        50000000L,
-                        200000L));
+                        0,
+                        0,
+                        0));
     }
 
     @ParameterizedTest(name = "{index}: {0}")
