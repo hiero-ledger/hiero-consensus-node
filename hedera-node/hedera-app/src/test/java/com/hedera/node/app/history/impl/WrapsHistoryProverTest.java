@@ -228,7 +228,7 @@ class WrapsHistoryProverTest {
                 new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
-        given(historyLibrary.runWrapsPhaseR3(any(), any(), any(), any(), any(), any()))
+        given(historyLibrary.runWrapsPhaseR3(any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(R3_MESSAGE.toByteArray());
         given(submissions.submitWrapsSigningMessage(eq(R3), any(), eq(CONSTRUCTION_ID)))
                 .willReturn(CompletableFuture.completedFuture(null));
@@ -274,7 +274,8 @@ class WrapsHistoryProverTest {
                 new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
-        given(historyLibrary.runWrapsPhaseR2(any(), any(), any(), any(), any())).willReturn(R2_MESSAGE.toByteArray());
+        given(historyLibrary.runWrapsPhaseR2(any(), any(), any(), any(), any(), any()))
+                .willReturn(R2_MESSAGE.toByteArray());
         given(submissions.submitWrapsSigningMessage(eq(R2), any(), eq(CONSTRUCTION_ID)))
                 .willReturn(CompletableFuture.completedFuture(null));
 
@@ -346,11 +347,12 @@ class WrapsHistoryProverTest {
                 new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
-        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
                 .willReturn(AGG_SIG.toByteArray());
         given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
                 .willReturn(CompletableFuture.completedFuture(null));
-        given(historyLibrary.verifyAggregateSignature(any(), any(), any())).willReturn(true);
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
+                .willReturn(true);
 
         setField("entropy", new byte[32]);
         subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH));
@@ -399,7 +401,7 @@ class WrapsHistoryProverTest {
                 new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
-        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
                 .willReturn(AGG_SIG.toByteArray());
         given(tssConfig.wrapsEnabled()).willReturn(true);
         given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
@@ -410,7 +412,8 @@ class WrapsHistoryProverTest {
         given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(incremental);
         given(historyLibrary.wrapsProverReady()).willReturn(true);
-        given(historyLibrary.verifyAggregateSignature(any(), any(), any())).willReturn(true);
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
+                .willReturn(true);
 
         setField("entropy", new byte[32]);
         subject.addWrapsSigningMessage(
@@ -469,7 +472,7 @@ class WrapsHistoryProverTest {
                 new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
-        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
                 .willReturn(AGG_SIG.toByteArray());
         given(tssConfig.wrapsEnabled()).willReturn(true);
         given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
@@ -482,7 +485,8 @@ class WrapsHistoryProverTest {
         given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(genesis);
         given(historyLibrary.wrapsProverReady()).willReturn(true);
-        given(historyLibrary.verifyAggregateSignature(any(), any(), any())).willReturn(true);
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
+                .willReturn(true);
 
         setField("entropy", new byte[32]);
         subject.addWrapsSigningMessage(
