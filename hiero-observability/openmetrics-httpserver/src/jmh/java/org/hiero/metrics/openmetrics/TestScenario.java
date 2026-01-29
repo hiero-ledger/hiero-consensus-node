@@ -37,7 +37,8 @@ public class TestScenario implements Closeable {
     public TestScenario(MetricsFramework framework, long seed) {
         this.framework = framework;
         metricsGenerateRandom = new Random(seed);
-        metricsUpdateRandom = ThreadLocal.withInitial(() -> new Random(seed));
+        metricsUpdateRandom = ThreadLocal.withInitial(
+                () -> new Random(seed + Thread.currentThread().threadId()));
     }
 
     private String getUnit(int idx) {
@@ -175,7 +176,11 @@ public class TestScenario implements Closeable {
                 for (int i = 0; i < adapter.labelsCount(); i++) {
                     framework.setLabelValue(labelValues, i, "value_" + measurementIdx + "_" + i);
                 }
-                measurementLabelValuesCache.compareAndSet(measurementIdx, null, labelValues);
+
+                if (!measurementLabelValuesCache.compareAndSet(measurementIdx, null, labelValues)) {
+                    // Another thread won the race to initialize; use the cached value.
+                    labelValues = measurementLabelValuesCache.get(measurementIdx);
+                }
             }
             return labelValues;
         }

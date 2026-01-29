@@ -25,7 +25,7 @@ import org.openjdk.jmh.annotations.Warmup;
  * Test scenario:
  * <ul>
  *   <li><b>Init phase</b> - Initialize the framework, generate metrics based on provided configuration.</li>
- *   <li><b>Test phase</b> - Update random metrics measurements in multiple 8 threads with some sleep to simulate work
+ *   <li><b>Test phase</b> - Update random metrics measurements in 8 threads with some sleep to simulate work
  *   between updates, and export metrics via HTTP after each iteration (3 seconds).</li>
  * </ul>
  */
@@ -63,7 +63,7 @@ public class FrameworksProductionSimulationBenchmark {
     }
 
     @TearDown(Level.Trial)
-    public void tearDownGlobal() throws IOException {
+    public void tearDownTrial() throws IOException {
         testScenario.close();
     }
 

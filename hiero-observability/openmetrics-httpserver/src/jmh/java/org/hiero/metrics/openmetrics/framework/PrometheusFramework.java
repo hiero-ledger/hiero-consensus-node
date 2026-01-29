@@ -35,9 +35,9 @@ final class PrometheusFramework extends MetricsFramework {
     private Unit createUnit(String unit) {
         if (unit == null || unit.isBlank()) return null;
 
-        if (Unit.BYTES.toString().equals(unit)) {
+        if ("bytes".equals(unit)) {
             return Unit.BYTES;
-        } else if (Unit.SECONDS.toString().equals(unit)) {
+        } else if ("seconds".equals(unit)) {
             return Unit.SECONDS;
         }
         return new Unit(unit);

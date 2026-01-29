@@ -73,7 +73,7 @@ public class FrameworksHttpLatencyComparisonBenchmark {
     }
 
     @TearDown(Level.Trial)
-    public void tearDownGlobal() throws IOException {
+    public void tearDownTrial() throws IOException {
         testScenario.close();
     }
 
