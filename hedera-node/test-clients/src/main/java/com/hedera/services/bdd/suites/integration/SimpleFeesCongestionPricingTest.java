@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsString;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
@@ -86,7 +87,7 @@ public class SimpleFeesCongestionPricingTest {
                 overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
 
                 // Apply tight throttle limits to trigger congestion
-                new SysFileOverrideOp(THROTTLES, () -> TEST_THROTTLES_RESOURCE),
+                new SysFileOverrideOp(THROTTLES, () -> resourceAsString(TEST_THROTTLES_RESOURCE)),
 
                 // Wait for the system to recognize the new throttle config
                 sleepFor(2_000),
