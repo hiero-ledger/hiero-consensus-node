@@ -11,6 +11,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RosterWithKeys;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
@@ -41,18 +42,18 @@ public class CryptoArgsProvider {
      */
     static Stream<Arguments> basicTestArgs() throws Exception {
         final RosterAndCerts rosterAndCerts = genRosterLoadKeys(NUMBER_OF_ADDRESSES);
-        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create())
+        final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(Randotron.create())
                 .withSize(NUMBER_OF_ADDRESSES)
                 .withRealKeysEnabled(true)
-                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE);
-        final Roster genRoster = rosterBuilder.build();
-        final Map<NodeId, KeysAndCerts> genKac = genRoster.rosterEntries().stream()
+                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
+                .buildWithKeys();
+        final Map<NodeId, KeysAndCerts> genKac = rosterWithKeys.getRoster().rosterEntries().stream()
                 .map(RosterEntry::nodeId)
                 .map(NodeId::of)
-                .collect(Collectors.toMap(Function.identity(), rosterBuilder::getPrivateKeys));
+                .collect(Collectors.toMap(Function.identity(), rosterWithKeys::getKeysAndCerts));
         return Stream.of(
                 Arguments.of(rosterAndCerts.roster(), rosterAndCerts.nodeIdKeysAndCertsMap()),
-                Arguments.of(genRoster, genKac));
+                Arguments.of(rosterWithKeys.getRoster(), genKac));
     }
 
     private static Configuration configure(final Path keyDirectory) {

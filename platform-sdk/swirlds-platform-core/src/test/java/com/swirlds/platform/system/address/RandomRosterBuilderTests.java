@@ -11,6 +11,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RosterWithKeys;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
 import org.hiero.base.crypto.Signature;
@@ -52,14 +53,13 @@ class RandomRosterBuilderTests {
         // Only generate small address book (it's expensive to generate signatures)
         final int size = 3;
 
-        final RandomRosterBuilder builderA =
-                RandomRosterBuilder.create(randotron).withSize(size).withRealKeysEnabled(true);
-        final Roster rosterA = builderA.build();
+        final RosterWithKeys rosterWithKeysA = RandomRosterBuilder.create(randotron).withSize(size)
+                .withRealKeysEnabled(true).buildWithKeys();
+        final Roster rosterA = rosterWithKeysA.getRoster();
 
-        final RandomRosterBuilder builderB = RandomRosterBuilder.create(randotron.copyAndReset())
+        final Roster rosterB = RandomRosterBuilder.create(randotron.copyAndReset())
                 .withSize(size)
-                .withRealKeysEnabled(true);
-        final Roster rosterB = builderB.build();
+                .withRealKeysEnabled(true).build();
 
         // The address book should be the same (keys should be deterministic)
         assertEquals(RosterUtils.hash(rosterA), RosterUtils.hash(rosterB));
@@ -89,7 +89,7 @@ class RandomRosterBuilderTests {
             final NodeId id = NodeId.of(address.nodeId());
             final PublicKey signaturePublicKey =
                     RosterUtils.fetchGossipCaCertificate(address).getPublicKey();
-            final KeysAndCerts privateKeys = builderA.getPrivateKeys(id);
+            final KeysAndCerts privateKeys = rosterWithKeysA.getKeysAndCerts(id);
 
             final byte[] dataArray = randotron.nextByteArray(64);
             final Bytes dataBytes = Bytes.wrap(dataArray);
