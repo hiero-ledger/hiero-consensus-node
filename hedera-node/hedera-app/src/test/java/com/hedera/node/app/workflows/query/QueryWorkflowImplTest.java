@@ -63,7 +63,6 @@ import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -1154,8 +1153,7 @@ class QueryWorkflowImplTest extends AppTestBase {
 
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
             final var result = new FeeResult(0, 100000L, 0);
-            given(simpleFeeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromQueryContext(queryContext)))
-                    .willReturn(result);
+            given(simpleFeeCalculator.calculateQueryFee(eq(query), any())).willReturn(result);
 
             mockTopicGetInfoHandler(query, queryHeader, payment);
 
