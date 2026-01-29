@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.reconnect.api.ProtocolFactory;
@@ -26,22 +28,25 @@ public class ReconnectProtocolFactory implements ProtocolFactory {
     @Override
     @NonNull
     public Protocol createProtocol(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final StateLifecycleManager stateLifecycleManager) {
-        final ReconnectConfig reconnectConfig =
-                platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
+        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
         final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle =
-                new ReconnectStateTeacherThrottle(reconnectConfig, platformContext.getTime());
+                new ReconnectStateTeacherThrottle(reconnectConfig, time);
 
-        final ReconnectMetrics reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics());
+        final ReconnectMetrics reconnectMetrics = new ReconnectMetrics(metrics);
 
         return new ReconnectStateSyncProtocol(
-                platformContext,
+                configuration,
+                metrics,
+                time,
                 threadManager,
                 reconnectStateTeacherThrottle,
                 latestCompleteState,

@@ -10,7 +10,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure;
 import com.swirlds.platform.components.SavedStateController;
@@ -67,7 +67,7 @@ public class ReconnectController implements Runnable {
     private final Roster roster;
     private final SignedStateValidator signedStateValidator;
     private final Platform platform;
-    private final PlatformContext platformContext;
+    private final Configuration configuration;
     private final PlatformCoordinator platformCoordinator;
     private final StateLifecycleManager stateLifecycleManager;
     private final SavedStateController savedStateController;
@@ -81,9 +81,10 @@ public class ReconnectController implements Runnable {
     private final AtomicBoolean run = new AtomicBoolean(true);
 
     public ReconnectController(
+            @NonNull final Configuration configuration,
+            @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final Platform platform,
-            @NonNull final PlatformContext platformContext,
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
@@ -97,13 +98,13 @@ public class ReconnectController implements Runnable {
         this.peerReservedSignedStateResultProvider = requireNonNull(peerReservedSignedStateResultProvider);
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
         this.signedStateValidator = requireNonNull(signedStateValidator);
-        this.reconnectConfig = platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
+        this.reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         this.platform = requireNonNull(platform);
-        this.platformContext = requireNonNull(platformContext);
+        this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
         this.savedStateController = requireNonNull(savedStateController);
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
-        this.time = platformContext.getTime();
+        this.time = requireNonNull(time);
         this.selfId = selfId;
         this.startupTime = time.now();
     }
@@ -245,7 +246,7 @@ public class ReconnectController implements Runnable {
         // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
         platformCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
         savedStateController.reconnectStateReceived(signedState.reserve("savedStateController.reconnectStateReceived"));
-        platformCoordinator.loadReconnectState(platformContext.getConfiguration(), signedState);
+        platformCoordinator.loadReconnectState(configuration, signedState);
     }
 
     /**
