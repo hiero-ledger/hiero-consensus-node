@@ -26,7 +26,7 @@ public class TestScenario implements Closeable {
         {}, {"label1"}, {"label1", "label2"}, {"label1", "label2", "label3"},
     };
 
-    private final Random metricsUpdateRandom;
+    private final ThreadLocal<Random> metricsUpdateRandom;
     private final Random metricsGenerateRandom;
     private final MetricsFramework framework;
 
@@ -37,7 +37,7 @@ public class TestScenario implements Closeable {
     public TestScenario(MetricsFramework framework, long seed) {
         this.framework = framework;
         metricsGenerateRandom = new Random(seed);
-        metricsUpdateRandom = new Random(seed);
+        metricsUpdateRandom = ThreadLocal.withInitial(() -> new Random(seed));
     }
 
     private String getUnit(int idx) {
@@ -125,7 +125,7 @@ public class TestScenario implements Closeable {
     }
 
     public void updateRandomMetricMeasurement() {
-        metrics.get(metricsUpdateRandom.nextInt(metrics.size())).updateRandomMeasurement();
+        metrics.get(metricsUpdateRandom.get().nextInt(metrics.size())).updateRandomMeasurement();
     }
 
     public void updateAllMetricMeasurements() {
@@ -163,8 +163,12 @@ public class TestScenario implements Closeable {
             measurementLabelValuesCache = new AtomicReferenceArray<>(cardinality);
         }
 
-        private String[] getCachedOrCreatedLabelValuesRandom() {
-            int measurementIdx = metricsUpdateRandom.nextInt(measurementLabelValuesCache.length());
+        private String[] getCachedOrCreatedLabelValuesRandom(Random random) {
+            int measurementIdx = random.nextInt(measurementLabelValuesCache.length());
+            return getCachedOrCreatedLabelValues(measurementIdx);
+        }
+
+        private String[] getCachedOrCreatedLabelValues(int measurementIdx) {
             String[] labelValues = measurementLabelValuesCache.get(measurementIdx);
             if (labelValues == null) {
                 labelValues = framework.initLabelValues(adapter.labelNames());
@@ -177,29 +181,30 @@ public class TestScenario implements Closeable {
         }
 
         public void updateAllMeasurements() {
+            final Random random = metricsUpdateRandom.get();
             for (int i = 0; i < measurementLabelValuesCache.length(); i++) {
-                String[] labelValues = getCachedOrCreatedLabelValuesRandom();
+                String[] labelValues = getCachedOrCreatedLabelValues(i);
                 if (adapter instanceof MetricsFramework.CounterAdapter counter) {
                     counter.increment(labelValues);
                 } else if (adapter instanceof MetricsFramework.GaugeAdapter gauge) {
-                    gauge.set(metricsUpdateRandom.nextLong(100L), labelValues);
+                    gauge.set(random.nextLong(100L), labelValues);
                 }
             }
         }
 
-        // thread safe
         public void updateRandomMeasurement() {
+            final Random random = metricsUpdateRandom.get();
             if (adapter instanceof MetricsFramework.CounterAdapter counter) {
                 if (adapter.labelsCount() == 0) {
                     counter.increment();
                 } else {
-                    counter.increment(getCachedOrCreatedLabelValuesRandom());
+                    counter.increment(getCachedOrCreatedLabelValuesRandom(random));
                 }
             } else if (adapter instanceof MetricsFramework.GaugeAdapter gauge) {
                 if (adapter.labelsCount() == 0) {
-                    gauge.set(metricsUpdateRandom.nextLong());
+                    gauge.set(random.nextLong());
                 } else {
-                    gauge.set(metricsUpdateRandom.nextLong(), getCachedOrCreatedLabelValuesRandom());
+                    gauge.set(random.nextLong(), getCachedOrCreatedLabelValuesRandom(random));
                 }
             }
         }

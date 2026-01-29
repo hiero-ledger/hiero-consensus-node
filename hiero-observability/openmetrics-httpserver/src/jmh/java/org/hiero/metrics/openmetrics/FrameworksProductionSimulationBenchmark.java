@@ -3,6 +3,7 @@ package org.hiero.metrics.openmetrics;
 
 import java.io.IOException;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import org.hiero.metrics.openmetrics.framework.MetricsFramework;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -20,7 +21,7 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
 /**
- * JMH benchmark HIero metrics and HTTP server in production like environment.
+ * JMH benchmark Hiero metrics and HTTP server in production like environment.
  * Test scenario:
  * <ul>
  *   <li><b>Init phase</b> - Initialize the framework, generate metrics based on provided configuration.</li>
@@ -30,8 +31,6 @@ import org.openjdk.jmh.annotations.Warmup;
  */
 @State(Scope.Benchmark)
 public class FrameworksProductionSimulationBenchmark {
-
-    private static final Random RANDOM = new Random(12345L);
 
     /** Whether to request gzip compression from the endpoint. */
     @Param({"true"})
@@ -52,10 +51,6 @@ public class FrameworksProductionSimulationBenchmark {
     // --- State managed by setup/teardown ---
     private TestScenario testScenario;
 
-    /**
-     * Trial-level setup: create framework, start endpoint, register metrics.
-     * For eager mode, also pre-creates all measurements.
-     */
     @Setup(Level.Trial)
     public void setupTrial() {
         MetricsFramework framework = MetricsFramework.resolve("hiero");
@@ -99,8 +94,9 @@ public class FrameworksProductionSimulationBenchmark {
     @Threads(8)
     @Measurement(iterations = 200, time = 3, timeUnit = TimeUnit.SECONDS)
     public void callOpenMetricsEndpoint() throws InterruptedException {
-        int measurementsToUpdate = RANDOM.nextInt(10);
+        Random random = ThreadLocalRandom.current();
+        int measurementsToUpdate = random.nextInt(10);
         testScenario.updateRandomMetricMeasurements(measurementsToUpdate);
-        Thread.sleep(RANDOM.nextLong(50, 100)); // simulate work
+        Thread.sleep(random.nextLong(50, 100)); // simulate work
     }
 }

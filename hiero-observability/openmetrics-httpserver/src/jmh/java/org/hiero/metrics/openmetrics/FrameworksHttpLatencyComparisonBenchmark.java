@@ -60,10 +60,6 @@ public class FrameworksHttpLatencyComparisonBenchmark {
     // --- State managed by setup/teardown ---
     private TestScenario testScenario;
 
-    /**
-     * Trial-level setup: create framework, start endpoint, register metrics.
-     * For eager mode, also pre-creates all measurements.
-     */
     @Setup(Level.Trial)
     public void setupTrial() {
         MetricsFramework framework = MetricsFramework.resolve(frameworkName);

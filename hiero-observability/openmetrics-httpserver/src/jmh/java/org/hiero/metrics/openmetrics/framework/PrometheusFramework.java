@@ -81,7 +81,7 @@ final class PrometheusFramework extends MetricsFramework {
         }
 
         @Override
-        public void increment(String[] labelValues) {
+        public void increment(String... labelValues) {
             if (labelValues.length == 0) {
                 counter.inc();
             } else {
@@ -93,7 +93,7 @@ final class PrometheusFramework extends MetricsFramework {
     private static final class PrometheusGauge extends GaugeAdapter {
         private final Gauge gauge;
 
-        private PrometheusGauge(Gauge gauge, String[] labelNames) {
+        private PrometheusGauge(Gauge gauge, String... labelNames) {
             super(labelNames);
             this.gauge = gauge;
         }

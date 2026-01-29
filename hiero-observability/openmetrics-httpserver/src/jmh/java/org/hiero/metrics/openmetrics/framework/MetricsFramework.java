@@ -90,7 +90,7 @@ public abstract class MetricsFramework implements Closeable {
 
         protected final String[] labelNames;
 
-        protected MetricAdapter(String[] labelNames) {
+        protected MetricAdapter(String... labelNames) {
             this.labelNames = labelNames;
         }
 
@@ -105,7 +105,7 @@ public abstract class MetricsFramework implements Closeable {
 
     public abstract static class CounterAdapter extends MetricAdapter {
 
-        protected CounterAdapter(String[] labelNames) {
+        protected CounterAdapter(String... labelNames) {
             super(labelNames);
         }
 
@@ -118,7 +118,7 @@ public abstract class MetricsFramework implements Closeable {
 
     public abstract static class GaugeAdapter extends MetricAdapter {
 
-        protected GaugeAdapter(String[] labelNames) {
+        protected GaugeAdapter(String... labelNames) {
             super(labelNames);
         }
 

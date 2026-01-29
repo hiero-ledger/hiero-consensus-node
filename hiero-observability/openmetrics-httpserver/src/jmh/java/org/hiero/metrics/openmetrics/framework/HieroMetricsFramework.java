@@ -75,7 +75,7 @@ final class HieroMetricsFramework extends MetricsFramework {
     private static final class HieroCounter extends CounterAdapter {
         private final LongCounter counter;
 
-        private HieroCounter(LongCounter counter, String[] labelNames) {
+        private HieroCounter(LongCounter counter, String... labelNames) {
             super(labelNames);
             this.counter = counter;
         }
@@ -93,7 +93,7 @@ final class HieroMetricsFramework extends MetricsFramework {
     private static final class HieroGauge extends GaugeAdapter {
         private final LongGauge gauge;
 
-        private HieroGauge(LongGauge gauge, String[] labelNames) {
+        private HieroGauge(LongGauge gauge, String... labelNames) {
             super(labelNames);
             this.gauge = gauge;
         }
