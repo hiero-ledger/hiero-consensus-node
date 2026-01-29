@@ -106,6 +106,7 @@ import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509C
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
+import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -135,7 +136,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -2958,9 +2958,10 @@ public class KitchenSinkFeeComparisonSuite {
                         com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK,
                         com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE);
             }
-            op.exposingNodePaymentTo(captureQueryFee(queryName, emphasis, feeMap))
-                    .via(queryName);
+            op.via(queryName);
             ops.add(op);
+            // Capture total query cost: node payment amount + payment CryptoTransfer txn fee.
+            ops.add(captureQueryTotalCost(queryName, emphasis, feeMap));
         }
         if (usesPayer) {
             ops.add(resetPayerKey());
@@ -2997,13 +2998,33 @@ public class KitchenSinkFeeComparisonSuite {
         });
     }
 
-    private static LongConsumer captureQueryFee(
-            final String queryName, final String emphasis, final Map<String, Long> feeMap) {
-        return fee -> {
-            final String key = emphasis.isEmpty() ? queryName : queryName + "|" + emphasis;
-            feeMap.put(key, fee);
-            LOG.info("Captured query fee for {} [{}]: {} tinybars", queryName, emphasis, fee);
-        };
+    private static SpecOperation captureQueryTotalCost(String queryName, String emphasis, Map<String, Long> feeMap) {
+        return withOpContext((spec, opLog) -> {
+            String key = emphasis.isEmpty() ? queryName : queryName + "|" + emphasis;
+            if (spec.registry().getMaybeTxnId(queryName).isEmpty()) {
+                feeMap.put(key, 0L);
+                LOG.info("No txn id for query {}; assuming zero total cost", queryName);
+                return;
+            }
+            var recordOp = getTxnRecord(queryName);
+            allRunFor(spec, recordOp);
+            var record = recordOp.getResponseRecord();
+            long paymentTxnFee = record.getTransactionFee();
+            long nodePayment = record.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAmount() < 0)
+                    .mapToLong(AccountAmount::getAmount)
+                    .sum();
+            nodePayment = -nodePayment;
+            long totalCost = nodePayment + paymentTxnFee;
+            feeMap.put(key, totalCost);
+            LOG.info(
+                    "Captured query total for {} [{}]: nodePayment={} txnFee={} total={} tinybars",
+                    queryName,
+                    emphasis,
+                    nodePayment,
+                    paymentTxnFee,
+                    totalCost);
+        });
     }
 
     private static String runtimeEmphasisFor(final HapiSpec spec, final String txnName) {

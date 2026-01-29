@@ -2,6 +2,7 @@
 import argparse
 import csv
 import json
+from decimal import Decimal
 import re
 from pathlib import Path
 
@@ -125,6 +126,23 @@ def load_schedule(path: Path):
             }
 
     return node_base, node_extras, network_multiplier, extra_fees, service_defs
+
+
+def load_canonical_prices(path: Path):
+    try:
+        with path.open() as f:
+            raw = json.load(f)
+    except FileNotFoundError:
+        return None
+    canonical = {}
+    for func, prices in raw.items():
+        canonical[func] = {subtype: Decimal(str(price)) for subtype, price in prices.items()}
+    return canonical
+
+
+def usd_to_tinycents(amount_usd: Decimal) -> int:
+    # 1 USD = 100 cents; 1 cent = 1e8 tinycents => 1 USD = 1e10 tinycents.
+    return int((amount_usd * Decimal("10000000000")).to_integral_value())
 
 
 def parse_extras(extras_str: str):
@@ -276,16 +294,27 @@ def main():
     parser.add_argument("--schedule", default="hedera-node/hedera-file-service-impl/src/main/resources/genesis/simpleFeesSchedules.json")
     parser.add_argument("--hbar-equiv", type=int, default=1)
     parser.add_argument("--cent-equiv", type=int, default=12)
+    parser.add_argument(
+        "--canonical-prices",
+        default="hedera-node/hapi-fees/src/main/resources/canonical-prices.json",
+        help="Path to canonical-prices.json (used to detect zero-fee queries).",
+    )
     parser.add_argument("--use-bytes-for-node", action="store_true", help="Use BYTES=... from emphasis to compute node BYTES extras (approximate).")
     parser.add_argument("--only-mismatches", action="store_true")
     parser.add_argument("--show-skipped", action="store_true")
     parser.add_argument("--tolerance", type=int, default=1, help="Allowed tinybar delta.")
+    parser.add_argument(
+        "--include-query-payment-fee",
+        action="store_true",
+        help="For queries, add the CryptoTransfer payment txn fee on top of the query fee (service+node+network).",
+    )
     parser.add_argument("--write-csv", action="store_true", help="Write a validated CSV with pass/fail columns.")
     parser.add_argument("--out", help="Output CSV path (defaults to <input>.validated.csv if --write-csv).")
 
     args = parser.parse_args()
 
     node_base, node_extras, network_multiplier, extra_fees, service_defs = load_schedule(Path(args.schedule))
+    canonical_prices = load_canonical_prices(Path(args.canonical_prices))
     schedule_names = sorted(service_defs.keys(), key=len, reverse=True)
 
     assoc_fee_tinycents = None
@@ -421,7 +450,24 @@ def main():
                 network_fee = 0
                 network_parts = []
                 if is_query:
-                    total_tinycents = service_fee
+                    canonical_free_query = False
+                    if canonical_prices is not None:
+                        canonical_default = canonical_prices.get(schedule_name, {}).get("DEFAULT")
+                        if canonical_default is not None:
+                            canonical_free_query = usd_to_tinycents(canonical_default) == 0
+                    if canonical_free_query:
+                        node_fee = 0
+                        node_parts = []
+                        network_fee = 0
+                        network_parts = []
+                        total_tinycents = 0
+                    else:
+                        node_fee, node_parts = calc_node_fee(
+                            node_base, node_extras, extra_fees, counts, args.use_bytes_for_node
+                        )
+                        network_fee = node_fee * network_multiplier
+                        network_parts = [f"node {node_fee} * mult {network_multiplier}"] if node_fee else []
+                        total_tinycents = service_fee + node_fee + network_fee
                 else:
                     node_fee, node_parts = calc_node_fee(
                         node_base, node_extras, extra_fees, counts, args.use_bytes_for_node
@@ -438,7 +484,22 @@ def main():
                         )
                     total_tinycents = service_fee + node_fee + network_fee
 
-            expected = tinycents_to_tinybars(total_tinycents, args.hbar_equiv, args.cent_equiv)
+            expected_query_fee = tinycents_to_tinybars(total_tinycents, args.hbar_equiv, args.cent_equiv)
+            expected = expected_query_fee
+            if is_query and args.include_query_payment_fee:
+                if simple_fee == 0:
+                    expected = 0
+                else:
+                    payment_service_fee, _ = calc_service_fee(
+                        service_defs["CryptoTransfer"], extra_fees, counts, "QueryPayment"
+                    )
+                    payment_node_fee, _ = calc_node_fee(
+                        node_base, node_extras, extra_fees, counts, args.use_bytes_for_node
+                    )
+                    payment_network_fee = payment_node_fee * network_multiplier
+                    payment_total = payment_service_fee + payment_node_fee + payment_network_fee
+                    payment_fee = tinycents_to_tinybars(payment_total, args.hbar_equiv, args.cent_equiv)
+                    expected = expected_query_fee + payment_fee
             delta = simple_fee - expected
 
             checked += 1
@@ -456,7 +517,10 @@ def main():
             row["Node Fee (tinycents)"] = format_fee_with_parts(node_fee, node_parts)
             row["Network Fee (tinycents)"] = format_fee_with_parts(network_fee, network_parts)
             row["Simple Fee OK (delta tinybars)"] = f"{status} [delta={delta}]"
-            row.setdefault("Validation Note", "")
+            if is_query and args.include_query_payment_fee and simple_fee != 0:
+                row["Validation Note"] = "INCLUDES_QUERY_PAYMENT_FEE"
+            else:
+                row.setdefault("Validation Note", "")
             out_rows.append(row)
 
     print("\nSUMMARY")
