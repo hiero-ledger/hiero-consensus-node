@@ -53,6 +53,7 @@ import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenAssociateFeeCalculator;
@@ -75,7 +76,6 @@ import com.hedera.node.app.service.token.impl.calculator.TokenUpdateFeeCalculato
 import com.hedera.node.app.service.token.impl.calculator.TokenUpdateNftsFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenWipeFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.EntitiesConfig;
