@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createDefaultPlatformContext;
 
@@ -10,11 +10,9 @@ import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.pces.impl.common.PcesFileReader;
-import org.hiero.consensus.pces.impl.common.PcesFileTracker;
-import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
-import org.hiero.consensus.pces.impl.common.PcesUtilities;
+import org.hiero.consensus.pces.impl.test.fixtures.PcesFileIteratorFactory;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -38,19 +36,12 @@ public class CoinRoundTest {
         final PlatformContext context = createDefaultPlatformContext();
 
         final Path dir = ResourceLoader.getFile(resources + "events");
-        // this will compact files in advance. the PcesFileReader will do the same thing and the these files will be
-        // in the gradle cache and break the test. this seems to bypass that issue.
-        PcesUtilities.compactPreconsensusEventFiles(dir);
-
-        final PcesFileTracker pcesFileTracker =
-                PcesFileReader.readFilesFromDisk(context.getConfiguration(), context.getRecycleBin(), dir, 0, false);
-
         final TestIntake intake = new TestIntake(context, Roster.newBuilder().build());
-
-        final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);
-        while (eventIterator.hasNext()) {
-            final PlatformEvent event = eventIterator.next();
-            intake.addEvent(event);
+        try (final IOIterator<PlatformEvent> eventIterator = PcesFileIteratorFactory.createIterator(dir)) {
+            while (eventIterator.hasNext()) {
+                final PlatformEvent event = eventIterator.next();
+                intake.addEvent(event);
+            }
         }
     }
 }

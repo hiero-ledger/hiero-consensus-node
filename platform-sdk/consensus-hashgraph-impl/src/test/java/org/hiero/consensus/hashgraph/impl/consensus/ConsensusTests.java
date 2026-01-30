@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createPlatformContext;
 
@@ -31,7 +31,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#orderInvarianceTests")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#orderInvarianceTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Order Invariance Tests")
@@ -44,7 +44,7 @@ class ConsensusTests {
                 .run();
     }
 
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#reconnectSimulation")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#reconnectSimulation")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Reconnect Simulation")
@@ -58,7 +58,7 @@ class ConsensusTests {
                 .run();
     }
 
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#staleEvent")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#staleEvent")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Stale Events Tests")
@@ -73,7 +73,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#branchingTests")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#branchingTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Branching Tests")
@@ -87,7 +87,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#partitionTests")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#partitionTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Partition Tests")
@@ -101,7 +101,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#subQuorumPartitionTests")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#subQuorumPartitionTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Sub Quorum Partition Tests")
@@ -115,7 +115,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#cliqueTests")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#cliqueTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Clique Tests")
@@ -129,7 +129,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#variableRateTests")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#variableRateTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Variable Rate Tests")
@@ -143,7 +143,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#nodeUsesStaleOtherParents")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#nodeUsesStaleOtherParents")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Node Uses Stale Other Parents")
@@ -157,7 +157,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#nodeProvidesStaleOtherParents")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#nodeProvidesStaleOtherParents")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Node Provides Stale Other Parents")
@@ -171,7 +171,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#quorumOfNodesGoDownTests")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#quorumOfNodesGoDownTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Quorum Of Nodes Go Down Tests")
@@ -185,7 +185,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#subQuorumOfNodesGoDownTests")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#subQuorumOfNodesGoDownTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Sub Quorum Of Nodes Go Down Tests")
@@ -199,7 +199,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#orderInvarianceTests")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#orderInvarianceTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Repeated Timestamp Test")
@@ -213,7 +213,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#ancientEventTests")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#ancientEventTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Consensus Receives Ancient Event")
@@ -227,7 +227,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#restartWithEventsParams")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#restartWithEventsParams")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Node restart with events")
@@ -241,7 +241,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#nodeRemoveTestParams")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#nodeRemoveTestParams")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Remove a node from the address book at restart")
@@ -255,7 +255,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#orderInvarianceTests")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#orderInvarianceTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Genesis Snapshot Tests")
@@ -269,7 +269,7 @@ class ConsensusTests {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#threeNetworkTypes")
+    @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#threeNetworkTypes")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Consensus Freeze Tests")

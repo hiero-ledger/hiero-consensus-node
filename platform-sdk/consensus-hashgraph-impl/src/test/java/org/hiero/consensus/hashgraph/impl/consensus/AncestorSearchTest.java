@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -20,9 +20,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
-import org.hiero.consensus.hashgraph.impl.consensus.AncestorIterator;
-import org.hiero.consensus.hashgraph.impl.consensus.AncestorSearch;
-import org.hiero.consensus.hashgraph.impl.consensus.EventVisitedMark;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

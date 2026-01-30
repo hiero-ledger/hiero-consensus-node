@@ -130,7 +130,7 @@ jobs:
   hapi-tests-misc:
     name: "HAPI Tests (Misc)"
     if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -195,7 +195,7 @@ jobs:
   hapi-tests-misc-records:
     name: "HAPI Tests (Misc Records)"
     if: ${{ inputs.enable-hapi-tests-misc-records == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -259,7 +259,7 @@ jobs:
   hapi-tests-crypto:
     name: "HAPI Tests (Crypto)"
     if: ${{ inputs.enable-hapi-tests-crypto == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -323,7 +323,7 @@ jobs:
   hapi-tests-simple-fees:
     name: "HAPI Tests (Simple Fees)"
     if: ${{ inputs.enable-hapi-tests-simplefees == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -387,7 +387,7 @@ jobs:
   hapi-tests-token:
     name: "HAPI Tests (Token)"
     if: ${{ inputs.enable-hapi-tests-token == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -451,7 +451,7 @@ jobs:
   hapi-tests-smart-contracts:
     name: "HAPI Tests (Smart Contracts)"
     if: ${{ inputs.enable-hapi-tests-smart-contract == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -515,7 +515,7 @@ jobs:
   hapi-tests-time-consuming:
     name: "HAPI Tests (Time Consuming)"
     if: ${{ inputs.enable-hapi-tests-time-consuming == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -579,7 +579,7 @@ jobs:
   hapi-tests-restart:
     name: "HAPI Tests (Restart)"
     if: ${{ inputs.enable-hapi-tests-restart == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -643,7 +643,7 @@ jobs:
   hapi-tests-nd-reconnect:
     name: "HAPI Tests (ND Reconnect)"
     if: ${{ inputs.enable-hapi-tests-nd-reconnect == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -707,7 +707,7 @@ jobs:
   hapi-tests-iss:
     name: "HAPI Tests (ISS)"
     if: ${{ inputs.enable-hapi-tests-iss == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -771,7 +771,7 @@ jobs:
   hapi-tests-bn-comms:
     name: "HAPI Tests (BN Comms)"
     if: ${{ inputs.enable-hapi-tests-bn-communication == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -833,7 +833,7 @@ jobs:
   hapi-tests-atomic-batch:
     name: "HAPI Tests (Atomic Batch)"
     if: ${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -896,7 +896,7 @@ jobs:
 
   set-failure-mode:
     name: "Set Failure Mode"
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - hapi-tests-misc
       - hapi-tests-misc-records
@@ -939,7 +939,7 @@ jobs:
           failure_mode="none"
 
           has_failure() {
-            local arr=("@")
+            local arr=("$@")
             for status in "${arr[@]}"; do
               [[ "${status}" == "failure" ]] && return 0
             done
