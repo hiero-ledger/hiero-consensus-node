@@ -115,7 +115,7 @@ public class PlatformTestUtils {
         final var signer = new PlatformSigner(keysAndCerts);
         for (int i = 0; i < numEvents; i++) {
             // Generate event with hash but fake signature
-            final PlatformEvent unsignedEvent = generator.generateBaseEvent();
+            final PlatformEvent unsignedEvent = generator.generateEvent();
 
             // Sign the ACTUAL hash
             final Signature signature =

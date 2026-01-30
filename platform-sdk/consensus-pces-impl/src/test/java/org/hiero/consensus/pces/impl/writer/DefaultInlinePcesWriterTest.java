@@ -60,7 +60,7 @@ class DefaultInlinePcesWriterTest {
 
         final List<PlatformEvent> events = new LinkedList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateEventWithoutIndex().getBaseEvent());
+            events.add(generator.generateEventWithoutIndex());
         }
 
         final PcesFileTracker pcesFiles = new PcesFileTracker();
@@ -101,11 +101,11 @@ class DefaultInlinePcesWriterTest {
                 new DefaultInlinePcesWriter(configuration, metrics, time, fileManager, selfId);
 
         // We will add this event at the very end, it should be ancient by then
-        final PlatformEvent ancientEvent = generator.generateEventWithoutIndex().getBaseEvent();
+        final PlatformEvent ancientEvent = generator.generateEventWithoutIndex();
 
         final List<PlatformEvent> events = new LinkedList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateEventWithoutIndex().getBaseEvent());
+            events.add(generator.generateEventWithoutIndex());
         }
 
         writer.beginStreamingNewEvents();

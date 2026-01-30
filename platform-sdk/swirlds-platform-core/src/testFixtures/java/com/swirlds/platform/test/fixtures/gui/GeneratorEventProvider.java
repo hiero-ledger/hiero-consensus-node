@@ -6,7 +6,6 @@ import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -28,9 +27,7 @@ public class GeneratorEventProvider implements GuiEventProvider {
 
     @Override
     public @NonNull List<PlatformEvent> provideEvents(final int numberOfEvents) {
-        return graphGenerator.generateEvents(numberOfEvents).stream()
-                .map(EventImpl::getBaseEvent)
-                .toList();
+        return graphGenerator.generateEvents(numberOfEvents);
     }
 
     @Override

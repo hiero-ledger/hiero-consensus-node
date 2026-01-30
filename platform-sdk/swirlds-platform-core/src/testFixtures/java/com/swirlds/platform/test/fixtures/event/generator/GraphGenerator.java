@@ -8,7 +8,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -20,7 +20,7 @@ public interface GraphGenerator {
     /**
      * Get the next event.
      */
-    EventImpl generateEvent();
+    PlatformEvent generateEvent();
 
     /**
      * Get the number of sources (i.e. nodes) contained by this generator.
@@ -86,8 +86,8 @@ public interface GraphGenerator {
      * @param numberOfEvents
      * 		The number of events to get.
      */
-    default List<EventImpl> generateEvents(final int numberOfEvents) {
-        final List<EventImpl> events = new ArrayList<>(numberOfEvents);
+    default List<PlatformEvent> generateEvents(final int numberOfEvents) {
+        final List<PlatformEvent> events = new ArrayList<>(numberOfEvents);
         for (int i = 0; i < numberOfEvents; i++) {
             events.add(generateEvent());
         }

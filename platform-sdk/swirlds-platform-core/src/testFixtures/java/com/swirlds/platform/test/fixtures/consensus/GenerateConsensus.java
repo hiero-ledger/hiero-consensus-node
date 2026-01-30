@@ -40,7 +40,7 @@ public final class GenerateConsensus {
 
         // generate events and feed them to consensus
         for (int i = 0; i < numEvents; i++) {
-            intake.addEvent(generator.generateEvent().getBaseEvent());
+            intake.addEvent(generator.generateEvent());
         }
 
         // return the rounds

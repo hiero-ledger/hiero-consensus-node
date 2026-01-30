@@ -3,7 +3,7 @@ package com.swirlds.platform.test.fixtures.event.emitter;
 
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import java.util.Random;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -45,7 +45,7 @@ public class ShuffledEventEmitter extends BufferingEventEmitter {
      * {@inheritDoc}
      */
     @Override
-    public EventImpl emitEvent() {
+    public PlatformEvent emitEvent() {
         // Randomly pick a creator node with even distribution. The logic determining if the event should be emitted
         // will match the creator weights of the graph generator unless one of those weights is zero.
 

@@ -363,7 +363,7 @@ class ConsensusLinkerTests {
 
         for (int i = 0; i < 10_000; i++) {
 
-            final PlatformEvent event = generator.generateEvent().getBaseEvent();
+            final PlatformEvent event = generator.generateEvent();
 
             // Verify correct behavior when added to the linker.
 
