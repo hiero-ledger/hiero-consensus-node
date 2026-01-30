@@ -79,7 +79,7 @@ env:
 jobs:
   longevity-tests-start:
     name: Start
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdlt-lin-lg
     outputs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
@@ -495,7 +495,7 @@ jobs:
 
   longevity-tests-wait:
     name: Wait for Longevity test
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
@@ -643,7 +643,7 @@ jobs:
 
   longevity-tests-finish-restart:
     name: Read results of Longevity test
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
@@ -1010,7 +1010,7 @@ jobs:
 
   longevity-tests-wait-final:
     name: Wait for Longevity test
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-finish-restart
@@ -1158,7 +1158,7 @@ jobs:
 
   longevity-tests-finish-final:
     name: Read results of Longevity test
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-wait-final
@@ -1368,7 +1368,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-longevity-test-result-final:
     name: Calculate Result
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-finish-final
@@ -1412,7 +1412,7 @@ jobs:
 
   longevity-report-failures-final:
     name: Report Failures
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - single-day-longevity-test-result-final
     if: ${{ (needs.longevity-tests-finish.result != 'success' ||
@@ -1451,7 +1451,7 @@ jobs:
           echo "${{ steps.summary.outputs.summary }}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
   longevity-report-to-Slack:
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - longevity-tests-finish-final
       - single-day-longevity-test-result-final
