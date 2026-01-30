@@ -77,7 +77,7 @@ permissions:
 jobs:
   verify-tag:
     name: Verify Tag
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     continue-on-error: true
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
@@ -137,7 +137,7 @@ jobs:
 
   tag-sdlt-result:
     name: Tag SDLT Result
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - run-single-day-longevity-test
       - verify-tag
@@ -196,7 +196,7 @@ jobs:
 
   get-commit-info:
     name: Get Commit Information
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     if: ${{ inputs.disable-notifications != true }}
     needs:
       - verify-tag
@@ -246,7 +246,7 @@ jobs:
 
   report-success:
     name: Report SDLT execution success
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - verify-tag
       - tag-sdlt-result
@@ -370,7 +370,7 @@ jobs:
 
   report-failure:
     name: Report SDLT execution failure
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - verify-tag
       - run-single-day-longevity-test
