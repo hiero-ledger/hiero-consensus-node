@@ -21,8 +21,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Consumer;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 
@@ -32,9 +30,6 @@ import org.hiero.consensus.model.hashgraph.Round;
  * access to particular properties of the platform state.
  */
 public final class PlatformStateUtils {
-
-    private static final Logger log = LogManager.getLogger(PlatformStateUtils.class);
-
     /**
      * @param state the state to extract value from
      * @param round the round to check
