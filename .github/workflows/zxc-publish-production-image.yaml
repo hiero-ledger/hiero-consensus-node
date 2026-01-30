@@ -71,7 +71,7 @@ permissions:
 jobs:
   publish-image:
     name: ${{ inputs.custom-job-name || 'Publish Production Image (GCP)' }}
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-lg
     if: ${{ !github.event.workflow_call.repository.fork }}
     outputs:
       docker-registry: ${{ steps.set-registry.outputs.docker-registry }}

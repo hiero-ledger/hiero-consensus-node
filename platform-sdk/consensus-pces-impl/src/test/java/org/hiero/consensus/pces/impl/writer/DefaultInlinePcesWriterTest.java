@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.preconsensus;
+package org.hiero.consensus.pces.impl.writer;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
@@ -8,7 +8,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.test.fixtures.event.PcesWriterTestUtils;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
