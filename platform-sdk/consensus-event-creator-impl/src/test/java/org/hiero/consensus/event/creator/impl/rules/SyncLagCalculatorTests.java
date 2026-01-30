@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.rules;
 
-import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED_1000_PER_NODE;
-import static com.swirlds.common.test.fixtures.WeightGenerators.GAUSSIAN;
-import static com.swirlds.common.test.fixtures.WeightGenerators.SINGLE_NODE_HAS_ALL;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.BALANCED_1000_PER_NODE;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.GAUSSIAN;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.SINGLE_NODE_HAS_ALL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;

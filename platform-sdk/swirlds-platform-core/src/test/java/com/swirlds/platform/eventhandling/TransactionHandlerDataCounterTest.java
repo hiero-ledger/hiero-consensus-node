@@ -4,7 +4,6 @@ package com.swirlds.platform.eventhandling;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -20,6 +19,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
