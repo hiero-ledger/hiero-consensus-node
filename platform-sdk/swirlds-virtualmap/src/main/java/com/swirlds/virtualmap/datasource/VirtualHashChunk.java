@@ -433,7 +433,7 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
      * even doesn't belong to the current chunk, it belongs to the parent chunk.
      */
     public Hash chunkRootHash(final long firstLeafPath, final long lastLeafPath) {
-        return calcHash(height, this.path, firstLeafPath, lastLeafPath);
+        return calcHash(height, path, firstLeafPath, lastLeafPath);
     }
 
     /**

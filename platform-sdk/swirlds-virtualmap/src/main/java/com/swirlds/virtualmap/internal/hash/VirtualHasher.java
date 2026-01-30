@@ -589,16 +589,15 @@ public final class VirtualHasher {
             HashProducingTask curTask = leafTask;
             while (true) {
                 final int curRank = Path.getRank(curPath);
-                assert curRank > 0; // there is parent task
+                assert curRank > 0; // there is a parent task
 
                 final long lastPathAtRank = stack[curRank];
                 // Stack path may be null, if this is the very first dirty leaf, or
                 // the first dirty leaf at the last leaf rank
                 if (lastPathAtRank != INVALID_PATH) {
                     // Identify the parent task for the last path at stack
-                    final int lastTaskAtRankParentChunkHeight =
-                            getChunkHeightForInputRank(lastPathAtRank, curRank, firstLeafRank, lastLeafRank,
-                                    defaultChunkHeight);
+                    final int lastTaskAtRankParentChunkHeight = getChunkHeightForInputRank(
+                            lastPathAtRank, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
                     final long lastTaskAtRankParentPath = Path.getGrandParentPath(lastPathAtRank,
                             lastTaskAtRankParentChunkHeight);
                     final ChunkHashTask lastTaskAtRankParentTask = chunkTasks.get(lastTaskAtRankParentPath);
