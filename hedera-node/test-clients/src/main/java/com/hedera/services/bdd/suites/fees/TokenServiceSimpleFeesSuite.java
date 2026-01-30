@@ -43,6 +43,14 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.nodeFeeFromBytesUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_FREEZE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_PAUSE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNFREEZE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNPAUSE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -82,6 +90,11 @@ public class TokenServiceSimpleFeesSuite {
     private static final int NODE_INCLUDED_BYTES = 1024;
     private static final int NETWORK_MULTIPLIER = 9;
 
+    private static double feeWithExtraSignatures(final double serviceBaseUsd, final long extraSignatures) {
+        final double nodeFeeUsd = NODE_BASE_FEE_USD + (extraSignatures * SIGNATURE_FEE_USD);
+        return serviceBaseUsd + nodeFeeUsd * (NETWORK_MULTIPLIER + 1);
+    }
+
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare create fungible token")
     final Stream<DynamicTest> compareCreateFungibleToken() {
@@ -107,7 +120,7 @@ public class TokenServiceSimpleFeesSuite {
                 // total = 10000000000 = 1.0
                 1.0000,
                 1,
-                1,
+                0.912085398,
                 1);
     }
 
@@ -139,7 +152,7 @@ public class TokenServiceSimpleFeesSuite {
                 // total = 20000000000 = 2.0
                 1,
                 1,
-                1,
+                0.9122951064,
                 1);
     }
 
@@ -169,7 +182,7 @@ public class TokenServiceSimpleFeesSuite {
                 "create-token-txn",
                 2,
                 1,
-                2,
+                1.8234970992,
                 1);
     }
 
@@ -190,7 +203,8 @@ public class TokenServiceSimpleFeesSuite {
         final var tokenOld = FUNGIBLE_TOKEN + "_old";
         final var updateOldTxn = "update-token-txn-old";
 
-        final var baseFee = 0.001 + 0.002;
+        final var baseFee = feeWithExtraSignatures(TOKEN_UPDATE_BASE_FEE_USD, 2);
+        final var oldExpectedFee = 0.0022946124;
 
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
@@ -235,9 +249,7 @@ public class TokenServiceSimpleFeesSuite {
                         .hasKnownStatus(SUCCESS)
                         .via(updateOldTxn),
                 withOpContext((spec, log) -> {
-                    final var signedTxnSize = signedTxnSizeFor(spec, updateOldTxn);
-                    final var expectedFee = baseFee + nodeFeeFromBytesUsd(signedTxnSize);
-                    allRunFor(spec, validateChargedSimpleFees("Old Fees", updateOldTxn, expectedFee, 1));
+                    allRunFor(spec, validateChargedSimpleFees("Old Fees", updateOldTxn, oldExpectedFee, 1));
                 }));
     }
 
@@ -340,7 +352,7 @@ public class TokenServiceSimpleFeesSuite {
                 // total = 209000000 = .0209
                 0.0209,
                 1,
-                0.0209,
+                0.02,
                 1);
     }
 
@@ -382,13 +394,15 @@ public class TokenServiceSimpleFeesSuite {
                 // total = 607000000 = .00607
                 0.0607,
                 1,
-                0.06069,
+                0.06,
                 1);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare pause a common token")
     final Stream<DynamicTest> comparePauseToken() {
+        final var expectedSimpleFee = feeWithExtraSignatures(TOKEN_PAUSE_BASE_FEE_USD, 1);
+        final var expectedOldFee = 0.0016414884;
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
@@ -411,15 +425,17 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("pause-token-txn")),
                 "pause-token-txn",
-                0.002,
+                expectedSimpleFee,
                 1,
-                0.002,
+                expectedOldFee,
                 1);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare unpause a common token")
     final Stream<DynamicTest> compareUnpauseToken() {
+        final var expectedSimpleFee = feeWithExtraSignatures(TOKEN_UNPAUSE_BASE_FEE_USD, 1);
+        final var expectedOldFee = 0.0016420032;
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
@@ -443,15 +459,17 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("unpause-token-txn")),
                 "unpause-token-txn",
-                0.002,
+                expectedSimpleFee,
                 1,
-                0.002,
+                expectedOldFee,
                 1);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare freeze a common token")
     final Stream<DynamicTest> compareFreezeToken() {
+        final var expectedSimpleFee = feeWithExtraSignatures(TOKEN_FREEZE_BASE_FEE_USD, 1);
+        final var expectedOldFee = 0.0016378128;
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
@@ -476,15 +494,17 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("freeze-token-txn")),
                 "freeze-token-txn",
-                0.002,
+                expectedSimpleFee,
                 1,
-                0.002,
+                expectedOldFee,
                 1);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare unfreeze a common token")
     final Stream<DynamicTest> compareUnfreezeToken() {
+        final var expectedSimpleFee = feeWithExtraSignatures(TOKEN_UNFREEZE_BASE_FEE_USD, 1);
+        final var expectedOldFee = 0.001638324;
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
@@ -510,9 +530,9 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("unfreeze-token-txn")),
                 "unfreeze-token-txn",
-                0.002,
+                expectedSimpleFee,
                 1,
-                0.002,
+                expectedOldFee,
                 1);
     }
 
@@ -549,6 +569,8 @@ public class TokenServiceSimpleFeesSuite {
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare delete a common token")
     final Stream<DynamicTest> compareDeleteToken() {
+        final var expectedSimpleFee = feeWithExtraSignatures(TOKEN_DELETE_BASE_FEE_USD, 1);
+        final var expectedOldFee = 0.0016285608;
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
@@ -573,9 +595,9 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .via("delete-token-txn")),
                 "delete-token-txn",
-                0.002,
+                expectedSimpleFee,
                 1,
-                0.002,
+                expectedOldFee,
                 1);
     }
 
@@ -629,7 +651,7 @@ public class TokenServiceSimpleFeesSuite {
                 "token-dissociate-txn",
                 0.05,
                 1,
-                0.05,
+                0.0507303192,
                 1);
     }
 
@@ -661,7 +683,7 @@ public class TokenServiceSimpleFeesSuite {
                 "token-grant-kyc-txn",
                 0.001,
                 1,
-                0.001,
+                0.0010128108,
                 1);
     }
 
@@ -696,7 +718,7 @@ public class TokenServiceSimpleFeesSuite {
                 "token-revoke-kyc-txn",
                 0.001,
                 1,
-                0.001,
+                0.0010130676,
                 1);
     }
 
@@ -810,7 +832,7 @@ public class TokenServiceSimpleFeesSuite {
                 "token-fee-schedule-update-txn",
                 0.001,
                 1,
-                0.001,
+                0.0010141548,
                 1);
     }
 
@@ -874,7 +896,7 @@ public class TokenServiceSimpleFeesSuite {
                 "get-token-info-query",
                 0.0001,
                 1,
-                0.0001,
+                0.0001011936,
                 1);
     }
 
@@ -905,7 +927,7 @@ public class TokenServiceSimpleFeesSuite {
                 "get-token-nft-info-query",
                 0.0001,
                 1,
-                0.0001,
+                0.0001012704,
                 1);
     }
 

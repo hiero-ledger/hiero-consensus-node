@@ -18,6 +18,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.HapiSuite.*;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
@@ -46,6 +50,11 @@ import org.junit.jupiter.api.Tag;
 public class CryptoSimpleFeesSuite {
     private static final String PAYER = "payer";
     private static final String HOOK_CONTRACT = "TruePreHook";
+
+    private static double cryptoUpdateWithExtraSignatureFeeUsd() {
+        final double nodeFeeUsd = NODE_BASE_FEE_USD + SIGNATURE_FEE_USD;
+        return CRYPTO_UPDATE_BASE_FEE_USD + nodeFeeUsd * (NETWORK_MULTIPLIER + 1);
+    }
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -128,6 +137,7 @@ public class CryptoSimpleFeesSuite {
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto update with key change")
     final Stream<DynamicTest> cryptoUpdateWithKey() {
+        final var expectedFee = cryptoUpdateWithExtraSignatureFeeUsd();
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed("newAccountKey"),
@@ -139,9 +149,9 @@ public class CryptoSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("updateAccountKeyTxn")),
                 "updateAccountKeyTxn",
-                0.00122,
+                expectedFee,
                 1.0,
-                0.00122,
+                expectedFee,
                 1.0);
     }
 
@@ -167,6 +177,7 @@ public class CryptoSimpleFeesSuite {
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto update combined (key + memo)")
     final Stream<DynamicTest> cryptoUpdateCombined() {
+        final var expectedFee = cryptoUpdateWithExtraSignatureFeeUsd();
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed("combinedKey"),
@@ -179,9 +190,9 @@ public class CryptoSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("updateAccountCombinedTxn")),
                 "updateAccountCombinedTxn",
-                0.00122,
+                expectedFee,
                 1.0,
-                0.00122,
+                expectedFee,
                 1.0);
     }
 

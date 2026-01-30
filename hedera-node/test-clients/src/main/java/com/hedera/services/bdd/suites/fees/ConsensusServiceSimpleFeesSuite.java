@@ -19,6 +19,12 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.KEYS_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BASE_USD;
 
@@ -37,6 +43,11 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class ConsensusServiceSimpleFeesSuite {
     private static final double EXPECTED_CRYPTO_TRANSFER_FEE = 0.0001;
+
+    private static double feeWithExtraSignatures(final double serviceBaseUsd, final long extraSignatures) {
+        final double nodeFeeUsd = NODE_BASE_FEE_USD + (extraSignatures * SIGNATURE_FEE_USD);
+        return serviceBaseUsd + nodeFeeUsd * (NETWORK_MULTIPLIER + 1);
+    }
 
     @Nested
     class TopicFeesComparison {
@@ -64,6 +75,7 @@ public class ConsensusServiceSimpleFeesSuite {
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare create topic with admin key")
         final Stream<DynamicTest> createTopicWithAdminComparison() {
+            final var expectedFee = feeWithExtraSignatures(CONS_CREATE_TOPIC_BASE_FEE_USD + KEYS_FEE_USD, 1);
             return compareSimpleToOld(
                     () -> Arrays.asList(
                             newKeyNamed(ADMIN),
@@ -75,9 +87,9 @@ public class ConsensusServiceSimpleFeesSuite {
                                     .fee(ONE_HBAR)
                                     .via("create-topic-admin-txn")),
                     "create-topic-admin-txn",
-                    0.02109,
+                    expectedFee,
                     1,
-                    0.02109,
+                    expectedFee,
                     1);
         }
 
@@ -148,6 +160,7 @@ public class ConsensusServiceSimpleFeesSuite {
         @DisplayName("compare update topic with admin key")
         final Stream<DynamicTest> updateTopicComparisonWithAdmin() {
             final String ADMIN = "admin";
+            final var expectedFee = feeWithExtraSignatures(CONS_UPDATE_TOPIC_BASE_FEE_USD, 1);
             return compareSimpleToOld(
                     () -> Arrays.asList(
                             newKeyNamed(ADMIN),
@@ -164,13 +177,9 @@ public class ConsensusServiceSimpleFeesSuite {
                                     .fee(ONE_HBAR)
                                     .via("update-topic-txn")),
                     "update-topic-txn",
-                    // base fee = 1200000
-                    // node fee = base (100000) + 1 extra sig (1000000)
-                    // network fee = node fee * 9
-                    // total = 12200000
-                    0.00122,
+                    expectedFee,
                     1,
-                    0.00122,
+                    expectedFee,
                     1);
         }
 
