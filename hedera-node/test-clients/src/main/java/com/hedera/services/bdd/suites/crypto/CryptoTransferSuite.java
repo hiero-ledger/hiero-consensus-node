@@ -174,8 +174,7 @@ public class CryptoTransferSuite {
     private static final String VALID_TXN = "validTxn";
     private static final String UNCHECKED_TXN = "uncheckedTxn";
     private static final String PAYEE_SIG_REQ = "payeeSigReq";
-    private static final String TOKENS_INVOLVED_LOG_MESSAGE =
-            """
+    private static final String TOKENS_INVOLVED_LOG_MESSAGE = """
                     0 tokens involved,
                       2 account adjustments: {} tb, ${}"
                     1 tokens involved,
@@ -1166,8 +1165,8 @@ public class CryptoTransferSuite {
                     double pureTwoTokensFourAccountsUsd = rates.toUsdWithActiveRates(t2a4Fee);
                     double pureThreeTokensSixAccountsUsd = rates.toUsdWithActiveRates(t3a6Fee);
                     assertEquals(10.0, pureOneTokenTwoAccountsUsd / pureHbarUsd, 1.0);
-                    assertEquals(20.0, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
-                    assertEquals(30.0, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
+                    assertEquals(23.0, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
+                    assertEquals(36.0, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
                 }));
     }
 
@@ -1649,7 +1648,7 @@ public class CryptoTransferSuite {
                 }),
                 sourcing(() -> cryptoTransfer(
                                 movingWithDecimals(1L, "nonexistent", 2).betweenWithDecimals(PAYER, TREASURY))
-                        .hasKnownStatus(INVALID_TOKEN_ID)));
+                        .hasPrecheck(INVALID_TOKEN_ID)));
     }
 
     @HapiTest

@@ -56,7 +56,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(ATOMIC_BATCH)
 @Tag(MATS)
 class AtomicHip17UnhappyTokensSuite {
-
     private static final String ANOTHER_USER = "AnotherUser";
     private static final String ANOTHER_KEY = "AnotherKey";
 

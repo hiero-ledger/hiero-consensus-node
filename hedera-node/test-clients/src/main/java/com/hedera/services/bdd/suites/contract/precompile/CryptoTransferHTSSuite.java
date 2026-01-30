@@ -505,7 +505,7 @@ public class CryptoTransferHTSSuite {
                                 .gas(100_000_00L)
                                 .via(TXN_WITH_NON_EXISTING_NFT)
                                 .payingWith(GENESIS)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                                .hasKnownStatus(INVALID_TOKEN_ID))),
                 childRecordsCheck(
                         TXN_TO_NON_EXISTING_ADDRESS,
                         CONTRACT_REVERT_EXECUTED,
@@ -513,11 +513,7 @@ public class CryptoTransferHTSSuite {
                 childRecordsCheck(
                         TXN_FROM_NON_EXISTING_ADDRESS,
                         CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_ACCOUNT_ID)),
-                childRecordsCheck(
-                        TXN_WITH_NON_EXISTING_NFT,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_TOKEN_ID)));
+                        recordWith().status(INVALID_ACCOUNT_ID)));
     }
 
     @HapiTest
@@ -585,7 +581,7 @@ public class CryptoTransferHTSSuite {
                                 .gas(100_000_00L)
                                 .via(TXN_WITH_NON_EXISTING_TOKEN)
                                 .payingWith(GENESIS)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                                .hasKnownStatus(INVALID_TOKEN_ID))),
                 childRecordsCheck(
                         TXN_TO_NON_EXISTING_ADDRESS,
                         CONTRACT_REVERT_EXECUTED,
@@ -593,11 +589,7 @@ public class CryptoTransferHTSSuite {
                 childRecordsCheck(
                         TXN_FROM_NON_EXISTING_ADDRESS,
                         CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_ACCOUNT_ID)),
-                childRecordsCheck(
-                        TXN_WITH_NON_EXISTING_TOKEN,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_TOKEN_ID)));
+                        recordWith().status(INVALID_ACCOUNT_ID)));
     }
 
     @HapiTest

@@ -92,10 +92,9 @@ public class CryptoDeleteSuite {
                 cryptoTransfer(tinyBarsFromTo(beneficiaryAccount, GENESIS, 1))
                         .payingWith(ACCOUNT_TO_BE_DELETED)
                         .hasKnownStatus(PAYER_ACCOUNT_DELETED),
-                // since the account is already deleted, we have less signatures to verify
+                // since the account is already deleted, we have fewer signatures to verify
                 getAccountBalance(submittingNodeAccount)
-                        .hasTinyBars(approxChangeFromSnapshot(submittingNodeAfterBalanceLoad, -30000, 15000))
-                        .logged());
+                        .hasTinyBars(approxChangeFromSnapshot(submittingNodeAfterBalanceLoad, -75000, 15000)));
     }
 
     @HapiTest

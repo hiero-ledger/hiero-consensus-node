@@ -48,7 +48,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class QueryChecker {
-
     private final Authorizer authorizer;
     private final CryptoTransferHandler cryptoTransferHandler;
     private final SolvencyPreCheck solvencyPreCheck;

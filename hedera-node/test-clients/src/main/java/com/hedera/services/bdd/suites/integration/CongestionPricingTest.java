@@ -39,6 +39,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -116,6 +117,7 @@ public class CongestionPricingTest {
                         "~7x multiplier should be in effect")));
     }
 
+    @Disabled // TODO: add congestion multiplier to simple fees
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
             overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})

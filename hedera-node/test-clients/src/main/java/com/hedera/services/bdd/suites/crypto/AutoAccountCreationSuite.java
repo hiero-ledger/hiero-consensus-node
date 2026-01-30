@@ -144,9 +144,9 @@ public class AutoAccountCreationSuite {
     private static final String SPONSOR = "autoCreateSponsor";
     public static final String LAZY_CREATE_SPONSOR = "lazyCreateSponsor";
 
-    public static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
-    public static final long EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
-    public static final long EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE = 39_376_619L;
+    public static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 41666666L;
+    public static final long EXPECTED_MULTI_TOKEN_TRANSFER_AUTO_CREATION_FEE = 41666666L;
+    public static final long EXPECTED_SINGLE_TOKEN_TRANSFER_AUTO_CREATE_FEE = 41666666L;
     public static final long EXPECTED_ASSOCIATION_FEE = 41666666L;
 
     public static final String CRYPTO_TRANSFER_RECEIVER = "cryptoTransferReceiver";
@@ -577,7 +577,7 @@ public class AutoAccountCreationSuite {
         // The expected (network + service) fee for two token transfers to a receiver
         // with no auto-creation; note it is approximate because the fee will vary slightly
         // with the size of the sig map, depending on the lengths of the public key prefixes required
-        final long approxTransferFee = 1218008L;
+        final long approxTransferFee = 2583333L;
 
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
@@ -614,13 +614,11 @@ public class AutoAccountCreationSuite {
                                 moving(10, A_TOKEN).between(TOKEN_TREASURY, VALID_ALIAS))
                         .via(sameTokenXfer)
                         .payingWith(CIVILIAN)
-                        .signedBy(CIVILIAN, VALID_ALIAS, TOKEN_TREASURY)
-                        .logged(),
+                        .signedBy(CIVILIAN, VALID_ALIAS, TOKEN_TREASURY),
                 getTxnRecord(sameTokenXfer)
                         .andAllChildRecords()
                         .hasNonStakingChildRecordCount(1)
-                        .hasPriority(recordWith().autoAssociationCount(1))
-                        .logged(),
+                        .hasPriority(recordWith().autoAssociationCount(1)),
                 childRecordsCheck(
                         sameTokenXfer,
                         SUCCESS,
@@ -1099,7 +1097,7 @@ public class AutoAccountCreationSuite {
     @HapiTest
     final Stream<DynamicTest> autoAccountCreationsHappyPath() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 190000L;
+        final long transferFee = 1833333L;
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
                 cryptoCreate(CIVILIAN).balance(10 * ONE_HBAR),

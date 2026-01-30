@@ -1072,8 +1072,8 @@ public class Hip1195BasicTests {
                         .gas(5_000_000L)
                         .via("contractWithHookCreation")
                         .payingWith("payer"),
-                // One hook price 1 USD and contractCreate price 0.74 USD
-                validateChargedUsd("contractWithHookCreation", 1.74),
+                // One hook price 1 USD and contractCreate price 1 USD and 0.02 for keys and 0.001 for signature
+                validateChargedUsd("contractWithHookCreation", 2.021),
                 contractCreate("CreateTrivial")
                         .withHooks(
                                 accountAllowanceHook(400L, TRUE_ALLOWANCE_HOOK.name()),
@@ -1083,8 +1083,8 @@ public class Hip1195BasicTests {
                         .gas(5_000_000L)
                         .via("contractsWithHookCreation")
                         .payingWith("payer"),
-                // One hook price 1 USD and contractCreate price 0.74 USD
-                validateChargedUsd("contractsWithHookCreation", 4.74),
+                // One hook price 1 USD and contractCreate price 1 USD and 0.02 for keys and 0.001 for signature
+                validateChargedUsd("contractsWithHookCreation", 5.021),
                 contractUpdate("CreateTrivial")
                         .removingHook(400L)
                         .withHooks(
@@ -1094,8 +1094,8 @@ public class Hip1195BasicTests {
                         .blankMemo()
                         .via("hookUpdates")
                         .payingWith("payer"),
-                // hook creations and deletions are 1 USD each, and contractUpdate is 0.026 USD
-                validateChargedUsd("hookUpdates", 4.026));
+                // hook creations and deletions are 1 USD each, and contractUpdate is 0.026 USD and 0.001 for sig
+                validateChargedUsd("hookUpdates", 4.027));
     }
 
     @HapiTest
@@ -1115,6 +1115,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
+                        .signedBy(OWNER)
                         .via("feeTxn"),
                 sourcingContextual(spec -> {
                     final long tinybarGasCost =
@@ -1126,6 +1127,7 @@ public class Hip1195BasicTests {
                         .withPreHookFor(OWNER, 123L, HOOK_GAS_LIMIT, "")
                         .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
+                        .signedBy(OWNER)
                         .via("feeTxn2"),
                 sourcingContextual(spec -> {
                     // Pre-post hook is called twice, so gas usage is double the given limit
@@ -1155,6 +1157,7 @@ public class Hip1195BasicTests {
                         .withPrePostHookFor(OWNER, 123L, HOOK_GAS_LIMIT, "")
                         .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
+                        .signedBy(OWNER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("feeTxn"),
                 sourcingContextual(spec -> {
@@ -1173,6 +1176,7 @@ public class Hip1195BasicTests {
         return hapiTest(
                 newKeyNamed("supplyKey"),
                 cryptoCreate(OWNER)
+                        .balance(50 * ONE_HBAR)
                         .withHooks(
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),

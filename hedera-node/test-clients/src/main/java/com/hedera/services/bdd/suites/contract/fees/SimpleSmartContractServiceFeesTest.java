@@ -138,9 +138,9 @@ public class SimpleSmartContractServiceFeesTest {
                         .nonce(0)
                         .via("ethCall"),
                 // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
-                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 1),
-                validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 1),
-                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE, 1));
+                validateChargedUsdWithin("ethCall", EXPECTED_GAS_USED + ETHEREUM_CALL_BASE_FEE, 0.1),
+                validateChargedUsdForGasOnly("ethCall", EXPECTED_GAS_USED, 0.1),
+                validateChargedUsdWithoutGas("ethCall", ETHEREUM_CALL_BASE_FEE, 0.1));
     }
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
@@ -153,7 +153,7 @@ public class SimpleSmartContractServiceFeesTest {
                 overriding("contracts.evm.ethTransaction.zeroHapiFees.enabled", "false"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                ethereumCall(calldataContract.name(), "callme", jumboPayload)
+                ethereumCall(calldataContract.name(), "callme", (Object) jumboPayload)
                         .fee(ONE_HUNDRED_HBARS)
                         .memo("TESTT")
                         .type(EthTxData.EthTransactionType.EIP1559)

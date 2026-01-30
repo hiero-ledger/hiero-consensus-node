@@ -59,6 +59,7 @@ import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSu
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.ERC_20_CONTRACT;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_FROM;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_SIGNATURE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.ALLOWANCES_FEE_USD;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.TRANSFER_TXN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_TOKEN_MAX_SUPPLY;
@@ -798,7 +799,7 @@ class AtomicBatchApproveAllowanceTest {
                         .addNftAllowance(MISSING_OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via(APPROVE_TXN)
                         .blankMemo(),
-                validateChargedUsdWithin(APPROVE_TXN, 0.052_380, 0.01),
+                validateChargedUsdWithin(APPROVE_TXN, 3 * ALLOWANCES_FEE_USD, 0.01),
                 getAccountDetails(PAYER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -1334,9 +1335,9 @@ class AtomicBatchApproveAllowanceTest {
                                         .via(BASE_APPROVE_TXN + "_3")
                                         .blankMemo())
                         .via(batchTxn),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", batchTxn, 0.05, 0.01),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", batchTxn, 0.0505, 0.1),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", batchTxn, 0.0509, 0.1));
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_1", batchTxn, ALLOWANCES_FEE_USD, 0.01),
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_2", batchTxn, 2 * ALLOWANCES_FEE_USD, 0.1),
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN + "_3", batchTxn, 3 * ALLOWANCES_FEE_USD, 0.1));
     }
 
     /**
@@ -1392,8 +1393,8 @@ class AtomicBatchApproveAllowanceTest {
                                         .via(APPROVE_TXN)
                                         .blankMemo())
                         .via(batchTxn),
-                validateInnerTxnChargedUsd(BASE_APPROVE_TXN, batchTxn, 0.05, 0.01),
-                validateInnerTxnChargedUsd(APPROVE_TXN, batchTxn, 0.052_380, 0.01),
+                validateInnerTxnChargedUsd(BASE_APPROVE_TXN, batchTxn, ALLOWANCES_FEE_USD, 0.01),
+                validateInnerTxnChargedUsd(APPROVE_TXN, batchTxn, 3 * ALLOWANCES_FEE_USD, 0.01),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
