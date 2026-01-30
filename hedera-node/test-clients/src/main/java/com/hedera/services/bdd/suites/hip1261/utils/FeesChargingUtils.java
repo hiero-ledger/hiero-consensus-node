@@ -68,6 +68,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hederahashgraph.api.proto.java.Transaction;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntToDoubleFunction;
 import org.apache.logging.log4j.Logger;
@@ -267,6 +268,30 @@ public class FeesChargingUtils {
      *         + NON_FUNGIBLE_TOKENS_FEE_USD * max(0, uniqueNonFungibleTokens - CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS)
      * total   = node + network + service
      */
+
+    // Enum for extra parameters in CryptoTransfer
+    public enum Extra {
+        SIGNATURES,
+        HOOKS_EXECUTED,
+        ACCOUNTS,
+        FUNGIBLE_TOKENS,
+        NON_FUNGIBLE_TOKENS,
+        GAS,
+        TXN_SIZE
+    }
+
+    // Helper method to get long value from map with default
+    private static long longValue(final Map<Extra, Object> m, final Extra k, final long defaultValue) {
+        final var v = m.get(k);
+        return v == null ? defaultValue : ((Number) v).longValue();
+    }
+
+    // Helper method to get int value from map with default
+    private static int intValue(final Map<Extra, Object> m, final Extra k, final int defaultValue) {
+        final var v = m.get(k);
+        return v == null ? defaultValue : ((Number) v).intValue();
+    }
+
     private static double extra(long actual, long included, double feePerUnit) {
         final long extras = Math.max(0L, actual - included);
         return extras * feePerUnit;
@@ -413,6 +438,18 @@ public class FeesChargingUtils {
                 false);
     }
 
+    public static double expectedCryptoTransferHbarFullFeeUsd(final Map<Extra, Object> extras) {
+
+        return expectedCryptoTransferHbarFullFeeUsd(
+                longValue(extras, Extra.SIGNATURES, 0),
+                longValue(extras, Extra.HOOKS_EXECUTED, 0),
+                longValue(extras, Extra.ACCOUNTS, 0),
+                longValue(extras, Extra.FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.GAS, 0),
+                intValue(extras, Extra.TXN_SIZE, 0));
+    }
+
     public static double expectedCryptoTransferFTFullFeeUsd(
             long sigs,
             long uniqueHooksExecuted,
@@ -453,6 +490,18 @@ public class FeesChargingUtils {
                 false,
                 true,
                 false);
+    }
+
+    public static double expectedCryptoTransferFTFullFeeUsd(final Map<Extra, Object> extras) {
+
+        return expectedCryptoTransferFTFullFeeUsd(
+                longValue(extras, Extra.SIGNATURES, 0),
+                longValue(extras, Extra.HOOKS_EXECUTED, 0),
+                longValue(extras, Extra.ACCOUNTS, 0),
+                longValue(extras, Extra.FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.GAS, 0),
+                intValue(extras, Extra.TXN_SIZE, 0));
     }
 
     public static double expectedCryptoTransferNFTFullFeeUsd(
@@ -497,6 +546,18 @@ public class FeesChargingUtils {
                 false);
     }
 
+    public static double expectedCryptoTransferNFTFullFeeUsd(final Map<Extra, Object> extras) {
+
+        return expectedCryptoTransferNFTFullFeeUsd(
+                longValue(extras, Extra.SIGNATURES, 0),
+                longValue(extras, Extra.HOOKS_EXECUTED, 0),
+                longValue(extras, Extra.ACCOUNTS, 0),
+                longValue(extras, Extra.FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.GAS, 0),
+                intValue(extras, Extra.TXN_SIZE, 0));
+    }
+
     public static double expectedCryptoTransferFTAndNFTFullFeeUsd(
             long sigs,
             long uniqueHooksExecuted,
@@ -537,6 +598,18 @@ public class FeesChargingUtils {
                 false,
                 true,
                 false);
+    }
+
+    public static double expectedCryptoTransferFTAndNFTFullFeeUsd(final Map<Extra, Object> extras) {
+
+        return expectedCryptoTransferFTAndNFTFullFeeUsd(
+                longValue(extras, Extra.SIGNATURES, 0),
+                longValue(extras, Extra.HOOKS_EXECUTED, 0),
+                longValue(extras, Extra.ACCOUNTS, 0),
+                longValue(extras, Extra.FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.GAS, 0),
+                intValue(extras, Extra.TXN_SIZE, 0));
     }
 
     public static double expectedCryptoTransferHBARAndFTFullFeeUsd(
@@ -581,6 +654,18 @@ public class FeesChargingUtils {
                 false);
     }
 
+    public static double expectedCryptoTransferHBARAndFTFullFeeUsd(final Map<Extra, Object> extras) {
+
+        return expectedCryptoTransferHBARAndFTFullFeeUsd(
+                longValue(extras, Extra.SIGNATURES, 0),
+                longValue(extras, Extra.HOOKS_EXECUTED, 0),
+                longValue(extras, Extra.ACCOUNTS, 0),
+                longValue(extras, Extra.FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.GAS, 0),
+                intValue(extras, Extra.TXN_SIZE, 0));
+    }
+
     public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(
             long sigs,
             long uniqueHooksExecuted,
@@ -621,6 +706,18 @@ public class FeesChargingUtils {
                 true,
                 true,
                 false);
+    }
+
+    public static double expectedCryptoTransferHBARAndNFTFullFeeUsd(final Map<Extra, Object> extras) {
+
+        return expectedCryptoTransferHBARAndNFTFullFeeUsd(
+                longValue(extras, Extra.SIGNATURES, 0),
+                longValue(extras, Extra.HOOKS_EXECUTED, 0),
+                longValue(extras, Extra.ACCOUNTS, 0),
+                longValue(extras, Extra.FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.GAS, 0),
+                intValue(extras, Extra.TXN_SIZE, 0));
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
@@ -641,6 +738,40 @@ public class FeesChargingUtils {
                 true,
                 true,
                 false);
+    }
+
+    public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount,
+            int txnSize) {
+
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                gasAmount,
+                txnSize,
+                true,
+                true,
+                false);
+    }
+
+    public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(final Map<Extra, Object> extras) {
+
+        return expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
+                longValue(extras, Extra.SIGNATURES, 0),
+                longValue(extras, Extra.HOOKS_EXECUTED, 0),
+                longValue(extras, Extra.ACCOUNTS, 0),
+                longValue(extras, Extra.FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.GAS, 0),
+                intValue(extras, Extra.TXN_SIZE, 0));
     }
 
     public static double expectedCryptoTransferTokenWithCustomFullFeeUsd(
@@ -711,6 +842,13 @@ public class FeesChargingUtils {
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
     }
+
+    public static double expectedCryptoTransferNetworkFeeOnlyUsd(final Map<Extra, Object> extras) {
+
+        return expectedCryptoTransferNetworkFeeOnlyUsd(
+                longValue(extras, Extra.SIGNATURES, 0), intValue(extras, Extra.TXN_SIZE, 0));
+    }
+
     /**
      * Validates that the charged fee for a transaction (in USD) is within an allowed percent difference
      * from the expected fee.
