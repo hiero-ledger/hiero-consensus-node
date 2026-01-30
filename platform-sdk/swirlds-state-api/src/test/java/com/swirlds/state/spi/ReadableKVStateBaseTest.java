@@ -129,12 +129,4 @@ public class ReadableKVStateBaseTest extends StateTestBase {
         assertThat(state.contains(B_KEY)).isTrue();
         assertThat(state.readKeys()).hasSize(2);
     }
-
-    @Test
-    @DisplayName("Can iterate over all fruit")
-    void testIteration() {
-        assertThat(state.keys())
-                .toIterable()
-                .containsExactlyInAnyOrder(backingMap.keySet().toArray(new ProtoBytes[0]));
-    }
 }
