@@ -710,12 +710,12 @@
         },
         {
           "name": "ContractCallLocal",
-          "baseFee": 9000000,
+          "baseFee": 10000000,
           "extras": []
         },
         {
           "name": "ContractGetBytecode",
-          "baseFee": 499000000,
+          "baseFee": 500000000,
           "extras": [
             {
               "name": "BYTES", "includedCount": 1000
