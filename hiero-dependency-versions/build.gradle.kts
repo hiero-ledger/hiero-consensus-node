@@ -127,7 +127,7 @@ dependencies.constraints {
     api("com.hedera.cryptography:hedera-cryptography-rpm:$hederaCryptography") {
         because("com.hedera.cryptography.rpm")
     }
-    api("com.hedera.cryptography:hedera-cryptography-hinTS:$hederaCryptography") {
+    api("com.hedera.cryptography:hedera-cryptography-hints:$hederaCryptography") {
         because("com.hedera.cryptography.hints")
     }
 
