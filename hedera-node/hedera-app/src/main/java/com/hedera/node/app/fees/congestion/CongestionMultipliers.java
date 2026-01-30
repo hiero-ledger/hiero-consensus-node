@@ -51,8 +51,7 @@ public class CongestionMultipliers {
      *
      * @return the max congestion multiplier
      */
-    public long maxCurrentMultiplier(
-            @NonNull final TransactionInfo txnInfo, @NonNull final FeeContext feeContext) {
+    public long maxCurrentMultiplier(@NonNull final TransactionInfo txnInfo, @NonNull final FeeContext feeContext) {
         return maxCurrentMultiplier(txnInfo.txBody(), txnInfo.functionality(), feeContext);
     }
 
@@ -64,8 +63,7 @@ public class CongestionMultipliers {
      *
      * @return the max congestion multiplier
      */
-    public long maxCurrentMultiplier(
-            @NonNull final TransactionInfo txnInfo, @NonNull final StoreFactory storeFactory) {
+    public long maxCurrentMultiplier(@NonNull final TransactionInfo txnInfo, @NonNull final StoreFactory storeFactory) {
         return maxCurrentMultiplier(txnInfo.txBody(), txnInfo.functionality(), storeFactory);
     }
 
