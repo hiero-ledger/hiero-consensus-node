@@ -6,7 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
 /**
- * Registers configuration types for the event intake module.
+ * Registers configuration types for the reconnect module.
  */
 public class ReconnectConfigurationExtension implements ConfigurationExtension {
 
