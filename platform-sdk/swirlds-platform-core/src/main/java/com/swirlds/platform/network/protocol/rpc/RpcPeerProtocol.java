@@ -314,8 +314,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             rpcPeerHandler.cleanup();
             permitProvider.release();
             previousPhase = syncMetrics.reportSyncPhase(remotePeerId, SyncPhase.OUTSIDE_OF_RPC);
-            syncMetrics.rpcInputQueueSize(remotePeerId, inputQueue.size());
-            syncMetrics.rpcOutputQueueSize(remotePeerId, outputQueue.size());
         }
         // later we will loop here, for now just exit the protocol
     }
@@ -330,7 +328,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         syncMetrics.rpcDispatchThreadRunning(+1);
         try {
             while (true) {
-                final Runnable message = inputQueue.poll(syncConfig.rpcIdleDispatchPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                final Runnable message =
+                        inputQueue.poll(syncConfig.rpcIdleDispatchPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
                 if (message != null) {
                     if (message == POISON_PILL) {
                         break;
@@ -484,7 +483,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                             overloadMonitor.reportPing(pingMillis);
                             break;
                     }
-                    syncMetrics.rpcInputQueueSize(remotePeerId, inputQueue.size());
                 }
             }
         } finally {
@@ -504,7 +502,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             out.write(SYNC_DATA);
             out.writePbjRecord(syncMessage.toProtobuf(), GossipSyncData.PROTOBUF);
         });
-        syncMetrics.rpcOutputQueueSize(remotePeerId, outputQueue.size());
     }
 
     /**
@@ -517,7 +514,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             out.write(KNOWN_TIPS);
             out.writePbjRecord(GossipKnownTips.newBuilder().knownTips(tips).build(), GossipKnownTips.PROTOBUF);
         });
-        syncMetrics.rpcOutputQueueSize(remotePeerId, outputQueue.size());
     }
 
     /**
@@ -538,7 +534,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 }
             }
         });
-        syncMetrics.rpcOutputQueueSize(remotePeerId, outputQueue.size());
     }
 
     /**
@@ -551,7 +546,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             out.write(BROADCAST_EVENT);
             out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
         });
-        syncMetrics.rpcOutputQueueSize(remotePeerId, outputQueue.size());
     }
 
     /**
@@ -563,7 +557,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             out.writeShort(1); // single message
             out.write(EVENTS_FINISHED);
         });
-        syncMetrics.rpcOutputQueueSize(remotePeerId, outputQueue.size());
     }
 
     void sendPingReply(final GossipPing reply) {
@@ -572,7 +565,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             out.write(PING_REPLY);
             out.writePbjRecord(reply, GossipPing.PROTOBUF);
         });
-        syncMetrics.rpcOutputQueueSize(remotePeerId, outputQueue.size());
     }
 
     private void sendPingSameThread(final GossipPing ping, final SyncOutputStream output) throws IOException {

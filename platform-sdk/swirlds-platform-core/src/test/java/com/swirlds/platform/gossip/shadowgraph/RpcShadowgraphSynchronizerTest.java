@@ -53,12 +53,13 @@ class RpcPeerHandlerTest {
     private Consumer<SyncProgress> syncProgressReporter;
     private IntakeEventCounter intakeCounter;
     private SyncGuard syncGuard;
+    private Configuration configuration;
 
     @BeforeEach
     void testSetup() throws Exception {
         ConstructableRegistry.getInstance().registerConstructables("");
 
-        final Configuration configuration = ConfigurationBuilder.create()
+        this.configuration = ConfigurationBuilder.create()
                 .withSource(SystemEnvironmentConfigSource.getInstance())
                 .withSource(SystemPropertiesConfigSource.getInstance())
                 .autoDiscoverExtensions()
@@ -110,7 +111,7 @@ class RpcPeerHandlerTest {
                 eventHandler,
                 syncGuard,
                 fallenBehindManager,
-                platformContext.getConfiguration().getConfigData(SyncConfig.class));
+                configuration.getConfigData(SyncConfig.class));
     }
 
     @Test

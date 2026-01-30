@@ -116,7 +116,6 @@ public class RpcProtocol implements Protocol, GossipController {
             permitCount = syncConfig.syncProtocolPermitCount();
         }
 
-
         this.permitProvider = new SyncPermitProvider(configuration, metrics, time, permitCount);
         this.executor = Objects.requireNonNull(executor);
         this.networkMetrics = Objects.requireNonNull(networkMetrics);
