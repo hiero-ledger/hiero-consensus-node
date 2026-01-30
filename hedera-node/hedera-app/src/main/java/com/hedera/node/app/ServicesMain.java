@@ -24,6 +24,7 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
@@ -35,6 +36,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
+import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
@@ -50,7 +52,6 @@ import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.CommandLineArgs;
 import com.swirlds.platform.builder.PlatformBuilder;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -74,7 +75,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterStateUtils;
 
 /**
@@ -233,10 +236,10 @@ public class ServicesMain {
         }
         hedera.setInitialStateHash(reservedState.hash());
 
-        // --- Create the platform context and initialize the cryptography ---
-        final var rosterHistory = RosterStateUtils.createRosterHistory(state);
-
-        final var keysAndCerts = initNodeSecurity(platformConfig, selfId);
+        final ReadableRosterStore rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
+        final List<RosterEntry> rosterEntries =
+                requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+        final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
 
         final String consensusEventStreamName = genesisNetwork.get()
                 // If at genesis, base the event stream location on the genesis network metadata
@@ -252,7 +255,7 @@ public class ServicesMain {
                         consensusStateEventHandler,
                         selfId,
                         consensusEventStreamName,
-                        rosterHistory,
+                        RosterStateUtils.createRosterHistory(state),
                         hedera.getStateLifecycleManager())
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)

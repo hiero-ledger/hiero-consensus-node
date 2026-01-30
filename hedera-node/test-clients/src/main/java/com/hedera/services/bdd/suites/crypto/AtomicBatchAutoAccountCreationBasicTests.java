@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.app.service.token.AliasUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -55,6 +55,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@Tag(ATOMIC_BATCH)
 class AtomicBatchAutoAccountCreationBasicTests {
 
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
@@ -137,7 +138,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create ECDSA Account with FT Transfer success in Atomic Batch")
-    @Tag(MATS)
+    // @Tag(MATS)
     Stream<DynamicTest> autoCreateECDSA_AccountWithFT_TransferSuccessInBatch() {
 
         // create transfer to alias inner transaction
@@ -599,7 +600,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Hollow Account with NFT Transfer success in Atomic Batch")
-    @Tag(MATS)
+    // @Tag(MATS)
     Stream<DynamicTest> autoCreateHollowAccountWithNFT_TransferSuccessInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();

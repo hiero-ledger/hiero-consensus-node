@@ -3,15 +3,16 @@ package com.swirlds.platform.network.topology;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
+import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionManager;
 import com.swirlds.platform.network.ConnectionTracker;
 import com.swirlds.platform.network.PeerInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,35 +26,41 @@ import org.hiero.consensus.model.node.NodeId;
 public class DynamicConnectionManagers {
 
     private static final Logger logger = LogManager.getLogger(DynamicConnectionManagers.class);
+    private final Configuration configuration;
+    private final Time time;
     private final ConcurrentHashMap<NodeId, ConnectionManager> connectionManagers = new ConcurrentHashMap<>();
     private final NodeId selfId;
-    private final PlatformContext platformContext;
     private final ConnectionTracker connectionTracker;
     private final KeysAndCerts ownKeysAndCerts;
     private final ConnectionManagerFactory connectionManagerFactory;
 
     /**
-     * @param selfId                   self's node id
-     * @param peers                    the list of peers
-     * @param platformContext          the platform context
-     * @param connectionTracker        connection tracker for all platform connections
-     * @param ownKeysAndCerts          private keys and public certificates
-     * @param topology                 current topology of connecions
+     * Creates new dynamic connection managers holder.
+     *
+     * @param configuration platform configuration
+     * @param time source of time
+     * @param selfId self's node id
+     * @param peers the list of peers
+     * @param connectionTracker connection tracker for all platform connections
+     * @param ownKeysAndCerts private keys and public certificates
+     * @param topology current topology of connecions
      * @param connectionManagerFactory factory to create custom inbound and oubound connection managers
      */
     public DynamicConnectionManagers(
+            @NonNull final Configuration configuration,
+            @NonNull final Time time,
             @NonNull final NodeId selfId,
             @NonNull final List<PeerInfo> peers,
-            @NonNull final PlatformContext platformContext,
             @NonNull final ConnectionTracker connectionTracker,
             @NonNull final KeysAndCerts ownKeysAndCerts,
             @NonNull final NetworkTopology topology,
             @NonNull final ConnectionManagerFactory connectionManagerFactory) {
-        this.selfId = Objects.requireNonNull(selfId);
-        this.platformContext = Objects.requireNonNull(platformContext);
-        this.connectionTracker = Objects.requireNonNull(connectionTracker);
-        this.ownKeysAndCerts = Objects.requireNonNull(ownKeysAndCerts);
-        this.connectionManagerFactory = Objects.requireNonNull(connectionManagerFactory);
+        this.configuration = requireNonNull(configuration);
+        this.time = requireNonNull(time);
+        this.selfId = requireNonNull(selfId);
+        this.connectionTracker = requireNonNull(connectionTracker);
+        this.ownKeysAndCerts = requireNonNull(ownKeysAndCerts);
+        this.connectionManagerFactory = requireNonNull(connectionManagerFactory);
         for (PeerInfo peer : peers) {
             updateManager(topology, peer);
         }
@@ -136,7 +143,7 @@ public class DynamicConnectionManagers {
             connectionManagers.put(
                     otherPeer.nodeId(),
                     connectionManagerFactory.createOutboundConnectionManager(
-                            selfId, otherPeer, platformContext, connectionTracker, ownKeysAndCerts));
+                            configuration, time, selfId, otherPeer, connectionTracker, ownKeysAndCerts));
         } else {
             connectionManagers.remove(otherPeer.nodeId());
         }

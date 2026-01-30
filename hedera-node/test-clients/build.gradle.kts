@@ -63,7 +63,7 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
 val matsSuffix = "MATS"
 
 val basePrCheckTags =
@@ -81,6 +81,7 @@ val basePrCheckTags =
         "hapiTestMisc" to miscTags,
         "hapiTestMiscRecords" to miscTags,
         "hapiTestSimpleFees" to "SIMPLE_FEES",
+        "hapiTestAtomicBatch" to "ATOMIC_BATCH",
     )
 
 val prCheckTags =
@@ -123,6 +124,7 @@ val prCheckStartPorts =
         put("hapiTestMisc", "26800")
         put("hapiTestBlockNodeCommunication", "27000")
         put("hapiTestMiscRecords", "27200")
+        put("hapiTestAtomicBatch", "27400")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -163,6 +165,7 @@ val prCheckPropOverrides =
             "hapiTestNDReconnect",
             "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
+        put("hapiTestAtomicBatch", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
