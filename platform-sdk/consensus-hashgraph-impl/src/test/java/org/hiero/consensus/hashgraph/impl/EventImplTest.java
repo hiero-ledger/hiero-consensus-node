@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event;
+package org.hiero.consensus.hashgraph.impl;
 
 import static com.swirlds.platform.test.fixtures.event.EventImplTestUtils.createEventImpl;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.platform.test.fixtures.utils.EqualsVerifier;
 import java.util.List;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.Test;
 
