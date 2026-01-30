@@ -207,7 +207,7 @@ public class PlatformWiring {
         components
                 .pcesReplayerWiring()
                 .doneStreamingPcesOutputWire()
-                .solderTo(components.pcesModule().beginStreamingnewEventsInputWire());
+                .solderTo(components.pcesModule().beginStreamingNewEventsInputWire());
         // with inline PCES, the round bypasses the round durability buffer and goes directly to the round handler
         consensusRoundOutputWire.solderTo(
                 components.transactionHandlerWiring().getInputWire(TransactionHandler::handleConsensusRound));
@@ -307,7 +307,7 @@ public class PlatformWiring {
         components
                 .stateSnapshotManagerWiring()
                 .getTransformedOutput(StateSnapshotManager::extractOldestMinimumBirthRoundOnDisk)
-                .solderTo(components.pcesModule().minimumAncientIdentifierInputWire(), INJECT);
+                .solderTo(components.pcesModule().minimumBirthRoundInputWire(), INJECT);
 
         components
                 .stateSnapshotManagerWiring()

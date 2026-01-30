@@ -309,10 +309,10 @@ public record PlatformCoordinator(
     }
 
     /**
-     * @see PcesModule#minimumAncientIdentifierInputWire()
+     * @see PcesModule#minimumBirthRoundInputWire()
      */
     public void injectPcesMinimumGenerationToStore(@NonNull final long minimumGenerationNonAncientForOldestState) {
-        components.pcesModule().minimumAncientIdentifierInputWire().inject(minimumGenerationNonAncientForOldestState);
+        components.pcesModule().minimumBirthRoundInputWire().inject(minimumGenerationNonAncientForOldestState);
     }
 
     /**

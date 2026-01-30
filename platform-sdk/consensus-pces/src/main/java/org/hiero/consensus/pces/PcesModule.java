@@ -67,13 +67,13 @@ public interface PcesModule {
     InputWire<EventWindow> eventWindowInputWire();
 
     /**
-     * {@link InputWire} for the minimum ancient identifier to store on disk.
+     * {@link InputWire} for the minimum birth round to store on disk.
      *
-     * @return the {@link InputWire} for the minimum ancient identifier
+     * @return the {@link InputWire} for the minimum birth round
      */
-    @InputWireLabel("minimum identifier to store")
+    @InputWireLabel("minimum birth round to store")
     @NonNull
-    InputWire<Long> minimumAncientIdentifierInputWire();
+    InputWire<Long> minimumBirthRoundInputWire();
 
     /**
      * {@link InputWire} to signal that the PCES replaying from disk is complete.
@@ -84,7 +84,7 @@ public interface PcesModule {
      */
     @InputWireLabel("done streaming pces")
     @NonNull
-    InputWire<NoInput> beginStreamingnewEventsInputWire();
+    InputWire<NoInput> beginStreamingNewEventsInputWire();
 
     /**
      * {@link InputWire} for signaling a discontinuity in the preconsensus event stream.

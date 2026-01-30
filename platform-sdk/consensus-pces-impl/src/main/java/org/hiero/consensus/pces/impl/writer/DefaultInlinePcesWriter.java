@@ -109,7 +109,7 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
     }
 
     @Override
-    public void setMinimumAncientIdentifierToStore(@NonNull final Long minimumAncientIdentifierToStore) {
-        commonPcesWriter.setMinimumAncientIdentifierToStore(minimumAncientIdentifierToStore);
+    public void setMinimumBirthRoundToStore(@NonNull final Long minimumBirthRoundToStore) {
+        commonPcesWriter.setMinimumBirthRoundToStore(minimumBirthRoundToStore);
     }
 }
