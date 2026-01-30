@@ -149,7 +149,11 @@ public class BlockStreamRecoveryWorkflow {
                 platformContext.getConfiguration());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext, selfId, outputPath, signedState, stateLifecycleManager);
+                    platformContext,
+                    selfId,
+                    outputPath,
+                    signedState.reserve("BlockStreamWorkflow.applyBlocks()"),
+                    stateLifecycleManager);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
