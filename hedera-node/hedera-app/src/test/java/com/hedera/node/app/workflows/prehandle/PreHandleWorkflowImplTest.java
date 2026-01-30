@@ -46,10 +46,11 @@ import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fixtures.Scenarios;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionScenarioBuilder;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -147,7 +148,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                         new AtomicReference<>(EntityNumber.newBuilder().build()),
                         ENTITY_COUNTS_STATE_ID,
                         new AtomicReference<>(EntityCounts.DEFAULT)));
-        storeFactory = new ReadableStoreFactory(fakeMerkleState);
+        storeFactory = new ReadableStoreFactoryImpl(fakeMerkleState);
 
         final var config = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), DEFAULT_CONFIG_VERSION);
         when(configProvider.getConfiguration()).thenReturn(config);
@@ -403,7 +404,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var result = workflow.preHandleAllTransactions(
                     NODE_1.asInfo(),
                     storeFactory,
-                    storeFactory.getStore(ReadableAccountStore.class),
+                    storeFactory.readableStore(ReadableAccountStore.class),
                     createAppPayloadWrapper(new byte[2]).getApplicationTransaction(),
                     previousResult,
                     (txns, bytes) -> {});
@@ -687,7 +688,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var result = workflow.preHandleAllTransactions(
                     NODE_1.asInfo(),
                     storeFactory,
-                    storeFactory.getStore(ReadableAccountStore.class),
+                    storeFactory.readableStore(ReadableAccountStore.class),
                     platformTx.getApplicationTransaction(),
                     previousResult,
                     (txns, bytes) -> {});
@@ -739,7 +740,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var result = workflow.preHandleAllTransactions(
                     NODE_1.asInfo(),
                     storeFactory,
-                    storeFactory.getStore(ReadableAccountStore.class),
+                    storeFactory.readableStore(ReadableAccountStore.class),
                     platformTx.getApplicationTransaction(),
                     previousResult,
                     (txns, bytes) -> {});
@@ -791,7 +792,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             final var result = workflow.preHandleAllTransactions(
                     NODE_1.asInfo(),
                     storeFactory,
-                    storeFactory.getStore(ReadableAccountStore.class),
+                    storeFactory.readableStore(ReadableAccountStore.class),
                     platformTx.getApplicationTransaction(),
                     previousResult,
                     (txns, bytes) -> {});

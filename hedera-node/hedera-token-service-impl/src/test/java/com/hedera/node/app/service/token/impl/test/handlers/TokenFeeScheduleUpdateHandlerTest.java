@@ -43,6 +43,7 @@ import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -50,7 +51,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -267,7 +268,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         TransactionInfo txnInfo = mock(TransactionInfo.class);
         FeeManager feeManager = mock(FeeManager.class);
         FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        ReadableStoreFactory storeFactory = mock(ReadableStoreFactory.class);
+        ReadableStoreFactory storeFactory = mock(ReadableStoreFactoryImpl.class);
         TransactionBody transactionBody = mock(TransactionBody.class);
         TokenFeeScheduleUpdateTransactionBody tokenFeeScheduleUpdateTransactionBody =
                 mock(TokenFeeScheduleUpdateTransactionBody.class);
@@ -284,7 +285,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         when(transactionBody.tokenFeeScheduleUpdateOrThrow()).thenReturn(tokenFeeScheduleUpdateTransactionBody);
         when(tokenFeeScheduleUpdateTransactionBody.customFees()).thenReturn(customFees);
         when(tokenFeeScheduleUpdateTransactionBody.tokenIdOrThrow()).thenReturn(fungibleTokenId);
-        when(storeFactory.getStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
+        when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
         when(transactionBody.transactionIDOrThrow()).thenReturn(transactionID);
         when(transactionID.transactionValidStartOrThrow()).thenReturn(consensusTimestamp);
         when(txnInfo.signatureMap()).thenReturn(SignatureMap.DEFAULT);
@@ -314,7 +315,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         TransactionInfo txnInfo = mock(TransactionInfo.class);
         FeeManager feeManager = mock(FeeManager.class);
         FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        ReadableStoreFactory storeFactory = mock(ReadableStoreFactory.class);
+        ReadableStoreFactory storeFactory = mock(ReadableStoreFactoryImpl.class);
         TransactionBody transactionBody = mock(TransactionBody.class);
         TokenFeeScheduleUpdateTransactionBody tokenFeeScheduleUpdateTransactionBody =
                 mock(TokenFeeScheduleUpdateTransactionBody.class);
@@ -327,7 +328,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         // Any token ID that doesn't exist:
         when(tokenFeeScheduleUpdateTransactionBody.tokenIdOrThrow())
                 .thenReturn(TokenID.newBuilder().tokenNum(1500).build());
-        when(storeFactory.getStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
+        when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
         when(transactionBody.transactionIDOrThrow()).thenReturn(transactionID);
         when(transactionID.transactionValidStartOrThrow()).thenReturn(consensusTimestamp);
         when(txnInfo.signatureMap()).thenReturn(SignatureMap.DEFAULT);

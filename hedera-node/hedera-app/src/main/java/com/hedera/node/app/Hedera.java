@@ -89,7 +89,7 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
@@ -1001,7 +1001,7 @@ public final class Hedera
             @NonNull final Event event,
             @NonNull final MerkleNodeState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
-        final var readableStoreFactory = new ReadableStoreFactory(state);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
         // Will be null if the submitting node is no longer in the address book
         final var creatorInfo =
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
@@ -1257,7 +1257,7 @@ public final class Hedera
                 .round();
         final var initialStateHash = new InitialStateHash(initialStateHashFuture, roundNum);
 
-        final var rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
+        final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
         final var currentRoster = requireNonNull(rosterStore.getActiveRoster());
         final var networkInfo = new StateNetworkInfo(
                 platform.getSelfId().id(), state, currentRoster, configProvider, () -> requireNonNull(

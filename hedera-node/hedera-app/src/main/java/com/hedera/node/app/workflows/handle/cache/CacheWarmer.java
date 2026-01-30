@@ -7,10 +7,11 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -57,8 +58,8 @@ public class CacheWarmer {
      */
     public void warm(@NonNull final State state, @NonNull final Round round) {
         executor.execute(() -> {
-            final ReadableStoreFactory storeFactory = new ReadableStoreFactory(state);
-            final ReadableAccountStore accountStore = storeFactory.getStore(ReadableAccountStore.class);
+            final ReadableStoreFactory storeFactory = new ReadableStoreFactoryImpl(state);
+            final ReadableAccountStore accountStore = storeFactory.readableStore(ReadableAccountStore.class);
             for (final ConsensusEvent event : round) {
                 event.forEachTransaction(platformTransaction -> executor.execute(() -> {
                     final TransactionBody txBody = extractTransactionBody(platformTransaction);
@@ -129,7 +130,7 @@ public class CacheWarmer {
         @NonNull
         @Override
         public <C> C createStore(@NonNull final Class<C> storeInterface) {
-            return storeFactory.getStore(storeInterface);
+            return storeFactory.readableStore(storeInterface);
         }
     }
 }

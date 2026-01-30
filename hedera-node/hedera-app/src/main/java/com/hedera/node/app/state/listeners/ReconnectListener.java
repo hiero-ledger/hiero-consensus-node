@@ -10,7 +10,7 @@ import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.ReadableFreezeUpgradeActions;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
@@ -60,12 +60,12 @@ public class ReconnectListener implements ReconnectCompleteListener {
                 notification.getRoundNumber(),
                 notification.getSequence());
         final State state = notification.getState();
-        final var readableStoreFactory = new ReadableStoreFactory(state);
-        final var freezeStore = readableStoreFactory.getStore(ReadableFreezeStore.class);
-        final var upgradeFileStore = readableStoreFactory.getStore(ReadableUpgradeFileStore.class);
-        final var upgradeNodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
-        final var upgradeStakingInfoStore = readableStoreFactory.getStore(ReadableStakingInfoStore.class);
-        final var platformStateStore = readableStoreFactory.getStore(ReadablePlatformStateStore.class);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
+        final var freezeStore = readableStoreFactory.readableStore(ReadableFreezeStore.class);
+        final var upgradeFileStore = readableStoreFactory.readableStore(ReadableUpgradeFileStore.class);
+        final var upgradeNodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
+        final var upgradeStakingInfoStore = readableStoreFactory.readableStore(ReadableStakingInfoStore.class);
+        final var platformStateStore = readableStoreFactory.readableStore(ReadablePlatformStateStore.class);
         final var upgradeActions = new ReadableFreezeUpgradeActions(
                 configProvider.getConfiguration(),
                 freezeStore,

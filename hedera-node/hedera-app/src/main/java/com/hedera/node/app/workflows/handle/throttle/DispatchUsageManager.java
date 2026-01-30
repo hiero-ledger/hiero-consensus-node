@@ -144,7 +144,7 @@ public class DispatchUsageManager {
      * @param dispatch the dispatch
      */
     private void reclaimFailedCryptoCreateCapacity(@NonNull final Dispatch dispatch) {
-        final var readableAccountStore = dispatch.readableStoreFactory().getStore(ReadableAccountStore.class);
+        final var readableAccountStore = dispatch.readableStoreFactory().readableStore(ReadableAccountStore.class);
         final var numImplicitCreations =
                 throttleServiceManager.numImplicitCreations(dispatch.txnInfo().txBody(), readableAccountStore);
         if (usedSelfFrontendThrottleCapacity(
@@ -160,7 +160,8 @@ public class DispatchUsageManager {
      * @param dispatch the dispatch
      */
     private void reclaimFailedTokenAssociate(@NonNull final Dispatch dispatch) {
-        final var readableTokenRelStore = dispatch.readableStoreFactory().getStore(ReadableTokenRelationStore.class);
+        final var readableTokenRelStore =
+                dispatch.readableStoreFactory().readableStore(ReadableTokenRelationStore.class);
         final var numAutoAssociations =
                 throttleServiceManager.numAutoAssociations(dispatch.txnInfo().txBody(), readableTokenRelStore);
         if (usedSelfFrontendThrottleCapacity(
