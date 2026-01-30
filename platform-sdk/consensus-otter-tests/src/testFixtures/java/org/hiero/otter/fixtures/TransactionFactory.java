@@ -11,7 +11,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.otter.fixtures.network.transactions.BenchmarkTransaction;
 import org.hiero.otter.fixtures.network.transactions.EmptyTransaction;
 import org.hiero.otter.fixtures.network.transactions.HashPartition;
 import org.hiero.otter.fixtures.network.transactions.OtterFreezeTransaction;
@@ -36,35 +35,6 @@ public class TransactionFactory {
         return OtterTransaction.newBuilder()
                 .setNonce(nonce)
                 .setEmptyTransaction(emptyTransaction)
-                .build();
-    }
-
-    /**
-     * Creates a new benchmark transaction with the current time as the submission timestamp.
-     *
-     * @param nonce the nonce for the benchmark transaction
-     * @return a benchmark transaction
-     */
-    @NonNull
-    public static OtterTransaction createBenchmarkTransaction(final long nonce) {
-        return createBenchmarkTransaction(nonce, System.currentTimeMillis());
-    }
-
-    /**
-     * Creates a new benchmark transaction with the specified submission timestamp.
-     *
-     * @param nonce the nonce for the benchmark transaction
-     * @param submissionTimeMillis the submission timestamp in epoch milliseconds
-     * @return a benchmark transaction
-     */
-    @NonNull
-    public static OtterTransaction createBenchmarkTransaction(final long nonce, final long submissionTimeMillis) {
-        final BenchmarkTransaction benchmarkTransaction = BenchmarkTransaction.newBuilder()
-                .setSubmissionTimeMillis(submissionTimeMillis)
-                .build();
-        return OtterTransaction.newBuilder()
-                .setNonce(nonce)
-                .setBenchmarkTransaction(benchmarkTransaction)
                 .build();
     }
 
