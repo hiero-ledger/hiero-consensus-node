@@ -45,7 +45,7 @@ env:
 jobs:
   generate-baseline:
     name: "Gradle: Generate Baseline"
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-gradle-determinism-lin-md
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
       path: ${{ steps.baseline.outputs.path }}
@@ -122,7 +122,7 @@ jobs:
 
   generate-matrix:
     name: "Generate OS Matrix for Determinism Verification"
-    runs-on: hiero-network-node-linux-small-scheduler
+    runs-on: hl-cn-gradle-determinism-lin-ss
     outputs:
       os-matrix: ${{ steps.set-matrix.outputs.os-matrix }}
     steps:
@@ -137,12 +137,12 @@ jobs:
           ALWAYS_RUN=(
             "ubuntu-24.04"
             "ubuntu-22.04"
-            "hiero-network-node-linux-medium"
-            "hiero-network-node-linux-ubuntu-24-medium"
-            "hiero-network-node-linux-debian-12-medium"
-            "hiero-network-node-linux-large"
-            "hiero-network-node-linux-ubuntu-24-large"
-            "hiero-network-node-linux-debian-12-large"
+            "hl-cn-gradle-determinism-lin-md"
+            "hl-cn-gradle-determinism-lin-u24-md"
+            "hl-cn-gradle-determinism-lin-d12-md"
+            "hl-cn-gradle-determinism-lin-lg"
+            "hl-cn-gradle-determinism-lin-u24-lg"
+            "hl-cn-gradle-determinism-lin-d12-lg"
           )
 
           PUBLIC_ONLY=(
