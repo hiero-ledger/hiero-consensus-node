@@ -18,11 +18,6 @@ public interface MerkleParent {
     int MAX_CHILD_COUNT_UBOUND = 64;
 
     /**
-     * The minimum number of children that a MerkleInternal node can have
-     */
-    int MIN_CHILD_COUNT = 0;
-
-    /**
      * Returns the number of all immediate children that are a MerkleNode object.
      *
      * This function must not change the number of children or modify any children in any way.
@@ -40,19 +35,12 @@ public interface MerkleParent {
      * This function must not change the number of children or modify any children in any way.
      * </p>
      *
-     * <p>
-     * If a child at an index that does not violate {@link #getMaximumChildCount()} is requested
-     * but that child has never been set, then null should be returned.
-     * </p>
      *
      * @param index
      * 		The position to look for the child.
      * @param <T>
      * 		the type of the child
      * @return the child at the position <i>index</i>
-     * @throws com.swirlds.common.merkle.exceptions.IllegalChildIndexException
-     * 		if the index is negative or if
-     * 		the index is greater than {@link #getMaximumChildCount()}.
      */
     <T extends MerkleNode> T getChild(final int index);
 
@@ -140,27 +128,6 @@ public interface MerkleParent {
      */
     void setChild(
             final int index, final MerkleNode child, final MerkleRoute childRoute, final boolean childMayBeImmutable);
-
-    /**
-     * The minimum number of children that this node may have.
-     *
-     * @return The minimum number of children at the specified version.
-     */
-    default int getMinimumChildCount() {
-        return MIN_CHILD_COUNT;
-    }
-
-    /**
-     * The maximum number of children that this node may have.
-     *
-     * The value returned must not be greater than MAX_CHILD_COUNT.
-     * If nodes violate this then reconnect might break.
-     *
-     * @return The maximum number of children at the specified version.
-     */
-    default int getMaximumChildCount() {
-        return MAX_CHILD_COUNT_UBOUND;
-    }
 
     /**
      * Adds children that have been deserialized from a stream.
