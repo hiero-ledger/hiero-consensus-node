@@ -3,10 +3,24 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
 
 module org.hiero.consensus.hashgraph.impl {
-    exports org.hiero.consensus.hashgraph.impl.consensus;
-    exports org.hiero.consensus.hashgraph.impl.linking;
-    exports org.hiero.consensus.hashgraph.impl.metrics;
-    exports org.hiero.consensus.hashgraph.impl;
+    exports org.hiero.consensus.hashgraph.impl to
+            com.swirlds.platform.core,
+            com.swirlds.platform.core.test.fixtures,
+            org.hiero.consensus.gui,
+            org.hiero.consensus.gui.test.fixtures;
+    exports org.hiero.consensus.hashgraph.impl.consensus to
+            com.swirlds.platform.core,
+            com.swirlds.platform.core.test.fixtures,
+            org.hiero.consensus.gui,
+            org.hiero.consensus.gui.test.fixtures,
+            org.hiero.consensus.pcli;
+    exports org.hiero.consensus.hashgraph.impl.linking to
+            com.swirlds.platform.core,
+            com.swirlds.platform.core.test.fixtures,
+            org.hiero.consensus.gui;
+    exports org.hiero.consensus.hashgraph.impl.metrics to
+            com.swirlds.platform.core.test.fixtures,
+            org.hiero.consensus.gui;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;

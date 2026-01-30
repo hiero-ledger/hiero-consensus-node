@@ -6,8 +6,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
-import com.swirlds.platform.test.fixtures.gui.ListEventProvider;
-import com.swirlds.platform.test.fixtures.gui.TestGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.Consumer;
@@ -38,8 +36,8 @@ public class ConsensusTestOrchestrator {
      *
      * @param platformContext the platform context to use for the new node
      */
-    public void addReconnectNode(@NonNull PlatformContext platformContext) {
-        final ConsensusTestNode node = nodes.get(0).reconnect(platformContext);
+    public void addReconnectNode(@NonNull final PlatformContext platformContext) {
+        final ConsensusTestNode node = nodes.getFirst().reconnect(platformContext);
         node.getEventEmitter().setCheckpoint(currentSequence);
         node.addEvents(currentSequence);
         nodes.add(node);
@@ -55,9 +53,9 @@ public class ConsensusTestOrchestrator {
     public void runGui() {
         final ConsensusTestNode node = nodes.stream().findAny().orElseThrow();
         new TestGuiSource(
-                        platformContext,
-                        node.getEventEmitter().getGraphGenerator().getRoster(),
-                        new ListEventProvider(node.getOutput().getAddedEvents()))
+                platformContext,
+                node.getEventEmitter().getGraphGenerator().getRoster(),
+                new ListEventProvider(node.getOutput().getAddedEvents()))
                 .runGui();
     }
 
@@ -198,6 +196,6 @@ public class ConsensusTestOrchestrator {
     }
 
     public Roster getRoster() {
-        return nodes.get(0).getEventEmitter().getGraphGenerator().getRoster();
+        return nodes.getFirst().getEventEmitter().getGraphGenerator().getRoster();
     }
 }
