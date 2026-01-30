@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.round;
 
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.round.RoundCalculationUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
