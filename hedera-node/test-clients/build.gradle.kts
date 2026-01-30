@@ -70,7 +70,7 @@ val basePrCheckTags =
     mapOf(
         "hapiTestAdhoc" to "ADHOC",
         "hapiTestCrypto" to "CRYPTO",
-        "hapiTestCryptoLeaky" to "CRYPTO&LEAKY",
+        "hapiTestCryptoLeaky" to "(CRYPTO&LEAKY)|(CRYPTO&ORDERED_IN_ISOLATION)",
         "hapiTestToken" to "TOKEN",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
@@ -345,7 +345,7 @@ tasks.register<Test>("testSubprocessConcurrent") {
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
-        excludeTags("LEAKY")
+        excludeTags("LEAKY", "ORDERED_IN_ISOLATION")
     }
 
     // Choose a different initial port for each test task if running as PR check
