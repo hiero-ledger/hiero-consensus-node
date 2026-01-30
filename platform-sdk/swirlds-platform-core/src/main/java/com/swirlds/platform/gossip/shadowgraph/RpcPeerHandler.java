@@ -240,6 +240,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         state.lastSyncFinishedTime = Instant.MIN;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void setCommunicationOverloaded(final boolean overloaded) {
         communicationOverload = overloaded;
@@ -524,7 +527,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      */
     private boolean isBroadcastRunning() {
 
-        return syncConfig.broadcast()
+        return syncConfig.enableBroadcast()
                 && !state.peerIsBehind
                 && state.lastSyncFinishedTime != Instant.MIN
                 && !communicationOverload;

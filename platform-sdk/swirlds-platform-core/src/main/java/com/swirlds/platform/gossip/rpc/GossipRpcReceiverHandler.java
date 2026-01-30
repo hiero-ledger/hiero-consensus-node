@@ -25,5 +25,11 @@ public interface GossipRpcReceiverHandler extends GossipRpcReceiver {
      */
     void cleanup();
 
+    /**
+     * Indicate if we are overloading communication channel (due to unprocessed queue, increase pings, etc)
+     *
+     * @param overloaded true if connection is overloaded with data and we should try to decrease amount of messages
+     *                   sent
+     */
     void setCommunicationOverloaded(boolean overloaded);
 }

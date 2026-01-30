@@ -177,7 +177,7 @@ public class RpcProtocol implements Protocol, GossipController {
      */
     public void addEvent(@NonNull final PlatformEvent platformEvent) {
         // broadcast event to other nodes as part of simplistic broadcast
-        if (syncConfig.broadcast() && selfId.equals(platformEvent.getCreatorId())) {
+        if (syncConfig.enableBroadcast() && selfId.equals(platformEvent.getCreatorId())) {
             final GossipEvent gossipEvent = platformEvent.getGossipEvent();
             allRpcPeers.forEach(rpcPeer -> rpcPeer.broadcastEvent(gossipEvent));
             syncMetrics.broadcastEventSent();

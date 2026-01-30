@@ -70,7 +70,7 @@ import java.time.Duration;
  * @param keepSendingEventsWhenUnhealthy     when enabled, instead of completely reducing number of syncs when system is
  *                                           unhealthy, we will just stop receiving and processing remote events, while
  *                                           we still continue sending our own events
- * @param broadcast                          enable simplistic broadcast, where all self-events are broadcast to all
+ * @param enableBroadcast                          enable simplistic broadcast, where all self-events are broadcast to all
  *                                           neighbours
  * @param disableBroadcastPingThreshold      if ping against peer breaches that level, we disable the broadcast for some
  *                                           time, as sync is more efficient at that point
@@ -104,7 +104,7 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "-1") double fairMaxConcurrentSyncs,
         @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize,
         @ConfigProperty(defaultValue = "true") boolean keepSendingEventsWhenUnhealthy,
-        @ConfigProperty(defaultValue = "true") boolean broadcast,
+        @ConfigProperty(defaultValue = "true") boolean enableBroadcast,
         @ConfigProperty(defaultValue = "900ms") Duration disableBroadcastPingThreshold,
         @ConfigProperty(defaultValue = "200") int throttleOutputQueueThreshold,
         @ConfigProperty(defaultValue = "30s") Duration pauseBroadcastOnLag) {}
