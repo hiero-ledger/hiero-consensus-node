@@ -126,7 +126,7 @@ public class BlockStreamManagerWrapper {
                 NoOpDependencies.createBenchmarkQuiescedHeartbeat(quiescenceController),
                 new NoOpDependencies.NoOpMetrics());
 
-        manager.init(state, BlockStreamManager.ZERO_BLOCK_HASH);
+        manager.init(state, BlockStreamManager.HASH_OF_ZERO);
     }
 
     public void startBlock(long blockNumber, BlockItem header) {
