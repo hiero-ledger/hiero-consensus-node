@@ -114,10 +114,16 @@ public class FeeContextImpl implements FeeContext {
         return feeManager.getSimpleFeeCalculator();
     }
 
-    @Override
     @NonNull
+    @Override
     public StoreFactory storeFactory() {
         return storeFactory;
+    }
+
+    @NonNull
+    @Override
+    public <T> T readableStore(@NonNull Class<T> storeInterface) {
+        return storeFactory.getStore(storeInterface);
     }
 
     @Override

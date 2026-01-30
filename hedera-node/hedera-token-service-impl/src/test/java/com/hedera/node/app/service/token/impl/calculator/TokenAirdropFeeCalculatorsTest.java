@@ -21,7 +21,6 @@ import com.hedera.hapi.node.token.TokenCancelAirdropTransactionBody;
 import com.hedera.hapi.node.token.TokenClaimAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import java.util.List;
@@ -47,9 +46,6 @@ class TokenAirdropFeeCalculatorsTest {
     @Mock
     private ReadableTokenStore tokenStore;
 
-    @Mock
-    private CongestionMultipliers congestionMultipliers;
-
     private SimpleFeeCalculatorImpl feeCalculator;
 
     @BeforeEach
@@ -60,9 +56,7 @@ class TokenAirdropFeeCalculatorsTest {
                 Set.of(
                         new TokenAirdropFeeCalculator(),
                         new TokenClaimAirdropFeeCalculator(),
-                        new TokenCancelAirdropFeeCalculator()),
-                Set.of(),
-                congestionMultipliers);
+                        new TokenCancelAirdropFeeCalculator()));
     }
 
     @Test

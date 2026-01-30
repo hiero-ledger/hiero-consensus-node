@@ -21,7 +21,6 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -61,15 +60,11 @@ class CryptoTransferFeeCalculatorTest {
     @Mock
     private ReadableTokenStore tokenStore;
 
-    @Mock
-    private CongestionMultipliers congestionMultipliers;
-
     private SimpleFeeCalculatorImpl feeCalculator;
 
     @BeforeEach
     void setUp() {
-        feeCalculator = new SimpleFeeCalculatorImpl(
-                createTestFeeSchedule(), Set.of(new CryptoTransferFeeCalculator()), Set.of(), congestionMultipliers);
+        feeCalculator = new SimpleFeeCalculatorImpl(createTestFeeSchedule(), Set.of(new CryptoTransferFeeCalculator()));
     }
 
     @Nested

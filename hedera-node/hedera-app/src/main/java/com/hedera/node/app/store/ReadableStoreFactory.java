@@ -185,8 +185,9 @@ public class ReadableStoreFactory implements StoreFactory {
      * @throws IllegalArgumentException if the storeInterface class provided is unknown to the app
      * @throws NullPointerException     if {@code storeInterface} is {@code null}
      */
+    @Override
     @NonNull
-    public <C> C getStore(@NonNull final Class<C> storeInterface) throws IllegalArgumentException {
+    public <C> C readableStore(@NonNull final Class<C> storeInterface) throws IllegalArgumentException {
         requireNonNull(storeInterface, "The supplied argument 'storeInterface' cannot be null!");
         final var entry = STORE_FACTORY.get(storeInterface);
         if (entry != null) {
@@ -203,22 +204,42 @@ public class ReadableStoreFactory implements StoreFactory {
         throw new IllegalArgumentException("No store of class " + storeInterface + " is available");
     }
 
-    @Override
+    /**
+     * Create a new store given the store's interface. This gives read-only access to the store.
+     *
+     * @param storeInterface The store interface to find and create a store for
+     * @param <C>            Interface class for a Store
+     * @return An implementation of the provided store interface
+     * @throws IllegalArgumentException if the storeInterface class provided is unknown to the app
+     * @throws NullPointerException     if {@code storeInterface} is {@code null}
+     * @deprecated use {@link #readableStore(Class)} instead
+     */
+    @Deprecated
     @NonNull
-    public <T> T readableStore(@NonNull final Class<T> storeInterface) {
-        return getStore(storeInterface);
+    public <C> C getStore(@NonNull final Class<C> storeInterface) throws IllegalArgumentException {
+        return readableStore(storeInterface);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException always, since this factory only provides read-only access
+     */
     @Override
     @NonNull
     public <T> T writableStore(@NonNull final Class<T> storeInterface) {
-        throw new UnsupportedOperationException("ReadableStoreFactory does not support writable stores");
+        throw new UnsupportedOperationException("ReadableStoreFactory does not provide write access to stores");
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException always, since this factory only provides read-only access
+     */
     @Override
     @NonNull
     public <T> T serviceApi(@NonNull final Class<T> apiInterface) {
-        throw new UnsupportedOperationException("ReadableStoreFactory does not support service APIs");
+        throw new UnsupportedOperationException("ReadableStoreFactory does not provide access to service APIs");
     }
 
     private record StoreEntry(

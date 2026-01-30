@@ -107,10 +107,15 @@ public class ChildFeeContextImpl implements FeeContext {
         return feeManager.getSimpleFeeCalculator();
     }
 
-    @Override
     @NonNull
+    @Override
     public StoreFactory storeFactory() {
         return storeFactory;
+    }
+
+    @Override
+    public <T> @NonNull T readableStore(@NonNull final Class<T> storeInterface) {
+        return context.readableStore(storeInterface);
     }
 
     @Override

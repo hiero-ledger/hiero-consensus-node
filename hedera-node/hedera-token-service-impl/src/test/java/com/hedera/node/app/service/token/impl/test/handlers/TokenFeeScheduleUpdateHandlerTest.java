@@ -284,7 +284,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         when(transactionBody.tokenFeeScheduleUpdateOrThrow()).thenReturn(tokenFeeScheduleUpdateTransactionBody);
         when(tokenFeeScheduleUpdateTransactionBody.customFees()).thenReturn(customFees);
         when(tokenFeeScheduleUpdateTransactionBody.tokenIdOrThrow()).thenReturn(fungibleTokenId);
-        when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
+        when(storeFactory.getStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
         when(transactionBody.transactionIDOrThrow()).thenReturn(transactionID);
         when(transactionID.transactionValidStartOrThrow()).thenReturn(consensusTimestamp);
         when(txnInfo.signatureMap()).thenReturn(SignatureMap.DEFAULT);
@@ -327,7 +327,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         // Any token ID that doesn't exist:
         when(tokenFeeScheduleUpdateTransactionBody.tokenIdOrThrow())
                 .thenReturn(TokenID.newBuilder().tokenNum(1500).build());
-        when(storeFactory.readableStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
+        when(storeFactory.getStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
         when(transactionBody.transactionIDOrThrow()).thenReturn(transactionID);
         when(transactionID.transactionValidStartOrThrow()).thenReturn(consensusTimestamp);
         when(txnInfo.signatureMap()).thenReturn(SignatureMap.DEFAULT);

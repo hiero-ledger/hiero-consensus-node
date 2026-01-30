@@ -21,6 +21,7 @@ import com.hedera.node.app.service.token.ReadableAirdropStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.throttle.annotations.CryptoTransferThrottleMultiplier;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -59,21 +60,43 @@ public class UtilizationScaledThrottleMultiplier {
      * the number of entities saved in state.
      *
      * @param txnInfo transaction info
-     * @param storeFactory provide the stores needed for determining entity utilization
+     * @param feeContext provide the stores needed for determining entity utilization
      *
      * @return the current congestion multiplier
      */
-    public long currentMultiplier(@NonNull final TransactionInfo txnInfo, @NonNull final StoreFactory storeFactory) {
-        return currentMultiplier(txnInfo.txBody(), txnInfo.functionality(), storeFactory);
+    public long currentMultiplier(
+            @NonNull final TransactionInfo txnInfo, @NonNull final FeeContext feeContext) {
+        return currentMultiplier(txnInfo.txBody(), txnInfo.functionality(), feeContext);
     }
 
     /**
      * Returns the current congestion multiplier applying additional scaling factor based on
      * the number of entities saved in state.
      *
-     * @param body the transaction body
+     * @param txnInfo transaction info
+     * @param storeFactory provides the stores needed for determining entity utilization
+     *
+     * @return the current congestion multiplier
+     */
+    public long currentMultiplier(
+            @NonNull final TransactionInfo txnInfo, @NonNull final StoreFactory storeFactory) {
+        return currentMultiplier(txnInfo.txBody(), txnInfo.functionality(), storeFactory);
+    }
+
+    public long currentMultiplier(
+            @NonNull final TransactionBody body,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final FeeContext feeContext) {
+        return currentMultiplier(body, functionality, feeContext.storeFactory());
+    }
+
+    /**
+     * Returns the current congestion multiplier applying additional scaling factor based on
+     * the number of entities saved in state.
+     *
+     * @param body transaction body
      * @param functionality the hedera functionality
-     * @param storeFactory provide the stores needed for determining entity utilization
+     * @param storeFactory provides the stores needed for determining entity utilization
      *
      * @return the current congestion multiplier
      */
@@ -87,18 +110,15 @@ public class UtilizationScaledThrottleMultiplier {
                 configuration.getConfigData(FeesConfig.class).percentUtilizationScaleFactors();
 
         return switch (functionality) {
-            case CRYPTO_CREATE ->
-                entityScaleFactors
-                        .scaleForNew(ACCOUNT, roundedAccountPercentUtil(storeFactory))
-                        .scaling((int) throttleMultiplier);
-            case CONTRACT_CREATE ->
-                entityScaleFactors
-                        .scaleForNew(CONTRACT_BYTECODE, roundedContractPercentUtil(storeFactory))
-                        .scaling((int) throttleMultiplier);
-            case FILE_CREATE ->
-                entityScaleFactors
-                        .scaleForNew(FILE, roundedFilePercentUtil(storeFactory))
-                        .scaling((int) throttleMultiplier);
+            case CRYPTO_CREATE -> entityScaleFactors
+                    .scaleForNew(ACCOUNT, roundedAccountPercentUtil(storeFactory))
+                    .scaling((int) throttleMultiplier);
+            case CONTRACT_CREATE -> entityScaleFactors
+                    .scaleForNew(CONTRACT_BYTECODE, roundedContractPercentUtil(storeFactory))
+                    .scaling((int) throttleMultiplier);
+            case FILE_CREATE -> entityScaleFactors
+                    .scaleForNew(FILE, roundedFilePercentUtil(storeFactory))
+                    .scaling((int) throttleMultiplier);
             case TOKEN_MINT -> {
                 final var mintsWithMetadata =
                         !body.tokenMintOrThrow().metadata().isEmpty();
@@ -108,22 +128,18 @@ public class UtilizationScaledThrottleMultiplier {
                                 .scaling((int) throttleMultiplier)
                         : throttleMultiplier;
             }
-            case TOKEN_CREATE ->
-                entityScaleFactors
-                        .scaleForNew(TOKEN, roundedTokenPercentUtil(storeFactory))
-                        .scaling((int) throttleMultiplier);
-            case TOKEN_ASSOCIATE_TO_ACCOUNT ->
-                entityScaleFactors
-                        .scaleForNew(TOKEN_ASSOCIATION, roundedTokenRelPercentUtil(storeFactory))
-                        .scaling((int) throttleMultiplier);
-            case CONSENSUS_CREATE_TOPIC ->
-                entityScaleFactors
-                        .scaleForNew(TOPIC, roundedTopicPercentUtil(storeFactory))
-                        .scaling((int) throttleMultiplier);
-            case TOKEN_AIRDROP ->
-                entityScaleFactors
-                        .scaleForNew(AIRDROP, roundedAirdropPercentUtil(storeFactory))
-                        .scaling((int) throttleMultiplier);
+            case TOKEN_CREATE -> entityScaleFactors
+                    .scaleForNew(TOKEN, roundedTokenPercentUtil(storeFactory))
+                    .scaling((int) throttleMultiplier);
+            case TOKEN_ASSOCIATE_TO_ACCOUNT -> entityScaleFactors
+                    .scaleForNew(TOKEN_ASSOCIATION, roundedTokenRelPercentUtil(storeFactory))
+                    .scaling((int) throttleMultiplier);
+            case CONSENSUS_CREATE_TOPIC -> entityScaleFactors
+                    .scaleForNew(TOPIC, roundedTopicPercentUtil(storeFactory))
+                    .scaling((int) throttleMultiplier);
+            case TOKEN_AIRDROP -> entityScaleFactors
+                    .scaleForNew(AIRDROP, roundedAirdropPercentUtil(storeFactory))
+                    .scaling((int) throttleMultiplier);
             default -> throttleMultiplier;
         };
     }

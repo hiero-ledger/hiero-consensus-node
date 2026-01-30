@@ -10,7 +10,6 @@ import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
 import com.hedera.hapi.node.token.NftRemoveAllowance;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeContext;
 import java.util.List;
 import java.util.Set;
@@ -33,16 +32,12 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
     @Mock
     private FeeContext feeContext;
 
-    @Mock
-    private CongestionMultipliers congestionMultipliers;
-
     private SimpleFeeCalculatorImpl feeCalculator;
 
     @BeforeEach
     void setUp() {
         final var testSchedule = createTestFeeSchedule();
-        feeCalculator = new SimpleFeeCalculatorImpl(
-                testSchedule, Set.of(new CryptoDeleteAllowanceFeeCalculator()), Set.of(), congestionMultipliers);
+        feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new CryptoDeleteAllowanceFeeCalculator()));
     }
 
     @Nested

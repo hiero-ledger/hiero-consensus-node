@@ -4,6 +4,7 @@ package com.hedera.node.app.fees;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -33,7 +34,6 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     protected final FeeSchedule feeSchedule;
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
     private final Map<Query.QueryOneOfType, QueryFeeCalculator> queryFeeCalculators;
-
     private final CongestionMultipliers congestionMultipliers;
 
     public SimpleFeeCalculatorImpl(
@@ -47,6 +47,20 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         this.queryFeeCalculators = queryFeeCalculators.stream()
                 .collect(Collectors.toMap(QueryFeeCalculator::getQueryType, Function.identity()));
         this.congestionMultipliers = congestionMultipliers;
+    }
+
+    @VisibleForTesting
+    public SimpleFeeCalculatorImpl(
+            @NonNull FeeSchedule feeSchedule,
+            @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators,
+            @NonNull Set<QueryFeeCalculator> queryFeeCalculators) {
+        this(feeSchedule, serviceFeeCalculators, queryFeeCalculators, null);
+    }
+
+    @VisibleForTesting
+    public SimpleFeeCalculatorImpl(
+            @NonNull FeeSchedule feeSchedule, @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators) {
+        this(feeSchedule, serviceFeeCalculators, Set.of());
     }
 
     /**
@@ -122,7 +136,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull final TransactionBody txnBody,
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult result) {
-        if (feeContext == null) {
+        if (feeContext == null || congestionMultipliers == null) {
             return result;
         }
 

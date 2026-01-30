@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.throttle.annotations.GasThrottleMultiplier;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -46,14 +47,46 @@ public class CongestionMultipliers {
      * Returns the maximum congestion multiplier of the gas and entity utilization based multipliers.
      *
      * @param txnInfo transaction info needed for entity utilization based multiplier
-     * @param storeFactory  provide the stores needed for entity utilization based multiplier
+     * @param feeContext  provide the stores needed for entity utilization based multiplier
      *
      * @return the max congestion multiplier
      */
-    public long maxCurrentMultiplier(@NonNull final TransactionInfo txnInfo, @NonNull final StoreFactory storeFactory) {
+    public long maxCurrentMultiplier(
+            @NonNull final TransactionInfo txnInfo, @NonNull final FeeContext feeContext) {
+        return maxCurrentMultiplier(txnInfo.txBody(), txnInfo.functionality(), feeContext);
+    }
+
+    /**
+     * Returns the maximum congestion multiplier of the gas and entity utilization based multipliers.
+     *
+     * @param txnInfo transaction info needed for entity utilization based multiplier
+     * @param storeFactory provides the stores needed for entity utilization based multiplier
+     *
+     * @return the max congestion multiplier
+     */
+    public long maxCurrentMultiplier(
+            @NonNull final TransactionInfo txnInfo, @NonNull final StoreFactory storeFactory) {
         return maxCurrentMultiplier(txnInfo.txBody(), txnInfo.functionality(), storeFactory);
     }
 
+    public long maxCurrentMultiplier(
+            @NonNull final TransactionBody body,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final FeeContext feeContext) {
+        return Math.max(
+                gasThrottleMultiplier.currentMultiplier(),
+                utilizationScaledThrottleMultiplier.currentMultiplier(body, functionality, feeContext));
+    }
+
+    /**
+     * Returns the maximum congestion multiplier of the gas and entity utilization based multipliers.
+     *
+     * @param body transaction body
+     * @param functionality the hedera functionality
+     * @param storeFactory provides the stores needed for entity utilization based multiplier
+     *
+     * @return the max congestion multiplier
+     */
     public long maxCurrentMultiplier(
             @NonNull final TransactionBody body,
             @NonNull final HederaFunctionality functionality,

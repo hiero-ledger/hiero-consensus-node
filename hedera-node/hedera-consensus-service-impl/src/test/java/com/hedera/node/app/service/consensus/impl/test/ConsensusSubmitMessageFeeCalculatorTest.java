@@ -14,7 +14,6 @@ import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusSubmitMessageFeeCalculator;
 import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
@@ -43,17 +42,13 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
     @Mock
     private FeeContext feeContext;
 
-    @Mock
-    private CongestionMultipliers congestionMultipliers;
-
     private SimpleFeeCalculatorImpl feeCalculator;
     private FeeSchedule testSchedule;
 
     @BeforeEach
     void setUp() {
         testSchedule = createTestFeeSchedule();
-        feeCalculator = new SimpleFeeCalculatorImpl(
-                testSchedule, Set.of(new ConsensusSubmitMessageFeeCalculator()), Set.of(), congestionMultipliers);
+        feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new ConsensusSubmitMessageFeeCalculator()));
     }
 
     @Nested

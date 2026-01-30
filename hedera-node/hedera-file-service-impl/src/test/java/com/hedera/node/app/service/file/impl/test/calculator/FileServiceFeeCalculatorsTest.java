@@ -25,7 +25,6 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.calculator.FileAppendFeeCalculator;
@@ -65,9 +64,6 @@ class FileServiceFeeCalculatorsTest {
     @Mock
     private FeeContext feeContext;
 
-    @Mock
-    private CongestionMultipliers congestionMultipliers;
-
     private SimpleFeeCalculatorImpl feeCalculator;
 
     @BeforeEach
@@ -82,8 +78,7 @@ class FileServiceFeeCalculatorsTest {
                         new FileDeleteFeeCalculator(),
                         new FileSystemDeleteFeeCalculator(),
                         new FileSystemUndeleteFeeCalculator()),
-                Set.of(new FileGetInfoFeeCalculator(), new FileGetContentsFeeCalculator()),
-                congestionMultipliers);
+                Set.of(new FileGetInfoFeeCalculator(), new FileGetContentsFeeCalculator()));
     }
 
     static Stream<TestCase> provideTestCases() {
