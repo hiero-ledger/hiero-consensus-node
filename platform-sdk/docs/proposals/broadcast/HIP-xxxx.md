@@ -33,7 +33,7 @@ This dual approach - combining immediate broadcast with periodic gossip sync - h
 
 Currently, event exchange mechanism consists of full reconnect (heavy synchronization of entire state, which removes the node from network for practical purposes for few minutes) and gossip sync.
 
-Sync process requires multiple roundtrips to exchange events (sending of tipsets and event window, confirmation of tipset visibility and only then actual event exchange). When the process is running, set of events to send is fixed, so no new events will be propagated until next sync cycle.
+The sync process requires multiple roundtrips to exchange events (sending of tipsets and event window, confirmation of tipset visibility and only then actual event exchange). When the process is running, the set of events to send is fixed, so no new events will be propagated until next sync cycle.
 
 With broadcast, most events (barring network disruption) will be sent immediately, without even confirmation, so in around half ping latency.
 
@@ -41,18 +41,18 @@ With broadcast, most events (barring network disruption) will be sent immediatel
 
 Broadcast is implemented in the least disruptive way and as completely optional mechanism. Events sent by broadcast are interleaved with communication of normal sync on the same channel, so no extra connection is required between the nodes.
 
-There is no confirmation or trying to figure out if remote node might already have the event - every self event (event created on given node) is sent to all neighbours as soon as possible (except if peer is in trouble, like behind severely behind event process and in the middle of disconnect, then they are not sent to avoid spamming already overloaded node).
+There is no confirmation or trying to figure out if the remote node might already have the event - every self event (event created on given node) is sent to all neighbours as soon as possible (except if peer is in trouble, like behind severely behind event process and in the middle of disconnect, then they are not sent to avoid spamming already overloaded node).
 
 Following other solutions were considered and rejected for time being:
 - creating separate channel just for broadcast purposes on the same port; rejected due to strong logic of allowing only one connection between given peers, disconnecting previous one immediately, which helps with stability, here would require special handling for each stream separately
 - creating separate channel for broadcast on different port; would require opening firewall between every pair of nodes, which could be next to impossible to manage in high security environment
 - reusing gRPC port; mixing user-facing endpoints and internal gossip methods is quite risky, as very different authentication mechanism are used; additionally, gRPC layer is very far from gossip module and broadcast events have to interoperate with gossip internals closely
 
-Longer term, idea of switching entire gossip to use gRPC can be considered, on port which is currently used for gossip, but this required changing reconnect logic, which is too big to be a part of this change. After reconnect is change to use block node, official HIP for gossip gRPC endpoint can be opened.
+Longer term, the idea of switching entire gossip to use gRPC can be considered, on the port which is currently used for gossip, but this required changing reconnect logic, which is too big to be a part of this change. After reconnect is changed to use block node, an official HIP for a gossip gRPC endpoint can be opened.
 
 ## Specification
 
-RPC sync protocol will be extended with message type `BROADCAST_EVENT`, with message id 7. `GossipMessage` serialized PBJ follows immediately afterwards (reused from current spec, but provided below for completeness). It has very similar structure to `EVENT` message, but by having a separate message id, we can:
+RPC sync protocol will be extended with the message type `BROADCAST_EVENT`, with message id 7. The `GossipMessage` serialized PBJ follows immediately afterwards (reused from current spec, but provided below for completeness). It has a very similar structure to `EVENT` message, but by having a separate message id, we can:
 
 - send it regardless of the current sync stage
 - ignore blocking intake counter (currently sync will not start again until last even of previous sync is fully processed to avoid duplications, we don't want broadcast events to block sync attempts)

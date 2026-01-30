@@ -74,9 +74,9 @@ import java.time.Duration;
  *                                           neighbours
  * @param disableBroadcastPingThreshold      if ping against peer breaches that level, we disable the broadcast for some
  *                                           time, as sync is more efficient at that point
- * @param throttleOutputQueueThreshold       if output queue of rpc is bigger than that, we disable the broadcast for
- *                                           some time, as we don't want to add additional load on network traffic and
- *                                           leave sync to manage it temporarily
+ * @param throttleOutputQueueThreshold       if output queue of rpc is bigger than this value, we disable the broadcast for
+ *                                           some time, as we don't want to add additional load on network traffic . Therefore
+ *                                           we leave sync to manage it temporarily.
  * @param pauseBroadcastOnLag                amount of time for which broadcast will be paused if communication overload
  *                                           is detected
  */

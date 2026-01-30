@@ -14,11 +14,11 @@ with broken nodes, work around dead connections, and provide some resiliency.
 To avoid a high duplicate ratio (where every sync resyncs all events coming from the broadcast anyway), the default
 frequency of sync was decreased to occur at most a few times per second. This provides a reasonable window for the
 broadcast to push enough events, which will be processed to reduce duplications. In the future, we might want to revisit
-more sophisticated sync algorithms, which will skip asking for items already received from the broadcast by not yet seen
-in the graph.
+more sophisticated sync algorithms, which will skip asking for items already received from the broadcast but not yet seen
+in the shadow graph.
 
-At the moment, simple system for managing backpressure for broadcast is implemented. If number of items in the output
-queue is too big, or amount of time needed to do full there-and-back processing of messages is too large, broadcast
+At the moment, a simple system for managing backpressure for broadcast is implemented. If the number of items in the output
+queue is too big, or the amount of time needed to do full there-and-back processing of messages is too large, broadcast
 gets disabled for some time, to let sync handle the situation. This might as well cause certain lines to be never
 using broadcast, which is not bad, as they are so delayed that all the events would be obsolete anyway.
 
