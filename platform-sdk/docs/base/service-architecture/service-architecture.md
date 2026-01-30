@@ -75,7 +75,7 @@ module com.swirlds.base.foo.impl {
 ```
 
 Note: Currently, we do not always use the Java Module System at runtime and 3rdParty apps may continue to use the
-base modules in the future on the classpath. Therefore, service providers are additionall registered via files located
+base modules in the future on the classpath. Therefore, service providers are additionally registered via files located
 in `META-INF/services` in the assembled Jar files. These files are automatically generated during the Gradle build
 (`generateMetaInfServices` task).
 

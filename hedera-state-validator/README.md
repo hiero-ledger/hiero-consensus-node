@@ -259,6 +259,39 @@ where `k` is a key, and `v` is a value.
 - The data is sorted by the **byte representation of the key**, which doesn't always map to natural ordering. For example, varint encoding does not preserve numerical ordering under lexicographical byte comparison,
   particularly when values cross boundaries that affect the number of bytes or the leading byte values. However, it will produce a stable ordering across different versions of the state, which is critically important for differential testing.
 
+## Diff
+
+The [DiffCommand](src/main/java/com/hedera/statevalidation/DiffCommand.java) class compares two states and generates two files that can be used to create a diff.
+
+### Usage
+
+1. Download the state files.
+2. Run the following command to execute the diff:
+
+```shell
+java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
+  --out=<output-directory> \
+  [--service-name=<service-name> --state-key=<state-key>]
+```
+
+### Parameters
+
+- `{path-to-state1}` - Location of the first state files (required).
+- `{path-to-state2}` - Location of the second state files (required).
+
+### Options
+
+- `--out` (or `-o`) - Directory where the resulting json files are written (required).
+- `--service-name` (or `-s`) - Name of the service to diff. If omitted along with `--state-key`, diffs all states.
+- `--state-key` (or `-k`) - Name of the state to diff. If omitted along with `--service-name`, diffs all states.
+
+### Notes
+
+- The command generates two files: `state1-diff.json` and `state2-diff.json` in the specified `--out` directory.
+- `state1-diff.json` contains entries that were either deleted in the second state or modified (showing the old value).
+- `state2-diff.json` contains entries that were either added in the second state or modified (showing the new value).
+- Service name and state key should both be either omitted or specified.
+
 ## Compact
 
 [CompactionCommand](src/main/java/com/hedera/statevalidation/CompactionCommand.java) performs compaction of state files.

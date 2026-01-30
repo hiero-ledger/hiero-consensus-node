@@ -4,6 +4,7 @@ package org.hiero.consensus.pcli;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpHashgraphModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpPcesModule;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.model.WiringModel;
@@ -28,6 +29,7 @@ import java.util.Set;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import picocli.CommandLine;
 
@@ -112,10 +114,11 @@ public final class DiagramCommand extends AbstractCommand {
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
+        final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
-                platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
+                platformContext, model, eventCreatorModule, eventIntakeModule, pcesModule, hashgraphModule);
 
         // Use non-null callbacks so all optional wires appear in the diagram
         final ApplicationCallbacks callbacks = new ApplicationCallbacks(e -> {}, s -> {}, e -> {});
