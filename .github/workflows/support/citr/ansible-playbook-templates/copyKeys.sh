@@ -2,9 +2,8 @@ namespace=$1
 
 rm -rf roles/hedera-docker/files/keys-signing/latitude roles/hedera-docker/files/keys-tls/latitude >/dev/null 2>&1
 
-mkdir roles/hedera-docker/files/keys-signing/latitude
-mkdir roles/hedera-docker/files/keys-tls/latitude
-
+mkdir -p roles/hedera-docker/files/keys-signing/latitude
+mkdir -p roles/hedera-docker/files/keys-tls/latitude
 
 
 NofNodes=`kubectl -n $namespace get pods | grep 'network-node' | wc -l`

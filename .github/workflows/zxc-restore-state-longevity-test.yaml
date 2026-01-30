@@ -834,7 +834,7 @@ jobs:
           cd "${{ github.workspace }}"/
 
           #convert URL to GS path
-          gs_path=${echo ${{ env.saved-gs-dir }} | sed -e 's/${{ env.GS_ROOT_SAVED_STATES_HTTPS }}/${{ env.GS_ROOT_SAVED_STATES_DIR }}/g'}
+          gs_path=${echo ${{ env.saved-gs-dir }} | sed -e 's@${{ env.GS_ROOT_SAVED_STATES_HTTPS }}@${{ env.GS_ROOT_SAVED_STATES_DIR }}@g'}
 
           gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
           if [[ ${?} -ne 0 ]]
