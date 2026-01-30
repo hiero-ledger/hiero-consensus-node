@@ -47,8 +47,8 @@ env:
 
 jobs:
   generate-baseline:
-    name: Generate Baseline
-    runs-on: hiero-network-node-linux-medium
+    name: "Docker: Generate Baseline"
+    runs-on: hl-cn-docker-determinism-lin-md
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
       sha-abbrev: ${{ steps.commit.outputs.sha-abbrev }}
@@ -110,7 +110,7 @@ jobs:
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
         with:
           cache-disabled: true
@@ -204,7 +204,7 @@ jobs:
         run: gsutil cp "${{ steps.manifest.outputs.file }}" "${{ steps.baseline.outputs.file }}"
 
   verify-artifacts:
-    name: "Verify Artifacts (${{ join(matrix.os, ', ') }})"
+    name: "Docker: Verify Artifacts (${{ join(matrix.os, ', ') }})"
     runs-on: ${{ matrix.os }}
     needs:
       - generate-baseline
@@ -219,10 +219,10 @@ jobs:
           #- ubuntu-22.04
           #- macos-12
           #- macos-11
-          #- hiero-network-node-linux-medium
-          - hiero-network-node-linux-large
-          - hiero-network-node-linux-ubuntu-24-large
-          - hiero-network-node-linux-debian-12-large
+          #- hl-cn-docker-determinism-lin-md
+          - hl-cn-docker-determinism-lin-lg
+          - hl-cn-docker-determinism-lin-u24-lg
+          - hl-cn-docker-determinism-lin-d12-lg
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
