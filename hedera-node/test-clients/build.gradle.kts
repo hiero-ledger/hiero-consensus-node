@@ -70,6 +70,7 @@ val basePrCheckTags =
     mapOf(
         "hapiTestAdhoc" to "ADHOC",
         "hapiTestCrypto" to "CRYPTO",
+        "hapiTestCryptoLeaky" to "CRYPTO&LEAKY",
         "hapiTestToken" to "TOKEN",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
@@ -112,6 +113,7 @@ val prCheckStartPorts =
     buildMap<String, String> {
         put("hapiTestAdhoc", "25000")
         put("hapiTestCrypto", "25200")
+        put("hapiTestCryptoLeaky", "25210")
         put("hapiTestToken", "25400")
         put("hapiTestRestart", "25600")
         put("hapiTestSmartContract", "25800")
@@ -136,6 +138,10 @@ val prCheckPropOverrides =
         )
         put(
             "hapiTestCrypto",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        )
+        put(
+            "hapiTestCryptoLeaky",
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSmartContract", "tss.historyEnabled=false")
@@ -181,6 +187,7 @@ val prCheckNetSizeOverrides =
     buildMap<String, String> {
         put("hapiTestAdhoc", "3")
         put("hapiTestCrypto", "3")
+        put("hapiTestCryptoLeaky", "3")
         put("hapiTestToken", "3")
         put("hapiTestSmartContract", "4")
 
@@ -196,7 +203,11 @@ tasks {
         register(taskName) {
             getByName(taskName).group =
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
-            dependsOn("testSubprocess")
+            dependsOn(
+                if (taskName.contains("Crypto") && !taskName.contains("Leaky"))
+                    "testSubprocessConcurrent"
+                else "testSubprocess"
+            )
         }
     }
     remoteCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testRemote") } }
@@ -299,6 +310,111 @@ tasks.register<Test>("testSubprocess") {
     // is not a huge limitation, as our test classes generally have enough non-leaky tests to
     // get a material speed up. See https://github.com/gradle/gradle/issues/6453.
     systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
+    systemProperty(
+        "junit.jupiter.testclass.order.default",
+        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
+    )
+
+    // Limit heap and number of processors
+    maxHeapSize = "8g"
+    jvmArgs("-XX:ActiveProcessorCount=6")
+    maxParallelForks = 1
+    modularity.inferModulePath.set(false)
+}
+
+tasks.register<Test>("testSubprocessConcurrent") {
+    testClassesDirs = sourceSets.main.get().output.classesDirs
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+
+    val ciTagExpression =
+        gradle.startParameter.taskNames
+            .stream()
+            .map { prCheckTags[it] ?: "" }
+            .filter { it.isNotBlank() }
+            .toList()
+            .joinToString("|")
+    useJUnitPlatform {
+        includeTags(
+            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
+            // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
+            // cases
+            else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
+                "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
+            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
+        )
+        excludeTags("LEAKY")
+    }
+
+    // Choose a different initial port for each test task if running as PR check
+    val initialPort =
+        gradle.startParameter.taskNames
+            .stream()
+            .map { prCheckStartPorts[it] ?: "" }
+            .filter { it.isNotBlank() }
+            .findFirst()
+            .orElse("")
+    systemProperty("hapi.spec.initial.port", initialPort)
+    // There's nothing special about shard/realm 11.12, except that they are non-zero values.
+    // We want to run all tests that execute as part of `testSubprocess`–that is to say,
+    // the majority of the hapi tests - with a nonzero shard/realm
+    // to maintain confidence that we haven't fallen back into the habit of assuming 0.0
+    systemProperty("hapi.spec.default.shard", 11)
+    systemProperty("hapi.spec.default.realm", 12)
+
+    // Gather overrides into a single comma‐separated list
+    val testOverrides =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPropOverrides[it] }
+            .joinToString(separator = ",")
+    // Only set the system property if non-empty
+    if (testOverrides.isNotBlank()) {
+        systemProperty("hapi.spec.test.overrides", testOverrides)
+    }
+
+    val maxHistoryProofsToObserve =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
+            .maxOrNull()
+    if (maxHistoryProofsToObserve != null) {
+        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
+    }
+
+    val prepareUpgradeOffsets =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPrepareUpgradeOffsets[it] }
+            .joinToString(",")
+    if (prepareUpgradeOffsets.isNotEmpty()) {
+        systemProperty("hapi.spec.prepareUpgradeOffsets", prepareUpgradeOffsets)
+    }
+
+    val networkSize =
+        gradle.startParameter.taskNames
+            .stream()
+            .map { prCheckNetSizeOverrides[it] ?: "" }
+            .filter { it.isNotBlank() }
+            .findFirst()
+            .orElse("4")
+    systemProperty("hapi.spec.network.size", networkSize)
+
+    // Note the 1/4 threshold for the restart check; DabEnabledUpgradeTest is a chaotic
+    // churn of fast upgrades with heavy use of override networks, and there is a node
+    // removal step that happens without giving enough time for the next hinTS scheme
+    // to be completed, meaning a 1/3 threshold in the *actual* roster only accounts for
+    // 1/4 total weight in the out-of-date hinTS verification key,
+    val hintsThresholdDenominator =
+        if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3"
+    systemProperty("hapi.spec.hintsThresholdDenominator", hintsThresholdDenominator)
+    systemProperty("hapi.spec.block.stateproof.verification", "false")
+
+    // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
+    systemProperty(
+        "hapi.spec.quiet.mode",
+        System.getProperty("hapi.spec.quiet.mode")
+            ?: if (ciTagExpression.isNotBlank()) "true" else "false",
+    )
+    systemProperty("junit.jupiter.execution.parallel.enabled", true)
+    systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
+    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
     systemProperty(
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",

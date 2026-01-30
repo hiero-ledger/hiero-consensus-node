@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.token.HapiTokenCancelAir
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 @HapiTestLifecycle
+@OrderedInIsolation
 @DisplayName("Disabled token cancel airdrop")
 public class TokenCancelAirdropDisabledTest extends TokenAirdropBase {
 

@@ -51,4 +51,13 @@ public class TestTags {
      * Tags a test that can be run alone, without any other tests.
      */
     public static final String ADHOC = "ADHOC";
+    /**
+     * Tags a test that leaks side effects or is permeable to side effects from other tests.
+     */
+    public static final String LEAKY = "LEAKY";
+    /**
+     * Tags a test class that requires strictly sequential execution.
+     */
+    //    public static final String ORDERED = "ORDERED";
+    public static final String HAPI_TEST_LIFECYCLE = "HAPI_TEST_LIFECYCLE";
 }

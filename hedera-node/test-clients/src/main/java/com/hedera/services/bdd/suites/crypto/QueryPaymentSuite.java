@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -67,7 +66,7 @@ public class QueryPaymentSuite {
      * 3. Transaction payer is not involved in transfers for query payment to node and all payers have enough balance
      */
     @HapiTest
-    @Tag(MATS)
+    // @Tag(MATS)
     final Stream<DynamicTest> queryPaymentsMultiBeneficiarySucceeds() {
         return hapiTest(
                 cryptoCreate("a").balance(1_234L),

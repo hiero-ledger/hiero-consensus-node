@@ -11,6 +11,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 @HapiTestLifecycle
+@OrderedInIsolation
 @DisplayName("Token airdrop with overridden maxAllowedPendingAirdrops")
 public class TokenAirdropWithOverriddenMaxAllowedPendingAirdropsTest extends TokenAirdropBase {
 

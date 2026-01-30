@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.crypto.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -50,6 +49,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.suites.contract.Utils;
@@ -69,6 +69,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of AutoAccountCreationUnlimitedAssociationsSuite. The difference here is that
@@ -160,63 +161,67 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                         .logged()));
     }
 
-    @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
-    final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationsDisabled() {
-        final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
-        return customizedHapiTest(
-                Map.of("memo.useSpecName", "false"),
-                overriding("entities.unlimitedAutoAssociationsEnabled", FALSE),
-                newKeyNamed(VALID_ALIAS),
-                cryptoCreate(CIVILIAN).balance(10 * ONE_HBAR),
-                cryptoCreate(PAYER).balance(10 * ONE_HBAR),
-                cryptoCreate(SPONSOR).balance(INITIAL_BALANCE * ONE_HBAR),
-                atomicBatch(cryptoTransfer(
-                                        tinyBarsFromToWithAlias(SPONSOR, VALID_ALIAS, ONE_HUNDRED_HBARS),
-                                        tinyBarsFromToWithAlias(CIVILIAN, VALID_ALIAS, ONE_HBAR))
-                                .via(TRANSFER_TXN)
-                                .payingWith(PAYER)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR),
-                getReceipt(TRANSFER_TXN).andAnyChildReceipts().hasChildAutoAccountCreations(1),
-                getTxnRecord(TRANSFER_TXN).andAllChildRecords().logged(),
-                getAccountInfo(SPONSOR)
-                        .has(accountWith()
-                                .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
-                                .noAlias()),
-                childRecordsCheck(
-                        TRANSFER_TXN,
-                        SUCCESS,
-                        recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE)),
-                assertionsHold((spec, opLog) -> {
-                    final var lookup = getTxnRecord(TRANSFER_TXN)
-                            .andAllChildRecords()
-                            .hasNonStakingChildRecordCount(1)
-                            .hasNoAliasInChildRecord(0)
-                            .logged();
-                    allRunFor(spec, lookup);
-                    final var sponsor = spec.registry().getAccountID(SPONSOR);
-                    final var payer = spec.registry().getAccountID(PAYER);
-                    final var parent = lookup.getResponseRecord();
-                    var child = lookup.getChildRecord(0);
-                    if (isEndOfStakingPeriodRecord(child)) {
-                        child = lookup.getChildRecord(1);
-                    }
-                    assertAliasBalanceAndFeeInChildRecord(
-                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, transferFee, 0);
-                    creationTime.set(child.getConsensusTimestamp().getSeconds());
-                }),
-                sourcing(() -> getAliasedAccountInfo(VALID_ALIAS)
-                        .has(accountWith()
-                                .key(VALID_ALIAS)
-                                .expectedBalanceWithChargedUsd(ONE_HUNDRED_HBARS + ONE_HBAR, 0, 0)
-                                .alias(VALID_ALIAS)
-                                .autoRenew(THREE_MONTHS_IN_SECONDS)
-                                .receiverSigReq(false)
-                                .expiry(creationTime.get() + THREE_MONTHS_IN_SECONDS, 0)
-                                .memo(AUTO_MEMO)
-                                .maxAutoAssociations(0))
-                        .logged()));
+    @Nested
+    @OrderedInIsolation
+    class Leaky {
+        @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+        final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationsDisabled() {
+            final var creationTime = new AtomicLong();
+            final long transferFee = 188608L;
+            return customizedHapiTest(
+                    Map.of("memo.useSpecName", "false"),
+                    overriding("entities.unlimitedAutoAssociationsEnabled", FALSE),
+                    newKeyNamed(VALID_ALIAS),
+                    cryptoCreate(CIVILIAN).balance(10 * ONE_HBAR),
+                    cryptoCreate(PAYER).balance(10 * ONE_HBAR),
+                    cryptoCreate(SPONSOR).balance(INITIAL_BALANCE * ONE_HBAR),
+                    atomicBatch(cryptoTransfer(
+                                            tinyBarsFromToWithAlias(SPONSOR, VALID_ALIAS, ONE_HUNDRED_HBARS),
+                                            tinyBarsFromToWithAlias(CIVILIAN, VALID_ALIAS, ONE_HBAR))
+                                    .via(TRANSFER_TXN)
+                                    .payingWith(PAYER)
+                                    .batchKey(BATCH_OPERATOR))
+                            .payingWith(BATCH_OPERATOR),
+                    getReceipt(TRANSFER_TXN).andAnyChildReceipts().hasChildAutoAccountCreations(1),
+                    getTxnRecord(TRANSFER_TXN).andAllChildRecords().logged(),
+                    getAccountInfo(SPONSOR)
+                            .has(accountWith()
+                                    .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
+                                    .noAlias()),
+                    childRecordsCheck(
+                            TRANSFER_TXN,
+                            SUCCESS,
+                            recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE)),
+                    assertionsHold((spec, opLog) -> {
+                        final var lookup = getTxnRecord(TRANSFER_TXN)
+                                .andAllChildRecords()
+                                .hasNonStakingChildRecordCount(1)
+                                .hasNoAliasInChildRecord(0)
+                                .logged();
+                        allRunFor(spec, lookup);
+                        final var sponsor = spec.registry().getAccountID(SPONSOR);
+                        final var payer = spec.registry().getAccountID(PAYER);
+                        final var parent = lookup.getResponseRecord();
+                        var child = lookup.getChildRecord(0);
+                        if (isEndOfStakingPeriodRecord(child)) {
+                            child = lookup.getChildRecord(1);
+                        }
+                        assertAliasBalanceAndFeeInChildRecord(
+                                parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, transferFee, 0);
+                        creationTime.set(child.getConsensusTimestamp().getSeconds());
+                    }),
+                    sourcing(() -> getAliasedAccountInfo(VALID_ALIAS)
+                            .has(accountWith()
+                                    .key(VALID_ALIAS)
+                                    .expectedBalanceWithChargedUsd(ONE_HUNDRED_HBARS + ONE_HBAR, 0, 0)
+                                    .alias(VALID_ALIAS)
+                                    .autoRenew(THREE_MONTHS_IN_SECONDS)
+                                    .receiverSigReq(false)
+                                    .expiry(creationTime.get() + THREE_MONTHS_IN_SECONDS, 0)
+                                    .memo(AUTO_MEMO)
+                                    .maxAutoAssociations(0))
+                            .logged()));
+        }
     }
 
     @HapiTest
@@ -434,7 +439,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
+    // @Tag(MATS)
     final Stream<DynamicTest> transferNftToEVMAddressAliasUnlimitedAssociations() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
