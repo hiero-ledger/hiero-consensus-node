@@ -580,7 +580,7 @@ public class StandardGraphGenerator implements GraphGenerator {
     /**
      * {@inheritDoc}
      */
-    public final EventImpl generateEvent() {
+    public final PlatformEvent generateEvent() {
         return generateEventWithoutIndex();
     }
 
@@ -593,18 +593,18 @@ public class StandardGraphGenerator implements GraphGenerator {
      * @return the next event's base event
      */
     public final PlatformEvent generateBaseEvent() {
-        return generateEvent().getBaseEvent();
+        return generateEvent();
     }
 
     /**
      * The same as {@link #generateEvent()}, but does not set the stream sequence number.
      */
-    public final EventImpl generateEventWithoutIndex() {
+    public final PlatformEvent generateEventWithoutIndex() {
         final EventImpl next = buildNextEvent(numEventsGenerated);
         next.getBaseEvent().signalPrehandleCompletion();
         numEventsGenerated++;
         updateMaxBirthRound(next);
-        return next;
+        return next.getBaseEvent();
     }
 
     /**
