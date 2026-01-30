@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.TransactionGetRecordQuery;
 import com.hedera.node.app.service.networkadmin.impl.calculator.GetByKeyFeeCalculator;
 import com.hedera.node.app.service.networkadmin.impl.calculator.GetVersionInfoFeeCalculator;
 import com.hedera.node.app.service.networkadmin.impl.calculator.TransactionGetReceiptFeeCalculator;
@@ -22,7 +24,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class NetworkAdminFeeCalculatorsTest {
-
     private static final long GET_VERSION_INFO_FEE = 100L;
     private static final long GET_BY_KEY_FEE = 200L;
     private static final long TRANSACTION_GET_RECEIPT_FEE = 0L;
@@ -81,10 +82,13 @@ class NetworkAdminFeeCalculatorsTest {
     void testTransactionGetRecordFeeCalculator() {
         final var calculator = new TransactionGetRecordFeeCalculator();
         final var mockQueryContext = mock(QueryContext.class);
+        final var query = Query.newBuilder()
+                .transactionGetRecord(TransactionGetRecordQuery.newBuilder().build())
+                .build();
+        when(mockQueryContext.query()).thenReturn(query);
         final var feeResult = new FeeResult();
 
-        calculator.accumulateNodePayment(
-                Query.newBuilder().build(), mockQueryContext, feeResult, createTestFeeSchedule());
+        calculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
