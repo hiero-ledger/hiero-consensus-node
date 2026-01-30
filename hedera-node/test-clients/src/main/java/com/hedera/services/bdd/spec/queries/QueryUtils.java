@@ -19,6 +19,7 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 
 public class QueryUtils {
+    private static final long TRANSFER_FEE_FOR_QUERY_PAYMENT = 83333L;
 
     /**
      * Private constructor to prevent instantiation.
@@ -60,7 +61,7 @@ public class QueryUtils {
 
     public static long reflectForCost(Response response)
             throws InvocationTargetException, NoSuchMethodException, IllegalAccessException {
-        return (long) reflectForHeaderField(response, "cost");
+        return (long) reflectForHeaderField(response, "cost") - TRANSFER_FEE_FOR_QUERY_PAYMENT;
     }
 
     public static ResponseCodeEnum reflectForPrecheck(Response response)

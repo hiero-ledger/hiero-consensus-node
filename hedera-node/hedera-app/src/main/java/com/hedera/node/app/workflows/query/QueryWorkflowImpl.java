@@ -236,18 +236,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                 throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
                             }
 
-                            // 3.iv Calculate costs
-                            long queryFees;
-                            if (shouldUseSimpleFees(context)) {
-                                final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(context.query(), context);
-                                queryFees = tinycentsToTinybars(
-                                        queryFeeTinyCents,
-                                        fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
-                            } else {
-                                queryFees = handler.computeFees(context).totalFee();
-                            }
-
                             // The fee for the crypto transfer that pays the fee
                             final var cryptoTransferTxnFee = queryChecker.estimateTxFees(
                                     storeFactory,
@@ -255,6 +243,19 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                     checkerResult.txnInfoOrThrow(),
                                     payer.keyOrThrow(),
                                     configuration);
+                            // 3.iv Calculate costs
+                            long queryFees;
+                            if (shouldUseSimpleFees(context)) {
+                                final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
+                                        .calculateQueryFee(context.query(), context);
+                                queryFees = tinycentsToTinybars(
+                                                queryFeeTinyCents,
+                                                fromPbj(context.exchangeRateInfo()
+                                                        .activeRate(consensusTime)))
+                                        - cryptoTransferTxnFee;
+                            } else {
+                                queryFees = handler.computeFees(context).totalFee();
+                            }
 
                             // 3.v Check account balances
                             queryChecker.validateAccountBalances(

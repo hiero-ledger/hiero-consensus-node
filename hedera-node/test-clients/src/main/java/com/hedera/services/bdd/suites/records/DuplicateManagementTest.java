@@ -12,7 +12,7 @@ import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includ
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.getNonFeeDeduction;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.getDeduction;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
@@ -96,8 +96,14 @@ public class DuplicateManagementTest {
                     var costlyRecord = costlyGet.getResponseRecord();
                     opLog.info("cheapRecord: {}", cheapRecord);
                     opLog.info("costlyRecord: {}", costlyRecord);
-                    var cheapPrice = getNonFeeDeduction(cheapRecord).orElse(0);
-                    var costlyPrice = getNonFeeDeduction(costlyRecord).orElse(0);
+                    var cheapPrice = getDeduction(
+                                    cheapRecord.getTransferList(),
+                                    cheapRecord.getTransactionID().getAccountID())
+                            .orElse(0);
+                    var costlyPrice = getDeduction(
+                                    costlyRecord.getTransferList(),
+                                    costlyRecord.getTransactionID().getAccountID())
+                            .orElse(0);
                     assertEquals(
                             3 * cheapPrice - 1,
                             costlyPrice,

@@ -129,17 +129,17 @@
         },
         {
           "name": "CryptoGetAccountBalance",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         },
         {
           "name": "CryptoGetInfo",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         },
         {
           "name": "CryptoGetAccountRecords",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         }
       ]
@@ -200,7 +200,7 @@
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         }
       ]
@@ -282,14 +282,14 @@
         },
         {
           "name": "FileGetContents",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": [
             { "name": "BYTES", "includedCount": 1000}
           ]
         },
         {
           "name": "FileGetInfo",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         }
       ]
@@ -513,13 +513,13 @@
         },
         {
           "name": "TokenGetInfo",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": [
           ]
         },
         {
           "name": "TokenGetNftInfo",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": [
           ]
         }
@@ -567,7 +567,7 @@
         },
         {
           "name": "ScheduleGetInfo",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         }
       ]
@@ -577,22 +577,22 @@
       "schedule": [
         {
           "name": "GetVersionInfo",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         },
         {
           "name": "TransactionGetRecord",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         },
         {
           "name": "TransactionGetReceipt",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         },
         {
           "name": "GetByKey",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         }
       ]
@@ -724,7 +724,7 @@
         },
         {
           "name": "ContractGetInfo",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         }
       ]

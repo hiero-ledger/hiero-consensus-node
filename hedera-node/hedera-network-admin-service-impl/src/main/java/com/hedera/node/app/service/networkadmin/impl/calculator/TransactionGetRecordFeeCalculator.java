@@ -26,6 +26,21 @@ public class TransactionGetRecordFeeCalculator implements QueryFeeCalculator {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TRANSACTION_GET_RECORD);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
+
+        if (queryContext != null) {
+            final var recordCache = queryContext.recordCache();
+            final var op = queryContext.query().transactionGetRecordOrThrow();
+            int recordCount = 1;
+            if (op.includeDuplicates() || op.includeChildRecords()) {
+                final var history = recordCache.getHistory(op.transactionIDOrThrow());
+                if (history != null) {
+                    recordCount += op.includeDuplicates() ? history.duplicateCount() : 0;
+                    recordCount +=
+                            op.includeChildRecords() ? history.childRecords().size() : 0;
+                }
+            }
+            feeResult.multiplyServiceTotal(recordCount);
+        }
     }
 
     @Override
