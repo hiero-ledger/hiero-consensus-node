@@ -16,6 +16,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
@@ -147,7 +148,8 @@ class SerializationTest extends MerkleTestBase {
                 config,
                 new HashMap<>(),
                 migrationStateChanges,
-                startupNetworks);
+                startupNetworks,
+                InitTrigger.RESTART);
         loadedTree.getRoot().migrate(NO_VIRTUAL_ROOT_NODE);
     }
 
@@ -162,7 +164,15 @@ class SerializationTest extends MerkleTestBase {
         final var originalRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
         originalRegistry.register(schemaV1);
         originalRegistry.migrate(
-                originalTreeCopy, null, v1, config, config, new HashMap<>(), migrationStateChanges, startupNetworks);
+                originalTreeCopy,
+                null,
+                v1,
+                config,
+                config,
+                new HashMap<>(),
+                migrationStateChanges,
+                startupNetworks,
+                InitTrigger.GENESIS);
 
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, config);

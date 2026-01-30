@@ -26,7 +26,7 @@ public class V0560BlockRecordSchema extends Schema<SemanticVersion> {
 
     @Override
     public void restart(@NonNull final MigrationContext ctx) {
-        if (ctx.previousVersion() != null) {
+        if (!ctx.isGenesis()) {
             // Upcoming BlockStreamService schemas may need migration info
             final var blocksState = ctx.newStates().getSingleton(BLOCKS_STATE_ID);
             final var runningHashesState = ctx.newStates().getSingleton(RUNNING_HASHES_STATE_ID);

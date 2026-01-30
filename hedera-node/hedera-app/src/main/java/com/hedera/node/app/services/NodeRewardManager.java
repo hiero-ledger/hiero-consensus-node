@@ -42,6 +42,7 @@ import java.math.BigInteger;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import javax.inject.Inject;
@@ -280,7 +281,7 @@ public class NodeRewardManager {
     private @NonNull NodeRewards nodeRewardInfoFrom(@NonNull final State state) {
         final var nodeRewardInfoState =
                 state.getReadableStates(TokenService.NAME).<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID);
-        return requireNonNull(nodeRewardInfoState.get());
+        return Optional.ofNullable(nodeRewardInfoState.get()).orElse(NodeRewards.DEFAULT);
     }
 
     /**

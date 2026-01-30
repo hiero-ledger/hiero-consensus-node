@@ -12,7 +12,6 @@ import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduleList;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.schedule.ScheduleService;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -61,11 +60,6 @@ public final class V0490ScheduleSchema extends Schema<SemanticVersion> {
     @Override
     public Set<StateDefinition> statesToCreate() {
         return Set.of(schedulesByIdDef(), schedulesByExpirySec(), schedulesByEquality());
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        // There are no scheduled transactions at genesis
     }
 
     private static StateDefinition<ScheduleID, Schedule> schedulesByIdDef() {

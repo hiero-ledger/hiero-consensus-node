@@ -9,7 +9,6 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.consensus.ConsensusService;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -50,10 +49,5 @@ public class V0490ConsensusSchema extends Schema<SemanticVersion> {
     public Set<StateDefinition> statesToCreate() {
         return Set.of(
                 StateDefinition.onDisk(TOPICS_STATE_ID, TOPICS_KEY, TopicID.PROTOBUF, Topic.PROTOBUF, MAX_TOPICS));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        // There are no topics at genesis
     }
 }

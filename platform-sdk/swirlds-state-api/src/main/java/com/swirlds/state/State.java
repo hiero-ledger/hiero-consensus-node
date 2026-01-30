@@ -92,14 +92,6 @@ public interface State extends FastCopyable, Hashable {
     }
 
     /**
-     * Used to track the status of the Platform.
-     * @return {@code true} if Platform status is not {@code PlatformStatus.ACTIVE}.
-     */
-    default boolean isStartUpMode() {
-        return true;
-    }
-
-    /**
      * Returns a JSON string containing information about the current state.
      * @return A JSON representation of the state information, or an empty string if no information is available.
      */

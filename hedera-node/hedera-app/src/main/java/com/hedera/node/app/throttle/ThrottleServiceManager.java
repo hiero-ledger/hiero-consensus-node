@@ -71,8 +71,9 @@ public class ThrottleServiceManager {
      *
      * @param state the state to use
      * @param throttleDefinitions the serialized throttle definitions
+     * @param genesis true if this is the genesis state
      */
-    public void init(@NonNull final State state, @NonNull final Bytes throttleDefinitions) {
+    public void init(@NonNull final State state, @NonNull final Bytes throttleDefinitions, final boolean genesis) {
         requireNonNull(state);
         // Apply configuration for gas, bytes and ops duration throttles
         applyGasConfig();
@@ -82,10 +83,12 @@ public class ThrottleServiceManager {
         rebuildThrottlesFrom(throttleDefinitions);
         // Reset multiplier expectations
         congestionMultipliers.resetExpectations();
-        // Rehydrate the internal state of the throttling service (no-op if at genesis)
-        final var serviceStates = state.getReadableStates(CongestionThrottleService.NAME);
-        resetThrottlesFromUsageSnapshots(serviceStates);
-        syncFromCongestionLevelStarts(serviceStates);
+        // Rehydrate the internal state of the throttling service if not at genesis
+        if (!genesis) {
+            final var serviceStates = state.getReadableStates(CongestionThrottleService.NAME);
+            resetThrottlesFromUsageSnapshots(serviceStates);
+            syncFromCongestionLevelStarts(serviceStates);
+        }
     }
 
     /**

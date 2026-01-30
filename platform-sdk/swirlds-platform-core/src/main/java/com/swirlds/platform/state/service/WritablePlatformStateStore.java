@@ -39,17 +39,6 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
     }
 
     /**
-     * Overwrite the current platform state with the provided state.
-     */
-    public void setAllFrom(@NonNull final PlatformStateModifier modifier) {
-        this.update(toPbjPlatformState(modifier));
-    }
-
-    private void setAllFrom(@NonNull final PlatformStateValueAccumulator accumulator) {
-        this.update(toPbjPlatformState(stateOrThrow(), accumulator));
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -148,9 +137,14 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      */
     @Override
     public void bulkUpdate(@NonNull final Consumer<PlatformStateModifier> updater) {
+        if (state.get() == null) {
+            // A very special case of going ACTIVE at genesis; this is the first change each new network makes to state,
+            // and the Hedera app has a matching special case to ensure it is the first state change in the block stream
+            state.put(PlatformState.DEFAULT);
+        }
         final var accumulator = new PlatformStateValueAccumulator();
         updater.accept(accumulator);
-        setAllFrom(accumulator);
+        update(toPbjPlatformState(stateOrThrow(), accumulator));
     }
 
     private @NonNull PlatformState stateOrThrow() {

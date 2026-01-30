@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NODE_PAYMENTS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.hapi.node.state.token.NetworkStakingRewards;
+import com.hedera.hapi.node.state.token.NodePayments;
+import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.calculator.CryptoApproveAllowanceFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
@@ -43,7 +48,9 @@ import com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.ZoneId;
 import java.util.Set;
@@ -55,11 +62,8 @@ public class TokenServiceImpl implements TokenService {
     public static final long HBARS_TO_TINYBARS = 100_000_000L;
     public static final ZoneId ZONE_UTC = ZoneId.of("UTC");
 
-    private final EntityIdFactory idFactory;
-
     public TokenServiceImpl(@NonNull final AppContext appContext) {
         requireNonNull(appContext);
-        this.idFactory = appContext.idFactory();
     }
 
     @Override
@@ -69,6 +73,24 @@ public class TokenServiceImpl implements TokenService {
         registry.register(new V0530TokenSchema());
         registry.register(new V0610TokenSchema());
         registry.register(new V0700TokenSchema());
+    }
+
+    @Override
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        requireNonNull(writableStates);
+        requireNonNull(configuration);
+        final var networkRewardsState = writableStates.getSingleton(STAKING_NETWORK_REWARDS_STATE_ID);
+        final var networkRewards = NetworkStakingRewards.newBuilder()
+                .pendingRewards(0)
+                .totalStakedRewardStart(0)
+                .totalStakedStart(0)
+                .stakingRewardsActivated(true)
+                .build();
+        networkRewardsState.put(networkRewards);
+        writableStates.<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID).put(NodeRewards.DEFAULT);
+        writableStates.<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID).put(NodePayments.DEFAULT);
+        return true;
     }
 
     @Override

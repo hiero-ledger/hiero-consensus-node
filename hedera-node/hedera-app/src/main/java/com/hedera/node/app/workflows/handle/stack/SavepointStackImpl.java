@@ -616,12 +616,4 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     public void setHash(Hash hash) {
         state.setHash(hash);
     }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isStartUpMode() {
-        return state.isStartUpMode();
-    }
 }

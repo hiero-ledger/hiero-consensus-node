@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -81,7 +82,7 @@ class V0540RosterSchemaTest {
 
     @BeforeEach
     void setUp() {
-        subject = new V0540RosterSchema(onAdopt, canAdopt, rosterStoreFactory, this::getState);
+        subject = new V0540RosterSchema(onAdopt, canAdopt, rosterStoreFactory);
     }
 
     @Test
@@ -95,31 +96,15 @@ class V0540RosterSchemaTest {
     }
 
     @Test
-    void usesGenesisRosterIfLifecycleEnabledAndApropros() {
-        given(ctx.newStates()).willReturn(writableStates);
-        given(ctx.isGenesis()).willReturn(true);
-        given(ctx.startupNetworks()).willReturn(startupNetworks);
-        given(ctx.platformConfig()).willReturn(DEFAULT_CONFIG);
-        given(startupNetworks.genesisNetworkOrThrow(DEFAULT_CONFIG)).willReturn(NETWORK);
-        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
-
-        subject.restart(ctx);
-
-        verify(rosterStore).putActiveRoster(ROSTER, 0L);
-    }
-
-    @Test
     void noOpIfNotUpgradeAndActiveRosterPresent() {
         given(ctx.newStates()).willReturn(writableStates);
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
-        given(rosterStore.getActiveRoster()).willReturn(ROSTER);
         given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
 
         subject.restart(ctx);
 
-        verify(rosterStore).getActiveRoster();
-        verifyNoMoreInteractions(rosterStore);
+        verifyNoInteractions(rosterStore);
     }
 
     @Test
@@ -127,13 +112,11 @@ class V0540RosterSchemaTest {
         given(ctx.newStates()).willReturn(writableStates);
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
-        given(rosterStore.getActiveRoster()).willReturn(ROSTER);
         given(ctx.isUpgrade(any())).willReturn(true);
         given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
 
         subject.restart(ctx);
 
-        verify(rosterStore).getActiveRoster();
         verify(rosterStore).getCandidateRoster();
         verifyNoMoreInteractions(rosterStore);
     }
@@ -143,7 +126,6 @@ class V0540RosterSchemaTest {
         given(ctx.newStates()).willReturn(writableStates);
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
-        given(rosterStore.getActiveRoster()).willReturn(ROSTER);
         given(ctx.isUpgrade(any())).willReturn(true);
         given(rosterStore.getCandidateRoster()).willReturn(ROSTER);
         given(canAdopt.test(ROSTER)).willReturn(false);
@@ -151,7 +133,6 @@ class V0540RosterSchemaTest {
 
         subject.restart(ctx);
 
-        verify(rosterStore).getActiveRoster();
         verify(rosterStore).getCandidateRoster();
         verifyNoMoreInteractions(rosterStore);
     }
@@ -170,7 +151,7 @@ class V0540RosterSchemaTest {
 
         subject.restart(ctx);
 
-        verify(rosterStore, times(2)).getActiveRoster();
+        verify(rosterStore, times(1)).getActiveRoster();
         verify(rosterStore).getCandidateRoster();
         verify(rosterStore).adoptCandidateRoster(ROUND_NO + 1L);
     }

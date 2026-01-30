@@ -37,6 +37,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -90,7 +91,8 @@ public class NodeFeeManager implements NodeFeeAccumulator {
             resetNodeFees();
             final var nodePaymentsState = requireNonNull(
                     state.getReadableStates(TokenService.NAME).<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID));
-            final NodePayments nodePayments = requireNonNull(nodePaymentsState.get());
+            final var nodePayments =
+                    Optional.ofNullable(nodePaymentsState.get()).orElse(NodePayments.DEFAULT);
             nodePayments.payments().forEach(pair -> nodeFees.put(pair.nodeAccountId(), pair.fees()));
             log.debug("Loaded node payments from state: {}", nodePayments);
         }
