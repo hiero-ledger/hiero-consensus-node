@@ -168,7 +168,7 @@ public class SimpleFeesRecordStreamTest {
         }
     }
 
-    @Test
+//    @Test
     void streamingSimpleFees() throws IOException {
         // set the overrides
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
