@@ -7,7 +7,6 @@ import com.swirlds.state.spi.WritableKVStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -57,12 +56,6 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
     @Override
     protected V readFromDataSource(@NonNull K key) {
         return backingStore.get(key);
-    }
-
-    @NonNull
-    @Override
-    protected Iterator<K> iterateFromDataSource() {
-        return backingStore.keySet().iterator();
     }
 
     @Override
