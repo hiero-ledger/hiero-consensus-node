@@ -4,12 +4,12 @@ package com.swirlds.platform.test.fixtures.communication;
 import com.swirlds.common.io.utility.IOConsumer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.gossip.sync.SyncInputStream;
-import com.swirlds.platform.gossip.sync.SyncOutputStream;
 import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 
 public class ReadWriteFakeConnection extends FakeConnection {
     private final SyncInputStream in;

@@ -167,7 +167,7 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `org.hiero.consensus.model.hashgraph.ConsensusRound`
   * `org.hiero.consensus.model.hashgraph.Round`
 * SyncGossipModular support code
-  * `com.swirlds.platform.Utilities`
+  * `org.hiero.consensus.exceptions.ThrowableUtilities`
   * `com.swirlds.platform.gossip.DefaultIntakeEventCounter`
 * DefaultSignedStateValidator support code
   * `com.swirlds.platform.reconnect.DefaultSignedStateValidator`

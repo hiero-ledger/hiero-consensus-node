@@ -3,13 +3,13 @@ package com.swirlds.platform.test.fixtures.network;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.ConnectionManager;
-import com.swirlds.platform.network.ConnectionTracker;
-import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.network.topology.ConnectionManagerFactory;
 import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.ConnectionManager;
+import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
+import org.hiero.consensus.gossip.impl.network.PeerInfo;
+import org.hiero.consensus.gossip.impl.network.topology.ConnectionManagerFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 

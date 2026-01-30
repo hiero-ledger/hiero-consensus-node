@@ -9,10 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ShadowEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.BeforeEach;

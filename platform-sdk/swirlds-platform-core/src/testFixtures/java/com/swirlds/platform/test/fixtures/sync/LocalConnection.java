@@ -3,12 +3,12 @@ package com.swirlds.platform.test.fixtures.sync;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.gossip.sync.SyncInputStream;
-import com.swirlds.platform.gossip.sync.SyncOutputStream;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.NetworkUtils;
 import java.io.InputStream;
 import java.io.OutputStream;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

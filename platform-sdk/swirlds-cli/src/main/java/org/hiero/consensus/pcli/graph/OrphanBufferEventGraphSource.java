@@ -2,11 +2,11 @@
 package org.hiero.consensus.pcli.graph;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
 import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;

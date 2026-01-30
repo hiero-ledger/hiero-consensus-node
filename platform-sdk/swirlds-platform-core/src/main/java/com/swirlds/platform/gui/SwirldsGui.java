@@ -13,7 +13,7 @@ import java.awt.Rectangle;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.node.NodeUtilities;
 
 /**
  * Utilities for creating GUI elements.
@@ -40,7 +40,8 @@ public final class SwirldsGui {
         final int winCount = platform.getRoster().rosterEntries().size();
         final Rectangle winRect = winRect(winCount, winNum);
         // if SwirldMain calls createConsole, this remembers the window created
-        final Console console = GuiUtils.createBasicConsole(RosterUtils.formatNodeName(selfId.id()), winRect, visible);
+        final Console console =
+                GuiUtils.createBasicConsole(NodeUtilities.formatNodeName(selfId.id()), winRect, visible);
         SwirldMenu.addTo(platform, console.getWindow(), 40, Color.white, false);
         return console;
     }

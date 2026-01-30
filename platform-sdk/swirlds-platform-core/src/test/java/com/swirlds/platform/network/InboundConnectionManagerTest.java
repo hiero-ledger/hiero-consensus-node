@@ -14,6 +14,8 @@ import java.util.Random;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.InboundConnectionManager;
 import org.junit.jupiter.api.Test;
 
 class InboundConnectionManagerTest {
