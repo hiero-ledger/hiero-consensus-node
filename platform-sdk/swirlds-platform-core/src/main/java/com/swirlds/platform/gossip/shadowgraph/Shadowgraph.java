@@ -6,7 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayDeque;
@@ -94,15 +94,15 @@ public class Shadowgraph implements Clearable {
     /**
      * Constructor.
      *
-     * @param platformContext    the platform context
-     * @param numberOfNodes      numberOfNodes
+     * @param metrics the metrics system
+     * @param numberOfNodes the number of nodes in the network
      * @param intakeEventCounter tracks events in the intake pipeline
      */
     public Shadowgraph(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final int numberOfNodes,
+            @NonNull final Metrics metrics,
+            final int numberOfNodes,
             @NonNull final IntakeEventCounter intakeEventCounter) {
-        this.metrics = new ShadowgraphMetrics(platformContext);
+        this.metrics = new ShadowgraphMetrics(metrics);
         this.numberOfNodes = numberOfNodes;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         tips = new HashSet<>();

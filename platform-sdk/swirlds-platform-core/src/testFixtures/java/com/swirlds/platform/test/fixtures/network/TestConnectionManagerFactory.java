@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.network;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionManager;
 import com.swirlds.platform.network.ConnectionTracker;
@@ -52,11 +53,12 @@ public class TestConnectionManagerFactory implements ConnectionManagerFactory {
 
     @Override
     public ConnectionManager createOutboundConnectionManager(
-            @NonNull NodeId selfId,
-            @NonNull PeerInfo otherPeer,
-            @NonNull PlatformContext platformContext,
-            @NonNull ConnectionTracker connectionTracker,
-            @NonNull KeysAndCerts ownKeysAndCerts) {
+            @NonNull final Configuration configuration,
+            @NonNull final Time time,
+            @NonNull final NodeId selfId,
+            @NonNull final PeerInfo otherPeer,
+            @NonNull final ConnectionTracker connectionTracker,
+            @NonNull final KeysAndCerts ownKeysAndCerts) {
         return new ConnectionManager() {
 
             @Override

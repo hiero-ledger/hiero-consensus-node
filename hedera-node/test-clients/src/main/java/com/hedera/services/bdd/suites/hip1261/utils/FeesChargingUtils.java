@@ -79,6 +79,42 @@ public class FeesChargingUtils {
     }
 
     /**
+     * SimpleFees formula for node fees only:
+     * node = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     */
+    private static double expectedNodeFeeUsd(long sigs, int txnSize) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        return NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+    }
+
+    /**
+     * SimpleFees formula for network fees only:
+     * network = node * NETWORK_MULTIPLIER
+     */
+    private static double expectedNetworkFeeUsd(long sigs, int txnSize) {
+        return expectedNodeFeeUsd(sigs, txnSize) * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * SimpleFees formula for node + network fees:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * total   = node + network
+     */
+    private static double expectedNodeAndNetworkFeeUsd(long sigs, int txnSize) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        return nodeFee + networkFee;
+    }
+
+    /**
      * SimpleFees formula for CryptoCreate:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
      * network = node * NETWORK_MULTIPLIER
@@ -87,10 +123,6 @@ public class FeesChargingUtils {
      *         + HOOKS_FEE * max(0, hooks - includedHooksService)
      * total   = node + network + service
      */
-    public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, long hooks) {
-        return expectedCryptoCreateFullFeeUsd(sigs, keys, hooks, 0);
-    }
-
     public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, long hooks, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
@@ -118,6 +150,13 @@ public class FeesChargingUtils {
 
     public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, int txnSize) {
         return expectedCryptoCreateFullFeeUsd(sigs, keys, 0L, txnSize);
+    }
+
+    /**
+     * Overload when there are no txn size extras.
+     */
+    public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, long hooks) {
+        return expectedCryptoCreateFullFeeUsd(sigs, keys, hooks, 0);
     }
 
     /**
@@ -543,6 +582,56 @@ public class FeesChargingUtils {
                 true,
                 true,
                 false);
+    }
+
+    public static double expectedCryptoTransferTokenWithCustomFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount) {
+
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                gasAmount,
+                false,
+                false,
+                true);
+    }
+
+    // Overload with txn size
+    public static double expectedCryptoTransferTokenWithCustomFullFeeUsd(
+            long sigs,
+            long uniqueHooksExecuted,
+            long uniqueAccounts,
+            long uniqueFungibleTokens,
+            long uniqueNonFungibleTokens,
+            long gasAmount,
+            int txnSize) {
+
+        final double fullWithoutBytes = expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                gasAmount,
+                false,
+                false,
+                true);
+
+        final double nodeAndNetworkWithoutBytes = expectedNodeAndNetworkFeeUsd(sigs, 0);
+
+        final double serviceOnly = fullWithoutBytes - nodeAndNetworkWithoutBytes;
+
+        final double nodeAndNetworkWithBytes = expectedNodeAndNetworkFeeUsd(sigs, txnSize);
+
+        return nodeAndNetworkWithBytes + serviceOnly;
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
