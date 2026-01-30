@@ -133,6 +133,7 @@ import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
@@ -594,7 +595,7 @@ public final class Hedera
      */
     @Override
     @NonNull
-    public MerkleNodeState newStateRoot() {
+    public MerkleNodeState<VirtualMap> newStateRoot() {
         return stateRootSupplier.get();
     }
 
