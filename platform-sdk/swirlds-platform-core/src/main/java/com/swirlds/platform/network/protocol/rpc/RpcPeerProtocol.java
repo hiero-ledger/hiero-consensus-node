@@ -219,11 +219,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         this.outputQueue =
                 syncMetrics.createMeasuredQueue("rpc_output_%02d".formatted(peerId.id()), new LinkedBlockingQueue<>());
         this.overloadMonitor = new RpcOverloadMonitor(
-                peerId,
-                syncConfig,
-                syncMetrics,
-                time,
-                (overload) -> rpcPeerHandler.setCommunicationOverloaded(overload));
+                syncConfig, syncMetrics, time, (overload) -> rpcPeerHandler.setCommunicationOverloaded(overload));
     }
 
     /**

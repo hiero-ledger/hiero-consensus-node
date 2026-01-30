@@ -7,7 +7,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.hiero.consensus.gossip.config.SyncConfig;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Helper class for checking if rpc communication is overloaded (ping or output queue) and informs to disable broadcast
@@ -20,7 +19,6 @@ public class RpcOverloadMonitor {
 
     private static final long NOT_DISABLED = -1L;
 
-    private final NodeId peerId;
     private final SyncConfig syncConfig;
     private final SyncMetrics syncMetrics;
     private final Time time;
@@ -30,13 +28,11 @@ public class RpcOverloadMonitor {
     private volatile long disabledBroadcastDueToLagTime = NOT_DISABLED;
 
     RpcOverloadMonitor(
-            @NonNull final NodeId peerId,
             @NonNull final SyncConfig syncConfig,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final Time time,
             @NonNull final Consumer<Boolean> communicationOverloadHandler) {
 
-        this.peerId = Objects.requireNonNull(peerId);
         this.syncConfig = Objects.requireNonNull(syncConfig);
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
         this.time = Objects.requireNonNull(time);
