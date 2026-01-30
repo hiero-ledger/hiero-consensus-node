@@ -5,8 +5,9 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 import static com.swirlds.logging.legacy.LogMarker.TCP_CONNECT_EXCEPTIONS;
+import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
 import com.swirlds.platform.network.Connection;
@@ -25,7 +26,6 @@ import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -47,22 +47,22 @@ public class OutboundConnectionCreator {
     private final GossipConfig gossipConfig;
     private final ConnectionTracker connectionTracker;
     private final SocketFactory socketFactory;
-    private final PlatformContext platformContext;
+    private final Configuration configuration;
     private final Map<NodeId, PeerInfo> peers = new HashMap<>();
 
     public OutboundConnectionCreator(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
             @NonNull final ConnectionTracker connectionTracker,
             @NonNull final SocketFactory socketFactory,
             @NonNull final List<PeerInfo> peers) {
-        this.platformContext = Objects.requireNonNull(platformContext);
-        this.selfId = Objects.requireNonNull(selfId);
-        this.connectionTracker = Objects.requireNonNull(connectionTracker);
-        this.socketFactory = Objects.requireNonNull(socketFactory);
+        this.configuration = requireNonNull(configuration);
+        this.selfId = requireNonNull(selfId);
+        this.connectionTracker = requireNonNull(connectionTracker);
+        this.socketFactory = requireNonNull(socketFactory);
         this.peers.putAll(peers.stream().collect(Collectors.toMap(PeerInfo::nodeId, Function.identity())));
-        this.socketConfig = platformContext.getConfiguration().getConfigData(SocketConfig.class);
-        this.gossipConfig = platformContext.getConfiguration().getConfigData(GossipConfig.class);
+        this.socketConfig = configuration.getConfigData(SocketConfig.class);
+        this.gossipConfig = configuration.getConfigData(GossipConfig.class);
     }
 
     /**
@@ -105,21 +105,14 @@ public class OutboundConnectionCreator {
                     networkEndpoint.hostname().getHostAddress(), networkEndpoint.port());
 
             dos = SyncOutputStream.createSyncOutputStream(
-                    platformContext, clientSocket.getOutputStream(), socketConfig.bufferSize());
+                    configuration, clientSocket.getOutputStream(), socketConfig.bufferSize());
             dis = SyncInputStream.createSyncInputStream(
-                    platformContext, clientSocket.getInputStream(), socketConfig.bufferSize());
+                    configuration, clientSocket.getInputStream(), socketConfig.bufferSize());
 
             logger.debug(NETWORK.getMarker(), "`connect` : finished, {} connected to {}", selfId, otherId);
 
             return SocketConnection.create(
-                    selfId,
-                    otherId,
-                    connectionTracker,
-                    true,
-                    clientSocket,
-                    dis,
-                    dos,
-                    platformContext.getConfiguration());
+                    selfId, otherId, connectionTracker, true, clientSocket, dis, dos, configuration);
         } catch (final SocketTimeoutException | SocketException e) {
             NetworkUtils.close(clientSocket, dis, dos);
             logger.debug(

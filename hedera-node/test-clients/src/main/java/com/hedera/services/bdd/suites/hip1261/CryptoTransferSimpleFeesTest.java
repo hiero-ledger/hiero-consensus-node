@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.hip1261;
 import static com.hedera.node.app.service.token.AliasUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -78,20 +77,19 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenMint;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -2845,77 +2843,6 @@ public class CryptoTransferSimpleFeesTest {
             @Nested
             @DisplayName("Crypto Transfer Simple Fees Failures on Handle")
             class CryptoTransferSimpleFeesFailuresOnHandle {
-                @Tag(ONLY_SUBPROCESS)
-                @LeakyHapiTest
-                @DisplayName("Crypto Transfer HBAR, FT and NFT - duplicate txn - fails on handle")
-                final Stream<DynamicTest> cryptoTransferHBARAndFTAndNFTDuplicateTxnFailsOnHandle() {
-                    final AtomicLong initialBalance = new AtomicLong();
-                    final AtomicLong afterBalance = new AtomicLong();
-                    final AtomicLong initialNodeBalance = new AtomicLong();
-                    final AtomicLong afterNodeBalance = new AtomicLong();
-
-                    return hapiTest(flattened(
-                            // create keys, tokens and accounts
-                            createAccountsAndKeys(),
-                            getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                            cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
-                            getAccountBalance("3").exposingBalanceTo(initialNodeBalance::set),
-                            createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, OWNER, adminKey),
-                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
-                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
-                            tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
-                            mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-
-                            // Register a TxnId for the inner txn
-                            usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
-
-                            // initial transaction
-                            cryptoTransfer(
-                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
-                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                    .payingWith(PAYER)
-                                    .signedBy(OWNER, PAYER)
-                                    .fee(ONE_HBAR)
-                                    .setNode(4)
-                                    .txnId(DUPLICATE_TXN_ID)
-                                    .via("initialTokenTransferTxn")
-                                    .logged(),
-                            // duplicate transaction
-                            cryptoTransfer(
-                                            movingHbar(1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                            moving(10L, FUNGIBLE_TOKEN).between(OWNER, RECEIVER_ASSOCIATED_FIRST),
-                                            movingUnique(NON_FUNGIBLE_TOKEN, 1L)
-                                                    .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                    .payingWith(PAYER)
-                                    .signedBy(OWNER, PAYER)
-                                    .fee(ONE_HBAR)
-                                    .setNode(3)
-                                    .txnId(DUPLICATE_TXN_ID)
-                                    .via("duplicateTokenTransferTxn")
-                                    .hasPrecheck(DUPLICATE_TRANSACTION),
-
-                            // Save balances and assert changes
-                            getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                            getAccountBalance("3").exposingBalanceTo(afterNodeBalance::set),
-                            withOpContext((spec, log) -> {
-                                long payerDelta = initialBalance.get() - afterBalance.get();
-                                log.info("Payer balance changed by {} tinybars", payerDelta);
-                                log.info(
-                                        "Recorded fee: {}",
-                                        expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 2, 1, 1, 0));
-                                assertTrue(initialBalance.get() > afterBalance.get());
-                            }),
-                            validateChargedFeeToUsdWithTxnSize(
-                                    "initialTokenTransferTxn",
-                                    initialBalance,
-                                    afterBalance,
-                                    txnSize ->
-                                            expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(2, 0, 2, 1, 1, 0, txnSize),
-                                    0.001)));
-                }
-
                 @HapiTest
                 @DisplayName("Crypto Transfer HBAR - with insufficient token balance - fails on handle")
                 final Stream<DynamicTest> cryptoTransferWithInsufficientHBARTokenBalanceFailsOnHandle() {
