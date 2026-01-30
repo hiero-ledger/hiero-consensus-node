@@ -950,11 +950,11 @@ class BEVM {
         int x = popInt();
         var halt = useGas(_gasCalc.getLowTierGasCost());
         if( halt!=null ) return halt;
-        // Push the sign-extend of vak, starting from byte x.  if x>=32, then v
+        // Push the sign-extend of val, starting from byte x.  if x>=32, then v
         // is used no-change.  If x==31 then we would only extend the high byte.
         if( x >= 31 ) return null;
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
-        x = 32 - x;             // Shift byte to high position
+        x = 31 - x;             // Shift byte to high position
         int shf = x*8;          // Bytes to bits
 
         // While shift is large, shift by whole registers
