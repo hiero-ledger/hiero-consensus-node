@@ -236,7 +236,8 @@ public class ServicesMain {
         }
         hedera.setInitialStateHash(reservedState.hash());
 
-        final ReadableRosterStore rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
+        final ReadableRosterStore rosterStore =
+                new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
         final List<RosterEntry> rosterEntries =
                 requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
         final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);

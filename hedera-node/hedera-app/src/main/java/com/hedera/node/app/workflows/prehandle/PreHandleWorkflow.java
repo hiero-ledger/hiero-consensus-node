@@ -10,7 +10,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
-import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;

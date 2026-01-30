@@ -670,8 +670,9 @@ public class SystemTransactions {
                     log.info("Node {} in state is part of the override network and is being updated", node.nodeId());
                 }
             }
-            final var numNodes =
-                    readableStoreFactory.readableStore(ReadableEntityIdStore.class).numNodes();
+            final var numNodes = readableStoreFactory
+                    .readableStore(ReadableEntityIdStore.class)
+                    .numNodes();
             for (var i = 0; i < numNodes; i++) {
                 final long nodeId = i;
                 final var existingNode = nodeStore.get(i);

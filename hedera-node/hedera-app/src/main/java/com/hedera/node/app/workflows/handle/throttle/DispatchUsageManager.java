@@ -160,7 +160,8 @@ public class DispatchUsageManager {
      * @param dispatch the dispatch
      */
     private void reclaimFailedTokenAssociate(@NonNull final Dispatch dispatch) {
-        final var readableTokenRelStore = dispatch.readableStoreFactory().readableStore(ReadableTokenRelationStore.class);
+        final var readableTokenRelStore =
+                dispatch.readableStoreFactory().readableStore(ReadableTokenRelationStore.class);
         final var numAutoAssociations =
                 throttleServiceManager.numAutoAssociations(dispatch.txnInfo().txBody(), readableTokenRelStore);
         if (usedSelfFrontendThrottleCapacity(

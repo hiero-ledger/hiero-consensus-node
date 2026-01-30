@@ -42,7 +42,6 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
@@ -167,8 +166,10 @@ class FileDeleteTest extends FileTestBase {
         file = createFileEmptyMemoAndKeys();
         refreshStoresWithCurrentFileOnlyInReadable();
         BDDMockito.given(accountStore.getAccountById(payerId)).willReturn(payerAccount);
-        BDDMockito.given(mockStoreFactory.readableStore(ReadableFileStore.class)).willReturn(readableStore);
-        BDDMockito.given(mockStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        BDDMockito.given(mockStoreFactory.readableStore(ReadableFileStore.class))
+                .willReturn(readableStore);
+        BDDMockito.given(mockStoreFactory.readableStore(ReadableAccountStore.class))
+                .willReturn(accountStore);
         BDDMockito.given(payerAccount.key()).willReturn(A_COMPLEX_KEY);
 
         final var txnId = TransactionID.newBuilder().accountID(payerId).build();
@@ -190,8 +191,10 @@ class FileDeleteTest extends FileTestBase {
     void preHandleWorksAsExpected() throws PreCheckException {
         refreshStoresWithCurrentFileOnlyInReadable();
         BDDMockito.given(accountStore.getAccountById(payerId)).willReturn(payerAccount);
-        BDDMockito.given(mockStoreFactory.readableStore(ReadableFileStore.class)).willReturn(readableStore);
-        BDDMockito.given(mockStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        BDDMockito.given(mockStoreFactory.readableStore(ReadableFileStore.class))
+                .willReturn(readableStore);
+        BDDMockito.given(mockStoreFactory.readableStore(ReadableAccountStore.class))
+                .willReturn(accountStore);
         BDDMockito.given(payerAccount.key()).willReturn(A_COMPLEX_KEY);
 
         PreHandleContext realPreContext = new PreHandleContextImpl(

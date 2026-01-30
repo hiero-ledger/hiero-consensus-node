@@ -495,7 +495,8 @@ public class ThrottleAccumulator {
                 shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
                 final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
-                final var relationStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableTokenRelationStore.class);
+                final var relationStore =
+                        new ReadableStoreFactoryImpl(state).readableStore(ReadableTokenRelationStore.class);
                 yield shouldThrottleCryptoTransfer(
                         effectiveManager,
                         now,
@@ -546,7 +547,8 @@ public class ThrottleAccumulator {
             if (scheduledFunction == CRYPTO_TRANSFER) {
                 final var transfer = scheduled.cryptoTransferOrThrow();
                 if (usesAliases(transfer)) {
-                    final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
+                    final var accountStore =
+                            new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
                     final var transferTxnBody = TransactionBody.newBuilder()
                             .cryptoTransfer(transfer)
                             .build();

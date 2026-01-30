@@ -104,6 +104,8 @@ public class TokenContextImpl implements TokenContext, FinalizeContext {
 
     @Override
     public Set<Long> knownNodeIds() {
-        return readableStoreFactory.readableStore(ReadableStakingInfoStore.class).getAll();
+        return readableStoreFactory
+                .readableStore(ReadableStakingInfoStore.class)
+                .getAll();
     }
 }
