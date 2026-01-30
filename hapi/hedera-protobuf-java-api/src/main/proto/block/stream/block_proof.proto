@@ -18,9 +18,9 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "block/stream/record_file_item.proto";
-import "block/stream/chain_of_trust_proof.proto";
+import "block/stream/signed_record_file_proof.proto";
 import "block/stream/state_proof.proto";
+import "block/stream/tss_signed_block_proof.proto";
 
 /**
  * A cryptographic proof for the "Block Merkle Tree".
@@ -169,90 +169,5 @@ message BlockProof {
          * empty.
          */
         SignedRecordFileProof signed_record_file_proof = 4;
-
-        /**
-         * If there is not yet a SNARK proving the chain of trust from ledger id to
-         * the hinTS verification key, an aggregation of Schnorr signatures on
-         * the concatenation of the ledger id and genesis hinTS verification key
-         * that serve as witnesses for the SNARK prover algorithm.
-         */
-        AggregatedNodeSignatures aggregated_node_signatures = 5;
     }
-}
-
-/**
- * A hash of a "sibling" to an entry in a Merkle tree.
- *
- * When constructing a binary merkle tree, each internal node is a hash
- * constructed from the hash of two "descendant" nodes. Those two nodes
- * are "siblings" and the order (first, second) in which the two hash values
- * are combined affects the parent hash.<br/>
- * This may be used to reconstruct a portion of a merkle tree starting from
- * a node of interest up to the root of the tree.
- */
-message MerkleSiblingHash {
-    /**
-     * A flag for the position of this sibling.
-     * <p>
-     * If this is set then this sibling MUST be the first hash in the pair of
-     * sibling hashes of a binary merkle tree.<br/>
-     * If this is unset, then this sibling MUST be the second hash in the pair
-     * of sibling hashes of a binary merkle tree.
-     */
-    bool is_first = 1;
-
-    /**
-     * A byte array of a sibling hash.<br/>
-     * This is the hash for the sibling at this point in the merkle tree.
-     * <p>
-     * The algorithm for this hash SHALL match the algorithm for the block that
-     * contains this sibling.<br/>
-     * This SHALL contain the raw (e.g.) 384 bits (48 bytes) of the hash value.
-     */
-    bytes sibling_hash = 2;
-}
-
-/**
- * A proof containing RSA signatures from consensus nodes for a block that was
- * originally recorded in the record file format. It contains a list of
- * signatures over the record file hash. How to compute the record file hash
- * depends on the record file format version it was originally created with. To
- * verify a block with a SignedRecordFileProof, the record file hash needs to be
- * computed according to the record file format version and then verified with
- * the signatures in this proof and the public keys of the consensus nodes at
- * the point the record file was created. The public keys can be obtained form
- * the network address book from a trusted source. See `RecordFileItem`
- * documentation for description of how to compute the record file hash.
- */
-message SignedRecordFileProof {
-  /**
-   * The record file format version, this dictates how the hash that is signed
-   * is computed. Valid versions are 2, 5 and 6.
-   */
-  uint32 version = 1;
-
-  /**
-   * A collection of RSA signatures from consensus nodes.<br/>
-   * These signatures validate the record file hash.
-   */
-  repeated RecordFileSignature record_file_signatures = 2;
-}
-
-/**
- * A signature by a node on the record file hash. See `RecordFileItem`
- * documentation for description of how to compute the record file hash.
- */
-message RecordFileSignature {
-  /**
-   * A single RSA signature in DER-encoded X.509 certificate format.<br/>
-   * This is the RSA signature by the node's private RSA key on the record
-   * file hash.
-   */
-  bytes signatures_bytes = 1;
-
-  /**
-   * A unique node identifier.<br/>
-   * This is the node id of the consensus node that created this signature.
-   */
-  int32 node_id = 2;
 }
