@@ -8,7 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.network.topology.DynamicConnectionManagers;
 import com.swirlds.platform.network.topology.NetworkTopology;
@@ -45,10 +47,13 @@ class DynamicConnectionManagersTest {
         final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NetworkTopology topology = new StaticTopology(peers, selfId);
 
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+
         final DynamicConnectionManagers managers = new DynamicConnectionManagers(
+                configuration,
+                Time.getCurrent(),
                 selfId,
                 peers,
-                mock(PlatformContext.class),
                 mock(ConnectionTracker.class),
                 mock(KeysAndCerts.class),
                 topology,
@@ -88,11 +93,13 @@ class DynamicConnectionManagersTest {
                 NodeId.of(roster.rosterEntries().get(r.nextInt(numNodes)).nodeId());
         final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NetworkTopology topology = new StaticTopology(peers, selfId);
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         final DynamicConnectionManagers managers = new DynamicConnectionManagers(
+                configuration,
+                Time.getCurrent(),
                 selfId,
                 peers,
-                mock(PlatformContext.class),
                 mock(ConnectionTracker.class),
                 mock(KeysAndCerts.class),
                 topology,
