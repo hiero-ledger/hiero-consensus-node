@@ -13,7 +13,7 @@ import com.swirlds.platform.gossip.permits.SyncGuard;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiverHandler;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
-import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.gossip.sync.SyncMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;

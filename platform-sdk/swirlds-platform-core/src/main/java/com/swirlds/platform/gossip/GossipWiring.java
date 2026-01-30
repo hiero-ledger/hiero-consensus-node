@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.wiring.components;
+package com.swirlds.platform.gossip;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
@@ -9,9 +8,10 @@ import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
-import com.swirlds.platform.wiring.PlatformSchedulersConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import org.hiero.consensus.gossip.config.GossipWiringConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -86,14 +86,11 @@ public class GossipWiring {
      */
     private final BindableInputWire<NoInput, Void> resumeInput;
 
-    public GossipWiring(@NonNull final PlatformContext platformContext, @NonNull final WiringModel model) {
+    public GossipWiring(@NonNull final Configuration configuration, @NonNull final WiringModel model) {
         this.model = model;
 
         scheduler = model.<Void>schedulerBuilder("gossip")
-                .configure(platformContext
-                        .getConfiguration()
-                        .getConfigData(PlatformSchedulersConfig.class)
-                        .gossip())
+                .configure(configuration.getConfigData(GossipWiringConfig.class).gossip())
                 .build();
 
         eventInput = scheduler.buildInputWire("events to gossip");

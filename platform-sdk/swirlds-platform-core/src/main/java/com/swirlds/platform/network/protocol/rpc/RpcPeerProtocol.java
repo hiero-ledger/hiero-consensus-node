@@ -24,7 +24,7 @@ import com.swirlds.platform.gossip.shadowgraph.SyncTimeoutException;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
 import com.swirlds.platform.gossip.sync.protocol.SyncStatusChecker;
-import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.gossip.sync.SyncMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkMetrics;
 import com.swirlds.platform.network.NetworkProtocolException;

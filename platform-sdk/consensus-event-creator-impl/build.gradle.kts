@@ -13,6 +13,7 @@ jmhModuleInfo {
     requires("com.swirlds.platform.core.test.fixtures")
     requires("org.hiero.consensus.event.creator")
     requires("org.hiero.consensus.event.creator.impl")
+    requires("org.hiero.consensus.gossip.impl")
     requires("com.hedera.node.hapi")
     requires("jmh.core")
 }

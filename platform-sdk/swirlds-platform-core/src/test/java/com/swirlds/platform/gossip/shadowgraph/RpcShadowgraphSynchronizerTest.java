@@ -17,7 +17,7 @@ import com.swirlds.platform.gossip.permits.SyncGuard;
 import com.swirlds.platform.gossip.permits.SyncGuardFactory;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
-import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.gossip.sync.SyncMetrics;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.time.Duration;
 import java.time.Instant;

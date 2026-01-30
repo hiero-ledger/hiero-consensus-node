@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform;
+package org.hiero.consensus.exceptions;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -9,9 +9,9 @@ import java.net.SocketException;
 /**
  * This is a collection of static utility methods, such as for comparing and deep cloning of arrays.
  */
-public final class Utilities {
+public final class ThrowableUtilities {
 
-    private Utilities() {}
+    private ThrowableUtilities() {}
 
     /**
      * if it is or caused by SocketException, we should log it with SOCKET_EXCEPTIONS marker

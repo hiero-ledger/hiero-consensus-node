@@ -36,7 +36,7 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.wiring.components.GossipWiring;
+import com.swirlds.platform.gossip.GossipWiring;
 import com.swirlds.platform.wiring.components.PcesReplayerWiring;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -179,7 +179,7 @@ public record PlatformComponents(
                         StateHasher.class,
                         config.stateHasher(),
                         data -> data instanceof final StateWithHashComplexity swhc ? swhc.hashComplexity() : 1),
-                new GossipWiring(platformContext, model),
+                new GossipWiring(platformContext.getConfiguration(), model),
                 PcesReplayerWiring.create(model),
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, IssDetector.class, config.issDetector()),

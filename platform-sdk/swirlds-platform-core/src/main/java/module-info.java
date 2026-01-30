@@ -116,6 +116,7 @@ module com.swirlds.platform.core {
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.consensus.pces.impl;
+    requires org.hiero.consensus.gossip.impl;
     requires com.github.spotbugs.annotations;
     requires java.desktop;
     requires java.management;

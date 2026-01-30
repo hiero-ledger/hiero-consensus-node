@@ -15,7 +15,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.Utilities;
+import org.hiero.consensus.exceptions.ThrowableUtilities;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
@@ -350,7 +350,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             reservedSignedStateResultProvider.provide(new ReservedSignedStateResult(reservedSignedState, null));
 
         } catch (final RuntimeException e) {
-            if (!Utilities.isOrCausedBySocketException(e)) {
+            if (!ThrowableUtilities.isOrCausedBySocketException(e)) {
                 // We are closing the connection as we don't know the state in which is in
                 // it might contain non-read bytes.
                 if (connection != null) {

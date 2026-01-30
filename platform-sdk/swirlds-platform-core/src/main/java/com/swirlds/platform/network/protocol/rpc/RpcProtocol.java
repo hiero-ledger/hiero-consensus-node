@@ -12,7 +12,7 @@ import com.swirlds.platform.gossip.permits.SyncGuardFactory;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.RpcPeerHandler;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
-import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.gossip.sync.SyncMetrics;
 import com.swirlds.platform.network.NetworkMetrics;
 import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.protocol.PeerProtocol;

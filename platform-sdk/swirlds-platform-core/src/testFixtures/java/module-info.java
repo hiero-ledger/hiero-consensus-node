@@ -30,6 +30,8 @@ open module com.swirlds.platform.core.test.fixtures {
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.pces.impl;
+    requires org.hiero.consensus.gossip.impl;
     requires org.hiero.consensus.utility.test.fixtures;
     requires com.github.spotbugs.annotations;
     requires java.desktop;

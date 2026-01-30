@@ -10,7 +10,7 @@ import static org.mockito.Mockito.mock;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
-import com.swirlds.platform.heartbeats.HeartbeatPeerProtocol;
+import com.swirlds.platform.network.protocol.HeartbeatPeerProtocol;
 import com.swirlds.platform.network.ByteConstants;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkMetrics;

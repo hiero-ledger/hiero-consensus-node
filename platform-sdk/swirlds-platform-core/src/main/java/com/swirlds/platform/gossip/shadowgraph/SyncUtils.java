@@ -6,7 +6,7 @@ import static org.hiero.base.CompareTo.isGreaterThan;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.platform.gossip.SyncException;
-import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.gossip.sync.SyncMetrics;
 import com.swirlds.platform.network.ByteConstants;
 import com.swirlds.platform.network.Connection;
 import edu.umd.cs.findbugs.annotations.NonNull;

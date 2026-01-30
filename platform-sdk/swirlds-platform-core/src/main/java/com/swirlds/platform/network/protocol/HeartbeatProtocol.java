@@ -3,7 +3,6 @@ package com.swirlds.platform.network.protocol;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.heartbeats.HeartbeatPeerProtocol;
 import com.swirlds.platform.network.NetworkMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;

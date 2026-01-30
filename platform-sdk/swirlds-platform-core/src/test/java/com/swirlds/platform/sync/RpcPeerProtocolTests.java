@@ -16,7 +16,7 @@ import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiverHandler;
 import com.swirlds.platform.gossip.rpc.SyncData;
-import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.gossip.sync.SyncMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkMetrics;
 import com.swirlds.platform.network.PeerInfo;

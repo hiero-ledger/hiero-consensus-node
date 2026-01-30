@@ -5,7 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.Utilities;
+import org.hiero.consensus.exceptions.ThrowableUtilities;
 import com.swirlds.platform.gossip.shadowgraph.SyncTimeoutException;
 import com.swirlds.platform.network.connectivity.SocketFactory;
 import com.swirlds.platform.network.connectivity.TlsFactory;
@@ -95,11 +95,11 @@ public final class NetworkUtils {
      * @return the marker to use for logging
      */
     public static Marker determineExceptionMarker(final Exception e) {
-        return Utilities.isCausedByIOException(e)
-                        || Utilities.isRootCauseSuppliedType(e, SyncTimeoutException.class)
+        return ThrowableUtilities.isCausedByIOException(e)
+                        || ThrowableUtilities.isRootCauseSuppliedType(e, SyncTimeoutException.class)
                         // All SSLExceptions regardless of nested root cause need to be classified as SOCKET_EXCEPTIONS.
                         // https://github.com/hashgraph/hedera-services/issues/7762
-                        || Utilities.hasAnyCauseSuppliedType(e, SSLException.class)
+                        || ThrowableUtilities.hasAnyCauseSuppliedType(e, SSLException.class)
                 ? SOCKET_EXCEPTIONS.getMarker()
                 : EXCEPTION.getMarker();
     }
