@@ -391,7 +391,7 @@ public final class SyncUtils {
      * <p>
      * General principles if broadcast is enabled:
      * <ul>
-     * <li>Don't send ancestors of self events coming from other nodes for short amount of time</li>
+     * <li>Don't send ancestors of self events created by other nodes for short amount of time</li>
      * <li>Don't send non-ancestors of self events or self events themselves unless we've known about that event for a long time.</li>
      * </ul>
      *

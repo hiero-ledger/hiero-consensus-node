@@ -185,7 +185,7 @@ No impact on SDK
 
 ## Backwards Compatibility
 
-This feature is NOT backward compatible in any way, as currently entire gossip protocol has zero support for any kind of backward or forward compatibility. All nodes have to be updated at the same time. If communication is attempted between nodes of different versions, they will NOT connect (not because of this feature, but because of currently implemented protection in network handshake).
+This feature is NOT backward compatible in any way, as currently the entire gossip protocol has zero support for any kind of backward or forward compatibility. All nodes have to be updated at the same time. If communication is attempted between nodes of different versions, they will NOT connect (not because of this feature, but because of the currently implemented protection in network handshake).
 
 As it is not a user facing functionality, there are no issues with compatibility against SDK, event scrapers or anything like that.
 

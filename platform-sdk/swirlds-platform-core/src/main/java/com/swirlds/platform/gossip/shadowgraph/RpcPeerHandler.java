@@ -117,7 +117,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     private final FallenBehindMonitor fallenBehindMonitor;
 
     /**
-     * Should all incoming events be ignored due to platoform being unhealthy
+     * Should all incoming events be ignored due to platform being unhealthy
      */
     private boolean ignoreIncomingEvents;
 
@@ -236,7 +236,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         clearInternalState();
         state.peerStillSendingEvents = false;
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OUTSIDE_OF_RPC);
-        // mark sync as never happened, it will stop broadcast from happening
+        // mark sync as never happened to stop broadcast from running
         state.lastSyncFinishedTime = Instant.MIN;
     }
 
