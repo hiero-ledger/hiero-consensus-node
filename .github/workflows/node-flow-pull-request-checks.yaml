@@ -35,6 +35,7 @@ jobs:
       enable-unit-tests: "true"
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
+      enable-hapi-tests-crypto: "true"
       enable-otter-tests: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"

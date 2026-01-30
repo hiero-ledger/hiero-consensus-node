@@ -33,6 +33,11 @@ on:
         type: string
         required: false
         default: "false"
+      enable-hapi-tests-crypto:
+        description: "HAPI Testing (Crypto) Enabled"
+        type: string
+        required: false
+        default: "false"
       enable-otter-tests:
         description: "Otter Tests Enabled"
         type: string
@@ -218,7 +223,7 @@ jobs:
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-misc-records: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-crypto: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-crypto: "${{ inputs.enable-hapi-tests-crypto == 'true' }}"
       enable-hapi-tests-simplefees: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-iss: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-token: "${{ inputs.enable-hapi-tests == 'true' }}"
