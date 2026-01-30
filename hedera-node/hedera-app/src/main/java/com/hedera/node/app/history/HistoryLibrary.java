@@ -26,11 +26,6 @@ public interface HistoryLibrary {
     Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
 
     /**
-     * A placeholder metadata for the genesis WRAPS proof.
-     */
-    byte[] GENESIS_WRAPS_METADATA = new byte[1288];
-
-    /**
      * An address book for use in the history library.
      * @param weights the weights of the nodes in the address book
      * @param publicKeys the public keys of the nodes in the address book
@@ -245,12 +240,14 @@ public interface HistoryLibrary {
      *
      * @param genesisAddressBookHash the genesis address book hash
      * @param aggregatedSignature an aggregated signature from the genesis address book
+     * @param genesisHintsVerificationKey the hinTS verification key for the genesis address book
      * @param signers the set of signers contributing to the aggregated signature
      * @param addressBook the genesis address book
      * @return the genesis WRAPS proof
      */
     Proof constructGenesisWrapsProof(
             @NonNull byte[] genesisAddressBookHash,
+            @NonNull byte[] genesisHintsVerificationKey,
             @NonNull byte[] aggregatedSignature,
             @NonNull Set<Long> signers,
             @NonNull AddressBook addressBook);

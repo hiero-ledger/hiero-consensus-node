@@ -174,10 +174,12 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     @Override
     public Proof constructGenesisWrapsProof(
             @NonNull final byte[] genesisAddressBookHash,
+            @NonNull final byte[] genesisHintsVerificationKey,
             @NonNull final byte[] aggregatedSignature,
             @NonNull final Set<Long> signers,
             @NonNull final AddressBook addressBook) {
         requireNonNull(genesisAddressBookHash);
+        requireNonNull(genesisHintsVerificationKey);
         requireNonNull(aggregatedSignature);
         requireNonNull(signers);
         requireNonNull(addressBook);
@@ -190,7 +192,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 addressBook.weights(),
                 addressBook.nodeIds(),
                 null,
-                GENESIS_WRAPS_METADATA,
+                genesisHintsVerificationKey,
                 aggregatedSignature);
     }
 

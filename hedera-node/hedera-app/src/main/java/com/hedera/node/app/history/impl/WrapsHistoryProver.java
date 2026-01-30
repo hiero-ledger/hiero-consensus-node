@@ -2,19 +2,19 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.node.state.history.WrapsPhase.AGGREGATE;
+import static com.hedera.hapi.node.state.history.WrapsPhase.POST_AGGREGATION;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
-import static com.hedera.node.app.history.HistoryLibrary.GENESIS_WRAPS_METADATA;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
+import static com.hedera.node.app.history.impl.WrapsMpcStateMachine.POST_MCP_PHASES;
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-import com.hedera.cryptography.wraps.Proof;
 import com.hedera.hapi.block.stream.AggregatedNodeSignatures;
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
@@ -41,7 +41,6 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
@@ -129,13 +128,13 @@ public class WrapsHistoryProver implements HistoryProver {
     private HistoryProof historyProof;
 
     /**
-     * Future that resolves on the completion of the vote decision post-jitter.
+     * Future that resolves on the completion of the proof vote decision post-jitter.
      */
     @Nullable
     private CompletableFuture<VoteDecision> voteDecisionFuture;
 
     /**
-     * Future that resolves on submission of this node's vote for the aggregate signature.
+     * Future that resolves on submission of this node's vote for proof.
      */
     @Nullable
     private CompletableFuture<Void> voteFuture;
@@ -237,17 +236,22 @@ public class WrapsHistoryProver implements HistoryProver {
                 targetAddressBook = AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
                         .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
                         .toByteArray());
-                // In general the metadata in the WRAPS message is the target metadata (which is the hinTS verification
-                // key in the current TSS scheme); but for the special case of a source proof with a non-recursive
-                // proof, the additional signing work we need to do is actually over certain placeholder metadata
-                final var metadata = (tssConfig.wrapsEnabled() && proofIsWrapsGenesis())
-                        ? GENESIS_WRAPS_METADATA
-                        : targetMetadata.toByteArray();
-                wrapsMessage = historyLibrary.computeWrapsMessage(targetAddressBook, metadata);
+                wrapsMessage = historyLibrary.computeWrapsMessage(targetAddressBook, targetMetadata.toByteArray());
                 targetAddressBookHash = historyLibrary.hashAddressBook(targetAddressBook);
             }
+            final var effectivePhase = !construction.hasWrapsSigningState()
+                            && sourceProof != null
+                            && tssConfig.wrapsEnabled()
+                            && !isWrapsExtensible(sourceProof)
+                    ? POST_AGGREGATION
+                    : state.phase();
             publishIfNeeded(
-                    construction.constructionId(), state.phase(), targetMetadata, targetProofKeys, tssConfig, ledgerId);
+                    construction.constructionId(),
+                    effectivePhase,
+                    targetMetadata,
+                    targetProofKeys,
+                    tssConfig,
+                    ledgerId);
         }
         return Outcome.InProgress.INSTANCE;
     }
@@ -271,13 +275,16 @@ public class WrapsHistoryProver implements HistoryProver {
     public void observeProofVote(
             final long nodeId, @NonNull final HistoryProofVote vote, final boolean proofFinalized) {
         requireNonNull(vote);
-        // If we’ve already decided & sent our vote, nothing to do
-        if (voteDecisionFuture == null || voteDecisionFuture.isDone()) {
-            return;
-        }
         if (proofFinalized) {
             log.info("Observed finalized proof via node{}; skipping vote", nodeId);
             tryCompleteVoteDecision(VoteDecision.skip());
+            // Null these out in case we need to repeat voting in a post-aggregation phase at genesis
+            voteDecisionFuture = null;
+            voteFuture = null;
+            return;
+        }
+        // If we’ve already decided & sent our vote, nothing to do
+        if (voteDecisionFuture == null || voteDecisionFuture.isDone()) {
             return;
         }
         // Explicit vote case
@@ -362,7 +369,7 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final TssConfig tssConfig,
             @Nullable final Bytes ledgerId) {
         if (futureOf(phase) == null
-                && (phase == AGGREGATE
+                && (POST_MCP_PHASES.contains(phase)
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
             log.info("Considering publication of WRAPS {} output on construction #{}", phase, constructionId);
             final var sourceBook = AddressBook.from(
@@ -376,7 +383,7 @@ public class WrapsHistoryProver implements HistoryProver {
                             .thenAcceptAsync(
                                     output -> {
                                         if (output == null) {
-                                            if (phase == R1 || phase == AGGREGATE) {
+                                            if (phase == R1 || POST_MCP_PHASES.contains(phase)) {
                                                 log.warn("Got null output for {} phase, skipping publication", phase);
                                             }
                                             return;
@@ -573,56 +580,47 @@ public class WrapsHistoryProver implements HistoryProver {
                                     sourceBook.publicKeys(),
                                     sourceBook.weights(),
                                     signature);
+                            final var signers = phaseMessages.get(R1).keySet();
                             if (!isValid) {
-                                throw new IllegalStateException("Invalid aggregate signature using nodes "
-                                        + phaseMessages.get(R1).keySet());
-                            }
-                            Proof proof;
-                            if (!isWrapsExtensible(sourceProof)) {
-                                final long now = System.nanoTime();
-                                log.info("Constructing genesis WRAPS proof...");
-                                proof = historyLibrary.constructGenesisWrapsProof(
-                                        requireNonNull(ledgerId).toByteArray(),
-                                        signature,
-                                        phaseMessages.get(R1).keySet(),
-                                        targetBook);
-                                logElapsed("constructing genesis WRAPS proof", now);
-                            } else {
-                                proof = new Proof(
-                                        sourceProof.uncompressedWrapsProof().toByteArray(),
-                                        sourceProof
-                                                .chainOfTrustProofOrThrow()
-                                                .wrapsProofOrThrow()
-                                                .toByteArray());
+                                throw new IllegalStateException("Invalid aggregate signature using nodes " + signers);
                             }
                             final long now = System.nanoTime();
-                            log.info(
-                                    "Constructing incremental WRAPS proof (WRAPS genesis? {})...",
-                                    proofIsWrapsGenesis());
-                            final var effectiveSignature = proofIsWrapsGenesis()
-                                    ? sourceProof
-                                            .chainOfTrustProofOrThrow()
-                                            .aggregatedNodeSignaturesOrThrow()
-                                            .aggregatedSignature()
-                                            .toByteArray()
-                                    : signature;
-                            final Set<Long> effectiveSigners = proofIsWrapsGenesis()
-                                    ? new TreeSet<>(sourceProof
-                                            .chainOfTrustProofOrThrow()
-                                            .aggregatedNodeSignaturesOrThrow()
-                                            .signingNodeIds())
-                                    : phaseMessages.get(R1).keySet();
-                            proof = historyLibrary.constructIncrementalWrapsProof(
+                            log.info("Constructing incremental WRAPS proof...");
+                            final var proof = historyLibrary.constructIncrementalWrapsProof(
                                     requireNonNull(ledgerId).toByteArray(),
-                                    proof.uncompressed(),
+                                    sourceProof.uncompressedWrapsProof().toByteArray(),
                                     sourceBook,
                                     targetBook,
                                     targetMetadata.toByteArray(),
-                                    effectiveSignature,
-                                    effectiveSigners);
+                                    signature,
+                                    signers);
                             logElapsed("constructing incremental WRAPS proof", now);
                             yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                         }
+                    }
+                    case POST_AGGREGATION -> {
+                        if (!historyLibrary.wrapsProverReady()) {
+                            yield new NoopOutput("WRAPS library is not ready");
+                        }
+                        final var signature = requireNonNull(sourceProof)
+                                .chainOfTrustProofOrThrow()
+                                .aggregatedNodeSignaturesOrThrow()
+                                .aggregatedSignature()
+                                .toByteArray();
+                        final var signers = new TreeSet<>(sourceProof
+                                .chainOfTrustProofOrThrow()
+                                .aggregatedNodeSignaturesOrThrow()
+                                .signingNodeIds());
+                        final long now = System.nanoTime();
+                        log.info("Constructing genesis WRAPS proof...");
+                        final var proof = historyLibrary.constructGenesisWrapsProof(
+                                requireNonNull(ledgerId).toByteArray(),
+                                targetMetadata.toByteArray(),
+                                signature,
+                                signers,
+                                targetBook);
+                        logElapsed("constructing genesis WRAPS proof", now);
+                        yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                     }
                 },
                 executor);
@@ -645,7 +643,7 @@ public class WrapsHistoryProver implements HistoryProver {
             case R1 -> r1Future;
             case R2 -> r2Future;
             case R3 -> r3Future;
-            case AGGREGATE -> voteFuture;
+            case AGGREGATE, POST_AGGREGATION -> voteFuture;
         };
     }
 
@@ -654,16 +652,12 @@ public class WrapsHistoryProver implements HistoryProver {
             case R1 -> f -> r1Future = f;
             case R2 -> f -> r2Future = f;
             case R3 -> f -> r3Future = f;
-            case AGGREGATE -> f -> voteFuture = f;
+            case AGGREGATE, POST_AGGREGATION -> f -> voteFuture = f;
         };
     }
 
     private Bytes selfProofHashOrThrow() {
         return explicitHistoryProofHashes.computeIfAbsent(selfId, k -> hashOf(requireNonNull(historyProof)));
-    }
-
-    private boolean proofIsWrapsGenesis() {
-        return sourceProof != null && !isWrapsExtensible(sourceProof);
     }
 
     private static Bytes hashOf(@NonNull final HistoryProof proof) {
