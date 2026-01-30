@@ -628,7 +628,7 @@ jobs:
 
             echo "{\"nodes\": [" > block-node-sources_$counter.json
           
-            ls -1 block-nodes_*.json | grep -v $counter | xargs cat > tmp.txt
+            ls -1 block-nodes_*.json | grep -v $counter | xargs cat | sed -e 's/streamingPort/port/g' -e 's/"servicePort": 40840, //g' > tmp.txt
             grep -v 'nodes' tmp.txt | grep -v ']}' | sed -e 's/1 },/1 }/g' > tmp.txt2
             lines=`wc -l tmp.txt2 | awk '{print $1}'`
             head -n `expr $lines - 1` tmp.txt2 |  awk '{print $0","}' > tmp.txt1
