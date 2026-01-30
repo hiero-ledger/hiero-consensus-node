@@ -97,7 +97,7 @@ public class FrameBuilder {
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
         final var contextVariables =
-                contextVariablesFrom(config, opsDurationCounter, context, transaction.hookOwnerAddress());
+                contextVariablesFrom(config, opsDurationCounter, context, transaction.hookOwnerAddress(worldUpdater));
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
                 .worldUpdater(worldUpdater.updater())
