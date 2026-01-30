@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.TransactionGenerator;
+import org.hiero.consensus.model.test.fixtures.transaction.TransactionGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;

@@ -10,7 +10,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.Utilities;

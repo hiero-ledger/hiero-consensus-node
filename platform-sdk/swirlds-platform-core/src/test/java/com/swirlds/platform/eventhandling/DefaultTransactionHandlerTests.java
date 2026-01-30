@@ -15,7 +15,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;

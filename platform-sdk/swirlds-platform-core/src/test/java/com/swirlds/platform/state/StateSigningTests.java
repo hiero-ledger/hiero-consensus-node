@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;

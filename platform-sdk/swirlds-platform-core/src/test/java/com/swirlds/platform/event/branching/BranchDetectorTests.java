@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;

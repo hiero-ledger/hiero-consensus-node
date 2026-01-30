@@ -4,7 +4,7 @@ package org.hiero.otter.fixtures.chaosbot;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.data.Percentage.withPercentage;
 
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;

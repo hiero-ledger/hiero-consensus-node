@@ -3,7 +3,7 @@ package com.swirlds.platform.event;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import java.io.IOException;
 import org.hiero.base.constructable.ConstructableRegistry;

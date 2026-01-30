@@ -4,7 +4,7 @@ package com.swirlds.platform.eventhandling;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;

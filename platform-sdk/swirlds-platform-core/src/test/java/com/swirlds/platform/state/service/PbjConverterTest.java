@@ -18,7 +18,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.platform.state.PlatformStateModifier;
 import java.time.Instant;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;

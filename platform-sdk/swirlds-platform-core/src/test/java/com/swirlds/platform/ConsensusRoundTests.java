@@ -7,7 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;

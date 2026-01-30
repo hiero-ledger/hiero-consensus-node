@@ -3,8 +3,8 @@ package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;

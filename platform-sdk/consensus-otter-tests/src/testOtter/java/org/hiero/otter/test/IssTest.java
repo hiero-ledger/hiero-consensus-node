@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static com.swirlds.common.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;

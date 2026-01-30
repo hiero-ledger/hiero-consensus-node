@@ -2,8 +2,8 @@
 package com.swirlds.platform.test.fixtures.addressbook;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;

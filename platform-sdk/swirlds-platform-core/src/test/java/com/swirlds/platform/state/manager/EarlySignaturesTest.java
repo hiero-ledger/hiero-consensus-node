@@ -9,7 +9,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;

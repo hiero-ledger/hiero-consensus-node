@@ -19,7 +19,7 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBinImpl;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;

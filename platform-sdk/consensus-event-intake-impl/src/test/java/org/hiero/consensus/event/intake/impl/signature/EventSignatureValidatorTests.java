@@ -14,7 +14,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.metrics.api.Metrics;
 import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;

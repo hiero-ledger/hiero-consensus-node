@@ -11,8 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.test.fixtures.GaussianWeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerator;
+import org.hiero.consensus.test.fixtures.GaussianWeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
 import com.swirlds.platform.metrics.IssMetrics;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;

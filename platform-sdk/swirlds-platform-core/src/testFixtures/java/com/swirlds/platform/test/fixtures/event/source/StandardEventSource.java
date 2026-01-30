@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.source;
 
-import com.swirlds.common.test.fixtures.TransactionGenerator;
+import org.hiero.consensus.model.test.fixtures.transaction.TransactionGenerator;
 import java.util.LinkedList;
 import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.EventImpl;

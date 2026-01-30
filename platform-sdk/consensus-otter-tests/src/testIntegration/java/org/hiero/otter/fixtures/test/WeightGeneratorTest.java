@@ -4,8 +4,8 @@ package org.hiero.otter.fixtures.test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import java.util.List;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;

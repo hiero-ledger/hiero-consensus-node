@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;

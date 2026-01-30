@@ -2,7 +2,7 @@
 package com.swirlds.platform.core.jmh;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;

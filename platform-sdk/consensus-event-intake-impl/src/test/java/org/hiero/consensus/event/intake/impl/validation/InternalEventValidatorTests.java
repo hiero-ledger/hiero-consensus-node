@@ -16,7 +16,7 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;

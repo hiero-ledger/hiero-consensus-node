@@ -4,7 +4,7 @@ package org.hiero.otter.fixtures.test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
-import com.swirlds.common.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
