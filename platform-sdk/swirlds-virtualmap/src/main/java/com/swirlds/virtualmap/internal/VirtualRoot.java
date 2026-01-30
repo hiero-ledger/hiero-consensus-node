@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.internal.pipeline;
+package com.swirlds.virtualmap.internal;
 
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.virtualmap.internal.RecordAccessor;
+import com.swirlds.common.FastCopyable;
+import com.swirlds.common.Reservable;
+import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
+import org.hiero.base.crypto.Hashable;
+import org.hiero.base.io.SerializableDet;
 
 /**
  * The root of a merkle tree containing virtual nodes (i.e. nodes that can be flushed to disk).
  */
-public interface VirtualRoot extends MerkleNode {
+public interface VirtualRoot extends FastCopyable, Hashable, Reservable, SerializableDet {
 
     /**
      * Check if this copy is a copy that has been designated for flushing. Once designated

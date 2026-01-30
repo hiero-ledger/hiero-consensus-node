@@ -35,15 +35,6 @@ public interface TreeView<T> extends AutoCloseable {
     int getNumberOfChildren(T node);
 
     /**
-     * Get the class ID of a node.
-     *
-     * @param node
-     * 		the node in question
-     * @return the class ID of the node
-     */
-    long getClassId(T node);
-
-    /**
      * Called when reconnect has been completed and this view is no longer required to exist.
      */
     @Override

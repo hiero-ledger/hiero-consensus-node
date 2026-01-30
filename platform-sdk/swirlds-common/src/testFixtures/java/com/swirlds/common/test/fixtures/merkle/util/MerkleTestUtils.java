@@ -186,8 +186,7 @@ public final class MerkleTestUtils {
                                 learnerView,
                                 latencyMilliseconds,
                                 streams::disconnect,
-                                reconnectConfig,
-                                metrics) {
+                                reconnectConfig) {
                             @Override
                             protected StandardWorkGroup createStandardWorkGroup(
                                     ThreadManager threadManager,

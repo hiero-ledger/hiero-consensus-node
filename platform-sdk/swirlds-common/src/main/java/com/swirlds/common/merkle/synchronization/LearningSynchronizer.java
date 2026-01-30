@@ -4,7 +4,6 @@ package com.swirlds.common.merkle.synchronization;
 import static com.swirlds.base.units.UnitConstants.MILLISECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
@@ -17,6 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hashable;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -45,12 +45,9 @@ public class LearningSynchronizer implements ReconnectNodeCount {
     private final Runnable breakConnection;
 
     /**
-     * New state root node used to put data from the teacher. The node is always a
-     * virtual map. FUTURE WORK: move this code from swirlds-common to a different
-     * module that may depend on swirlds-virtualmap and change newRoot type from
-     * MerkleNode to VirtualMap.
+     * New state root node used to put data from the teacher.
      */
-    private final MerkleNode newRoot;
+    private final Hashable newRoot;
 
     /**
      * Virtual tree view used to access nodes and hashes in the newRoot above.
@@ -89,7 +86,7 @@ public class LearningSynchronizer implements ReconnectNodeCount {
             @NonNull final ThreadManager threadManager,
             @NonNull final SerializableDataInputStream in,
             @NonNull final SerializableDataOutputStream out,
-            @NonNull final MerkleNode newRoot,
+            @NonNull final Hashable newRoot,
             @NonNull final LearnerTreeView<?> view,
             @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {

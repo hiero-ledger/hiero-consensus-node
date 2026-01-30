@@ -7,7 +7,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.benchmark.BenchmarkMetrics;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowLearningSynchronizer;
 import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowTeachingSynchronizer;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
@@ -31,7 +30,7 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class MerkleBenchmarkUtils {
 
-    public static <T extends MerkleNode> T hashAndTestSynchronization(
+    public static VirtualMap hashAndTestSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
             final long randomSeed,
@@ -70,7 +69,7 @@ public class MerkleBenchmarkUtils {
      * Synchronize two trees and verify that the end result is the expected result.
      */
     @SuppressWarnings("unchecked")
-    private static <T extends MerkleNode> T testSynchronization(
+    private static VirtualMap testSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
             final long randomSeed,
@@ -188,7 +187,7 @@ public class MerkleBenchmarkUtils {
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            return (T) newRoot;
+            return newRoot;
         }
     }
 
