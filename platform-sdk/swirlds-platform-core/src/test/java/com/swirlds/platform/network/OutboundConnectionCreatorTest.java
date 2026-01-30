@@ -10,7 +10,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import org.hiero.consensus.test.fixtures.WeightGenerators;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.Utilities;
@@ -31,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.gossip.config.SocketConfig_;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

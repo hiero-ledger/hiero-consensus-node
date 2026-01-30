@@ -2,7 +2,6 @@
 package com.swirlds.platform.core.jmh;
 
 import com.swirlds.common.context.PlatformContext;
-import org.hiero.consensus.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
@@ -16,6 +15,7 @@ import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

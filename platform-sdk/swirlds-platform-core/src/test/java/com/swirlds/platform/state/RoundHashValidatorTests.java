@@ -11,8 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import org.hiero.consensus.test.fixtures.GaussianWeightGenerator;
-import org.hiero.consensus.test.fixtures.WeightGenerator;
 import com.swirlds.platform.metrics.IssMetrics;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
@@ -27,6 +25,8 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.test.fixtures.GaussianWeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

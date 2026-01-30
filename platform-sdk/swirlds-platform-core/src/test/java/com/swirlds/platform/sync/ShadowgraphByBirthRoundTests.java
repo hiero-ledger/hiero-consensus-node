@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.shadowgraph.ReservedEventWindow;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
@@ -43,6 +42,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;

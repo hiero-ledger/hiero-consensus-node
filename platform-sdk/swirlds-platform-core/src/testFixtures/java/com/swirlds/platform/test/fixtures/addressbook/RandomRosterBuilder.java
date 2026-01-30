@@ -2,8 +2,6 @@
 package com.swirlds.platform.test.fixtures.addressbook;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import org.hiero.consensus.test.fixtures.WeightGenerator;
-import org.hiero.consensus.test.fixtures.WeightGenerators;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -14,6 +12,8 @@ import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 /**
  * A utility for generating a random roster.

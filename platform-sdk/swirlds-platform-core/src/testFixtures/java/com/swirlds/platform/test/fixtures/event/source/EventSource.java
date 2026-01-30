@@ -3,7 +3,6 @@ package com.swirlds.platform.test.fixtures.event.source;
 
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
-import org.hiero.consensus.model.test.fixtures.transaction.TransactionGenerator;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -11,6 +10,7 @@ import java.util.Collection;
 import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.transaction.TransactionGenerator;
 
 public interface EventSource {
 
