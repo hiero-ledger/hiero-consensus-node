@@ -24,8 +24,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.BlockItemsStreamRequest;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.StreamRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.BlockItemsStreamRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.StreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -73,7 +73,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
+class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     private static final long ONCE_PER_DAY_MILLIS = Duration.ofHours(24).toMillis();
     private static final VarHandle connectionStateHandle;
     private static final Thread FAKE_WORKER_THREAD = new Thread(() -> {}, "fake-worker");
@@ -86,12 +86,13 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
             final Lookup lookup = MethodHandles.lookup();
             connectionStateHandle = MethodHandles.privateLookupIn(AbstractBlockNodeConnection.class, lookup)
                     .findVarHandle(AbstractBlockNodeConnection.class, "stateRef", AtomicReference.class);
-            streamingBlockNumberHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
-                    .findVarHandle(BlockNodeConnection.class, "streamingBlockNumber", AtomicLong.class);
-            workerThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
-                    .findVarHandle(BlockNodeConnection.class, "workerThreadRef", AtomicReference.class);
+            streamingBlockNumberHandle = MethodHandles.privateLookupIn(BlockNodeStreamingConnection.class, lookup)
+                    .findVarHandle(BlockNodeStreamingConnection.class, "streamingBlockNumber", AtomicLong.class);
+            workerThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeStreamingConnection.class, lookup)
+                    .findVarHandle(BlockNodeStreamingConnection.class, "workerThreadRef", AtomicReference.class);
 
-            final Method sendRequest = BlockNodeConnection.class.getDeclaredMethod("sendRequest", StreamRequest.class);
+            final Method sendRequest =
+                    BlockNodeStreamingConnection.class.getDeclaredMethod("sendRequest", StreamRequest.class);
             sendRequest.setAccessible(true);
             sendRequestHandle = lookup.unreflect(sendRequest);
         } catch (final Exception e) {
@@ -99,7 +100,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         }
     }
 
-    private BlockNodeConnection connection;
+    private BlockNodeStreamingConnection connection;
     private ConfigProvider configProvider;
     private BlockNodeConfiguration nodeConfig;
     private BlockNodeConnectionManager connectionManager;
@@ -163,7 +164,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
                 .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
-        connection = new BlockNodeConnection(
+        connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
                 connectionManager,
@@ -222,7 +223,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testConstructorWithInitialBlock() {
         // Create connection with initial block number
-        connection = new BlockNodeConnection(
+        connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
                 connectionManager,
@@ -932,7 +933,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
         doThrow(new RuntimeException("kaboom!")).when(requestPipeline).onNext(any());
 
-        final BlockNodeConnection spiedConnection = spy(connection);
+        final BlockNodeStreamingConnection spiedConnection = spy(connection);
         doReturn(ConnectionState.ACTIVE, ConnectionState.CLOSING)
                 .when(spiedConnection)
                 .currentState();
@@ -1145,7 +1146,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Create a spy to intercept the close method and change state during execution
-        final BlockNodeConnection spyConnection = spy(connection);
+        final BlockNodeStreamingConnection spyConnection = spy(connection);
         final AtomicBoolean stateChanged = new AtomicBoolean(false);
 
         // Override status to trigger state change on first call
@@ -1249,7 +1250,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Use reflection to set streamShutdownInProgress to true without closing the connection
         // This simulates the race condition where shutdown begins but onComplete arrives first
-        final var field = BlockNodeConnection.class.getDeclaredField("streamShutdownInProgress");
+        final var field = BlockNodeStreamingConnection.class.getDeclaredField("streamShutdownInProgress");
         field.setAccessible(true);
         final AtomicBoolean streamShutdownInProgress = (AtomicBoolean) field.get(connection);
         streamShutdownInProgress.set(true);
@@ -2348,7 +2349,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
      */
     private Object createWorker() throws Exception {
         Class<?> workerClass = null;
-        for (Class<?> innerClass : BlockNodeConnection.class.getDeclaredClasses()) {
+        for (Class<?> innerClass : BlockNodeStreamingConnection.class.getDeclaredClasses()) {
             if (innerClass.getSimpleName().equals("ConnectionWorkerLoopTask")) {
                 workerClass = innerClass;
                 break;
@@ -2358,7 +2359,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
             throw new IllegalStateException("ConnectionWorkerLoopTask inner class not found");
         }
 
-        final Constructor<?> constructor = workerClass.getDeclaredConstructor(BlockNodeConnection.class);
+        final Constructor<?> constructor = workerClass.getDeclaredConstructor(BlockNodeStreamingConnection.class);
         constructor.setAccessible(true);
         return constructor.newInstance(connection);
     }
@@ -2380,7 +2381,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         sendRequest(connection, request);
     }
 
-    private void sendRequest(final BlockNodeConnection connection, final StreamRequest request) {
+    private void sendRequest(final BlockNodeStreamingConnection connection, final StreamRequest request) {
         try {
             sendRequestHandle.invoke(connection, request);
         } catch (final Throwable e) {

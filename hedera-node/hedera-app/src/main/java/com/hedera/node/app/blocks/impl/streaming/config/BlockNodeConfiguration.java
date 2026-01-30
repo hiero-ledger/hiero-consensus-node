@@ -148,6 +148,19 @@ public class BlockNodeConfiguration {
                 clientGrpcConfig);
     }
 
+    @Override
+    public String toString() {
+        return "BlockNodeConfiguration{" + "address="
+                + (address == null ? null : "'" + address + "'") + ", streamingPort="
+                + streamingPort + ", servicePort="
+                + servicePort + ", priority="
+                + priority + ", messageSizeSoftLimitBytes="
+                + messageSizeSoftLimitBytes + ", messageSizeHardLimitBytes="
+                + messageSizeHardLimitBytes + ", clientHttpConfig="
+                + clientHttpConfig + ", clientGrpcConfig="
+                + clientGrpcConfig + '}';
+    }
+
     public static @NonNull BlockNodeConfiguration from(@NonNull final BlockNodeConfig config) {
         requireNonNull(config, "config must be specified");
 

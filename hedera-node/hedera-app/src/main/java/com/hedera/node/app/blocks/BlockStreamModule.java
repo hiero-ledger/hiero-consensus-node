@@ -20,7 +20,10 @@ import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Supplier;
+import javax.inject.Named;
 import javax.inject.Singleton;
 
 @Module
@@ -38,12 +41,19 @@ public interface BlockStreamModule {
     static BlockNodeConnectionManager provideBlockNodeConnectionManager(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        final BlockNodeConnectionManager manager =
-                new BlockNodeConnectionManager(configProvider, blockBufferService, blockStreamMetrics);
+            @NonNull final BlockStreamMetrics blockStreamMetrics,
+            @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier) {
+        final BlockNodeConnectionManager manager = new BlockNodeConnectionManager(
+                configProvider, blockBufferService, blockStreamMetrics, blockingIoExecutorSupplier);
         blockBufferService.setBlockNodeConnectionManager(manager);
         manager.start();
         return manager;
+    }
+
+    @Provides
+    @Named("bn-blockingio-exec")
+    static Supplier<ExecutorService> provideBlockingIoExecutorSupplier() {
+        return Executors::newVirtualThreadPerTaskExecutor;
     }
 
     @Provides

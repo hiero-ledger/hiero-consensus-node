@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.standalone;
 
 import com.hedera.node.app.authorization.AuthorizerInjectionModule;
+import com.hedera.node.app.blocks.BlockStreamModule;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.AppFeeCharging;
@@ -53,6 +54,7 @@ import javax.inject.Singleton;
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class,
+            BlockStreamModule.class
         })
 public interface ExecutorComponent {
     @Component.Builder

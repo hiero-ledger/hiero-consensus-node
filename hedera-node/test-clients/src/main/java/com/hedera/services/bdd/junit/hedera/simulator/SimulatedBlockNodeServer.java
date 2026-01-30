@@ -30,6 +30,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockNodeServiceInterface;
 import org.hiero.block.api.BlockStreamPublishServiceInterface;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
@@ -38,6 +39,8 @@ import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.ResendBlock;
 import org.hiero.block.api.PublishStreamResponse.SkipBlock;
+import org.hiero.block.api.ServerStatusRequest;
+import org.hiero.block.api.ServerStatusResponse;
 
 /**
  * A simulated block node server that implements the block streaming gRPC service.
@@ -72,7 +75,8 @@ public class SimulatedBlockNodeServer {
 
     private final WebServer webServer;
     private final int port;
-    private final MockBlockStreamServiceImpl serviceImpl;
+    private final MockBlockStreamServiceImpl streamingImpl;
+    private final MockBlockNodeServiceImpl serviceImpl;
     private final boolean highLatency;
 
     // Configuration for EndOfStream responses
@@ -115,7 +119,8 @@ public class SimulatedBlockNodeServer {
             final int port, final boolean highLatency, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
         this.port = port;
         this.highLatency = highLatency;
-        this.serviceImpl = new MockBlockStreamServiceImpl();
+        this.streamingImpl = new MockBlockStreamServiceImpl();
+        this.serviceImpl = new MockBlockNodeServiceImpl();
         this.externalLastVerifiedBlockNumberSupplier = lastVerifiedBlockNumberSupplier;
 
         final PbjConfig pbjConfig = PbjConfig.builder()
@@ -129,7 +134,7 @@ public class SimulatedBlockNodeServer {
 
         this.webServer = WebServer.builder()
                 .port(port)
-                .addRouting(PbjRouting.builder().service(serviceImpl))
+                .addRouting(PbjRouting.builder().service(streamingImpl).service(serviceImpl))
                 .addProtocol(pbjConfig)
                 .connectionConfig(connectionConfig)
                 .build();
@@ -153,7 +158,6 @@ public class SimulatedBlockNodeServer {
     public void stop() {
         if (webServer != null) {
             try {
-
                 webServer.stop();
                 log.info("Simulated block node server on port {} stopped", port);
             } catch (final Exception e) {
@@ -201,7 +205,7 @@ public class SimulatedBlockNodeServer {
      */
     public long sendEndOfStreamImmediately(@NonNull final EndOfStream.Code responseCode, final long blockNumber) {
         requireNonNull(responseCode, "responseCode cannot be null");
-        serviceImpl.sendEndOfStreamToAllStreams(responseCode, blockNumber);
+        streamingImpl.sendEndOfStreamToAllStreams(responseCode, blockNumber);
         log.info(
                 "Sent immediate EndOfStream response with code {} for block {} on port {}",
                 responseCode,
@@ -217,7 +221,7 @@ public class SimulatedBlockNodeServer {
      * @param blockNumber the block number to skip
      */
     public void sendSkipBlockImmediately(final long blockNumber) {
-        serviceImpl.sendSkipBlockToAllStreams(blockNumber);
+        streamingImpl.sendSkipBlockToAllStreams(blockNumber);
         log.info("Sent immediate SkipBlock response for block {} on port {}", blockNumber, port);
     }
 
@@ -228,7 +232,7 @@ public class SimulatedBlockNodeServer {
      * @param blockNumber the block number to resend
      */
     public void sendResendBlockImmediately(final long blockNumber) {
-        serviceImpl.sendResendBlockToAllStreams(blockNumber);
+        streamingImpl.sendResendBlockToAllStreams(blockNumber);
         log.info("Sent immediate ResendBlock response for block {} on port {}", blockNumber, port);
     }
 
@@ -239,7 +243,7 @@ public class SimulatedBlockNodeServer {
      * @param blockNumber the last verified block number to include in the response
      */
     public void sendNodeBehindPublisherImmediately(final long blockNumber) {
-        serviceImpl.sendNodeBehindPublisherToAllStreams(blockNumber);
+        streamingImpl.sendNodeBehindPublisherToAllStreams(blockNumber);
         log.info("Sent immediate NodeBehindPublisher response for block {} on port {}", blockNumber, port);
     }
 
@@ -322,6 +326,23 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
+     * Mock implementation of the {@link BlockNodeServiceInterface} that also implements the get server status
+     * functionality. The response will include the latest block verified by the mock Block Node for both the first and
+     * last available block.
+     */
+    private class MockBlockNodeServiceImpl implements BlockNodeServiceInterface {
+        @Override
+        public @NonNull ServerStatusResponse serverStatus(@NonNull final ServerStatusRequest ignored) {
+            final long lastBlock = lastVerifiedBlockNumber.get();
+
+            return ServerStatusResponse.newBuilder()
+                    .firstAvailableBlock(lastBlock)
+                    .lastAvailableBlock(lastBlock)
+                    .build();
+        }
+    }
+
+    /**
      * Implementation of the BlockStreamService that can be configured to respond
      * with different response codes. This class handles the gRPC streaming interactions
      * with clients and manages block state tracking.
@@ -329,7 +350,7 @@ public class SimulatedBlockNodeServer {
     private class MockBlockStreamServiceImpl implements BlockStreamPublishServiceInterface {
         @Override
         public @NonNull Pipeline<? super org.hiero.block.api.PublishStreamRequest> publishBlockStream(
-                @NonNull Pipeline<? super PublishStreamResponse> replies) {
+                @NonNull final Pipeline<? super PublishStreamResponse> replies) {
             requireNonNull(replies, "replies cannot be null");
 
             // Add the new stream pipeline to the list of active streams
@@ -363,7 +384,7 @@ public class SimulatedBlockNodeServer {
 
                         if (request.hasEndStream()) {
                             log.debug("Received end of stream from stream {}", replies.hashCode());
-                            serviceImpl.removeStreamFromTracking(replies);
+                            streamingImpl.removeStreamFromTracking(replies);
                         } else if (request.hasBlockItems()) {
                             // Iterate through each BlockItem in the request
                             for (final BlockItem item : request.blockItems().blockItems()) {
@@ -796,7 +817,7 @@ public class SimulatedBlockNodeServer {
                         port,
                         e);
                 // Clean up the stream on error
-                serviceImpl.removeStreamFromTracking(pipeline);
+                streamingImpl.removeStreamFromTracking(pipeline);
             }
         }
 
@@ -990,7 +1011,7 @@ public class SimulatedBlockNodeServer {
                     port,
                     e);
             // If we can't send an ack, the stream is likely broken. Remove it.
-            serviceImpl.removeStreamFromTracking(pipeline);
+            streamingImpl.removeStreamFromTracking(pipeline);
         }
     }
 }
