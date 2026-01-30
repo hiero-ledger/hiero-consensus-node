@@ -1093,7 +1093,8 @@ class QueryWorkflowImplTest extends AppTestBase {
         given(exchangeRateInfo.activeRate(any())).willReturn(exchangeRate);
         given(exchangeRateManager.exchangeRateInfo(any(State.class))).willReturn(exchangeRateInfo);
         given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-        given(simpleFeeCalculator.calculateQueryFee(any(), any())).willReturn(100_000L);
+        final var feeResult = new FeeResult(100_000L, 0, 0);
+        given(simpleFeeCalculator.calculateQueryFee(any(), any())).willReturn(feeResult);
     }
 
     @Nested
