@@ -64,7 +64,7 @@ public class ClprGetMessageQueueMetadataHandler extends FreeQueryHandler {
         if (metadata != null) {
             final var result = ClprGetMessageQueueMetadataResponse.newBuilder()
                     .header(header)
-                    .messageQueueMetadataProof(stateProofManager.getMessageQueueMetadata(ledgerId))
+                    .messageQueueMetadataProof(stateProofManager.getMessageQueueMetadataProof(ledgerId))
                     .build();
             return Response.newBuilder().clprMessageQueueMetadata(result).build();
         }

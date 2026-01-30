@@ -50,8 +50,6 @@ import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody
 import org.hiero.hapi.interledger.clpr.ClprUpdateMessageQueueMetadataTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
-import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
-import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.client.ClprClient;
 
 /**
@@ -264,7 +262,7 @@ public class ClprClientImpl implements ClprClient {
     }
 
     @Override
-    public @Nullable ClprMessageQueueMetadata getMessageQueueMetadata(@NonNull ClprLedgerId ledgerId) {
+    public @Nullable StateProof getMessageQueueMetadata(@NonNull ClprLedgerId ledgerId) {
         // create query payload with header and specified ledger id
         final var queryBody = ClprGetMessageQueueMetadataQuery.newBuilder()
                 .header(QueryHeader.newBuilder().build())
@@ -275,14 +273,7 @@ public class ClprClientImpl implements ClprClient {
                 Query.newBuilder().getClprMessageQueueMetadata(queryBody).build();
         final var response = clprServiceClient.getMessageQueueMetadata(queryTxn);
         if (response.hasClprMessageQueueMetadata()) {
-            // extract configuration from state proof
-            final var stateProof =
-                    Objects.requireNonNull(response.clprMessageQueueMetadata()).messageQueueMetadataProof();
-            if (stateProof != null && ClprStateProofUtils.validateStateProof(stateProof)) {
-                return ClprStateProofUtils.extractMessageQueueMetadata(stateProof);
-            } else {
-                log.warn("State proof {} is invalid", stateProof);
-            }
+            return Objects.requireNonNull(response.clprMessageQueueMetadata()).messageQueueMetadataProof();
         }
         return null;
     }
@@ -323,11 +314,11 @@ public class ClprClientImpl implements ClprClient {
             final var transaction = Transaction.newBuilder()
                     .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTransaction))
                     .build();
-            final var response = clprServiceClient.updateMessageQueueMetadata(transaction);
+            final var response = clprServiceClient.processMessageBundle(transaction);
             return response.nodeTransactionPrecheckCode();
         } catch (final Exception e) {
             log.error(
-                    "CLPR client failed to submit message queue metadata for payer {} and ledger {}",
+                    "CLPR client failed to submit message bundle for payer {} and ledger {}",
                     payerAccountId,
                     ledgerId,
                     e);

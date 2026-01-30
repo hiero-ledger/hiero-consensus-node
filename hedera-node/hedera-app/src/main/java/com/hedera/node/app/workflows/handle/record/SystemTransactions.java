@@ -22,6 +22,7 @@ import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
+import static org.hiero.interledger.clpr.impl.ClprServiceImpl.RUNNING_HASH_SIZE;
 
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
@@ -119,9 +120,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.ReadableClprMessageQueueMetadataStore;
 import org.hiero.interledger.clpr.ReadableClprMetadataStore;
 
 /**
@@ -500,11 +503,14 @@ public class SystemTransactions {
         final var storeFactory = new ReadableStoreFactory(state);
         final ReadableRosterStore rosterStore;
         final ReadableClprMetadataStore metadataStore;
+        final ReadableClprMessageQueueMetadataStore messageQueueMetadataStore;
+
         ReadableClprLedgerConfigurationStore configStore = null;
         try {
             rosterStore = storeFactory.getStore(ReadableRosterStore.class);
             metadataStore = storeFactory.getStore(ReadableClprMetadataStore.class);
             configStore = storeFactory.getStore(ReadableClprLedgerConfigurationStore.class);
+            messageQueueMetadataStore = storeFactory.getStore(ReadableClprMessageQueueMetadataStore.class);
         } catch (final IllegalArgumentException e) {
             return;
         }
@@ -581,6 +587,7 @@ public class SystemTransactions {
             return;
         }
         final var dispatchTime = systemContext.now();
+        // build initial ledger config txn body
         final var transactionBody = ClprService.buildLedgerConfigurationUpdateTransactionBody(
                 activeRoster,
                 systemAdminAccountId,

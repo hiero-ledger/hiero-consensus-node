@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr;
 
+import static org.hiero.interledger.clpr.ClprStateProofUtils.buildLocalClprStateProofWrapper;
+
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.ServiceFactory;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.ServiceLoader;
 import java.util.Set;
+import org.hiero.hapi.interledger.clpr.ClprUpdateMessageQueueMetadataTransactionBody;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 
 /**
  * Implements the HAPI <a
@@ -96,7 +104,7 @@ public interface ClprService extends RpcService {
                 .endpoints(endpoints)
                 .build();
 
-        final var stateProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(config);
+        final var stateProof = buildLocalClprStateProofWrapper(config);
 
         final var txnBody = org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody.newBuilder()
                 .ledgerConfigurationProof(stateProof)
@@ -112,6 +120,38 @@ public interface ClprService extends RpcService {
         return com.hedera.hapi.node.transaction.TransactionBody.newBuilder()
                 .transactionID(txnId)
                 .clprSetLedgerConfiguration(txnBody)
+                .build();
+    }
+
+    /**
+     * Builds a CLPR message queue metadata system transaction body from the supplied inputs.
+     *
+     * @param payerAccountId the payer account id
+     * @param ledgerIdBytes the ledger id to include in the configuration
+     * @param consensusTime the consensus time to stamp on the configuration
+     * @return the transaction body ready for dispatch
+     */
+    static @NonNull TransactionBody buildMessageQueueMetadataUpdateTransactionBody(
+            @NonNull final AccountID payerAccountId,
+            @NonNull final Bytes ledgerIdBytes,
+            @NonNull final Instant consensusTime,
+            @NonNull final ClprMessageQueueMetadata messageQueueMetadata) {
+        final var ledgerId = ClprLedgerId.newBuilder().ledgerId(ledgerIdBytes).build();
+        final var messageQueueMetadataProof = buildLocalClprStateProofWrapper(messageQueueMetadata);
+        final var txnBody = ClprUpdateMessageQueueMetadataTransactionBody.newBuilder()
+                .ledgerId(ledgerId)
+                .messageQueueMetadataProof(messageQueueMetadataProof)
+                .build();
+        final var txnId = com.hedera.hapi.node.base.TransactionID.newBuilder()
+                .accountID(payerAccountId)
+                .transactionValidStart(com.hedera.hapi.node.base.Timestamp.newBuilder()
+                        .seconds(consensusTime.getEpochSecond())
+                        .nanos(consensusTime.getNano())
+                        .build())
+                .build();
+        return TransactionBody.newBuilder()
+                .transactionID(txnId)
+                .clprUpdateMessageQueueMetadata(txnBody)
                 .build();
     }
 }
