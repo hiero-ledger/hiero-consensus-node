@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.areBirthRoundNumbersValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.areEventListsEquivalent;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.isEventOrderValid;
@@ -10,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.CollectingEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
@@ -28,6 +29,9 @@ import org.junit.jupiter.api.Test;
  */
 @DisplayName("Event Emitter Tests")
 public class EventEmitterTests {
+
+    private static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
+            TestPlatformContextBuilder.create().build();
 
     /**
      * Assert that two lists of events are distinct but equal objects.

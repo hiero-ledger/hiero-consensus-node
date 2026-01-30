@@ -43,6 +43,7 @@ public final class PcesUtilities {
      * @return the writer for writing PCES files
      * @throws IOException in case of error when creating the writer
      */
+    @NonNull
     public static PcesFileWriter createWriter(@NonNull final PcesFileWriterType writerType, @NonNull final Path path)
             throws IOException {
         return switch (writerType) {

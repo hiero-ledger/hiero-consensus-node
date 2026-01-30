@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
-import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -20,7 +19,11 @@ import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
- * Implementation of simple fee calculator per HIP-1261.
+ * Base class for simple fee calculators. Provides reusable utility methods for common fee
+ * calculation patterns per HIP-1261.
+ *
+ * <p>Subclasses implement {@link SimpleFeeCalculator} directly and can use the static utility
+ * methods provided here to avoid code duplication.
  */
 public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
@@ -74,18 +77,18 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Service fee is transaction-specific.
      *
      * @param txnBody the transaction body
-     * @param feeContext the fee context containing signature count and full transaction bytes
+     * @param simpleFeeContext the fee context containing signature count and full transaction bytes
      * @return the calculated fee result
      */
     @NonNull
     @Override
-    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
+    public FeeResult calculateTxFee(
+            @NonNull final TransactionBody txnBody, @NonNull final SimpleFeeContext simpleFeeContext) {
         // Extract primitive counts (no allocations)
-        final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
+        final long signatures = simpleFeeContext.numTxnSignatures();
         // Get full transaction size in bytes (includes body, signatures, and all transaction data)
-        final long bytes = feeContext != null ? feeContext.numTxnBytes() : 0;
+        final long bytes = simpleFeeContext.numTxnBytes();
         final var result = new FeeResult();
-
         // Add node base and extras (bytes and payer signatures)
         result.setNodeBaseFeeTinycents(feeSchedule.node().baseFee());
         addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
@@ -95,7 +98,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
-        serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
+        serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
         return result;
     }
 
@@ -109,17 +112,40 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     }
 
     /**
+     * Utility: Counts all keys including nested ones in threshold/key lists.
+     * Useful for calculating KEYS extra fees per HIP-1261.
+     *
+     * @param key The key structure to count
+     * @return The total number of simple keys (ED25519, ECDSA_SECP256K1, ECDSA_384)
+     */
+    public static long countKeys(@NonNull final Key key) {
+        return switch (key.key().kind()) {
+            case ED25519, ECDSA_SECP256K1, ECDSA_384 -> 1L;
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow().keys().keys().stream()
+                        .mapToLong(SimpleFeeCalculatorImpl::countKeys)
+                        .sum();
+            case KEY_LIST ->
+                key.keyListOrThrow().keys().stream()
+                        .mapToLong(SimpleFeeCalculatorImpl::countKeys)
+                        .sum();
+            default -> 0L;
+        };
+    }
+
+    /**
      * Default implementation for query fee calculation.
      *
      * @param query The query to calculate fees for
-     * @param queryContext the query context
-     * @return the calculated query fee
+     * @param simpleFeeContext the query context
+     * @return Never returns normally
+     * @throws UnsupportedOperationException always
      */
     @Override
-    public long calculateQueryFee(@NonNull final Query query, @NonNull final QueryContext queryContext) {
+    public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final SimpleFeeContext simpleFeeContext) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
-        queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
-        return result.totalTinycents();
+        queryFeeCalculator.accumulateNodePayment(query, simpleFeeContext, result, feeSchedule);
+        return result;
     }
 }
