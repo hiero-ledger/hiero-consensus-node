@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Adhoc - Save State Longevity Test Controller"
+name: "ZXF: [CITR] Adhoc - Restore State Longevity Test Controller"
 on:
   workflow_dispatch:
     inputs:
