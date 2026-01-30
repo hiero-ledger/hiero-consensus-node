@@ -119,7 +119,7 @@ jobs:
     name: Longevity Test
     needs:
       - verify-tag
-    uses: ./.github/workflows/zxc-save-state-longevity-test.yaml
+    uses: ./.github/workflows/zxc-restore-state-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       saved-gs-dir: "${{ inputs.saved-gs-dir }}"
