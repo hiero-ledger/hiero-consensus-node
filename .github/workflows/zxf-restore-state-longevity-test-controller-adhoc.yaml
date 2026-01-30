@@ -1,4 +1,3 @@
-wake
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXF: [CITR] Adhoc - Save State Longevity Test Controller"
 on:
