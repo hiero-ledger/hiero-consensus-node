@@ -844,7 +844,8 @@ jobs:
             gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
           fi
 
-          gcloud --no-user-output-enabled storage cp --recursive state "${gs_path}/*" ./state/
+          gcloud --no-user-output-enabled storage cp --recursive ${gs_path}/NLG_state.tgz "${{ github.workspace }}"/state/NLG_state.tgz
+          gcloud --no-user-output-enabled storage cp --recursive ${gs_path}/lastSnapshot.tgz "${{ github.workspace }}"/state/lastSnapshot.tgz
 
       - name: Re-calculate keys with ansible-playbook
         if: ${{ !cancelled() }}
@@ -852,7 +853,7 @@ jobs:
           cd "${{ github.workspace }}"/.github/workflows/support/citr/ansible-playbook-templates
           sh copyKeys.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
           adminkey=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
-                      exec -it network-node1-0 -c root-container -- bash -c "grep 'bootstrap.genesisPublicKey' ${{ env.APP_ROOT }}/settingsUsed.txt | awk '{print \$NF}')
+                      exec -it network-node1-0 -c root-container -- bash -c "grep 'bootstrap.genesisPublicKey' ${{ env.APP_ROOT }}/settingsUsed.txt" | awk '{print \$NF}')
           ansible-playbook -i inventory/latitude.yml --extra-vars=@./vars/latitude.yml generate.yml --tags generate-override-network -e node_admin_key_override_pubkey=${adminkey}
 
       - name: Reset CNs
