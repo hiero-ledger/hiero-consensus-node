@@ -2,7 +2,7 @@
 package com.swirlds.platform.crypto;
 
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.utility.NodeNameFormatter;
 
 /**
  * Denotes which of the three purposes a key or certificate serves
@@ -23,7 +23,7 @@ public enum KeyCertPurpose {
      * @return the name of the key or certificate used in a KeyStore for this member and key type
      */
     public String storeName(final NodeId nodeId) {
-        return prefix + "-" + RosterUtils.formatNodeName(nodeId);
+        return prefix + "-" + NodeNameFormatter.formatNodeName(nodeId);
     }
 
     /**

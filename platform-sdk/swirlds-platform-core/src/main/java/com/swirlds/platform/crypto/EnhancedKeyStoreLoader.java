@@ -67,6 +67,7 @@ import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.utility.NodeNameFormatter;
 
 /**
  * This class is responsible for loading the key stores for all nodes in the address book.
@@ -570,7 +571,7 @@ public class EnhancedKeyStoreLoader {
     @NonNull
     private Path privateKeyStore(@NonNull final NodeId nodeId) {
         return keyStoreDirectory.resolve(String.format(
-                "%s-private-%s.pem", KeyCertPurpose.SIGNING.prefix(), RosterUtils.formatNodeName(nodeId)));
+                "%s-private-%s.pem", KeyCertPurpose.SIGNING.prefix(), NodeNameFormatter.formatNodeName(nodeId)));
     }
 
     /**
@@ -584,7 +585,7 @@ public class EnhancedKeyStoreLoader {
     @NonNull
     private Path legacyPrivateKeyStore(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, MSG_NODE_ALIAS_NON_NULL);
-        return keyStoreDirectory.resolve(String.format("private-%s.pfx", RosterUtils.formatNodeName(nodeId)));
+        return keyStoreDirectory.resolve(String.format("private-%s.pfx", NodeNameFormatter.formatNodeName(nodeId)));
     }
 
     /**
@@ -745,8 +746,8 @@ public class EnhancedKeyStoreLoader {
 
         for (final NodeId nodeId : this.nodeIds) {
             // extract private keys for local nodes
-            final Path sPrivateKeyLocation =
-                    keyStoreDirectory.resolve(String.format("s-private-%s.pem", RosterUtils.formatNodeName(nodeId)));
+            final Path sPrivateKeyLocation = keyStoreDirectory.resolve(
+                    String.format("s-private-%s.pem", NodeNameFormatter.formatNodeName(nodeId)));
             final Path privateKs = legacyPrivateKeyStore(nodeId);
             if (!Files.exists(sPrivateKeyLocation) && Files.exists(privateKs)) {
                 logger.info(

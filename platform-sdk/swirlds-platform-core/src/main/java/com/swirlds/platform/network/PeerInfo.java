@@ -6,7 +6,7 @@ import java.security.cert.X509Certificate;
 import java.util.Collection;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterEntryNotFoundException;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.utility.NodeNameFormatter;
 
 /**
  * A record representing a peer's network information.  If the certificate is not null, it must be encodable as a valid
@@ -18,7 +18,10 @@ import org.hiero.consensus.roster.RosterUtils;
  * @param signingCertificate the certificate used to validate the peer's TLS certificate
  */
 public record PeerInfo(
-        @NonNull NodeId nodeId, @NonNull String hostname, int port, @NonNull X509Certificate signingCertificate) {
+        @NonNull NodeId nodeId,
+        @NonNull String hostname,
+        int port,
+        @NonNull X509Certificate signingCertificate) {
 
     /**
      * Return a "node name" for the peer, e.g. "node1" for a peer with NodeId == 0.
@@ -27,7 +30,7 @@ public record PeerInfo(
      */
     @NonNull
     public String nodeName() {
-        return RosterUtils.formatNodeName(nodeId.id());
+        return NodeNameFormatter.formatNodeName(nodeId.id());
     }
 
     public static @NonNull PeerInfo find(@NonNull Collection<PeerInfo> peers, @NonNull NodeId nodeId) {

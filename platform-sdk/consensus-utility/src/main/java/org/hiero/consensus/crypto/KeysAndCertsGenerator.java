@@ -12,6 +12,7 @@ import java.security.cert.X509Certificate;
 import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.utility.NodeNameFormatter;
 
 /**
  * This class is responsible for generating the keys and certificates {@link KeysAndCerts} used in the system.
@@ -93,7 +94,7 @@ public class KeysAndCertsGenerator {
         final KeyPair sigKeyPair = SigningFactory.generateKeyPair(schema, sigDetRandom);
         final KeyPair agrKeyPair = agrKeyGen.generateKeyPair();
 
-        final String nodeName = "node" + (nodeId.id() + 1);
+        final String nodeName = NodeNameFormatter.formatNodeName(nodeId);
         final String dnS = CertificateUtils.distinguishedName("s-" + nodeName);
         final String dnA = CertificateUtils.distinguishedName("a-" + nodeName);
 
