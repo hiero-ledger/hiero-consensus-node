@@ -48,7 +48,7 @@ env:
 jobs:
   generate-baseline:
     name: "Docker: Generate Baseline"
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-docker-determinism-lin-md
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
       sha-abbrev: ${{ steps.commit.outputs.sha-abbrev }}
@@ -219,10 +219,10 @@ jobs:
           #- ubuntu-22.04
           #- macos-12
           #- macos-11
-          #- hiero-network-node-linux-medium
-          - hiero-network-node-linux-large
-          - hiero-network-node-linux-ubuntu-24-large
-          - hiero-network-node-linux-debian-12-large
+          #- hl-cn-docker-determinism-lin-md
+          - hl-cn-docker-determinism-lin-lg
+          - hl-cn-docker-determinism-lin-u24-lg
+          - hl-cn-docker-determinism-lin-d12-lg
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0

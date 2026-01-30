@@ -65,7 +65,7 @@ env:
 jobs:
   execute-unit-tests:
     name: "Unit Tests"
-    runs-on: hiero-cn-unit-test-linux
+    runs-on: hl-cn-unit-test-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -146,7 +146,7 @@ jobs:
           failure_mode="none"
 
           has_failure() {
-            local arr=("@")
+            local arr=("$@")
             for status in "${arr[@]}"; do
               [[ "${status}" == "failure" ]] && return 0
             done

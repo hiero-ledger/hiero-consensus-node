@@ -46,7 +46,7 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests
     if: ${{ needs.mats-tests.result == 'success' }}
@@ -71,7 +71,7 @@ jobs:
 
   report-failure:
     name: Report MATS execution failure
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests
       - deploy-ci-trigger
@@ -112,6 +112,7 @@ jobs:
 
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && always() }}
         continue-on-error: true
         with:
           retention-days: 7

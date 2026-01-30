@@ -58,7 +58,7 @@ env:
 jobs:
   dependency-module-check:
     name: "Dependency Module Check"
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-md
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
