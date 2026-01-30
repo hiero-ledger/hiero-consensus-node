@@ -10,7 +10,9 @@ import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RosterWithKeys;
 import com.swirlds.platform.test.fixtures.event.signer.EventSigner;
 import com.swirlds.platform.test.fixtures.event.signer.RandomEventSigner;
+import com.swirlds.platform.test.fixtures.event.signer.RealEventSigner;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Objects;
 
 /**
  * Builder for creating {@link SimpleGraphGenerator} instances with optional parameters.
@@ -27,6 +29,7 @@ public class SimpleGraphGeneratorBuilder {
     private Roster roster;
     private Integer numNodes;
     private boolean realSignatures = false;
+    private EventSigner signer;
 
     /**
      * Creates a new builder instance.
@@ -88,10 +91,10 @@ public class SimpleGraphGeneratorBuilder {
      * @return this builder
      */
     public SimpleGraphGeneratorBuilder roster(@Nullable final Roster roster) {
-        if(numNodes != null) {
+        if (numNodes != null) {
             throw new IllegalStateException("Cannot set roster when numNodes is already set");
         }
-        if(realSignatures){
+        if (realSignatures) {
             throw new IllegalStateException("Cannot supply roster when realSignatures is enabled");
         }
         this.roster = roster;
@@ -105,7 +108,7 @@ public class SimpleGraphGeneratorBuilder {
      * @return this builder
      */
     public SimpleGraphGeneratorBuilder numNodes(final int numNodes) {
-        if(roster != null) {
+        if (roster != null) {
             throw new IllegalStateException("Cannot set numNodes when roster is already set");
         }
         this.numNodes = numNodes;
@@ -113,7 +116,7 @@ public class SimpleGraphGeneratorBuilder {
     }
 
     public SimpleGraphGeneratorBuilder realSignatures(final boolean realSignatures) {
-        if(realSignatures && roster != null) {
+        if (realSignatures && roster != null) {
             throw new IllegalStateException("Cannot use realSignatures with a supplied roster");
         }
         this.realSignatures = realSignatures;
@@ -156,21 +159,23 @@ public class SimpleGraphGeneratorBuilder {
             return roster;
         }
         final int nodeCount = numNodes != null ? numNodes : DEFAULT_NUM_NODES;
-        if(realSignatures){
+        if (realSignatures) {
             final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(Randotron.create(getSeed()))
                     .withSize(nodeCount)
                     .withRealKeysEnabled(true)
                     .buildWithKeys();
-        }else{
-
+            signer = new RealEventSigner(rosterWithKeys);
+            return rosterWithKeys.getRoster();
+        } else {
+            signer = new RandomEventSigner(getSeed());
+            return RandomRosterBuilder.create(Randotron.create(getSeed()))
+                    .withSize(nodeCount)
+                    .withRealKeysEnabled(false)
+                    .build();
         }
-        return RandomRosterBuilder.create(Randotron.create(getSeed()))
-                .withSize(nodeCount)
-                .withRealKeysEnabled(false)
-                .build();
     }
 
     private EventSigner getEventSigner() {
-        return realSignatures ? null : new RandomEventSigner(getSeed());
+        return Objects.requireNonNull(signer, "Signer should have been set in getRoster()");
     }
 }

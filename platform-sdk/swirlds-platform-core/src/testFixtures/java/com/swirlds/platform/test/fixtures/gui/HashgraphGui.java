@@ -28,6 +28,7 @@ public class HashgraphGui {
                 .numNodes(4)
                 .maxOtherParents(2)
                 .seed(0)
+                .realSignatures(true)
                 .build();
 
         final TestGuiSource guiSource = new TestGuiSource(
