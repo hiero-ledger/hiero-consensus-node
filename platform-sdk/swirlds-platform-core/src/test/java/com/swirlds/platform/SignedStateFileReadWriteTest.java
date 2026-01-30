@@ -25,8 +25,8 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
@@ -107,9 +107,7 @@ class SignedStateFileReadWriteTest {
         final Path hashInfoFile = testDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
         assertTrue(exists(hashInfoFile), "file should exist");
 
-        final String hashInfoString = new MerkleTreeVisualizer(state.getRoot())
-                .setDepth(stateConfig.debugHashDepth())
-                .render();
+        final String mnemonicString = Mnemonics.generateMnemonic(state.getHash());
 
         final StringBuilder sb = new StringBuilder();
         try (final BufferedReader br = new BufferedReader(new FileReader(hashInfoFile.toFile()))) {
@@ -117,7 +115,7 @@ class SignedStateFileReadWriteTest {
         }
 
         final String fileString = sb.toString();
-        assertTrue(fileString.contains(hashInfoString), "hash info string not found");
+        assertTrue(fileString.contains(mnemonicString), "hash info string not found");
         state.release();
     }
 
