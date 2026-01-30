@@ -47,8 +47,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 class CryptoTransferFeeCalculatorTest {
-
-    private static final long BASE_FEE = 1_000_000L;
     private static final long TOKEN_TRANSFER_FEE = 9_000_000L;
     private static final long TOKEN_TRANSFER_CUSTOM_FEE = 19_000_000L;
     private static final long FUNGIBLE_TOKEN_EXTRA_FEE = 1_000_000L;
