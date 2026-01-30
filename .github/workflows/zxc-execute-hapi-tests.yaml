@@ -287,7 +287,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Use --rerun-tasks --no-build-cache to ensure tests actually run and aren't cached
-        run: ${GRADLE_EXEC} hapiTestCrypto --no-daemon --rerun-tasks --no-build-cache
+        run: ${GRADLE_EXEC} hapiTestCrypto${{ inputs.mats-suffix || '' }} --no-daemon --rerun-tasks --no-build-cache
 
       - name: Publish HAPI Test (Crypto) Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
