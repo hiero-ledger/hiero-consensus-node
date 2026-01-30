@@ -11,11 +11,11 @@ import org.hiero.metrics.core.MetricRegistry;
  * {@link MetricsFramework} implementation using the Hiero metrics library.
  * This serves as the baseline for benchmark comparisons.
  */
-final class HieroMetricsFramework extends MetricsFramework {
+public final class HieroMetricsFramework extends MetricsFramework {
 
     private final MetricRegistry registry;
 
-    HieroMetricsFramework() {
+    public HieroMetricsFramework() {
         super("hiero");
 
         registry = MetricRegistry.builder()

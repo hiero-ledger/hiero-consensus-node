@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import org.hiero.metrics.openmetrics.framework.HieroMetricsFramework;
 import org.hiero.metrics.openmetrics.framework.MetricsFramework;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -53,7 +54,7 @@ public class FrameworksProductionSimulationBenchmark {
 
     @Setup(Level.Trial)
     public void setupTrial() {
-        MetricsFramework framework = MetricsFramework.resolve("hiero");
+        MetricsFramework framework = new HieroMetricsFramework();
 
         testScenario = new TestScenario(framework, 12345L);
         testScenario.generateMetrics(measurementsCount, cardinalityLowBound, cardinalityHighBound);

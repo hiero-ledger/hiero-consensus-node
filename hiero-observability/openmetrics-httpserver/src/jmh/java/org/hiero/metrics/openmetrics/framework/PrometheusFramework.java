@@ -12,12 +12,12 @@ import java.io.IOException;
  * {@link MetricsFramework} implementation using the newer Prometheus Java client library
  * (io.prometheus:prometheus-metrics-core).
  */
-final class PrometheusFramework extends MetricsFramework {
+public final class PrometheusFramework extends MetricsFramework {
 
     private final PrometheusRegistry registry;
     private final HTTPServer httpServer;
 
-    PrometheusFramework() {
+    public PrometheusFramework() {
         super("prometheus");
         this.registry = new PrometheusRegistry();
 

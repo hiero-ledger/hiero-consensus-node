@@ -38,7 +38,7 @@ import org.openjdk.jmh.annotations.Warmup;
 public class FrameworksHttpLatencyComparisonBenchmark {
 
     /** Whether to request gzip compression from the endpoint. */
-    @Param({"true"})
+    @Param({"true", "false"})
     public boolean useGzip;
 
     /** Target total number of measurements to create (approximately). */
