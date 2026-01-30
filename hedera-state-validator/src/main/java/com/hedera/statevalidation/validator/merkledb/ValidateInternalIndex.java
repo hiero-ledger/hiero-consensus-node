@@ -111,7 +111,6 @@ public class ValidateInternalIndex {
             }
         };
 
-        // Process chunks 1 to lastChunkId in parallel (skip root chunk 0 as it has no parent)
         ForkJoinTask<?> chunkValidationTask = processRange(0, lastChunkId + 1, indexProcessor);
         chunkValidationTask.join();
 
