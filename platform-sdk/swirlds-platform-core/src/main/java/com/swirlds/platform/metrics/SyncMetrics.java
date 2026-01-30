@@ -186,11 +186,11 @@ public class SyncMetrics {
 
     private static final IntegerGauge.Config BROADCAST_DISABLED_DUE_TO_LAG_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "broadcastDisabledDueToLag")
-            .withDescription("How many broadcast peers are disabled due to the too large ping");
+            .withDescription("For how many peers broadcast is disabled due to the too large ping");
 
     private static final IntegerGauge.Config BROADCAST_DISABLED_DUE_TO_OVERLOAD_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "broadcastDisabledDueToOverload")
-            .withDescription("How many broadcast peers are disabled due to the output queue being too large");
+            .withDescription("For how many peers broadcast is disabled due to the output queue being too large");
 
     private final IntegerGauge broadcastDisabledDueToLag;
 

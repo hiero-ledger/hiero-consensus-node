@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
@@ -103,6 +104,7 @@ final class RpcPingHandler {
      * Called when ping reply was received by network layer
      *
      * @param pingReply reply to our ping
+     * @return amount of nanoseconds which has passed since we have sent that ping request
      */
     long handleIncomingPingReply(@NonNull final GossipPing pingReply) {
         final GossipPing original = sentPings.remove(pingReply.correlationId());
@@ -115,7 +117,7 @@ final class RpcPingHandler {
         } else {
             // don't trust remote timestamp for measuring ping
             logger.debug(NETWORK.getMarker(), "Ping {}", time.currentTimeMillis() - original.timestamp());
-            this.lastPingNanos = (time.currentTimeMillis() - original.timestamp()) * 1_000_000;
+            this.lastPingNanos = TimeUnit.MILLISECONDS.toNanos(time.currentTimeMillis() - original.timestamp());
             networkMetrics.recordPingTime(remotePeerId, lastPingNanos);
         }
         return lastPingNanos;

@@ -24,7 +24,7 @@ public class RpcOverloadMonitor {
     private final Time time;
     private final Consumer<Boolean> communicationOverloadHandler;
 
-    private volatile long lastCommunicationOverloadReported = -1;
+    private volatile long disabledBroadcastDueToQueueSize = -1;
     private volatile long disabledBroadcastDueToLag = -1;
 
     RpcOverloadMonitor(
@@ -48,15 +48,17 @@ public class RpcOverloadMonitor {
      */
     void reportOutputQueueSize(final int size) {
         if (size > syncConfig.throttleOutputQueueThreshold()) {
-            communicationOverloadHandler.accept(true);
-            syncMetrics.disabledBroadcastDueToOverload(true);
-            lastCommunicationOverloadReported = time.currentTimeMillis();
-        } else {
-            if (time.currentTimeMillis() - lastCommunicationOverloadReported
-                    > syncConfig.pauseBroadcastOnLag().toMillis()) {
-                syncMetrics.disabledBroadcastDueToOverload(false);
-                communicationOverloadHandler.accept(false);
+            if (disabledBroadcastDueToQueueSize < 0) {
+                communicationOverloadHandler.accept(true);
+                syncMetrics.disabledBroadcastDueToOverload(true);
             }
+            // we always need to update last time when queue size was breached
+            disabledBroadcastDueToQueueSize = time.currentTimeMillis();
+        } else if (disabledBroadcastDueToQueueSize > 0
+                && enoughTimePassedAfterDisable(disabledBroadcastDueToQueueSize)) {
+            disabledBroadcastDueToQueueSize = -1;
+            syncMetrics.disabledBroadcastDueToOverload(false);
+            communicationOverloadHandler.accept(false);
         }
     }
 
@@ -66,19 +68,29 @@ public class RpcOverloadMonitor {
      * @param pingMillis roundtrip of message being interpreted in milliseconds
      */
     void reportPing(final long pingMillis) {
-        if (disabledBroadcastDueToLag < 0
-                && pingMillis > syncConfig.disableBroadcastPingThreshold().toMillis()) {
-            disabledBroadcastDueToLag = time.currentTimeMillis();
-            syncMetrics.disabledBroadcastDueToLag(true);
-            communicationOverloadHandler.accept(true);
-        } else if (disabledBroadcastDueToLag > 0
-                && pingMillis < syncConfig.disableBroadcastPingThreshold().toMillis()) {
-            if (time.currentTimeMillis() - disabledBroadcastDueToLag
-                    > syncConfig.pauseBroadcastOnLag().toMillis()) {
-                disabledBroadcastDueToLag = -1;
-                syncMetrics.disabledBroadcastDueToLag(false);
-                communicationOverloadHandler.accept(false);
+        if (pingMillis > syncConfig.disableBroadcastPingThreshold().toMillis()) {
+            if (disabledBroadcastDueToLag < 0) {
+                syncMetrics.disabledBroadcastDueToLag(true);
+                communicationOverloadHandler.accept(true);
             }
+            // we always need to update last time when ping was reported as broken
+            disabledBroadcastDueToLag = time.currentTimeMillis();
+        } else if (disabledBroadcastDueToLag > 0 && enoughTimePassedAfterDisable(disabledBroadcastDueToLag)) {
+            disabledBroadcastDueToLag = -1;
+            syncMetrics.disabledBroadcastDueToLag(false);
+            communicationOverloadHandler.accept(false);
         }
+    }
+
+    /**
+     * Each time we disable broadcast due to some factor, we don't want to enable it back until that factor is ok for
+     * certain period of time, to avoid flickering
+     *
+     * @param disableTime when the metric breach was observed last time
+     * @return has enough time passed since last breach to be able to enable broadcast back
+     */
+    private boolean enoughTimePassedAfterDisable(final long disableTime) {
+        return time.currentTimeMillis() - disableTime
+                > syncConfig.pauseBroadcastOnLag().toMillis();
     }
 }

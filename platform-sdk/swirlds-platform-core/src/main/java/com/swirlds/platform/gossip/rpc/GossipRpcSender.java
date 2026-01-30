@@ -35,7 +35,7 @@ public interface GossipRpcSender {
      * as part of sync process
      * @param gossipEvent event to sent
      */
-    void sendBroadcastEvent(GossipEvent gossipEvent);
+    void sendBroadcastEvent(@NonNull GossipEvent gossipEvent);
 
     /**
      * Send marker indicating that all events were already provided to the channel

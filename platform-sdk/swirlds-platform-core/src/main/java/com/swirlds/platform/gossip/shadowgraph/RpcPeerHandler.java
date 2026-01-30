@@ -105,7 +105,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     private int incomingEventsCounter = 0;
 
     /**
-     * Last time we have finished receiving events
+     * Last time we have finished receiving events from a full sync
      */
     private long lastReceiveEventFinished;
 

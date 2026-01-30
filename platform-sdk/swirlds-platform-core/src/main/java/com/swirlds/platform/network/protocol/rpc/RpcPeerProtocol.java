@@ -477,7 +477,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                             break;
                         case PING_REPLY:
                             final GossipPing pingReply = input.readPbjRecord(GossipPing.PROTOBUF);
-                            final long pingMillis = pingHandler.handleIncomingPingReply(pingReply) / 1_000_000;
+                            final long pingMillis =
+                                    TimeUnit.NANOSECONDS.toMillis(pingHandler.handleIncomingPingReply(pingReply));
                             overloadMonitor.reportPing(pingMillis);
                             break;
                     }
@@ -538,10 +539,13 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         syncMetrics.rpcOutputQueueSize(remotePeerId, outputQueue.size());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void sendBroadcastEvent(final GossipEvent gossipEvent) {
+    public void sendBroadcastEvent(@NonNull final GossipEvent gossipEvent) {
         outputQueue.add(out -> {
-            out.writeShort(1);
+            out.writeShort(1); // single message
             out.write(BROADCAST_EVENT);
             out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
         });
@@ -554,7 +558,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     @Override
     public void sendEndOfEvents() {
         outputQueue.add(out -> {
-            out.writeShort(1);
+            out.writeShort(1); // single message
             out.write(EVENTS_FINISHED);
         });
         syncMetrics.rpcOutputQueueSize(remotePeerId, outputQueue.size());
@@ -570,7 +574,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     }
 
     private void sendPingSameThread(final GossipPing ping, final SyncOutputStream output) throws IOException {
-        output.writeShort(1);
+        output.writeShort(1); // single message
         output.write(PING);
         output.writePbjRecord(ping, GossipPing.PROTOBUF);
     }
