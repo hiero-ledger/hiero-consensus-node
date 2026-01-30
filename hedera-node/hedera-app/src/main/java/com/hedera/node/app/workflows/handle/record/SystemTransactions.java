@@ -598,30 +598,6 @@ public class SystemTransactions {
                 accountIdProvider);
         systemContext.dispatchCreation(
                 builder -> builder.clprSetLedgerConfiguration(transactionBody.clprSetLedgerConfigurationOrThrow()), 0L);
-
-        // build initial message queue metadata txn body.
-        final var existingMessageQueueMetadata = messageQueueMetadataStore.get(
-                ClprLedgerId.newBuilder().ledgerId(ledgerId).build());
-        if (existingMessageQueueMetadata == null) {
-            // build new metadata
-            final var initialMessageQueueMetadata = ClprMessageQueueMetadata.newBuilder()
-                    .ledgerId(ClprLedgerId.newBuilder().ledgerId(ledgerId).build())
-                    .nextMessageId(1)
-                    .sentRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]))
-                    .receivedMessageId(0)
-                    .receivedRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]))
-                    .build();
-
-            final var msgQueueMetadataTxnBody = ClprService.buildMessageQueueMetadataUpdateTransactionBody(
-                    systemAdminAccountId, ledgerId, dispatchTime, initialMessageQueueMetadata);
-
-            log.info("CLPR: Initialize message queue metadata");
-            // dispatch create of the initial message queue metadata
-            systemContext.dispatchCreation(
-                    builder -> builder.clprUpdateMessageQueueMetadata(
-                            msgQueueMetadataTxnBody.clprUpdateMessageQueueMetadataOrThrow()),
-                    0L);
-        }
     }
 
     private Network safeGetNetwork(@NonNull final ReadableStoreFactory storeFactory) {

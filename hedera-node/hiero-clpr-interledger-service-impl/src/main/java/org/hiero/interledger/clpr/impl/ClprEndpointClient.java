@@ -3,8 +3,10 @@ package org.hiero.interledger.clpr.impl;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.interledger.clpr.ClprStateProofUtils.buildLocalClprStateProofWrapper;
 import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageQueueMetadata;
 import static org.hiero.interledger.clpr.ClprStateProofUtils.validateStateProof;
+import static org.hiero.interledger.clpr.impl.ClprServiceImpl.RUNNING_HASH_SIZE;
 
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.AccountID;
@@ -51,6 +53,7 @@ import org.hiero.interledger.clpr.impl.client.ClprConnectionManager;
 public class ClprEndpointClient {
     private static final Logger log = LogManager.getLogger(ClprEndpointClient.class);
     private static final int MAX_ENDPOINT_CYCLES = 2;
+    private static final long BUNDLE_SIZE = 5;
 
     private boolean started = false;
     private final @NonNull ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
@@ -383,194 +386,129 @@ public class ClprEndpointClient {
             @NonNull final AccountID selfAccount,
             @NonNull final AccountID nodeAccount) {
 
-        final var localQueueProof = stateProofManager.getMessageQueueMetadataProof();
-        final var localQueue = stateProofManager.getMessageQueueMetadata(localLedgerId);
+        final var localQueueProof = stateProofManager.getMessageQueueMetadataProof(remoteLedgerId);
+        if (localQueueProof == null) {
+            log.debug("CLPR: Init new message queue for remote ledger {}", remoteLedgerId);
+            // create new queue and submit it to the local and the remote ledgers
+            final var localQueueMetadata = initialMessageQueueMetadata(remoteLedgerId);
+            final var localQueueStateProof = buildLocalClprStateProofWrapper(localQueueMetadata);
+            localClient.updateMessageQueueMetadata(selfAccount, nodeAccount, remoteLedgerId, localQueueStateProof);
+            remoteClient.updateMessageQueueMetadata(selfAccount, nodeAccount, localLedgerId, localQueueStateProof);
+            return false;
+        }
+
+        final var localQueue = stateProofManager.getMessageQueueMetadata(remoteLedgerId);
         final var fetchedLocalQueueProof = remoteClient.getMessageQueueMetadata(localLedgerId);
+
         if (fetchedLocalQueueProof == null) {
             remoteClient.updateMessageQueueMetadata(selfAccount, nodeAccount, localLedgerId, localQueueProof);
-            log.info("CLPR: Send local message queue to remote!");
+            log.debug("CLPR: Send local message queue to remote!");
             return false;
         }
         if (!validateStateProof(fetchedLocalQueueProof)) {
-            log.info("CLPR: Invalid state proof!");
+            log.debug("CLPR: Invalid state proof!");
             return false;
         }
-        final var fetchedLocalQueue = extractMessageQueueMetadata(fetchedLocalQueueProof);
 
-        if (localQueueProof == null) {
-            log.warn("Local CLPR message queue metadata not found!");
-            return false;
+        final var fetchedLocalQueue = extractMessageQueueMetadata(fetchedLocalQueueProof);
+        log.debug("CLPR: FETCHED QUEUE: {}", fetchedLocalQueue);
+
+        // Should update sent count?
+        log.debug("REMOTE: RECEIVED = {}", fetchedLocalQueue.receivedMessageId());
+        log.debug("LOCAL: SENT = {}", localQueue.sentMessageId());
+
+        if (fetchedLocalQueue.receivedMessageId() > localQueue.sentMessageId()) {
+            // Submit fetched Local Queue to this ledger to update the quantity sent msg in state
+            log.debug("CLPR: Update local message queue sent id");
+            localClient.updateMessageQueueMetadata(selfAccount, nodeAccount, remoteLedgerId, fetchedLocalQueueProof);
         }
+
 
         // Push local messages to remote
         if (localQueue.sentMessageId() + 1 == localQueue.nextMessageId()) {
-            log.info("CLPR: No local messages to publish");
+            log.debug("CLPR: No local messages to publish");
         } else {
             // Which messages do we need to publish?
             if (fetchedLocalQueue.receivedMessageId() + 1 < localQueue.nextMessageId()) {
                 // Send messages to remote starting `fetchedLocalQueue.receivedMessageId() + 1`
                 final var firstPendingMessage = fetchedLocalQueue.receivedMessageId() + 1;
-                final var bundle = createBundle(firstPendingMessage, 1, localLedgerId);
+                final var lastMessageInBundle = Math.min(firstPendingMessage + BUNDLE_SIZE, localQueue.nextMessageId() - 1);
+                final var bundle = createBundle(firstPendingMessage, lastMessageInBundle, localLedgerId, remoteLedgerId);
                 if (bundle != null) {
+                    log.info("CLPR: Submit bundle {}", bundle);
                     remoteClient.submitProcessMessageBundleTxn(selfAccount, nodeAccount, remoteLedgerId, bundle);
+                } else {
+                    log.warn("CLPR: Error while constructing a bundle!");
                 }
-            }
-
-            // Should update sent count?
-            if (fetchedLocalQueue.receivedMessageId() > localQueue.sentMessageId()) {
-                // Submit fetched Local Queue to this ledger to update the quantity sent msg in state
-                localClient.updateMessageQueueMetadata(selfAccount, nodeAccount, localLedgerId, fetchedLocalQueueProof);
             }
         }
 
         // Pull messages from remote
         if (fetchedLocalQueue.nextMessageId() - 1 > localQueue.receivedMessageId()) {
             final var fetchedBundle = remoteClient.getMessages(localLedgerId, 5, 1000);
-            // process messages from remote
-            localClient.submitProcessMessageBundleTxn(selfAccount, nodeAccount, localLedgerId, fetchedBundle);
+            if(fetchedBundle != null) {
+                // process messages from remote
+                localClient.submitProcessMessageBundleTxn(selfAccount, nodeAccount, localLedgerId, fetchedBundle);
+            } else {
+                log.warn("CLPR: Remote queue has messages, but can't fetch bundle");
+            }
         }
 
         return true;
     }
 
-    private boolean pushPullQueueContent(
-            @NonNull final AccountID selfAccount,
-            @NonNull final AccountID nodeAccount,
-            @NonNull final ClprMessageQueueMetadata localMessageQueueMetadata,
-            @NonNull final ClprClient remoteClient,
-            @NonNull final org.hiero.hapi.interledger.state.clpr.ClprLedgerId remoteLedgerId,
-            @NonNull final QueueMetadata queueMetadata,
-            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-
-        // TRY TO PUSH MSG FROM LOCAL QUEUE TO REMOTE LEDGER
-        final var pushStatus = pushQueueContent(
-                selfAccount,
-                nodeAccount,
-                remoteClient,
-                remoteLedgerId,
-                localMessageQueueMetadata,
-                queueMetadata,
-                remoteServiceEndpoint);
-
-        if (!isSuccessful(pushStatus)) {
-            return false;
-        }
-
-        return pullQueueContent(remoteClient, remoteLedgerId, queueMetadata, remoteServiceEndpoint);
+    private ClprMessageQueueMetadata initialMessageQueueMetadata(ClprLedgerId remoteLedgerId) {
+        return ClprMessageQueueMetadata.newBuilder()
+                    .ledgerId(remoteLedgerId)
+                    .nextMessageId(1)
+                    .sentMessageId(0)
+                    .sentRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]))
+                    .receivedMessageId(0)
+                    .receivedRunningHash(Bytes.wrap(new byte[RUNNING_HASH_SIZE]))
+                    .build();
     }
 
-    private ResponseCodeEnum pushQueueMetadata(
-            @NonNull final ClprLedgerId ledgerId,
-            @NonNull final AccountID payerAccount,
-            @NonNull final AccountID nodeAccountId,
-            @NonNull final ClprClient clprClient,
-            @NonNull final StateProof messageQueueMetadataProof) {
-        return clprClient.updateMessageQueueMetadata(payerAccount, nodeAccountId, ledgerId, messageQueueMetadataProof);
-    }
-
-    private @Nullable StateProof pullQueueMetadata(
-            @NonNull final ClprClient clprClient, @NonNull final ClprLedgerId ledgerId) {
-        return clprClient.getMessageQueueMetadata(ledgerId);
-    }
-
-    private ResponseCodeEnum pushQueueContent(
-            @NonNull final AccountID selfAccount,
-            @NonNull final AccountID nodeAccount,
-            @NonNull final ClprClient remoteClient,
-            @NonNull final ClprLedgerId remoteLedgerId,
-            @NonNull final ClprMessageQueueMetadata localMessageQueueMetadata,
-            @NonNull final QueueMetadata queueMetadata,
-            @NonNull final ServiceEndpoint remoteServiceEndpoint) {
-
-        final var lastPendingMessageId = localMessageQueueMetadata.nextMessageId() - 1;
-        final var sentMessageId = localMessageQueueMetadata.sentMessageId();
-        if (lastPendingMessageId - 1 > sentMessageId) {
-            // get bundle for current remote ledger
-            final var maxMessagesInBundle = 1;
-
-            // find first and last message id in the bundle
-            final var firstPendingMsgId = sentMessageId + 1;
-            final var lastMsgIdInBundle = Math.min(firstPendingMsgId + maxMessagesInBundle, lastPendingMessageId);
-            final var messagePayloadList = new ArrayList<ClprMessagePayload>();
-            final var updateLocalQueueBuilder = localMessageQueueMetadata.copyBuilder();
-            for (long i = firstPendingMsgId; i <= lastMsgIdInBundle; i++) {
-                // check if this is the last messag in the bundle
-                if (i == lastMsgIdInBundle) {
-                    // TODO: build State Proof insted of adding the data directly into the bundle!!
-                }
-
-                final var messageKey = ClprMessageKey.newBuilder()
-                        .messageId(i)
-                        .ledgerId(remoteLedgerId)
-                        .build();
-                final var messageValue = stateProofManager.getMessage(messageKey);
-                if (messageValue.payloadOrThrow().hasMessage()) {
-                    final var payload = ClprMessagePayload.newBuilder()
-                            .message(messageValue.payload().message())
-                            .build();
-                    messagePayloadList.add(payload);
-                } else {
-                    final var payload = ClprMessagePayload.newBuilder()
-                            .messageReply(messageValue.payload().messageReply())
-                            .build();
-                    messagePayloadList.add(payload);
-                }
-            }
-            // update local queue
-            updateLocalQueueBuilder.sentMessageId(
-                    localMessageQueueMetadata.sentMessageId() + messagePayloadList.size());
-            // TODO: update the running hash
-
-            if (messagePayloadList.size() > 0) {
-                log.info("CLPR: Now sending messages");
-                final var bundle = ClprMessageBundle.newBuilder()
-                        .messages(messagePayloadList)
-                        .build();
-                return remoteClient.submitProcessMessageBundleTxn(selfAccount, nodeAccount, remoteLedgerId, bundle);
-            }
-        } else {
-            log.info("CLPR: No messages to send");
-        }
-
-        return null;
-    }
-
-    private ClprMessageBundle createBundle(long firstPendingMsgId, long bundleSize, ClprLedgerId ledgerId) {
+    @Nullable
+    // TODO: add java doc
+    private ClprMessageBundle createBundle(long firstPendingMsgId, long lastMsgInBundle, ClprLedgerId localLedgerId, ClprLedgerId remoteLedgerId) {
         final var messagePayloadList = new ArrayList<ClprMessagePayload>();
-        final var lastMsgIdInBundle = firstPendingMsgId + bundleSize;
-
-        for (long i = firstPendingMsgId; i <= lastMsgIdInBundle; i++) {
-            // check if this is the last messag in the bundle
-            if (i == lastMsgIdInBundle) {
-                // TODO: build State Proof insted of adding the data directly into the bundle!!
-            }
-
+        final var bundleBuilder = ClprMessageBundle.newBuilder();
+        for (long i = firstPendingMsgId; i <= lastMsgInBundle; i++) {
             final var messageKey =
-                    ClprMessageKey.newBuilder().messageId(i).ledgerId(ledgerId).build();
+                    ClprMessageKey.newBuilder().messageId(i).ledgerId(remoteLedgerId).build();
             final var messageValue = stateProofManager.getMessage(messageKey);
 
-            // break if there are no more pending messages
+            // If there is no value in the given range there should be a problem at the calculated range
             if (messageValue == null) {
-                break;
+                log.warn("CLPR: Failed to find stored message {} fro ledger {}", i, remoteLedgerId);
+                return null;
+            }
+
+            // if this is the last messag in the bundle, build state proof and return the bundle
+            // TODO: extract the state proof construction out of the loop
+            if (i == lastMsgInBundle) {
+                final var bundleStateProof = buildLocalClprStateProofWrapper(messageKey, messageValue);
+                bundleBuilder.ledgerId(localLedgerId).stateProof(bundleStateProof);
+                // add payloads if any
+                if(!messagePayloadList.isEmpty()) {
+                    bundleBuilder.messages(messagePayloadList);
+                }
+                return bundleBuilder.build();
             }
 
             if (messageValue.payloadOrThrow().hasMessage()) {
                 final var payload = ClprMessagePayload.newBuilder()
-                        .message(messageValue.payload().message())
+                        .message(messageValue.payloadOrThrow().message())
                         .build();
                 messagePayloadList.add(payload);
             } else {
                 final var payload = ClprMessagePayload.newBuilder()
-                        .messageReply(messageValue.payload().messageReply())
+                        .messageReply(messageValue.payloadOrThrow().messageReply())
                         .build();
                 messagePayloadList.add(payload);
             }
         }
-        // TODO: add running hash
 
-        if (messagePayloadList.size() > 0) {
-            return ClprMessageBundle.newBuilder().messages(messagePayloadList).build();
-        }
         return null;
     }
 

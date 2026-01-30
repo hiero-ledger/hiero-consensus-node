@@ -93,12 +93,10 @@ public class ClprMessagesSuite {
 
                 // check if private ledger succeed to push its queue to the public ledger
                 .onNetwork(PUBLIC_LEDGER, withOpContext((spec, log) -> {
-
-                    //                    final var messageQueueMetadata = messageQueuePrivateLedger.get();
                     final var expectedQueueMetadata = ClprMessageQueueMetadata.newBuilder()
                             .nextMessageId(5)
-                            .sentMessageId(4)
-                            .receivedMessageId(0)
+                            .sentMessageId(0)
+                            .receivedMessageId(5) //
                             .build();
 
                     awaitMatchingMessageQueueMetadata(
@@ -120,6 +118,7 @@ public class ClprMessagesSuite {
         return spec.getNetworkNodes().getFirst();
     }
 
+    // TODO Enhance this assertion
     private static ClprMessageQueueMetadata awaitMatchingMessageQueueMetadata(
             final List<HederaNode> nodes,
             final ClprLedgerConfiguration remoteConfiguration,
@@ -153,12 +152,7 @@ public class ClprMessagesSuite {
 
     private static boolean matchesMessageQueueMetadata(
             ClprMessageQueueMetadata expected, ClprMessageQueueMetadata actual) {
-
-        // validate number received messages
-        assertThat(actual.receivedMessageId()).isEqualTo(expected.receivedMessageId());
-        // validate number send messages
-        // assertThat(actual.sentMessageId()).isEqualTo(expected.sentMessageId());
-        return true;
+        return (actual.receivedMessageId() == expected.receivedMessageId()) && (actual.sentMessageId() == expected.sentMessageId());
     }
 
     private static ClprMessageQueueMetadata tryFetchMessageQueueMetadata(

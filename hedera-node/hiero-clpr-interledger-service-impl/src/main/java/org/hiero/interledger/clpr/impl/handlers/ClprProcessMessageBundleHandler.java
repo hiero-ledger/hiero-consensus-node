@@ -2,6 +2,9 @@
 package org.hiero.interledger.clpr.impl.handlers;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageKey;
+import static org.hiero.interledger.clpr.ClprStateProofUtils.extractMessageValue;
+import static org.hiero.interledger.clpr.ClprStateProofUtils.validateStateProof;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -21,6 +24,9 @@ import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 import org.hiero.interledger.clpr.WritableClprMessageQueueMetadataStore;
 import org.hiero.interledger.clpr.WritableClprMessageStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
+
+import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ClprProcessMessageBundleHandler implements TransactionHandler {
 
@@ -61,41 +67,52 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
                 context.storeFactory().writableStore(WritableClprMessageQueueMetadataStore.class);
 
         final var txn = context.body();
-        final var messageBundle = txn.clprProcessMessageBundleOrThrow().messageBundle();
+        final var messageBundle = txn.clprProcessMessageBundleOrThrow().messageBundleOrThrow();
         final var ledgerId = messageBundle.ledgerIdOrThrow();
+
         final var messageQueue = writableMessageQueueStore.get(ledgerId);
         final var updatedQueueBuilder = messageQueue.copyBuilder();
 
         // TODO: Validate running hashes and state proof
+        final var stateProof = messageBundle.stateProof();
+        if(!validateStateProof(stateProof)) {
+            // throw something here
+        }
 
-        messageBundle.messages().forEach(msg -> {
+        final var lastMessageValue = extractMessageValue(messageBundle.stateProof());
+        final var lastMessageKey = extractMessageKey(messageBundle.stateProof());
+        final var lastMessageId = lastMessageKey.messageId();
+        final var firstMessageId = lastMessageId - messageBundle.messages().size();
+
+        final var receivedMsgId = new AtomicLong(messageQueue.receivedMessageId());
+        final var nextMessageId = new AtomicLong(messageQueue.nextMessageId());
+
+        final var allMessages = new ArrayList<ClprMessagePayload>(messageBundle.messages());
+        allMessages.add(lastMessageValue.payload());
+        allMessages.forEach(msg -> {
             if (msg.hasMessage()) {
-                // handle message
-                long nextReceivedId = updatedQueueBuilder.receivedMessageId() + 1;
-                long nextMessageId = updatedQueueBuilder.nextMessageId();
-
                 // create and save reply
+                final var id = nextMessageId.getAndIncrement();
                 final var key = ClprMessageKey.newBuilder()
-                        .messageId(nextMessageId)
+                        .messageId(id)
                         .ledgerId(ledgerId)
                         .build();
 
                 final var value = ClprMessageValue.newBuilder()
                         .payload(ClprMessagePayload.newBuilder()
                                 .messageReply(ClprMessageReply.newBuilder()
-                                        .messageId(nextReceivedId)
+                                        .messageId(receivedMsgId.incrementAndGet()) // TODO: add message id here
                                         .messageReplyData(msg.message().messageData())))
                         .build();
                 writableMessagesStore.put(key, value);
-
-                // update message queue
-                updatedQueueBuilder.receivedMessageId(nextReceivedId);
-                updatedQueueBuilder.nextMessageId(nextMessageId);
-                writableMessageQueueStore.put(ledgerId, updatedQueueBuilder.build());
             } else {
-                // handle reply
-
+                // TODO: handle reply
             }
         });
+
+        // update message queue
+        updatedQueueBuilder.receivedMessageId(receivedMsgId.getAndIncrement()); // already incremented in the msg key
+        updatedQueueBuilder.nextMessageId(nextMessageId.get());
+        writableMessageQueueStore.put(ledgerId, updatedQueueBuilder.build());
     }
 }

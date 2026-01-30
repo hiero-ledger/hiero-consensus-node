@@ -179,48 +179,25 @@ public class ClprStateProofManager {
                 ClprLedgerId.PROTOBUF.toBytes(resolvedLedgerId));
     }
 
-    @Nullable
-    public StateProof getMessageQueueMetadataProof() {
-        final var localLedgerId = getLocalLedgerId();
-        if (localLedgerId == null) {
-            return null;
-        }
-        return getMessageQueueMetadataProof(localLedgerId);
-    }
-
+    // TODO: add java docs on all public methods
     @Nullable
     public StateProof getMessageQueueMetadataProof(@NonNull final ClprLedgerId ledgerId) {
         requireNonNull(ledgerId);
-        if (!clprConfig.devModeEnabled()) {
-            return null;
-        }
         final var snapshot = latestSnapshot().orElse(null);
         if (snapshot == null) {
             return null;
         }
-
-        final var state = snapshot.merkleState();
-        final var readableStates = state.getReadableStates(ClprService.NAME);
-        if (!readableStates.contains(V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID)) {
-            throw new IllegalStateException(
-                    "CLPR message queue metadata state not found - service may not be properly initialized");
-        }
-        // TODO: If the ledger id is blank, it's a query for the local message queue metadata. Add code to handle.
         return buildMerkleStateProof(
-                state, V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
+                snapshot.merkleState(), V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
     }
 
     @Nullable
     public ClprMessageQueueMetadata getMessageQueueMetadata(@NonNull final ClprLedgerId ledgerId) {
         requireNonNull(ledgerId);
-        if (!clprConfig.devModeEnabled()) {
-            return null;
-        }
         final var snapshot = latestSnapshot().orElse(null);
         if (snapshot == null) {
             return null;
         }
-
         final var state = snapshot.merkleState();
         final var readableStates = state.getReadableStates(ClprService.NAME);
         final ReadableKVState<ClprLedgerId, ClprMessageQueueMetadata> messageQueueMetadataReadableState =
@@ -230,9 +207,6 @@ public class ClprStateProofManager {
 
     public ClprMessageValue getMessage(@NonNull final ClprMessageKey messageKey) {
         requireNonNull(messageKey);
-        if (!clprConfig.devModeEnabled()) {
-            return null;
-        }
         final var snapshot = latestSnapshot().orElse(null);
         if (snapshot == null) {
             return null;

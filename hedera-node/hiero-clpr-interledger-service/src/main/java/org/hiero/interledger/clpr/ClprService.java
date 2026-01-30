@@ -137,7 +137,7 @@ public interface ClprService extends RpcService {
             @NonNull final Instant consensusTime,
             @NonNull final ClprMessageQueueMetadata messageQueueMetadata) {
         final var ledgerId = ClprLedgerId.newBuilder().ledgerId(ledgerIdBytes).build();
-        final var messageQueueMetadataProof = buildLocalClprStateProofWrapper(ledgerId, messageQueueMetadata);
+        final var messageQueueMetadataProof = buildLocalClprStateProofWrapper(messageQueueMetadata);
         final var txnBody = ClprUpdateMessageQueueMetadataTransactionBody.newBuilder()
                 .ledgerId(ledgerId)
                 .messageQueueMetadataProof(messageQueueMetadataProof)
