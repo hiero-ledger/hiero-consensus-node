@@ -10,7 +10,6 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
@@ -25,7 +24,11 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import org.hiero.consensus.concurrent.framework.internal.MeasuredBlockingQueue;
+import org.hiero.consensus.concurrent.framework.internal.MeasuredBlockingQueue.Config;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.metrics.extensions.PhaseTimer;
@@ -209,8 +212,6 @@ public class SyncMetrics {
     private final AverageAndMax avgEventsPerSyncRec;
     private final MaxStat multiTipsPerSync;
     private final RunningAverageMetric syncFilterTime;
-    private final ConcurrentHashMap<NodeId, AverageAndMax> rpcOutputQueueSize = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<NodeId, AverageAndMax> rpcInputQueueSize = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<NodeId, PhaseTimer<SyncPhase>> syncPhasePerNode = new ConcurrentHashMap<>();
     private final Metrics metrics;
     private final AverageAndMax outputQueuePollTime;
@@ -358,8 +359,6 @@ public class SyncMetrics {
     private void precreateDynamicMetrics(final List<PeerInfo> peers) {
         for (final PeerInfo peer : peers) {
             final NodeId nodeId = peer.nodeId();
-            rpcInputQueueSize(nodeId, 0);
-            rpcOutputQueueSize(nodeId, 0);
             reportSyncPhase(nodeId, SyncPhase.OUTSIDE_OF_RPC);
         }
     }
@@ -587,46 +586,6 @@ public class SyncMetrics {
     }
 
     /**
-     * Report size of the outgoing queue
-     *
-     * @param size size of the queue
-     */
-    public void rpcOutputQueueSize(final NodeId node, final int size) {
-
-        rpcOutputQueueSize
-                .computeIfAbsent(
-                        node,
-                        nodeId -> new AverageAndMax(
-                                metrics,
-                                PLATFORM_CATEGORY,
-                                String.format("rpc_output_queue_size_%02d", nodeId.id()),
-                                String.format("gossip rpc output queue size to node %02d", nodeId.id()),
-                                FloatFormats.FORMAT_10_0,
-                                AverageStat.WEIGHT_VOLATILE))
-                .update(size);
-    }
-
-    /**
-     * Report size of the outgoing queue
-     *
-     * @param size size of the queue
-     */
-    public void rpcInputQueueSize(final NodeId node, final int size) {
-
-        rpcInputQueueSize
-                .computeIfAbsent(
-                        node,
-                        nodeId -> new AverageAndMax(
-                                metrics,
-                                PLATFORM_CATEGORY,
-                                String.format("rpc_input_queue_size_%02d", nodeId.id()),
-                                String.format("gossip rpc input queue size from node %02d", nodeId.id()),
-                                FloatFormats.FORMAT_10_0,
-                                AverageStat.WEIGHT_VOLATILE))
-                .update(size);
-    }
-
-    /**
      * Time spent sleeping waiting for poll to happen or timeout. Please note that you are supposed to pass nanos here,
      * but metric will be reporting microseconds
      *
@@ -646,7 +605,7 @@ public class SyncMetrics {
      */
     public SyncPhase reportSyncPhase(@NonNull final NodeId node, @NonNull final SyncPhase syncPhase) {
         final PhaseTimer<SyncPhase> phaseMetric = syncPhasePerNode.computeIfAbsent(
-                node, nodeId -> new PhaseTimerBuilder<>(metrics, time, "platform", SyncPhase.class)
+                node, nodeId -> new PhaseTimerBuilder<>(metrics, time, PLATFORM_CATEGORY, SyncPhase.class)
                         .enableFractionalMetrics()
                         .setInitialPhase(SyncPhase.OUTSIDE_OF_RPC)
                         .setMetricsNamePrefix(String.format("sync_phase_%02d", nodeId.id()))
@@ -700,6 +659,23 @@ public class SyncMetrics {
      */
     public void syncFinished() {
         syncsInProgress.add(-1);
+    }
+
+    /**
+     * Create a measured queue with given base name, with min and max reported in metrics
+     *
+     * @param name            base name of the queue
+     * @param underlyingQueue actual queue backing the content
+     * @param <T>             any type
+     * @return measured queue wrapper
+     */
+    public <T> BlockingQueue<T> createMeasuredQueue(
+            final @NonNull String name, final @NonNull LinkedBlockingQueue<T> underlyingQueue) {
+        return new MeasuredBlockingQueue<>(
+                underlyingQueue,
+                new Config(metrics, PLATFORM_CATEGORY, name)
+                        .withMaxSizeMetricEnabled(true)
+                        .withMinSizeMetricEnabled(true));
     }
 
     /**

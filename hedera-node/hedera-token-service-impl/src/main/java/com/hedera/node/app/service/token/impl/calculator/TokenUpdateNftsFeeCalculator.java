@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.calculator;
 
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
+import static org.hiero.hapi.support.fees.Extra.NFT_UPDATE;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -20,9 +21,15 @@ public class TokenUpdateNftsFeeCalculator implements ServiceFeeCalculator {
             @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
-        // Add service base + extras
+        final var op = txnBody.tokenUpdateNftsOrThrow();
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_UPDATE_NFTS);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
+        addExtraFee(
+                feeResult,
+                serviceDef,
+                NFT_UPDATE,
+                feeSchedule,
+                op.serialNumbers().size());
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

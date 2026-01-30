@@ -3,12 +3,13 @@ package org.hiero.otter.fixtures.turtle;
 
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
-import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.config.PathsConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.function.Supplier;
+import org.hiero.consensus.config.BasicConfig_;
 import org.hiero.consensus.config.EventConfig_;
+import org.hiero.consensus.metrics.config.MetricsConfig_;
 import org.hiero.consensus.pces.config.PcesConfig_;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.otter.fixtures.NodeConfiguration;
@@ -33,6 +34,7 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
             @NonNull final Path outputDirectory) {
         super(lifeCycleSupplier, overrideProperties);
 
+        this.overrideProperties.withConfigValue(MetricsConfig_.DISABLE_METRICS_OUTPUT, true);
         this.overrideProperties.withConfigValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, 0);
         this.overrideProperties.withConfigValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false);
         this.overrideProperties.withConfigValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM);

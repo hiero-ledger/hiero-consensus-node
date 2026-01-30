@@ -6,11 +6,13 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.PeerCommunication;
@@ -64,7 +66,9 @@ public class SyncGossipModular implements Gossip {
     /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
      *
-     * @param platformContext the platform context
+     * @param configuration the configuration
+     * @param metrics the metrics registry
+     * @param time the time source
      * @param threadManager the thread manager
      * @param ownKeysAndCerts private keys and public certificates for this node
      * @param roster the current roster
@@ -75,7 +79,9 @@ public class SyncGossipModular implements Gossip {
      * @param reconnectProtocol the reconnect protocol to use
      */
     public SyncGossipModular(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final KeysAndCerts ownKeysAndCerts,
             @NonNull final Roster roster,
@@ -102,17 +108,19 @@ public class SyncGossipModular implements Gossip {
         }
         final PeerInfo selfPeer = Utilities.toPeerInfo(selfEntry);
 
-        this.network = new PeerCommunication(platformContext, peers, selfPeer, ownKeysAndCerts);
+        this.network = new PeerCommunication(configuration, metrics, time, peers, selfPeer, ownKeysAndCerts);
 
         this.fallenBehindMonitor = fallenBehindMonitor;
 
-        final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
+        final ProtocolConfig protocolConfig = configuration.getConfigData(ProtocolConfig.class);
 
         final int rosterSize = peers.size() + 1;
-        final SyncMetrics syncMetrics = new SyncMetrics(platformContext.getMetrics(), platformContext.getTime(), peers);
+        final SyncMetrics syncMetrics = new SyncMetrics(metrics, time, peers);
 
         final ShadowgraphSynchronizer rpcSynchronizer = new ShadowgraphSynchronizer(
-                platformContext,
+                configuration,
+                metrics,
+                time,
                 rosterSize,
                 syncMetrics,
                 fallenBehindMonitor,
@@ -122,20 +130,21 @@ public class SyncGossipModular implements Gossip {
         this.synchronizer = rpcSynchronizer;
 
         this.rpcProtocol = new RpcProtocol(
+                configuration,
+                metrics,
+                time,
                 rpcSynchronizer,
                 new CachedPoolParallelExecutor(threadManager, "node-rpc-sync"),
                 intakeEventCounter,
-                platformContext,
                 rosterSize,
                 this.network.getNetworkMetrics(),
-                platformContext.getTime(),
                 syncMetrics,
                 selfId,
                 fallenBehindMonitor,
                 event -> receivedEventHandler.accept(event));
 
         this.protocols = List.of(
-                HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
+                HeartbeatProtocol.create(configuration, time, this.network.getNetworkMetrics()),
                 reconnectProtocol,
                 rpcProtocol);
 

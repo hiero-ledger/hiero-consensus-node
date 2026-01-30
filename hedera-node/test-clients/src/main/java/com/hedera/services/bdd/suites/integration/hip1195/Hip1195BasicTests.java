@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURR
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
@@ -27,6 +28,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
@@ -35,8 +37,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -59,6 +63,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Single;
+import com.esaulpaugh.headlong.abi.TupleType;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
@@ -86,6 +93,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -102,6 +111,7 @@ public class Hip1195BasicTests {
     private static final double HBAR_TRANSFER_BASE_USD = 0.0001;
     private static final double NFT_TRANSFER_BASE_USD = 0.001;
     private static final double NFT_TRANSFER_WITH_CUSTOM_BASE_USD = 0.002;
+    private static final Logger log = LogManager.getLogger(Hip1195BasicTests.class);
 
     @Contract(contract = "FalsePreHook", creationGas = 5_000_000)
     static SpecContract FALSE_ALLOWANCE_HOOK;
@@ -121,6 +131,12 @@ public class Hip1195BasicTests {
     @Contract(contract = "SelfDestructOpHook", creationGas = 5_000_000)
     static SpecContract SELF_DESTRUCT_HOOK;
 
+    @Contract(contract = "EmitSenderOrigin", creationGas = 500_000)
+    static SpecContract EMIT_SENDER_ORIGIN;
+
+    @Contract(contract = "AddressLogsHook", creationGas = 1_000_000)
+    static SpecContract ADDRESS_LOGS_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
@@ -130,9 +146,58 @@ public class Hip1195BasicTests {
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(SELF_DESTRUCT_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_TRUE_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(EMIT_SENDER_ORIGIN.getInfo());
+        testLifecycle.doAdhoc(ADDRESS_LOGS_HOOK.getInfo());
 
         testLifecycle.doAdhoc(withOpContext(
                 (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> msgSenderUsesHookOwnerEvmAddress() {
+        final var addressTuple = TupleType.parse("(address)");
+        return hapiTest(
+                newKeyNamed("payerEcKey").shape(SECP256K1_ON),
+                newKeyNamed("ownerEcKey").shape(SECP256K1_ON),
+                cryptoCreate("payer")
+                        .balance(ONE_MILLION_HBARS)
+                        .key("payerEcKey")
+                        .withMatchingEvmAddress(),
+                cryptoCreate("owner")
+                        .key("ownerEcKey")
+                        .withMatchingEvmAddress()
+                        // This hook calls a EmitSenderOrigin.logNow() method to emit origin + sender addresses
+                        .withHooks(accountAllowanceHook(42L, ADDRESS_LOGS_HOOK.name())),
+                sourcingContextual(spec -> {
+                    final var target = EMIT_SENDER_ORIGIN.addressOn(spec.targetNetworkOrThrow());
+                    final var calldata = addressTuple.encode(Single.of(target));
+                    return cryptoTransfer(movingHbar(ONE_HBAR).between("owner", FUNDING))
+                            .withPreHookFor("owner", 42L, 250_000L, calldata)
+                            .payingWith("payer")
+                            .signedBy("payer")
+                            .via("txn");
+                }),
+                withAddressOfKey(
+                        "payerEcKey",
+                        payerAddress -> withAddressOfKey("ownerEcKey", ownerAddress -> getTxnRecord("txn")
+                                .andAllChildRecords()
+                                .exposingAllTo(records -> {
+                                    // We find the EmitSenderOrigin log event and extract the addresses for validation
+                                    final var hookExecutionRecord = records.stream()
+                                            .filter(TransactionRecord::hasContractCallResult)
+                                            .findAny()
+                                            .orElseThrow();
+                                    final var addressLog = hookExecutionRecord
+                                            .getContractCallResult()
+                                            .getLogInfo(0);
+                                    final var twoAddresses = TupleType.parse("(address,address)");
+                                    final var decoded = twoAddresses.decode(
+                                            addressLog.getData().toByteArray());
+                                    final var origin = (Address) decoded.get(0);
+                                    final var sender = (Address) decoded.get(1);
+                                    assertEquals(payerAddress, origin, "Origin address is not the same as the payer");
+                                    assertEquals(ownerAddress, sender, "Sender address is not the same as the owner");
+                                }))));
     }
 
     @HapiTest

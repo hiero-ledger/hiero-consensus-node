@@ -73,12 +73,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * (in most cases, writing the number of messages, the type of message, then finally the serialized PBJ on the
      * wire)
      */
-    private final BlockingQueue<StreamWriter> outputQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<StreamWriter> outputQueue;
 
     /**
      * All incoming messages from remote node to be passed to dispatch thread
      */
-    private final BlockingQueue<Runnable> inputQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<Runnable> inputQueue;
 
     /**
      * Helper class to handle ping logic
@@ -213,6 +213,11 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
 
         this.exceptionRateLimiter = new RateLimiter(time, SOCKET_EXCEPTION_DURATION);
         this.exceptionHandler = exceptionHandler;
+
+        this.inputQueue =
+                syncMetrics.createMeasuredQueue("rpc_input_%02d".formatted(peerId.id()), new LinkedBlockingQueue<>());
+        this.outputQueue =
+                syncMetrics.createMeasuredQueue("rpc_output_%02d".formatted(peerId.id()), new LinkedBlockingQueue<>());
         this.overloadMonitor = new RpcOverloadMonitor(
                 peerId,
                 syncConfig,
@@ -325,9 +330,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         syncMetrics.rpcDispatchThreadRunning(+1);
         try {
             while (true) {
-                syncMetrics.rpcInputQueueSize(remotePeerId, inputQueue.size());
-                final Runnable message =
-                        inputQueue.poll(syncConfig.rpcIdleDispatchPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                final Runnable message = inputQueue.poll(syncConfig.rpcIdleDispatchPollTimeout().toMillis(), TimeUnit.MILLISECONDS);
                 if (message != null) {
                     if (message == POISON_PILL) {
                         break;
@@ -368,7 +371,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         syncMetrics.rpcWriteThreadRunning(+1);
         try {
             while (shouldContinueProcessingMessages()) {
-                syncMetrics.rpcOutputQueueSize(remotePeerId, outputQueue.size());
                 final StreamWriter message;
                 try {
                     final long startNanos = time.nanoTime();

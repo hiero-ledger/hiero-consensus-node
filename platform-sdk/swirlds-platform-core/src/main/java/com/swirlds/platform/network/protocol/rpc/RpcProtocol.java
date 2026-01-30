@@ -5,7 +5,8 @@ import static com.swirlds.logging.legacy.LogMarker.FREEZE;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.GossipController;
 import com.swirlds.platform.gossip.permits.SyncGuard;
 import com.swirlds.platform.gossip.permits.SyncGuardFactory;
@@ -77,26 +78,28 @@ public class RpcProtocol implements Protocol, GossipController {
     /**
      * Constructs a new sync protocol
      *
-     * @param synchronizer         the shadow graph synchronizer, responsible for actually doing the sync
-     * @param executor             executor to run read/write threads
-     * @param intakeEventCounter   keeps track of how many events have been received from each peerr
-     * @param platformContext      the platform context
-     * @param rosterSize           estimated roster size
-     * @param networkMetrics       network metrics to register data about communication traffic and latencies
-     * @param time                 the {@link Time} instance for the platformeturns the {@link Time} instance for the
-     * @param syncMetrics          metrics tracking syncing platform
-     * @param selfId               id of the current node
-     * @param fallenBehindMonitor  shared monitoring of our event window falling behind peers
+     * @param configuration the platform configuration
+     * @param metrics  the platform metrics
+     * @param time source of time
+     * @param synchronizer the shadow graph synchronizer, responsible for actually doing the sync
+     * @param executor  executor to run read/write threads
+     * @param intakeEventCounter keeps track of how many events have been received from each peerr
+     * @param rosterSize estimated roster size
+     * @param networkMetrics network metrics to register data about communication traffic and latencies
+     * @param syncMetrics metrics tracking syncing platform
+     * @param selfId id of the current node
+     * @param fallenBehindMonitor shared monitoring of our event window falling behind peers
      * @param receivedEventHandler events that are received are passed here
      */
     public RpcProtocol(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final ShadowgraphSynchronizer synchronizer,
             @NonNull final CachedPoolParallelExecutor executor,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final PlatformContext platformContext,
             final int rosterSize,
             @NonNull final NetworkMetrics networkMetrics,
-            @NonNull final Time time,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final NodeId selfId,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
@@ -105,7 +108,7 @@ public class RpcProtocol implements Protocol, GossipController {
         this.synchronizer = synchronizer;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
-        this.syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
+        this.syncConfig = configuration.getConfigData(SyncConfig.class);
         final int permitCount;
         if (syncConfig.onePermitPerPeer()) {
             permitCount = rosterSize - 1;
@@ -113,7 +116,8 @@ public class RpcProtocol implements Protocol, GossipController {
             permitCount = syncConfig.syncProtocolPermitCount();
         }
 
-        this.permitProvider = new SyncPermitProvider(platformContext, permitCount);
+
+        this.permitProvider = new SyncPermitProvider(configuration, metrics, time, permitCount);
         this.executor = Objects.requireNonNull(executor);
         this.networkMetrics = Objects.requireNonNull(networkMetrics);
         this.time = Objects.requireNonNull(time);
