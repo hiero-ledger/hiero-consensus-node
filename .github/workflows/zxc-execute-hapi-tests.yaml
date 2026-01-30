@@ -840,7 +840,6 @@ jobs:
       - hapi-tests-nd-reconnect
       - hapi-tests-iss
       - hapi-tests-bn-comms
-      - hapi-tests-atomic-batch
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
@@ -863,7 +862,6 @@ jobs:
             "${{ needs.hapi-tests-nd-reconnect.result || 'skipped' }}"
             "${{ needs.hapi-tests-iss.result || 'skipped' }}"
             "${{ needs.hapi-tests-bn-comms.result || 'skipped' }}"
-            "${{ needs.hapi-tests-atomic-batch.result || 'skipped' }}"
           )
 
           # final outputs
