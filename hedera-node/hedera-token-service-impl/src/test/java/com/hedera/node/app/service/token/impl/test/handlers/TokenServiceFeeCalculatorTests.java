@@ -54,7 +54,6 @@ import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenAssociateFeeCalculator;
@@ -135,9 +134,6 @@ public class TokenServiceFeeCalculatorTests {
     @Mock
     private VersionedConfiguration configuration;
 
-    @Mock
-    private CongestionMultipliers congestionMultipliers;
-
     private SimpleFeeCalculatorImpl feeCalculator;
     private FeeSchedule testSchedule;
 
@@ -166,8 +162,7 @@ public class TokenServiceFeeCalculatorTests {
                         new TokenUpdateFeeCalculator(),
                         new TokenUpdateNftsFeeCalculator(),
                         new TokenWipeFeeCalculator()),
-                Set.of(new TokenGetInfoFeeCalculator(), new TokenGetNftInfoFeeCalculator()),
-                congestionMultipliers);
+                Set.of(new TokenGetInfoFeeCalculator(), new TokenGetNftInfoFeeCalculator()));
     }
 
     @Test
