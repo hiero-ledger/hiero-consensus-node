@@ -4,7 +4,6 @@ package com.swirlds.platform.test.fixtures.config;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -14,6 +13,7 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.BasicConfig;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 public final class ConfigUtils {
     private ConfigUtils() {}

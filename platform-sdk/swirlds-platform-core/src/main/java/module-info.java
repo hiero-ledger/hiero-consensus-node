@@ -107,6 +107,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
+    requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
     requires transitive org.apache.logging.log4j;
