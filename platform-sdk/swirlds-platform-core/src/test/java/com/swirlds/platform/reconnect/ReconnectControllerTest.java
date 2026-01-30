@@ -23,9 +23,9 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.components.SavedStateController;
@@ -47,6 +47,7 @@ import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -81,7 +82,7 @@ class ReconnectControllerTest {
     private static final int NUM_NODES = 4;
     private static final Duration LONG_TIMEOUT = Duration.ofSeconds(3);
 
-    private PlatformContext platformContext;
+    private Configuration configuration;
     private Roster roster;
     private Platform platform;
     private PlatformCoordinator platformCoordinator;
@@ -127,14 +128,12 @@ class ReconnectControllerTest {
         selfId = NodeId.of(0);
 
         // Create platform context with reconnect enabled
-        platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue("reconnect.active", true)
-                        .withValue("reconnect.maximumReconnectFailuresBeforeShutdown", 5)
-                        .withValue("reconnect.minimumTimeBetweenReconnects", "100ms")
-                        .withValue("reconnect.reconnectWindowSeconds", -1) // disabled
-                        .getOrCreateConfig())
-                .build();
+        configuration = new TestConfigBuilder()
+                .withValue("reconnect.active", true)
+                .withValue("reconnect.maximumReconnectFailuresBeforeShutdown", 5)
+                .withValue("reconnect.minimumTimeBetweenReconnects", "100ms")
+                .withValue("reconnect.reconnectWindowSeconds", -1) // disabled
+                .getOrCreateConfig();
 
         // Create test states
         testSignedState = new RandomSignedStateGenerator()
@@ -201,9 +200,10 @@ class ReconnectControllerTest {
      */
     private ReconnectController createController() {
         return new ReconnectController(
+                configuration,
+                Time.getCurrent(),
                 roster,
                 platform,
-                platformContext,
                 platformCoordinator,
                 stateLifecycleManager,
                 savedStateController,
@@ -216,11 +216,12 @@ class ReconnectControllerTest {
     /**
      * Helper method to create a ReconnectController instance
      */
-    private ReconnectController createController(final PlatformContext context) {
+    private ReconnectController createController(@NonNull final Configuration configuration, @NonNull final Time time) {
         return new ReconnectController(
+                configuration,
+                time,
                 roster,
                 platform,
-                context,
                 platformCoordinator,
                 stateLifecycleManager,
                 savedStateController,
@@ -685,21 +686,19 @@ class ReconnectControllerTest {
         final AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
 
         // Create a platform context with a very short reconnect window (1 second)
-        final PlatformContext shortWindowContext = TestPlatformContextBuilder.create()
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue("reconnect.active", true)
-                        .withValue("reconnect.maximumReconnectFailuresBeforeShutdown", 5)
-                        .withValue("reconnect.minimumTimeBetweenReconnects", "100ms")
-                        .withValue("reconnect.reconnectWindowSeconds", 1) // 1 second window
-                        .getOrCreateConfig())
-                .withTime(new FakeTime())
-                .build();
+        final Configuration shortWindowContext = new TestConfigBuilder()
+                .withValue("reconnect.active", true)
+                .withValue("reconnect.maximumReconnectFailuresBeforeShutdown", 5)
+                .withValue("reconnect.minimumTimeBetweenReconnects", "100ms")
+                .withValue("reconnect.reconnectWindowSeconds", 1) // 1 second window
+                .getOrCreateConfig();
+        final FakeTime fakeTime = new FakeTime();
 
-        new ReconnectScenario(createController(shortWindowContext))
+        new ReconnectScenario(createController(shortWindowContext, fakeTime))
                 .startWithExitCapture(capturedExitCode)
                 .syncRun(() -> {
                     // make the time move forward for the window to elapse
-                    ((FakeTime) shortWindowContext.getTime()).tick(Duration.ofSeconds(2));
+                    fakeTime.tick(Duration.ofSeconds(2));
                 })
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .wait(1000)
@@ -717,16 +716,14 @@ class ReconnectControllerTest {
         final AtomicReference<SystemExitCode> capturedExitCode = new AtomicReference<>();
 
         // Create a platform context with reconnect disabled
-        final PlatformContext disabledContext = TestPlatformContextBuilder.create()
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue("reconnect.active", false) // Disabled
-                        .withValue("reconnect.maximumReconnectFailuresBeforeShutdown", 5)
-                        .withValue("reconnect.minimumTimeBetweenReconnects", "100ms")
-                        .withValue("reconnect.reconnectWindowSeconds", -1)
-                        .getOrCreateConfig())
-                .build();
+        final Configuration disabledContext = new TestConfigBuilder()
+                .withValue("reconnect.active", false) // Disabled
+                .withValue("reconnect.maximumReconnectFailuresBeforeShutdown", 5)
+                .withValue("reconnect.minimumTimeBetweenReconnects", "100ms")
+                .withValue("reconnect.reconnectWindowSeconds", -1)
+                .getOrCreateConfig();
 
-        final ReconnectController controller = createController(disabledContext);
+        final ReconnectController controller = createController(disabledContext, Time.getCurrent());
 
         new ReconnectScenario(controller)
                 .startWithExitCapture(capturedExitCode)

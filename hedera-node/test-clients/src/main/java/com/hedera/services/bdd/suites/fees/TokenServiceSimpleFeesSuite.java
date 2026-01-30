@@ -37,7 +37,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedSimpleFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
@@ -51,6 +53,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNFREEZE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNPAUSE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -61,9 +64,11 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -952,5 +957,49 @@ public class TokenServiceSimpleFeesSuite {
                 sourcing(() ->
                         tokenAssociate("account", tokens).payingWith("account").via("associateTxn")),
                 validateChargedUsd("associateTxn", TOKEN_ASSOCIATE_FEE * tokens.size()));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateOneNftTokenWithoutCustomFees() {
+        return updateBulkNftTokensAndValidateFees(List.of(1L));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateFiveBulkNftTokensWithoutCustomFees() {
+        return updateBulkNftTokensAndValidateFees(List.of(1L, 2L, 3L, 4L, 5L));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTenBulkNftTokensWithoutCustomFees() {
+        return updateBulkNftTokensAndValidateFees(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L));
+    }
+
+    private Stream<DynamicTest> updateBulkNftTokensAndValidateFees(final List<Long> updateAmounts) {
+        final var supplyKey = "supplyKey";
+        return hapiTest(
+                newKeyNamed(supplyKey),
+                cryptoCreate("owner").balance(ONE_HUNDRED_HBARS).key(supplyKey),
+                tokenCreate(NFT_TOKEN)
+                        .treasury("owner")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(supplyKey)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0),
+                mintToken(
+                                NFT_TOKEN,
+                                IntStream.range(0, updateAmounts.size())
+                                        .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                        .toList())
+                        .fee(updateAmounts.size() * ONE_HBAR)
+                        .payingWith("owner")
+                        .signedBy(supplyKey)
+                        .blankMemo(),
+                tokenUpdateNfts(NFT_TOKEN, "metadata", updateAmounts)
+                        .fee(updateAmounts.size() * ONE_HBAR)
+                        .payingWith("owner")
+                        .signedBy(supplyKey)
+                        .blankMemo()
+                        .via("updateTxn"),
+                validateChargedUsdWithin("updateTxn", TOKEN_UPDATE_NFT_FEE * updateAmounts.size(), 0.1));
     }
 }

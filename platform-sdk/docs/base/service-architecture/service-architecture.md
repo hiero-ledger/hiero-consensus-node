@@ -27,7 +27,7 @@ package com.swirlds.base.foo;
 * This is the service that provides the foo functionality.
 */
 public interface FooService {
-    
+
     /**
     * This method does something.
     */
@@ -74,31 +74,10 @@ module com.swirlds.base.foo.impl {
 }
 ```
 
-Currently, we do not use the Java module system at runtime and 3rdParty apps might use the base modules even in future on the classpath.
-Based on that we can not only rely on the spi definitin in the Java module infos.
-To have spi be supported on the classpath we use the Google AutoService library.
-Here we need to add an annotation to the service implementation:
-
-```java
-package com.swirlds.base.foo.internal;
-
-import com.google.auto.service.AutoService;
-import com.swirlds.base.foo.FooService;
-
-@AutoService(FooService.class)
-public class FooServiceImpl implements FooService {
-    @Override
-    public void doSomething() {
-        // do something
-    }
-}
-```
-
-Next to that we need to add the following annotation processor to the `build.gradle.kts` file:
-
-```kotlin
-mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
-```
+Note: Currently, we do not always use the Java Module System at runtime and 3rdParty apps may continue to use the
+base modules in the future on the classpath. Therefore, service providers are additionally registered via files located
+in `META-INF/services` in the assembled Jar files. These files are automatically generated during the Gradle build
+(`generateMetaInfServices` task).
 
 ### Providing a service factory
 
@@ -113,12 +92,12 @@ package com.swirlds.base.foo;
 * This is the service that provides the foo functionality.
 */
 public interface FooService {
-    
+
     /**
     * This method does something.
     */
     void doSomething();
-    
+
     /**
     * This method creates a new instance of the service.
     */
@@ -142,12 +121,12 @@ package com.swirlds.base.foo;
 * This is the service that provides the foo functionality.
 */
 public interface FooService {
-    
+
     /**
     * This method does something.
     */
     void doSomething();
-    
+
     /**
     * This method returns a singleton instance of the service.
     */
@@ -155,7 +134,7 @@ public interface FooService {
         return FooServiceImpl.getInstance();
     }
 }
-``` 
+```
 
 In the given sample the service implementation is a singleton and the factory method returns the singleton instance.
 It makes sense to give a name to the factory method that contains information about the scope of the service.
@@ -174,15 +153,15 @@ package com.swirlds.base.foo;
 * This is the factory that creates instances of the foo service.
 */
 public interface FooServiceFactory {
-    
+
     /**
     * Returns an instance of the service.
     */
     FooService getOrCreate();
-    
+
     /**
     * Returns the real factory.
-    */ 
+    */
     FooServiceFactory getFactory() {
         return SpiLoader.load(FooServiceFactory.class);
     }
@@ -211,19 +190,19 @@ import com.swirlds.base.foo.FooService;
 * This is the service that provides the foo functionality.
 */
 public class FooServiceImpl implements FooService {
-    
+
     private static class InstanceHolder {
         private static final FooService INSTANCE = new FooServiceImpl();
     }
-        
+
     private FooServiceImpl() {
         // private constructor
     }
-    
+
     public static FooServiceImpl getInstance() {
         return InstanceHolder.INSTANCE;
     }
-    
+
     @Override
     public void doSomething() {
         // do something
@@ -234,7 +213,3 @@ public class FooServiceImpl implements FooService {
 The service implementation is a singleton and the singleton instance is created in a static inner class.
 The singleton instance is created when the class is loaded and is thread safe.
 The singleton is created lazy and is only created when the `getInstance` method is called the first time.
-
-
-
-
