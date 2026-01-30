@@ -447,13 +447,6 @@ public class RandomSignedStateGenerator {
         builtSignedStates.get().forEach(signedState -> {
             try {
                 releaseReservable(signedState.getState().getRoot());
-                signedState.getState().getRoot().treeIterator().forEachRemaining(node -> {
-                    if (node instanceof VirtualMap) {
-                        while (node.getReservationCount() >= 0) {
-                            node.release();
-                        }
-                    }
-                });
             } catch (Exception e) {
                 logger.error("Exception while releasing state", e);
             }

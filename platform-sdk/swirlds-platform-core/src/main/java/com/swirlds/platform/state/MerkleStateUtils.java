@@ -4,8 +4,6 @@ package com.swirlds.platform.state;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.base.formatting.TextTable;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.utility.Mnemonics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -15,20 +13,17 @@ import org.hiero.base.crypto.Hash;
  * A utility class for the Merkle state.
  */
 public class MerkleStateUtils {
+    public static final String HASH_INFO_TEMPLATE = "(root) VirtualMap    state    /    %s";
+
     /**
      * Generate a string that describes this state.
      *
-     * @param hashDepth the depth of the tree to visit and print
      * @param platformState current platform state
-     * @param state current root node state
      *
      */
     @NonNull
     public static String createInfoString(
-            int hashDepth,
-            @NonNull final PlatformStateAccessor platformState,
-            @NonNull final Hash rootHash,
-            @NonNull final MerkleNode state) {
+            @NonNull final PlatformStateAccessor platformState, @NonNull final Hash rootHash) {
         final Hash hashEventsCons = platformState.getLegacyRunningEventHash();
 
         final ConsensusSnapshot snapshot = platformState.getSnapshot();
@@ -52,7 +47,7 @@ public class MerkleStateUtils {
                 .render(sb);
 
         sb.append("\n");
-        new MerkleTreeVisualizer(state).setDepth(hashDepth).render(sb);
+        sb.append(String.format(HASH_INFO_TEMPLATE, Mnemonics.generateMnemonic(rootHash)));
         return sb.toString();
     }
 }
