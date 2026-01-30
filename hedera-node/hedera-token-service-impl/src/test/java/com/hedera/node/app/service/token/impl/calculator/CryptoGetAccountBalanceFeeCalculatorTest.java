@@ -62,7 +62,7 @@ class CryptoGetAccountBalanceFeeCalculatorTest {
 
             // Then: service=0 (free query)
             assertThat(result).isNotNull();
-            assertThat(result).isEqualTo(0L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
         }
 
         @Test
@@ -80,7 +80,7 @@ class CryptoGetAccountBalanceFeeCalculatorTest {
             final var result = feeCalculator.calculateQueryFee(query, null);
 
             // Then: Same fees - context is optional
-            assertThat(result).isEqualTo(0L);
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
         }
     }
 
