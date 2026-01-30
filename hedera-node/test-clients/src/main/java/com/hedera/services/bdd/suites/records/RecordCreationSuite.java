@@ -56,7 +56,8 @@ public class RecordCreationSuite {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
                 "nodes.nodeRewardsEnabled", "false",
-                "nodes.preserveMinNodeRewardBalance", "false"));
+                "nodes.preserveMinNodeRewardBalance", "false",
+                "nodes.feeCollectionAccountEnabled", "false"));
     }
 
     @LeakyHapiTest(
