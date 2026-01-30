@@ -91,6 +91,7 @@ public class CodeDelegationTests {
             assertEquals(BigInteger.ZERO, valueInEvent);
             assertArrayEquals(Hex.decode(callData), callDataInEvent);
         }));
+        // just some change
     }
 
     @HapiTest
