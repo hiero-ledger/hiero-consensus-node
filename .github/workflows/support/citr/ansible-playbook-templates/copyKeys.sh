@@ -4,7 +4,7 @@ rm -rf roles/hedera-docker/files/keys-signing/latitude roles/hedera-docker/files
 
 mkdir -p roles/hedera-docker/files/keys-signing/latitude
 mkdir -p roles/hedera-docker/files/keys-tls/latitude
-
+mkdir inventory
 
 NofNodes=`kubectl -n $namespace get pods | grep 'network-node' | wc -l`
 

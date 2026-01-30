@@ -228,6 +228,7 @@ jobs:
 
       - name: Print parameters
         run: |
+          echo "inputs.saved-gs-dir=${{ inputs.saved-gs-dir }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.ref=${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -834,7 +835,7 @@ jobs:
           cd "${{ github.workspace }}"/
 
           #convert URL to GS path
-          gs_path=${echo ${{ env.saved-gs-dir }} | sed -e 's@${{ env.GS_ROOT_SAVED_STATES_HTTPS }}@${{ env.GS_ROOT_SAVED_STATES_DIR }}@g'}
+          gs_path=$(echo "${{ inputs.saved-gs-dir }}" | sed -e 's@${{ env.GS_ROOT_SAVED_STATES_HTTPS }}@${{ env.GS_ROOT_SAVED_STATES_DIR }}@g')
 
           gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
           if [[ ${?} -ne 0 ]]
