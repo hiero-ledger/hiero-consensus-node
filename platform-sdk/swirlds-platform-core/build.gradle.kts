@@ -18,6 +18,7 @@ mainModuleInfo {
     runtimeOnly("com.swirlds.config.impl")
     runtimeOnly("org.hiero.consensus.event.creator.impl")
     runtimeOnly("org.hiero.consensus.event.intake.impl")
+    runtimeOnly("org.hiero.consensus.pces.impl")
 }
 
 jmhModuleInfo {
@@ -28,6 +29,7 @@ jmhModuleInfo {
     requires("com.hedera.node.hapi")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.pces")
+    requires("org.hiero.consensus.pces.impl")
     requires("jmh.core")
 }
 
