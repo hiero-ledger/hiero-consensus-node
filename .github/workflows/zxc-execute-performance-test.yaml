@@ -80,7 +80,7 @@ permissions:
 jobs:
   performance-test:
     name: ${{ inputs.custom-job-name || 'Run CITR Performance Test' }}
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdpt-lin-lg
 
     outputs:
       output: ${{ steps.benchmark_value.outputs.value }}
