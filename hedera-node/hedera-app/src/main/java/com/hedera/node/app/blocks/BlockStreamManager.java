@@ -31,7 +31,9 @@ import org.hiero.consensus.model.hashgraph.Round;
  * Merkle trees will be in the order they are written.
  */
 public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener {
-    Bytes HASH_OF_ZERO = Bytes.wrap(noThrowSha384HashOf(new byte[] {0x0}));
+    byte[] HASH_OF_ZERO_BYTES = noThrowSha384HashOf(new byte[] {0x0});
+    Bytes HASH_OF_ZERO = Bytes.wrap(HASH_OF_ZERO_BYTES);
+
     /*
      * Typically there are four siblings per block, but in our case the right penultimate root (i.e. the right child of a block's root hash) is merely a composition of its left child hash, requiring no other inputs. <b>This must change if we ever use one of the reserved roots for anything.</b>
      */

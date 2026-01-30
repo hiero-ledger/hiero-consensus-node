@@ -33,15 +33,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class BlockStateProofGeneratorTest {
-
-    private static final Logger log = LogManager.getLogger(BlockStateProofGeneratorTest.class);
-
     @Test
     void verifyBlockStateProofs() {
         // Load and verify the pending proofs from resources (precondition)

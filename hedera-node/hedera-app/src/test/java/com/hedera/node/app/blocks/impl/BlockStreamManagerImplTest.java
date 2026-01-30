@@ -113,7 +113,6 @@ class BlockStreamManagerImplTest {
     private static final Timestamp CONSENSUS_THEN = new Timestamp(890, 0);
     private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(HASH_OF_ZERO.toByteArray());
     private static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
-    private static final Bytes FAKE_RESTART_BLOCK_HASH_AS_LEAF = BlockImplUtils.hashLeaf(FAKE_RESTART_BLOCK_HASH);
     private static final Bytes N_MINUS_2_BLOCK_HASH = hashLeaf(Bytes.wrap((new byte[] {(byte) 0xAB})));
     private static final Bytes NONZERO_PREV_BLOCK_HASH =
             BlockImplUtils.appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256);
@@ -371,7 +370,7 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
                 HASH_OF_ZERO,
-                List.of(FAKE_RESTART_BLOCK_HASH_AS_LEAF),
+                List.of(FAKE_RESTART_BLOCK_HASH),
                 1);
 
         final var actualBlockInfo = infoRef.get();
@@ -597,7 +596,7 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
                 HASH_OF_ZERO,
-                List.of(FAKE_RESTART_BLOCK_HASH_AS_LEAF),
+                List.of(FAKE_RESTART_BLOCK_HASH),
                 1);
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
@@ -1082,7 +1081,7 @@ class BlockStreamManagerImplTest {
 
         // Verify each hash in the footer is correct
         assertEquals(N_MINUS_2_BLOCK_HASH, footer.previousBlockRootHash());
-        assertEquals(hashLeaf(N_MINUS_2_BLOCK_HASH), footer.rootHashOfAllBlockHashesTree());
+        assertEquals(N_MINUS_2_BLOCK_HASH, footer.rootHashOfAllBlockHashesTree());
         assertEquals(FAKE_START_OF_BLOCK_STATE_HASH.getBytes(), footer.startOfBlockStateRootHash());
     }
 

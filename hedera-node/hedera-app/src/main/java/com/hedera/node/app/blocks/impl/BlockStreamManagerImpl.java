@@ -44,7 +44,6 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
-import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
@@ -317,9 +316,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.lastBlockHash = calculatedLastBlockHash;
         log.info("Initialized block stream from state with last block hash {}", calculatedLastBlockHash.toHex());
 
-        // Only add the last hash if it's not the marker zero block hash
+        // Only add the last hash if it's not `HASH_OF_ZERO`
         if (!Objects.equals(calculatedLastBlockHash, HASH_OF_ZERO)) {
-            previousBlockHashes.addLeaf(calculatedLastBlockHash.toByteArray());
+            previousBlockHashes.addNodeByHash(calculatedLastBlockHash.toByteArray());
         }
     }
 
@@ -596,7 +595,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             // Update in-memory state to prepare for the next block
             lastBlockHash = finalBlockRootHash;
-            previousBlockHashes.addLeaf(lastBlockHash.toByteArray());
+            previousBlockHashes.addNodeByHash(lastBlockHash.toByteArray());
             writer = null;
 
             // Special case when signing with hinTS and this is the freeze round; we have to wait
@@ -1176,8 +1175,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * lifecycle, the sibling hashes required for an indirect proof are also computed.
      * <p>
      * Note that all of these initial hash values should have all been hashed prior to this point, whether
-     * as a leaf node (prefixed with {@link StreamingTreeHasher#LEAF_PREFIX}) or as an internal node (prefixed
-     * with {@link StreamingTreeHasher#INTERNAL_NODE_PREFIX}). Therefore, they should <b>not</b> be hashed
+     * as a leaf node (prefixed with {@link BlockImplUtils#LEAF_PREFIX}) or as an internal node (prefixed
+     * with {@link BlockImplUtils#INTERNAL_NODE_PREFIX}). Therefore, they should <b>not</b> be hashed
      * again until combined with another hash.
      * <p>
      * While {@code prevBlockHash} could programmatically be null, in practice it never should be. Even
