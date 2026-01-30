@@ -12,6 +12,7 @@ module org.hiero.base.crypto {
             com.swirlds.common.test.fixtures,
             com.swirlds.platform.core.test.fixtures,
             org.hiero.base.crypto.test.fixtures,
+            org.hiero.consensus.utility,
             org.hiero.otter.test;
     exports org.hiero.base.crypto.engine to
             com.swirlds.common,

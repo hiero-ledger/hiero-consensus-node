@@ -5,14 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.crypto.KeyGeneratingException;
-import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
+import org.hiero.consensus.crypto.KeyGeneratingException;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.Network;
