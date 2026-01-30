@@ -91,8 +91,13 @@ val prCheckTags =
             // XTS task → explicitly EXCLUDE MATS
             put(task, "($tags)&(!MATS)")
 
-            // MATS task → explicitly REQUIRE MATS
-            put("$task$matsSuffix", "($tags)&MATS")
+            // MATS task → for crypto, run same tests as PR checks (non-MATS crypto tests)
+            // For other test suites, explicitly REQUIRE MATS
+            if (task == "hapiTestCrypto") {
+                put("$task$matsSuffix", "($tags)&(!MATS)")
+            } else {
+                put("$task$matsSuffix", "($tags)&MATS")
+            }
         }
     }
 
