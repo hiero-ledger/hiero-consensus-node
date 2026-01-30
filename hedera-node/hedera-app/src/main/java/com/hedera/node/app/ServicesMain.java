@@ -36,7 +36,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
@@ -236,7 +236,7 @@ public class ServicesMain {
         }
         hedera.setInitialStateHash(reservedState.hash());
 
-        final ReadableRosterStore rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
+        final ReadableRosterStore rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
         final List<RosterEntry> rosterEntries =
                 requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
         final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);

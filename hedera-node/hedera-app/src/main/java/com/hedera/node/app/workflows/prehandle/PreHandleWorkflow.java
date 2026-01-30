@@ -9,7 +9,8 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.info.NodeInfo;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -165,7 +166,7 @@ public interface PreHandleWorkflow {
         return preHandleAllTransactions(
                 creator,
                 storeFactory,
-                storeFactory.getStore(ReadableAccountStore.class),
+                storeFactory.readableStore(ReadableAccountStore.class),
                 platformTxn.getApplicationTransaction(),
                 previousResult,
                 shortCircuitTxnCallback);

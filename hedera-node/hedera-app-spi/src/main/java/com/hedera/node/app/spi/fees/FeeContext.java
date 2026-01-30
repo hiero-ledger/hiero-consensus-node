@@ -8,6 +8,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.StoreFactory;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -42,6 +44,14 @@ public interface FeeContext {
     SimpleFeeCalculator getSimpleFeeCalculator();
 
     /**
+     * Returns the readable store factory for accessing readable stores.
+     *
+     * @return the readable store factory
+     */
+    @NonNull
+    ReadableStoreFactory readableStoreFactory();
+
+    /**
      * Get a readable store given the store's interface. This gives read-only access to the store.
      *
      * @param storeInterface The store interface to find and create a store for
@@ -51,7 +61,9 @@ public interface FeeContext {
      * @throws NullPointerException if {@code storeInterface} is {@code null}
      */
     @NonNull
-    <T> T readableStore(@NonNull Class<T> storeInterface);
+    default <T> T readableStore(@NonNull Class<T> storeInterface) {
+        return readableStoreFactory().readableStore(storeInterface);
+    }
 
     /**
      * Returns the current {@link Configuration} for the node.

@@ -75,7 +75,7 @@ import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.HandleOutput;
@@ -366,7 +366,7 @@ public class SystemTransactions {
         onSuccess.set(DEFAULT_DISPATCH_ON_SUCCESS);
 
         // Now that the node metadata is correct, create the system files
-        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+        final var nodeStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableNodeStore.class);
         fileService.createSystemEntities(systemContext, nodeStore);
 
         // And dispatch a node stake update transaction for mirror node benefit
@@ -388,7 +388,7 @@ public class SystemTransactions {
         // We update the node details file from the address book that resulted from all pre-upgrade HAPI node changes
         final var nodesConfig = config.getConfigData(NodesConfig.class);
         if (nodesConfig.enableDAB()) {
-            final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+            final var nodeStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableNodeStore.class);
             fileService.updateAddressBookAndNodeDetailsAfterFreeze(systemContext, nodeStore);
         }
         selfNodeAccountIdManager.setSelfNodeAccountId(networkInfo.selfNodeInfo().accountId());
@@ -616,9 +616,9 @@ public class SystemTransactions {
     public boolean dispatchTransplantUpdates(final State state, final Instant now, final long currentRoundNum) {
         requireNonNull(state);
         requireNonNull(now);
-        final var readableStoreFactory = new ReadableStoreFactory(state);
-        final var rosterStore = readableStoreFactory.getStore(ReadableRosterStore.class);
-        final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
+        final var rosterStore = readableStoreFactory.readableStore(ReadableRosterStore.class);
+        final var nodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
         final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
@@ -671,7 +671,7 @@ public class SystemTransactions {
                 }
             }
             final var numNodes =
-                    readableStoreFactory.getStore(ReadableEntityIdStore.class).numNodes();
+                    readableStoreFactory.readableStore(ReadableEntityIdStore.class).numNodes();
             for (var i = 0; i < numNodes; i++) {
                 final long nodeId = i;
                 final var existingNode = nodeStore.get(i);

@@ -17,7 +17,7 @@ import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.token.*;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.annotations.CryptoTransferThrottleMultiplier;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -113,10 +113,10 @@ public class UtilizationScaledThrottleMultiplier {
         final var maxNumOfAccounts =
                 configuration.getConfigData(AccountsConfig.class).maxNumber();
 
-        final var accountsStore = storeFactory.getStore(ReadableAccountStore.class);
+        final var accountsStore = storeFactory.readableStore(ReadableAccountStore.class);
         final var numAccountsAndContracts = accountsStore.sizeOfAccountState();
 
-        final var contractsStore = storeFactory.getStore(ContractStateStore.class);
+        final var contractsStore = storeFactory.readableStore(ContractStateStore.class);
         final var numContracts = contractsStore.getNumBytecodes();
         final var numAccounts = numAccountsAndContracts - numContracts;
 
@@ -128,7 +128,7 @@ public class UtilizationScaledThrottleMultiplier {
         final var maxNumOfContracts =
                 configuration.getConfigData(ContractsConfig.class).maxNumber();
 
-        final var contractsStore = storeFactory.getStore(ContractStateStore.class);
+        final var contractsStore = storeFactory.readableStore(ContractStateStore.class);
         final var numContracts = contractsStore.getNumBytecodes();
 
         return maxNumOfContracts == 0 ? 100 : (int) ((100 * numContracts) / maxNumOfContracts);
@@ -138,7 +138,7 @@ public class UtilizationScaledThrottleMultiplier {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfFiles = configuration.getConfigData(FilesConfig.class).maxNumber();
 
-        final var fileStore = storeFactory.getStore(ReadableFileStore.class);
+        final var fileStore = storeFactory.readableStore(ReadableFileStore.class);
         final var numOfFiles = fileStore.sizeOfState();
 
         return maxNumOfFiles == 0 ? 100 : (int) ((100 * numOfFiles) / maxNumOfFiles);
@@ -148,7 +148,7 @@ public class UtilizationScaledThrottleMultiplier {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfNfts = configuration.getConfigData(TokensConfig.class).nftsMaxAllowedMints();
 
-        final var nftStore = storeFactory.getStore(ReadableNftStore.class);
+        final var nftStore = storeFactory.readableStore(ReadableNftStore.class);
         final var numOfNfts = nftStore.sizeOfState();
 
         return maxNumOfNfts == 0 ? 100 : (int) ((100 * numOfNfts) / maxNumOfNfts);
@@ -159,7 +159,7 @@ public class UtilizationScaledThrottleMultiplier {
         final var maxNumOfTokens =
                 configuration.getConfigData(TokensConfig.class).maxNumber();
 
-        final var tokenStore = storeFactory.getStore(ReadableTokenStore.class);
+        final var tokenStore = storeFactory.readableStore(ReadableTokenStore.class);
         final var numOfTokens = tokenStore.sizeOfState();
 
         return maxNumOfTokens == 0 ? 100 : (int) ((100 * numOfTokens) / maxNumOfTokens);
@@ -170,7 +170,7 @@ public class UtilizationScaledThrottleMultiplier {
         final var maxNumOfTokenRels =
                 configuration.getConfigData(TokensConfig.class).maxAggregateRels();
 
-        final var tokenRelStore = storeFactory.getStore(ReadableTokenRelationStore.class);
+        final var tokenRelStore = storeFactory.readableStore(ReadableTokenRelationStore.class);
         final var numOfTokensRels = tokenRelStore.sizeOfState();
 
         return maxNumOfTokenRels == 0 ? 100 : (int) ((100 * numOfTokensRels) / maxNumOfTokenRels);
@@ -181,7 +181,7 @@ public class UtilizationScaledThrottleMultiplier {
         final var maxNumberOfTopics =
                 configuration.getConfigData(TopicsConfig.class).maxNumber();
 
-        final var topicStore = storeFactory.getStore(ReadableTopicStore.class);
+        final var topicStore = storeFactory.readableStore(ReadableTopicStore.class);
         final var numOfTopics = topicStore.sizeOfState();
 
         return maxNumberOfTopics == 0 ? 100 : (int) ((100 * numOfTopics) / maxNumberOfTopics);
@@ -192,7 +192,7 @@ public class UtilizationScaledThrottleMultiplier {
         final var maxNumAirdrops =
                 configuration.getConfigData(TokensConfig.class).maxAllowedPendingAirdrops();
 
-        final var airdropStore = storeFactory.getStore(ReadableAirdropStore.class);
+        final var airdropStore = storeFactory.readableStore(ReadableAirdropStore.class);
         final var numPendingAirdrops = airdropStore.sizeOfState();
 
         return maxNumAirdrops == 0 ? 100 : (int) ((100 * numPendingAirdrops) / maxNumAirdrops);
