@@ -3,7 +3,6 @@ package com.swirlds.state.spi;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Iterator;
 import java.util.Set;
 
 /**
@@ -40,17 +39,6 @@ public interface ReadableKVState<K, V> extends ReadableState {
      */
     @Nullable
     V get(@NonNull K key);
-
-    /**
-     * Used during migration ONLY. PLEASE DO NOT COME TO RELY ON THIS METHOD! It will be hopelessly
-     * slow on large data sets like on disk!
-     * After migrating to Mega Map, this method will be extremely slow.
-     * DO NOT USE IT in production code.
-     *
-     * @return an iterator over all keys in the state
-     */
-    @NonNull
-    Iterator<K> keys();
 
     /**
      * Gets the set of keys that a client read from the {@link ReadableKVState}.
