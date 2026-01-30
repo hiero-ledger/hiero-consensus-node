@@ -87,11 +87,44 @@ public class TokenServiceSimpleFeesSuite {
     private static final String ADMIN = "admin";
     private static final String OTHER = "other";
     private static final String HBAR_COLLECTOR = "hbarCollector";
-    private static final int NODE_INCLUDED_BYTES = 1024;
     private static final int NETWORK_MULTIPLIER = 9;
 
-    private static double feeWithExtraSignatures(final double serviceBaseUsd, final long extraSignatures) {
-        final double nodeFeeUsd = NODE_BASE_FEE_USD + (extraSignatures * SIGNATURE_FEE_USD);
+    /*
+     * Legacy (fees.simpleFeesEnabled=false) USD fee expectations.
+     * These values come from the legacy fee schedule (0.0.111 / feeSchedules.json),
+     * current exchange rates (1 hbar = $0.12 in dev genesis), and the usage estimators
+     * used by each HapiToken* op in this suite. If fee schedules or usage estimators change,
+     * re-run this suite and update these constants from the charged USD in the txn records.
+     */
+    private static final double OLD_CREATE_FUNGIBLE_USD = 0.912085398; // TokenCreate(FUNGIBLE_COMMON), no custom fees
+    private static final double OLD_CREATE_NON_FUNGIBLE_USD = 0.9122951064; // TokenCreate(NFT), no custom fees
+    private static final double OLD_CREATE_WITH_CUSTOM_FEES_USD = 1.8234970992; // TokenCreate with custom fees
+    private static final double OLD_UPDATE_TOKEN_USD = 0.0022946124; // TokenUpdate with 2 extra signatures
+    private static final double OLD_MINT_UNIQUE_USD = 0.02; // TokenMint(NFT, 1)
+    private static final double OLD_MINT_UNIQUE_MULTIPLE_USD = 0.06; // TokenMint(NFT, 3)
+    private static final double OLD_PAUSE_USD = 0.0016414884; // TokenPause
+    private static final double OLD_UNPAUSE_USD = 0.0016420032; // TokenUnpause
+    private static final double OLD_FREEZE_USD = 0.0016378128; // TokenFreezeAccount
+    private static final double OLD_UNFREEZE_USD = 0.001638324; // TokenUnfreezeAccount
+    private static final double OLD_DELETE_USD = 0.0016285608; // TokenDelete
+    private static final double OLD_DISSOCIATE_USD = 0.0507303192; // TokenDissociate
+    private static final double OLD_GRANT_KYC_USD = 0.0010128108; // TokenGrantKycToAccount
+    private static final double OLD_REVOKE_KYC_USD = 0.0010130676; // TokenRevokeKycFromAccount
+    private static final double OLD_FEE_SCHEDULE_UPDATE_USD = 0.0010141548; // TokenFeeScheduleUpdate
+    private static final double OLD_GET_TOKEN_INFO_USD = 0.0001011936; // TokenGetInfo query
+    private static final double OLD_GET_TOKEN_NFT_INFO_USD = 0.0001012704; // TokenGetNftInfo query
+
+    /**
+     * Simple fees formula for token ops:
+     * node    = NODE_BASE + SIGNATURE_FEE * extraSignatures + bytesOverage * SINGLE_BYTE_FEE
+     * network = node * NETWORK_MULTIPLIER
+     * service = serviceBaseUsd
+     * total   = node + network + service
+     */
+    private static double simpleTokenOpFeeUsd(
+            final double serviceBaseUsd, final long extraSignatures, final int signedTxnSize) {
+        final double nodeFeeUsd =
+                NODE_BASE_FEE_USD + (extraSignatures * SIGNATURE_FEE_USD) + nodeFeeFromBytesUsd(signedTxnSize);
         return serviceBaseUsd + nodeFeeUsd * (NETWORK_MULTIPLIER + 1);
     }
 
@@ -120,7 +153,7 @@ public class TokenServiceSimpleFeesSuite {
                 // total = 10000000000 = 1.0
                 1.0000,
                 1,
-                0.912085398,
+                OLD_CREATE_FUNGIBLE_USD,
                 1);
     }
 
@@ -152,7 +185,7 @@ public class TokenServiceSimpleFeesSuite {
                 // total = 20000000000 = 2.0
                 1,
                 1,
-                0.9122951064,
+                OLD_CREATE_NON_FUNGIBLE_USD,
                 1);
     }
 
@@ -182,7 +215,7 @@ public class TokenServiceSimpleFeesSuite {
                 "create-token-txn",
                 2,
                 1,
-                1.8234970992,
+                OLD_CREATE_WITH_CUSTOM_FEES_USD,
                 1);
     }
 
@@ -203,8 +236,9 @@ public class TokenServiceSimpleFeesSuite {
         final var tokenOld = FUNGIBLE_TOKEN + "_old";
         final var updateOldTxn = "update-token-txn-old";
 
-        final var baseFee = feeWithExtraSignatures(TOKEN_UPDATE_BASE_FEE_USD, 2);
-        final var oldExpectedFee = 0.0022946124;
+        // Extra signatures: payer + old supply key + new supply key (node includes 1 signature)
+        final var extraSignatures = 2L;
+        final var oldExpectedFee = OLD_UPDATE_TOKEN_USD;
 
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
@@ -227,7 +261,9 @@ public class TokenServiceSimpleFeesSuite {
                         .via(updateSimpleTxn),
                 withOpContext((spec, log) -> {
                     final var signedTxnSize = signedTxnSizeFor(spec, updateSimpleTxn);
-                    final var expectedFee = baseFee + nodeFeeFromBytesUsd(signedTxnSize);
+                    // Simple fees: service base + node+network (extra signatures + bytes overage)
+                    final var expectedFee =
+                            simpleTokenOpFeeUsd(TOKEN_UPDATE_BASE_FEE_USD, extraSignatures, signedTxnSize);
                     allRunFor(spec, validateChargedSimpleFees("Simple Fees", updateSimpleTxn, expectedFee, 1));
                 }),
                 overriding("fees.simpleFeesEnabled", "false"),
@@ -352,7 +388,7 @@ public class TokenServiceSimpleFeesSuite {
                 // total = 209000000 = .0209
                 0.0209,
                 1,
-                0.02,
+                OLD_MINT_UNIQUE_USD,
                 1);
     }
 
@@ -394,146 +430,152 @@ public class TokenServiceSimpleFeesSuite {
                 // total = 607000000 = .00607
                 0.0607,
                 1,
-                0.06,
+                OLD_MINT_UNIQUE_MULTIPLE_USD,
                 1);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare pause a common token")
     final Stream<DynamicTest> comparePauseToken() {
-        final var expectedSimpleFee = feeWithExtraSignatures(TOKEN_PAUSE_BASE_FEE_USD, 1);
-        final var expectedOldFee = 0.0016414884;
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(PAUSE_KEY),
-                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .initialSupply(0L)
-                                .payingWith(PAYER)
-                                .supplyKey(SUPPLY_KEY)
-                                .pauseKey(PAUSE_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS),
-                        mintToken(FUNGIBLE_TOKEN, 10)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS),
-                        tokenPause(FUNGIBLE_TOKEN)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("pause-token-txn")),
-                "pause-token-txn",
-                expectedSimpleFee,
-                1,
-                expectedOldFee,
-                1);
+        // Extra signatures: payer + pause key (node includes 1 signature)
+        final var extraSignatures = 1L;
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(PAUSE_KEY),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .supplyKey(SUPPLY_KEY)
+                        .pauseKey(PAUSE_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                mintToken(FUNGIBLE_TOKEN, 10)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenPause(FUNGIBLE_TOKEN)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("pause-token-txn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "pause-token-txn");
+                    final var expectedFee = simpleTokenOpFeeUsd(TOKEN_PAUSE_BASE_FEE_USD, extraSignatures, signedTxnSize);
+                    allRunFor(spec, validateChargedSimpleFees("Simple Fees", "pause-token-txn", expectedFee, 1));
+                }),
+                overriding("fees.simpleFeesEnabled", "false"));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare unpause a common token")
     final Stream<DynamicTest> compareUnpauseToken() {
-        final var expectedSimpleFee = feeWithExtraSignatures(TOKEN_UNPAUSE_BASE_FEE_USD, 1);
-        final var expectedOldFee = 0.0016420032;
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
-                        newKeyNamed(PAUSE_KEY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .initialSupply(0L)
-                                .payingWith(PAYER)
-                                .supplyKey(SUPPLY_KEY)
-                                .pauseKey(PAUSE_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS),
-                        mintToken(FUNGIBLE_TOKEN, 10)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS),
-                        tokenPause(FUNGIBLE_TOKEN),
-                        tokenUnpause(FUNGIBLE_TOKEN)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("unpause-token-txn")),
-                "unpause-token-txn",
-                expectedSimpleFee,
-                1,
-                expectedOldFee,
-                1);
+        // Extra signatures: payer + pause key (node includes 1 signature)
+        final var extraSignatures = 1L;
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                newKeyNamed(PAUSE_KEY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .supplyKey(SUPPLY_KEY)
+                        .pauseKey(PAUSE_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                mintToken(FUNGIBLE_TOKEN, 10)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenPause(FUNGIBLE_TOKEN),
+                tokenUnpause(FUNGIBLE_TOKEN)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("unpause-token-txn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "unpause-token-txn");
+                    final var expectedFee =
+                            simpleTokenOpFeeUsd(TOKEN_UNPAUSE_BASE_FEE_USD, extraSignatures, signedTxnSize);
+                    allRunFor(spec, validateChargedSimpleFees("Simple Fees", "unpause-token-txn", expectedFee, 1));
+                }),
+                overriding("fees.simpleFeesEnabled", "false"));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare freeze a common token")
     final Stream<DynamicTest> compareFreezeToken() {
-        final var expectedSimpleFee = feeWithExtraSignatures(TOKEN_FREEZE_BASE_FEE_USD, 1);
-        final var expectedOldFee = 0.0016378128;
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(FREEZE_KEY),
-                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .initialSupply(0L)
-                                .payingWith(PAYER)
-                                .supplyKey(SUPPLY_KEY)
-                                .freezeKey(FREEZE_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS),
-                        tokenAssociate(OTHER, FUNGIBLE_TOKEN),
-                        mintToken(FUNGIBLE_TOKEN, 10)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS),
-                        tokenFreeze(FUNGIBLE_TOKEN, OTHER)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("freeze-token-txn")),
-                "freeze-token-txn",
-                expectedSimpleFee,
-                1,
-                expectedOldFee,
-                1);
+        // Extra signatures: payer + freeze key (node includes 1 signature)
+        final var extraSignatures = 1L;
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(FREEZE_KEY),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                cryptoCreate(OTHER),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .supplyKey(SUPPLY_KEY)
+                        .freezeKey(FREEZE_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenAssociate(OTHER, FUNGIBLE_TOKEN),
+                mintToken(FUNGIBLE_TOKEN, 10)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenFreeze(FUNGIBLE_TOKEN, OTHER)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("freeze-token-txn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "freeze-token-txn");
+                    final var expectedFee = simpleTokenOpFeeUsd(TOKEN_FREEZE_BASE_FEE_USD, extraSignatures, signedTxnSize);
+                    allRunFor(spec, validateChargedSimpleFees("Simple Fees", "freeze-token-txn", expectedFee, 1));
+                }),
+                overriding("fees.simpleFeesEnabled", "false"));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare unfreeze a common token")
     final Stream<DynamicTest> compareUnfreezeToken() {
-        final var expectedSimpleFee = feeWithExtraSignatures(TOKEN_UNFREEZE_BASE_FEE_USD, 1);
-        final var expectedOldFee = 0.001638324;
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER),
-                        newKeyNamed(FREEZE_KEY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .initialSupply(0L)
-                                .payingWith(PAYER)
-                                .supplyKey(SUPPLY_KEY)
-                                .freezeKey(FREEZE_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS),
-                        tokenAssociate(OTHER, FUNGIBLE_TOKEN),
-                        mintToken(FUNGIBLE_TOKEN, 10)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS),
-                        tokenFreeze(FUNGIBLE_TOKEN, OTHER),
-                        tokenUnfreeze(FUNGIBLE_TOKEN, OTHER)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("unfreeze-token-txn")),
-                "unfreeze-token-txn",
-                expectedSimpleFee,
-                1,
-                expectedOldFee,
-                1);
+        // Extra signatures: payer + freeze key (node includes 1 signature)
+        final var extraSignatures = 1L;
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                cryptoCreate(OTHER),
+                newKeyNamed(FREEZE_KEY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .supplyKey(SUPPLY_KEY)
+                        .freezeKey(FREEZE_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenAssociate(OTHER, FUNGIBLE_TOKEN),
+                mintToken(FUNGIBLE_TOKEN, 10)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenFreeze(FUNGIBLE_TOKEN, OTHER),
+                tokenUnfreeze(FUNGIBLE_TOKEN, OTHER)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("unfreeze-token-txn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "unfreeze-token-txn");
+                    final var expectedFee =
+                            simpleTokenOpFeeUsd(TOKEN_UNFREEZE_BASE_FEE_USD, extraSignatures, signedTxnSize);
+                    allRunFor(spec, validateChargedSimpleFees("Simple Fees", "unfreeze-token-txn", expectedFee, 1));
+                }),
+                overriding("fees.simpleFeesEnabled", "false"));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -569,36 +611,37 @@ public class TokenServiceSimpleFeesSuite {
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare delete a common token")
     final Stream<DynamicTest> compareDeleteToken() {
-        final var expectedSimpleFee = feeWithExtraSignatures(TOKEN_DELETE_BASE_FEE_USD, 1);
-        final var expectedOldFee = 0.0016285608;
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .initialSupply(0L)
-                                .payingWith(PAYER)
-                                .adminKey(ADMIN)
-                                .supplyKey(SUPPLY_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS),
-                        mintToken(FUNGIBLE_TOKEN, 10)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS),
-                        tokenDelete(FUNGIBLE_TOKEN)
-                                .purging()
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .hasKnownStatus(SUCCESS)
-                                .via("delete-token-txn")),
-                "delete-token-txn",
-                expectedSimpleFee,
-                1,
-                expectedOldFee,
-                1);
+        // Extra signatures: payer + admin key (node includes 1 signature)
+        final var extraSignatures = 1L;
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(0L)
+                        .payingWith(PAYER)
+                        .adminKey(ADMIN)
+                        .supplyKey(SUPPLY_KEY)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                mintToken(FUNGIBLE_TOKEN, 10)
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS),
+                tokenDelete(FUNGIBLE_TOKEN)
+                        .purging()
+                        .payingWith(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(SUCCESS)
+                        .via("delete-token-txn"),
+                withOpContext((spec, log) -> {
+                    final var signedTxnSize = signedTxnSizeFor(spec, "delete-token-txn");
+                    final var expectedFee = simpleTokenOpFeeUsd(TOKEN_DELETE_BASE_FEE_USD, extraSignatures, signedTxnSize);
+                    allRunFor(spec, validateChargedSimpleFees("Simple Fees", "delete-token-txn", expectedFee, 1));
+                }),
+                overriding("fees.simpleFeesEnabled", "false"));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -651,7 +694,7 @@ public class TokenServiceSimpleFeesSuite {
                 "token-dissociate-txn",
                 0.05,
                 1,
-                0.0507303192,
+                OLD_DISSOCIATE_USD,
                 1);
     }
 
@@ -683,7 +726,7 @@ public class TokenServiceSimpleFeesSuite {
                 "token-grant-kyc-txn",
                 0.001,
                 1,
-                0.0010128108,
+                OLD_GRANT_KYC_USD,
                 1);
     }
 
@@ -718,7 +761,7 @@ public class TokenServiceSimpleFeesSuite {
                 "token-revoke-kyc-txn",
                 0.001,
                 1,
-                0.0010130676,
+                OLD_REVOKE_KYC_USD,
                 1);
     }
 
@@ -832,7 +875,7 @@ public class TokenServiceSimpleFeesSuite {
                 "token-fee-schedule-update-txn",
                 0.001,
                 1,
-                0.0010141548,
+                OLD_FEE_SCHEDULE_UPDATE_USD,
                 1);
     }
 
@@ -896,7 +939,7 @@ public class TokenServiceSimpleFeesSuite {
                 "get-token-info-query",
                 0.0001,
                 1,
-                0.0001011936,
+                OLD_GET_TOKEN_INFO_USD,
                 1);
     }
 
@@ -927,7 +970,7 @@ public class TokenServiceSimpleFeesSuite {
                 "get-token-nft-info-query",
                 0.0001,
                 1,
-                0.0001012704,
+                OLD_GET_TOKEN_NFT_INFO_USD,
                 1);
     }
 
