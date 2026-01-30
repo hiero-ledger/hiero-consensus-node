@@ -3,6 +3,7 @@ package com.swirlds.platform.network.protocol.rpc;
 
 import static com.swirlds.logging.legacy.LogMarker.FREEZE;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -19,7 +20,9 @@ import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -34,7 +37,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 
 /**
- * Implementation of a factory for rpc protocol, encompassing new sync
+ * Implementation of a factory for rpc protocol, encompassing new sync and broadcast atm
  */
 public class RpcProtocol implements Protocol, GossipController {
 
@@ -57,11 +60,6 @@ public class RpcProtocol implements Protocol, GossipController {
     private final NodeId selfId;
 
     /**
-     * How long should we wait between sync attempts
-     */
-    private final Duration sleepAfterSync;
-
-    /**
      * Control for making sure that in case of limited amount of concurrent syncs we are not synchronizing with the same
      * peers over and over.
      */
@@ -71,6 +69,11 @@ public class RpcProtocol implements Protocol, GossipController {
     private final Consumer<PlatformEvent> receivedEventHandler;
 
     private volatile boolean started;
+
+    /**
+     * List of all started sync exchanges with remote peers
+     */
+    private final List<RpcPeerHandler> allRpcPeers = new CopyOnWriteArrayList<>();
 
     /**
      * Constructs a new sync protocol
@@ -113,8 +116,6 @@ public class RpcProtocol implements Protocol, GossipController {
             permitCount = syncConfig.syncProtocolPermitCount();
         }
 
-        this.sleepAfterSync = syncConfig.rpcSleepAfterSync();
-
         this.permitProvider = new SyncPermitProvider(configuration, metrics, time, permitCount);
         this.executor = Objects.requireNonNull(executor);
         this.networkMetrics = Objects.requireNonNull(networkMetrics);
@@ -150,15 +151,16 @@ public class RpcProtocol implements Protocol, GossipController {
                 peerProtocol,
                 selfId,
                 peerId,
-                sleepAfterSync,
                 syncMetrics,
                 time,
                 intakeEventCounter,
                 receivedEventHandler,
                 syncGuard,
-                fallenBehindMonitor);
+                fallenBehindMonitor,
+                syncConfig);
 
         peerProtocol.setRpcPeerHandler(handler);
+        allRpcPeers.add(handler);
         return peerProtocol;
     }
 
@@ -168,6 +170,21 @@ public class RpcProtocol implements Protocol, GossipController {
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus status) {
         platformStatus.set(status);
+    }
+
+    /**
+     * Handle new event fully processed by the event intake. In this case used to optionally broadcast self events to
+     * peer directly, skipping sync process
+     *
+     * @param platformEvent event to be processed
+     */
+    public void addEvent(@NonNull final PlatformEvent platformEvent) {
+        // broadcast event to other nodes as part of simplistic broadcast
+        if (syncConfig.enableBroadcast() && selfId.equals(platformEvent.getCreatorId())) {
+            final GossipEvent gossipEvent = platformEvent.getGossipEvent();
+            allRpcPeers.forEach(rpcPeer -> rpcPeer.broadcastEvent(gossipEvent));
+            syncMetrics.broadcastEventSent();
+        }
     }
 
     /**
