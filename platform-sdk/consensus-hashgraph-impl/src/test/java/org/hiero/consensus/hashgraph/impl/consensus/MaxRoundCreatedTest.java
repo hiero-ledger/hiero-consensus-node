@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createDefaultPlatformContext;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
@@ -17,7 +17,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.hiero.consensus.hashgraph.impl.consensus.ConsensusRounds;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -74,17 +73,17 @@ public class MaxRoundCreatedTest {
         final ConsensusOutput output = intake.getOutput();
 
         ConsensusRound latestRound = null;
-        final IOIterator<PlatformEvent> eventIterator = PcesFileIteratorFactory.createIterator(pcesDir);
-
-        while (eventIterator.hasNext()) {
-            final PlatformEvent event = eventIterator.next();
-            intake.addEvent(event);
-            if (!output.getConsensusRounds().isEmpty()) {
-                latestRound = output.getConsensusRounds().getLast();
+        try (final IOIterator<PlatformEvent> eventIterator = PcesFileIteratorFactory.createIterator(pcesDir)) {
+            while (eventIterator.hasNext()) {
+                final PlatformEvent event = eventIterator.next();
+                intake.addEvent(event);
+                if (!output.getConsensusRounds().isEmpty()) {
+                    latestRound = output.getConsensusRounds().getLast();
+                }
+                output.clear();
             }
-            output.clear();
+            assertNotNull(latestRound, "Round 1 should have reached consensus, but no rounds reached consensus.");
+            assertThat(latestRound.getRoundNum()).isEqualTo(1);
         }
-        assertNotNull(latestRound, "Round 1 should have reached consensus, but no rounds reached consensus.");
-        assertThat(latestRound.getRoundNum()).isEqualTo(1);
     }
 }

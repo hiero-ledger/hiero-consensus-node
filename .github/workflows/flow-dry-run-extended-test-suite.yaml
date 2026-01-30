@@ -9,11 +9,26 @@ on:
       branch_name:
         required: false
         description: "The branch name, for JRS Panel output"
-      enable-extended-test-suite:
-        required: true
+      enable-timing-sensitive-test-suite:
         type: boolean
+        description: "Run Timing Sensitive Test Suite"
         default: true
-        description: "Run Extended Test Suite"
+      enable-hammer-test-suite:
+        type: boolean
+        description: "Run Hammer Test Suite"
+        default: true
+      enable-hapi-test-suite:
+        type: boolean
+        description: "Run HAPI Test Suite"
+        default: true
+      enable-otter-test-suite:
+        type: boolean
+        description: "Run Otter Test Suite"
+        default: true
+      enable-chaos-otter-test-suite:
+        type: boolean
+        description: "Run Chaos Otter Test Suite"
+        default: true
       enable-hedera-node-jrs-panel:
         required: true
         type: boolean
@@ -60,7 +75,7 @@ defaults:
 jobs:
   parameters:
     name: Workflow Parameters
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-default-lin-sm
     outputs:
       solo-version: ${{ steps.params.outputs.solo-version }}
       helm-release-name: ${{ steps.params.outputs.helm-release-name }}
@@ -79,7 +94,11 @@ jobs:
           fi
           echo "Commit SHA: ${{ inputs.ref }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Branch Name: ${{ inputs.branch_name }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Enable Extended Test Suite: ${{ inputs.enable-extended-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Timing Sensitive Test Suite: ${{ inputs.enable-timing-sensitive-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Hammer Test Suite: ${{ inputs.enable-hammer-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable HAPI Test Suite: ${{ inputs.enable-hapi-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Otter Test Suite: ${{ inputs.enable-otter-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Chaos Otter Test Suite: ${{ inputs.enable-chaos-otter-test-suite }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Hedera Node JRS Panel: ${{ inputs.enable-hedera-node-jrs-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable SDK TCK Regression Panel: ${{ inputs.enable-sdk-tck-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Mirror Node Regression Panel: ${{ inputs.enable-mirror-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -111,7 +130,11 @@ jobs:
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       mirror-node-version: ${{ vars.CITR_MIRROR_NODE_VERSION }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
-      enable-extended-test-suite: ${{ inputs.enable-extended-test-suite }}
+      enable-timing-sensitive-test-suite: ${{ inputs.enable-timing-sensitive-test-suite }}
+      enable-hammer-test-suite: ${{ inputs.enable-hammer-test-suite }}
+      enable-hapi-test-suite: ${{ inputs.enable-hapi-test-suite }}
+      enable-otter-test-suite: ${{ inputs.enable-otter-test-suite }}
+      enable-chaos-otter-test-suite: ${{ inputs.enable-chaos-otter-test-suite }}
       enable-hedera-node-jrs-panel: ${{ inputs.enable-hedera-node-jrs-panel }}
       enable-sdk-tck-regression-panel: ${{ inputs.enable-sdk-tck-regression-panel }}
       enable-mirror-node-regression-panel: ${{ inputs.enable-mirror-node-regression-panel }}

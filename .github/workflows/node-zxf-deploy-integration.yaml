@@ -11,7 +11,7 @@ jobs:
   ### Therefore, we have hardcoded the ref to `refs/heads/main` in the checkout step and the payload sent to Jenkins.
   integration-deploy:
     name: Integration / Deploy Artifact
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     if: ${{ !github.event.workflow_dispatch.repository.fork }}
     steps:
       - name: Harden Runner
