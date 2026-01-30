@@ -26,7 +26,6 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 
 /*
 to use this first download historical data.
@@ -168,7 +167,7 @@ public class SimpleFeesRecordStreamTest {
         }
     }
 
-//    @Test
+    //    @Test
     void streamingSimpleFees() throws IOException {
         // set the overrides
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
