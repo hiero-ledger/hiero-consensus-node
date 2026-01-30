@@ -833,7 +833,7 @@ jobs:
   hapi-tests-atomic-batch:
     name: "HAPI Tests (Atomic Batch)"
     if: ${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}
-    runs-on: hiero-cn-hapi-linux-large
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
