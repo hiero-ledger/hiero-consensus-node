@@ -115,7 +115,7 @@ on:
         default: false
     secrets:
       access-token:
-        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
       gradle-cache-username:
         description: "The username used to authenticate with the Gradle Build Cache Node."
@@ -166,7 +166,7 @@ permissions:
 jobs:
   jrs-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-jrs-regression-lin-lg
     if: ${{ !github.event.workflow_call.repository.fork }}
     steps:
       - name: Harden Runner

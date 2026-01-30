@@ -26,9 +26,10 @@ public class TokenMintFeeCalculator implements ServiceFeeCalculator {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_MINT);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
         var op = txnBody.tokenMintOrThrow();
-        if (op.amount() > 0) {
-            addExtraFee(feeResult, serviceDef, Extra.TOKEN_MINT_NFT, feeSchedule, 0);
-        } else {
+        if (op.amount() == 0) {
+            // Add NFT base fee
+            addExtraFee(feeResult, serviceDef, Extra.TOKEN_MINT_NFT_BASE, feeSchedule, 1);
+            // Add extra tokens
             addExtraFee(
                     feeResult,
                     serviceDef,

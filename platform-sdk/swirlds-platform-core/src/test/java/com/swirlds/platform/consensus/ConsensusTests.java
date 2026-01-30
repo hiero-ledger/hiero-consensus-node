@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createPlatformContext;
+
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestRunner;
 import java.util.List;
@@ -13,7 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 @DisplayName("Consensus Tests")
-class ConsensusTests extends PlatformTest {
+class ConsensusTests {
 
     /**
      * Number of iterations in each test. An iteration is to create one graph, and feed it in twice in different

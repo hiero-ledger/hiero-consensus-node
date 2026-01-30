@@ -4,6 +4,7 @@ package com.swirlds.platform.wiring;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpHashgraphModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpPcesModule;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -28,7 +29,6 @@ import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
@@ -56,6 +56,7 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -91,10 +92,11 @@ class PlatformWiringTests {
         final Configuration configuration = platformContext.getConfiguration();
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
+        final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
 
         final PlatformComponents platformComponents = PlatformComponents.create(
-                platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
+                platformContext, model, eventCreatorModule, eventIntakeModule, pcesModule, hashgraphModule);
         PlatformWiring.wire(
                 platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
 
@@ -107,7 +109,6 @@ class PlatformWiringTests {
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))
                 .withTransactionPrehandler(mock(TransactionPrehandler.class))
-                .withInlinePcesWriter(mock(InlinePcesWriter.class))
                 .withSignedStateSentinel(mock(SignedStateSentinel.class))
                 .withIssDetector(mock(IssDetector.class))
                 .withIssHandler(mock(IssHandler.class))
@@ -153,7 +154,6 @@ class PlatformWiringTests {
                 mock(PcesReplayer.class),
                 mock(StateSignatureCollector.class),
                 mock(EventWindowManager.class),
-                mock(InlinePcesWriter.class),
                 mock(SignedStateNexus.class),
                 mock(LatestCompleteStateNexus.class),
                 mock(SavedStateController.class),
