@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.task;
 
-import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import java.io.IOException;
@@ -18,6 +17,11 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * 		the type used by the view to represent a merkle node
  */
 public class InternalDataLesson<T> implements SelfSerializable {
+
+    /**
+     * The maximum number of children that a MerkleInternal node can have
+     */
+    private static final int MAX_CHILD_COUNT_UBOUND = 64;
 
     private static final long CLASS_ID = 0xb76e98a8989c60a1L;
 
@@ -99,7 +103,7 @@ public class InternalDataLesson<T> implements SelfSerializable {
     @Override
     public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
         internal = learnerTreeView.deserializeInternal(in);
-        queries = in.readSerializableList(MerkleInternal.MAX_CHILD_COUNT_UBOUND, false, Hash::new);
+        queries = in.readSerializableList(MAX_CHILD_COUNT_UBOUND, false, Hash::new);
     }
 
     /**

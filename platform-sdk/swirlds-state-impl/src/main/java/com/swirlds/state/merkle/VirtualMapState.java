@@ -85,7 +85,7 @@ import org.json.JSONObject;
 /**
  * An implementation of {@link State} backed by a single Virtual Map.
  */
-public class VirtualMapState implements MerkleNodeState {
+public class VirtualMapState implements MerkleNodeState<VirtualMap> {
 
     private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
 

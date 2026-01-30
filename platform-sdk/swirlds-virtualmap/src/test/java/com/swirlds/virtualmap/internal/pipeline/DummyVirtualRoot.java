@@ -4,20 +4,16 @@ package com.swirlds.virtualmap.internal.pipeline;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.internal.AbstractMerkleNode;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
-class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleLeaf {
+class DummyVirtualRoot extends AbstractMerkleNode {
 
     private static final long CLASS_ID = 0x37cc269627e18eb6L;
 
@@ -119,22 +115,6 @@ class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleL
     @Override
     public long getClassId() {
         return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        throw new UnsupportedOperationException();
     }
 
     /**

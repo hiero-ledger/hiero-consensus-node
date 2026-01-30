@@ -42,7 +42,7 @@ public class Rehash {
 
     @Test
     void reHash(DeserializedSignedState deserializedSignedState) throws Exception {
-        final VirtualMap vm = (VirtualMap)
+        final VirtualMap vm =
                 deserializedSignedState.reservedSignedState().get().getState().getRoot();
         records = vm.getRecords();
 

@@ -20,6 +20,7 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -35,7 +36,7 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class BlockStreamRecoveryWorkflow {
 
-    private final MerkleNodeState state;
+    private final MerkleNodeState<VirtualMap> state;
     private final long targetRound;
     private final Path outputPath;
     private final String expectedRootHash;

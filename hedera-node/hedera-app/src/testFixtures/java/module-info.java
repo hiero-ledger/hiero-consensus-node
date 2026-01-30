@@ -16,6 +16,7 @@ open module com.hedera.node.app.test.fixtures {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api.test.fixtures;
     requires transitive com.swirlds.state.api;
+    requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.metrics;

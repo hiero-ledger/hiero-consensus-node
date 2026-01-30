@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state;
 
-import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.Reservable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -16,14 +16,14 @@ import java.nio.file.Path;
  * </ul>
  *
  */
-public interface StateLifecycleManager {
+public interface StateLifecycleManager<T extends Reservable> {
 
     /**
      * Create a state from a root node. This method doesn't update the current mutable or immutable state.
      * @param rootNode the root node of a Merkle tree to create a state from
      * @return a state created from the root node
      */
-    MerkleNodeState createStateFrom(@NonNull MerkleNode rootNode);
+    MerkleNodeState<T> createStateFrom(@NonNull T rootNode);
 
     /**
      * Set the initial State. This method should only be on a startup
