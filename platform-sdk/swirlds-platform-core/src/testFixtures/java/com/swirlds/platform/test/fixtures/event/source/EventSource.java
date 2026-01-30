@@ -3,7 +3,7 @@ package com.swirlds.platform.test.fixtures.event.source;
 
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
-import com.swirlds.common.test.fixtures.TransactionGenerator;
+import org.hiero.consensus.model.test.fixtures.transaction.TransactionGenerator;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;

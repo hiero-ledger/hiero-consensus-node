@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -4,7 +4,7 @@ package com.swirlds.platform.test.fixtures.event.source;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
-import com.swirlds.common.test.fixtures.TransactionGenerator;
+import org.hiero.consensus.model.test.fixtures.transaction.TransactionGenerator;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
 import com.swirlds.platform.test.fixtures.event.RandomEventUtils;

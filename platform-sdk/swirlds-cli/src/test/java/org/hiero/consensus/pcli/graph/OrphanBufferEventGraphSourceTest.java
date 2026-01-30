@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.PlatformTestUtils;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.ArrayList;

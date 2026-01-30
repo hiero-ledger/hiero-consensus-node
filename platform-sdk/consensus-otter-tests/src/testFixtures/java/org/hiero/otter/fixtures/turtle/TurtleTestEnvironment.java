@@ -6,7 +6,7 @@ import static org.hiero.otter.fixtures.util.EnvironmentUtils.getDefaultOutputDir
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;

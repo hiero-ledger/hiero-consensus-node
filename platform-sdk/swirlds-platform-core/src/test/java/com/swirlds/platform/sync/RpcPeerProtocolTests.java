@@ -10,7 +10,7 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;

@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;

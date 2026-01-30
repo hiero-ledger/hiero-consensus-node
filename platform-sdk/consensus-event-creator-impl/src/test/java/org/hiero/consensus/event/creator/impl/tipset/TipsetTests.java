@@ -7,7 +7,7 @@ import static org.hiero.consensus.event.creator.impl.util.CollectionsUtilities.p
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.HashMap;
 import java.util.List;

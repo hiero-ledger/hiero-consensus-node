@@ -2,7 +2,7 @@
 package com.swirlds.platform.core.jmh;
 
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

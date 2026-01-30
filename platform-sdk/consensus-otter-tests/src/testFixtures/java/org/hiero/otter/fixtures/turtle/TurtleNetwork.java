@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;

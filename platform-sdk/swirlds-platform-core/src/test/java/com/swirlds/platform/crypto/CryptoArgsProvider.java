@@ -3,8 +3,8 @@ package com.swirlds.platform.crypto;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
