@@ -90,7 +90,9 @@ public class ConsensusServiceSimpleFeesSuite {
                     withOpContext((spec, log) -> {
                         final var signedTxnSize = signedTxnSizeFor(spec, "create-topic-admin-txn");
                         final var expectedFee = expectedTopicCreateFullFeeUsd(sigs, keys, signedTxnSize);
-                        allRunFor(spec, validateChargedSimpleFees("Simple Fees", "create-topic-admin-txn", expectedFee, 1));
+                        allRunFor(
+                                spec,
+                                validateChargedSimpleFees("Simple Fees", "create-topic-admin-txn", expectedFee, 1));
                     }),
                     overriding("fees.simpleFeesEnabled", "false"));
         }
@@ -139,8 +141,7 @@ public class ConsensusServiceSimpleFeesSuite {
                             .via("create-topic-txn"),
                     withOpContext((spec, log) -> {
                         final var signedTxnSize = signedTxnSizeFor(spec, "create-topic-txn");
-                        final var expectedFee =
-                                expectedTopicCreateWithCustomFeeFullFeeUsd(sigs, keys, signedTxnSize);
+                        final var expectedFee = expectedTopicCreateWithCustomFeeFullFeeUsd(sigs, keys, signedTxnSize);
                         allRunFor(spec, validateChargedSimpleFees("Simple Fees", "create-topic-txn", expectedFee, 1));
                     }),
                     overriding("fees.simpleFeesEnabled", "false"));
@@ -161,10 +162,7 @@ public class ConsensusServiceSimpleFeesSuite {
                             .adminKeyName(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-admin-txn"),
-                    updateTopic("testTopic")
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("update-topic-txn"),
+                    updateTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("update-topic-txn"),
                     withOpContext((spec, log) -> {
                         final var signedTxnSize = signedTxnSizeFor(spec, "update-topic-txn");
                         final var expectedFee = expectedTopicUpdateFullFeeUsd(sigs, keys, signedTxnSize);

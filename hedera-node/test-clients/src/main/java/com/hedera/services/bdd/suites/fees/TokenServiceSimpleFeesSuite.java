@@ -467,7 +467,8 @@ public class TokenServiceSimpleFeesSuite {
                         .via("pause-token-txn"),
                 withOpContext((spec, log) -> {
                     final var signedTxnSize = signedTxnSizeFor(spec, "pause-token-txn");
-                    final var expectedFee = simpleTokenOpFeeUsd(TOKEN_PAUSE_BASE_FEE_USD, extraSignatures, signedTxnSize);
+                    final var expectedFee =
+                            simpleTokenOpFeeUsd(TOKEN_PAUSE_BASE_FEE_USD, extraSignatures, signedTxnSize);
                     allRunFor(spec, validateChargedSimpleFees("Simple Fees", "pause-token-txn", expectedFee, 1));
                 }),
                 overriding("fees.simpleFeesEnabled", "false"));
@@ -539,7 +540,8 @@ public class TokenServiceSimpleFeesSuite {
                         .via("freeze-token-txn"),
                 withOpContext((spec, log) -> {
                     final var signedTxnSize = signedTxnSizeFor(spec, "freeze-token-txn");
-                    final var expectedFee = simpleTokenOpFeeUsd(TOKEN_FREEZE_BASE_FEE_USD, extraSignatures, signedTxnSize);
+                    final var expectedFee =
+                            simpleTokenOpFeeUsd(TOKEN_FREEZE_BASE_FEE_USD, extraSignatures, signedTxnSize);
                     allRunFor(spec, validateChargedSimpleFees("Simple Fees", "freeze-token-txn", expectedFee, 1));
                 }),
                 overriding("fees.simpleFeesEnabled", "false"));
@@ -643,7 +645,8 @@ public class TokenServiceSimpleFeesSuite {
                         .via("delete-token-txn"),
                 withOpContext((spec, log) -> {
                     final var signedTxnSize = signedTxnSizeFor(spec, "delete-token-txn");
-                    final var expectedFee = simpleTokenOpFeeUsd(TOKEN_DELETE_BASE_FEE_USD, extraSignatures, signedTxnSize);
+                    final var expectedFee =
+                            simpleTokenOpFeeUsd(TOKEN_DELETE_BASE_FEE_USD, extraSignatures, signedTxnSize);
                     allRunFor(spec, validateChargedSimpleFees("Simple Fees", "delete-token-txn", expectedFee, 1));
                 }),
                 overriding("fees.simpleFeesEnabled", "false"));
