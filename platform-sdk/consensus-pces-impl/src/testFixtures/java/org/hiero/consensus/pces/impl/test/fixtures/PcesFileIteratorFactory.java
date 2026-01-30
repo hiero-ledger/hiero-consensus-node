@@ -3,6 +3,7 @@ package org.hiero.consensus.pces.impl.test.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -12,6 +13,7 @@ import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.impl.common.PcesFile;
 import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
+import org.hiero.consensus.pces.impl.common.PcesUtilities;
 
 /**
  * Factory for creating an {@link IOIterator} over {@link PlatformEvent}s from PCES files on disk.
@@ -46,13 +48,14 @@ public final class PcesFileIteratorFactory {
     public static IOIterator<PlatformEvent> createIterator(@NonNull final Path directory, final long lowerBound)
             throws IOException {
         final List<PcesFile> files;
+        PcesUtilities.compactPreconsensusEventFiles(directory);
         try (final Stream<Path> stream = Files.walk(directory)) {
             files = stream.filter(p -> p.toString().endsWith(".pces"))
                     .map(p -> {
                         try {
                             return PcesFile.of(p);
                         } catch (final IOException e) {
-                            throw new RuntimeException(e);
+                            throw new UncheckedIOException(e);
                         }
                     })
                     .sorted(Comparator.comparingLong(PcesFile::getSequenceNumber))
