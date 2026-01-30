@@ -344,7 +344,7 @@ class CustomMessageCallProcessorTest {
         subject.start(frame, operationTracer);
 
         verifyNoInteractions(nativePrecompile);
-        verify(frame).setState(MessageFrame.State.CODE_SUCCESS);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
     }
 
     @Test
@@ -365,7 +365,7 @@ class CustomMessageCallProcessorTest {
         subject.start(frame, operationTracer);
 
         verifyNoInteractions(nativePrecompile);
-        verify(frame).setState(MessageFrame.State.CODE_SUCCESS);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
         verify(proxyWorldUpdater).tryTransfer(frame.getSenderAddress(), eoaAddress, 1, false);
     }
 
