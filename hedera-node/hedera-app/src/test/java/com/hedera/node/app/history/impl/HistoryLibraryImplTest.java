@@ -144,19 +144,22 @@ class HistoryLibraryImplTest {
         final var r1 = subject.runWrapsPhaseR1(entropy, message, privateKey);
         assertNotNull(r1);
 
+        final var signers = Set.of(123L);
         final var r1Messages = new byte[][] {r1};
-        final var r2 = subject.runWrapsPhaseR2(entropy, message, r1Messages, privateKey, publicKeys);
+        final var r2 = subject.runWrapsPhaseR2(entropy, message, r1Messages, privateKey, addressBook, signers);
         assertNotNull(r2);
 
         final var r2Messages = new byte[][] {r2};
-        final var r3 = subject.runWrapsPhaseR3(entropy, message, r1Messages, r2Messages, privateKey, publicKeys);
+        final var r3 =
+                subject.runWrapsPhaseR3(entropy, message, r1Messages, r2Messages, privateKey, addressBook, signers);
         assertNotNull(r3);
 
         final var r3Messages = new byte[][] {r3};
-        final var signature = subject.runAggregationPhase(message, r1Messages, r2Messages, r3Messages, publicKeys);
+        final var signature =
+                subject.runAggregationPhase(message, r1Messages, r2Messages, r3Messages, addressBook, signers);
         assertNotNull(signature);
 
-        assertDoesNotThrow(() -> subject.verifyAggregateSignature(message, publicKeys, signature));
+        assertDoesNotThrow(() -> subject.verifyAggregateSignature(message, nodeIds, publicKeys, weights, signature));
     }
 
     @Test

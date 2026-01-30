@@ -26,7 +26,7 @@ public interface ProofController {
     /**
      * Returns if the construction is still in progress.
      */
-    boolean isStillInProgress();
+    boolean isStillInProgress(@NonNull TssConfig tssConfig);
 
     /**
      * Acts relative to the given state to let this node help advance the ongoing metadata proof

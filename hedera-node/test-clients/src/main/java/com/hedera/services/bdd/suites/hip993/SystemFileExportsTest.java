@@ -418,7 +418,7 @@ public class SystemFileExportsTest {
                                 19,
                                 (ignore, item) -> item.getRecord().getReceipt().hasFileID()
                                         || item.getRecord().getMemo().equals(END_OF_PERIOD_MEMO)),
-                        Duration.ofSeconds(100000)),
+                        Duration.ofSeconds(10)),
                 getSystemFiles(preGenesisContents::set),
                 cryptoCreate("firstUser").via("genesisTxn"),
                 // Assert the first created entity still has the expected number

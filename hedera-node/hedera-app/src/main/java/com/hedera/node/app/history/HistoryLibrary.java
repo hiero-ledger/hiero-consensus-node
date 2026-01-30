@@ -26,11 +26,6 @@ public interface HistoryLibrary {
     Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
 
     /**
-     * A placeholder metadata for the genesis WRAPS proof.
-     */
-    byte[] GENESIS_WRAPS_METADATA = new byte[1288];
-
-    /**
      * An address book for use in the history library.
      * @param weights the weights of the nodes in the address book
      * @param publicKeys the public keys of the nodes in the address book
@@ -166,11 +161,13 @@ public interface HistoryLibrary {
 
     /**
      * Runs the R2 phase of the signing protocol.
+     *
      * @param entropy the entropy (must be reused in remaining phases)
      * @param message the message to sign
-     * @param privateKey the private key
-     * @param publicKeys all participant's public keys
      * @param r1Messages all participant's R1 messages
+     * @param privateKey the private key
+     * @param currentBook the current address book doing the rotation
+     * @param r1NodeIds the node ids of the participants that contributed to the R1 messages
      * @return the R2 message
      */
     byte[] runWrapsPhaseR2(
@@ -178,16 +175,19 @@ public interface HistoryLibrary {
             @NonNull byte[] message,
             @NonNull byte[][] r1Messages,
             @NonNull byte[] privateKey,
-            @NonNull byte[][] publicKeys);
+            @NonNull AddressBook currentBook,
+            @NonNull Set<Long> r1NodeIds);
 
     /**
      * Runs the R3 phase of the signing protocol.
+     *
      * @param entropy the entropy (must be reused in remaining phases)
      * @param message the message to sign
-     * @param privateKey the private key
-     * @param publicKeys all participant's public keys
      * @param r1Messages all participant's R1 messages
      * @param r2Messages all participant's R2 messages
+     * @param privateKey the private key
+     * @param currentBook the current address book doing the rotation
+     * @param r1NodeIds the node ids of the participants that contributed to the R1 messages
      * @return the R3 message
      */
     byte[] runWrapsPhaseR3(
@@ -196,7 +196,8 @@ public interface HistoryLibrary {
             @NonNull byte[][] r1Messages,
             @NonNull byte[][] r2Messages,
             @NonNull byte[] privateKey,
-            @NonNull byte[][] publicKeys);
+            @NonNull AddressBook currentBook,
+            @NonNull Set<Long> r1NodeIds);
 
     /**
      * Runs the aggregation phase of the signing protocol.
@@ -205,7 +206,8 @@ public interface HistoryLibrary {
      * @param r1Messages all participant's R1 messages
      * @param r2Messages all participant's R2 messages
      * @param r3Messages all participant's R3 messages
-     * @param publicKeys all participant's public keys
+     * @param currentBook the current address book doing the rotation
+     * @param r1NodeIds the node ids of the participants that contributed to the R1 messages
      * @return the aggregated signature
      */
     byte[] runAggregationPhase(
@@ -213,28 +215,39 @@ public interface HistoryLibrary {
             @NonNull byte[][] r1Messages,
             @NonNull byte[][] r2Messages,
             @NonNull byte[][] r3Messages,
-            @NonNull byte[][] publicKeys);
+            @NonNull AddressBook currentBook,
+            @NonNull Set<Long> r1NodeIds);
 
     /**
      * Verifies an aggregated signature.
+     *
      * @param message the message
-     * @param publicKeys the participating signers' public keys, in the same order as the R* messages
+     * @param nodeIds the node ids of full address book
+     * @param publicKeys the full address book public keys
+     * @param weights the weights of the full address book
      * @param signature the aggregated signature
      * @return true if the signature is valid; false otherwise
      */
-    boolean verifyAggregateSignature(@NonNull byte[] message, @NonNull byte[][] publicKeys, @NonNull byte[] signature);
+    boolean verifyAggregateSignature(
+            @NonNull byte[] message,
+            @NonNull long[] nodeIds,
+            @NonNull byte[][] publicKeys,
+            @NonNull long[] weights,
+            @NonNull byte[] signature);
 
     /**
      * Constructs a genesis WRAPS proof.
      *
      * @param genesisAddressBookHash the genesis address book hash
      * @param aggregatedSignature an aggregated signature from the genesis address book
+     * @param genesisHintsVerificationKey the hinTS verification key for the genesis address book
      * @param signers the set of signers contributing to the aggregated signature
      * @param addressBook the genesis address book
      * @return the genesis WRAPS proof
      */
     Proof constructGenesisWrapsProof(
             @NonNull byte[] genesisAddressBookHash,
+            @NonNull byte[] genesisHintsVerificationKey,
             @NonNull byte[] aggregatedSignature,
             @NonNull Set<Long> signers,
             @NonNull AddressBook addressBook);

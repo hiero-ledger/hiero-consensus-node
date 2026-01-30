@@ -17,6 +17,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.TssConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +54,9 @@ class HistoryProofVoteHandlerTest {
     @Mock
     private PureChecksContext pureChecksContext;
 
+    @Mock
+    private TssConfig tssConfig;
+
     private HistoryProofVoteHandler subject;
 
     @BeforeEach
@@ -72,14 +76,14 @@ class HistoryProofVoteHandlerTest {
 
         subject.handle(context);
 
-        verify(controllers).getInProgressById(1L);
+        verify(controllers).getInProgressById(1L, tssConfig);
         verifyNoMoreInteractions(context);
     }
 
     @Test
     void handleForwardsVoteWithActiveConstruction() {
         givenVoteWith(1L, HistoryProofVote.DEFAULT);
-        given(controllers.getInProgressById(1L)).willReturn(Optional.of(controller));
+        given(controllers.getInProgressById(1L, tssConfig)).willReturn(Optional.of(controller));
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
         given(context.storeFactory()).willReturn(factory);
@@ -87,7 +91,7 @@ class HistoryProofVoteHandlerTest {
 
         subject.handle(context);
 
-        verify(controllers).getInProgressById(1L);
+        verify(controllers).getInProgressById(1L, tssConfig);
         verifyNoMoreInteractions(context);
     }
 
