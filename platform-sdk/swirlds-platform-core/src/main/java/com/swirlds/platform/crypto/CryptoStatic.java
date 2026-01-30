@@ -9,7 +9,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
-import org.hiero.consensus.exceptions.ThrowableUtilities;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
@@ -55,6 +54,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 

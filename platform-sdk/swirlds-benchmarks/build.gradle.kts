@@ -19,7 +19,6 @@ jmhModuleInfo {
     requires("com.swirlds.config.extensions")
     requires("com.swirlds.merkledb")
     requires("com.swirlds.virtualmap")
-    requires("com.swirlds.platform.core")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility")
     requires("org.hiero.consensus.concurrent")
