@@ -12,23 +12,23 @@ on:
       enable-timing-sensitive-test-suite:
         type: boolean
         description: "Run Timing Sensitive Test Suite"
-        default: false
+        default: true
       enable-hammer-test-suite:
         type: boolean
         description: "Run Hammer Test Suite"
-        default: false
+        default: true
       enable-hapi-test-suite:
         type: boolean
         description: "Run HAPI Test Suite"
-        default: false
+        default: true
       enable-otter-test-suite:
         type: boolean
         description: "Run Otter Test Suite"
-        default: false
+        default: true
       enable-chaos-otter-test-suite:
         type: boolean
         description: "Run Chaos Otter Test Suite"
-        default: false
+        default: true
       enable-hedera-node-jrs-panel:
         required: true
         type: boolean
