@@ -63,7 +63,7 @@ public class RpcOverloadMonitor {
     }
 
     /**
-     * Check if given ping of RPC is not an indication of overloaded communication
+     * Check if the RPC ping value indicates overloaded communication
      *
      * @param pingMillis roundtrip of message being interpreted in milliseconds
      */
