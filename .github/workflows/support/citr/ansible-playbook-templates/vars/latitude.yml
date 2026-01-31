@@ -1,0 +1,5 @@
+environment_name: latitude
+
+# the folder in roles/hedera-docker/files/keys-signing/ to use for signing keys
+environment_keys_signing_directory: latitude
+environment_keys_tls_directory: latitude
