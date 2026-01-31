@@ -846,6 +846,8 @@ jobs:
       - name: Reset CNs
         if: ${{ !cancelled() }}
         run: |
+          set +x
+          set +e
           #clean all CNs
           NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
 
@@ -871,6 +873,8 @@ jobs:
       - name: Freeze cleaned CNs
         if: ${{ !cancelled() }}
         run: |
+          set +x
+          set +e
           #start clean, FREEZE and kill
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
 
@@ -890,6 +894,8 @@ jobs:
       - name: Import CN state
         if: ${{ !cancelled() }}
         run: |
+          set +x
+          set +e
           NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
 
           for i in $(seq 1 1 ${NofNodes})
