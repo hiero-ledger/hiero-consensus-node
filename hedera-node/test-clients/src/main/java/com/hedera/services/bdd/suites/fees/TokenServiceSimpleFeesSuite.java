@@ -266,7 +266,7 @@ public class TokenServiceSimpleFeesSuite {
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("validate mint a unique token simple fees")
     final Stream<DynamicTest> validateMintUniqueToken() {
-        // TOKEN_MINT_BASE_FEE_USD (0.0009) + TOKEN_MINT_NFT_FEE_USD (0.02) * 1 = 0.0209
+        // TOKEN_MINT_BASE_FEE_USD (0.0009) = 0.0209
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
@@ -287,13 +287,13 @@ public class TokenServiceSimpleFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("nft-mint-txn"),
-                validateChargedSimpleFees("Simple Fees", "nft-mint-txn", 0.0209, 1));
+                validateChargedSimpleFees("Simple Fees", "nft-mint-txn", 0.02, 1));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("validate mint multiple unique tokens simple fees")
     final Stream<DynamicTest> validateMintMultipleUniqueToken() {
-        // TOKEN_MINT_BASE_FEE_USD (0.019) + TOKEN_MINT_NFT_FEE_USD (0.02) * 3 = 0.0609
+        // TOKEN_MINT_BASE_FEE_USD (0.019) + TOKEN_MINT_NFT_FEE_USD (0.02) * 2 = 0.06
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 newKeyNamed(SUPPLY_KEY),
@@ -319,7 +319,7 @@ public class TokenServiceSimpleFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("nft-multiple-mint-txn"),
-                validateChargedSimpleFees("Simple Fees", "nft-multiple-mint-txn", 0.0609, 1));
+                validateChargedSimpleFees("Simple Fees", "nft-multiple-mint-txn", 0.06, 1));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
