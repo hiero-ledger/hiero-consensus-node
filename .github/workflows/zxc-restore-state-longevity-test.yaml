@@ -837,6 +837,10 @@ jobs:
           sh copyKeys.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
           adminkey=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
                       exec -it network-node1-0 -c root-container -- bash -c "grep 'bootstrap.genesisPublicKey' ${{ env.APP_ROOT }}/settingsUsed.txt | awk '{print \$NF}'")
+          echo "DEBUG adminkey=${adminkey}"
+          echo "DEBUG inventory/latitude.yml"
+          cat inventory/latitude.yml
+          echo "ENDDEBUG"
           ansible-playbook -i inventory/latitude.yml --extra-vars=@./vars/latitude.yml generate.yml --tags generate-override-network -e node_admin_key_override_pubkey=${adminkey}
 
       - name: Reset CNs
