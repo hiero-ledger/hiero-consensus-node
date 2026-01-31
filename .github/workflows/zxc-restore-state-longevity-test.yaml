@@ -891,11 +891,11 @@ jobs:
           wait
           sleep 30
 
-      - name: Import CN state
+      - name: Copy CN archive to CN nodes
         if: ${{ !cancelled() }}
         run: |
-          #set +x
-          #set +e
+          set +x
+          set +e
           NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
 
           for i in $(seq 1 1 ${NofNodes})
@@ -903,9 +903,17 @@ jobs:
             node_id=$(expr ${i} - 1)
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
               cp "${{ github.workspace }}"/.github/workflows/support/citr/ansible-playbook-templates/generated/override-network-latitude.json network-node${i}-0:${{ env.APP_ROOT }}/data/config/override-network.json
-            kubectl -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/state/lastSnapshot.tgz network-node${i}-0:/tmp/round.tgz #&
+            kubectl -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/state/lastSnapshot.tgz network-node${i}-0:/tmp/round.tgz
+            echo "Status code: $?"
           done
-          #wait
+
+
+      - name: Clean empty restart state
+        if: ${{ !cancelled() }}
+        run: |
+          set +x
+          set +e
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
 
           for i in $(seq 1 1 ${NofNodes})
           do
@@ -921,15 +929,30 @@ jobs:
             rm -rf data/saved/saved;\
             rm -rf data/saved/preconsensus-events/*/*;\
             rm -rf /opt/hgcapp/*Streams/*;"
+            echo "Status code: $?"
           done
+
+      - name: Unarchive CN states in pods
+        if: ${{ !cancelled() }}
+        run: |
+          set +x
+          set +e
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
 
           for i in $(seq 1 1 ${NofNodes})
           do
             node_id=$(expr ${i} - 1)
             kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
-              "cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/; tar xfz /tmp/round.tgz; ls -lt; du -sk *" #&
+              "cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/; tar xfz /tmp/round.tgz; ls -lt; du -sk *"
+            echo "Status code: $?"
           done
-          #wait
+
+      - name: Insert preconsensus-events
+        if: ${{ !cancelled() }}
+        run: |
+          set +x
+          set +e
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
 
           for i in $(seq 1 1 ${NofNodes})
           do
@@ -961,6 +984,12 @@ jobs:
               "echo \"hedera.config.version=1\" >> ${{ env.APP_ROOT }}/data/config/application.properties"
           done
 
+      - name: Start CNs with new state
+        if: ${{ !cancelled() }}
+        run: |
+          set +x
+          set +e
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
           for i in $(seq 1 1 ${NofNodes})
           do
             node_id=$(expr ${i} - 1)
