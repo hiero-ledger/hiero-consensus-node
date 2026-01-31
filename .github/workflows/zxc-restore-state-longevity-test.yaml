@@ -752,23 +752,6 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.longevity-tests-start.outputs.namespace }}" "${{ github.workspace }}"/report/
 
-      - name: Copy CN state
-        run: |
-          kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec -it network-node1-0 -c root-container -- bash -c \
-            "last=\$(ls -1t ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/0/123 | head -n 1);\
-             cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/0/123/; tar cfz /tmp/lastSnapshot.tgz \$last"
-
-          kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp network-node1-0:/tmp/lastSnapshot.tgz "${{ github.workspace }}"/state/lastSnapshot.tgz
-
-      - name: Copy NLG state
-        run: |
-          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec ${nlgpod} -- bash -c \
-          "cd /app; tar cfz NLG_state.tgz saved"
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/NLG_state.tgz "${{ github.workspace }}"/state/NLG_state.tgz
-
       - name: Extract benchmark score of NftTransferLoadTest test
         id: NftTransferLoadTestLogs
         run: |
@@ -853,14 +836,14 @@ jobs:
           cd "${{ github.workspace }}"/.github/workflows/support/citr/ansible-playbook-templates
           sh copyKeys.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
           adminkey=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
-                      exec -it network-node1-0 -c root-container -- bash -c "grep 'bootstrap.genesisPublicKey' ${{ env.APP_ROOT }}/settingsUsed.txt" | awk '{print \$NF}')
+                      exec -it network-node1-0 -c root-container -- bash -c "grep 'bootstrap.genesisPublicKey' ${{ env.APP_ROOT }}/settingsUsed.txt | awk '{print \$NF}'")
           ansible-playbook -i inventory/latitude.yml --extra-vars=@./vars/latitude.yml generate.yml --tags generate-override-network -e node_admin_key_override_pubkey=${adminkey}
 
       - name: Reset CNs
         if: ${{ !cancelled() }}
         run: |
           #clean all CNs
-          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
 
           for i in $(seq 1 1 ${NofNodes})
           do
@@ -875,7 +858,8 @@ jobs:
           for i in $(seq 1 1 ${NofNodes})
           do
             node_id=$(expr ${i} - 1)
-            kubectl -n $namespace exec network-node${i}-0 -- su - hedera -c bash -c "cd ${{ env.APP_ROOT }}; sh startPodJava.sh ${node_id} clean" &
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- \
+              su - hedera -c bash -c "cd ${{ env.APP_ROOT }}; sh startPodJava.sh ${node_id} clean" &
           done
           wait
           sleep 30
@@ -889,11 +873,11 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c \
             "/usr/bin/env java -Xmx30g -Dorg.slf4j.simpleLogger.defaultLogLevel=debug -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.Freeze"
 
-          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
 
           for i in $(seq 1 1 ${NofNodes})
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- bash -c \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- bash -c \
               "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -15" &
           done
           wait
@@ -902,10 +886,12 @@ jobs:
       - name: Import CN state
         if: ${{ !cancelled() }}
         run: |
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
+
           for i in $(seq 1 1 ${NofNodes})
           do
             node_id=$(expr ${i} - 1)
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
               cp "${{ github.workspace }}"/.github/workflows/support/citr/ansible-playbook-templates/generated/override-network-latitude.json network-node${i}-0:${{ env.APP_ROOT }}/data/config/override-network.json
             kubectl -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/state/lastSnapshot.tgz network-node${i}-0:/tmp/round.tgz &
           done
@@ -914,7 +900,7 @@ jobs:
           for i in $(seq 1 1 ${NofNodes})
           do
             node_id=$(expr ${i} - 1)
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- bash -c \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- bash -c \
             "set +x; set +e;cd ${{ env.APP_ROOT }};\
             rm -rf output/*;\
             rm -rf data/config/[0-9][0-9]*;\
@@ -938,37 +924,37 @@ jobs:
           for i in $(seq 1 1 ${NofNodes})
           do
             node_id=$(expr ${i} - 1)
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/; \
               if [ ! -d $roundID/preconsensus-events/${node_id} ];then mv $roundID/preconsensus-events/* $roundID/preconsensus-events/${node_id}; fi"
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "ls -1 ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/${roundID}/preconsensus-events/${node_id}/* " |\
                perl -ne '/^.*[\/](\d+-\d+-\d+)T.*$/; $s=$1; $s=~s/-/\//g; print "$s\n";'
 
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "ls -1 ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/${roundID}/preconsensus-events/${node_id}/* " |\
                perl -ne '/^.*[\/](\d+-\d+-\d+)T.*$/; $s=$1; $s=~s/-/\//g; print "$s\n";' | head -n 1 > /tmp/dirname$$.tmp
             dirdate=`cat /tmp/dirname$$.tmp`
             echo "dirdate=${dirdate}"
             rm /tmp/dirname$$.tmp
 
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "mkdir -p ${{ env.APP_ROOT }}/data/saved/preconsensus-events/${node_id}/${dirdate}"
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "cd ${{ env.APP_ROOT }}/data/saved/; \
                cp -r com.hedera.services.ServicesMain/${node_id}/123/${roundID}/preconsensus-events/${node_id}/* preconsensus-events/${node_id}/${dirdate}/"
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "cd ${{ env.APP_ROOT }}/data/saved/;\
                ls -l preconsensus-events/${node_id}/${dirdate}/"
 
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "echo \"hedera.config.version=1\" >> ${{ env.APP_ROOT }}/data/config/application.properties"
           done
 
           for i in $(seq 1 1 ${NofNodes})
           do
             node_id=$(expr ${i} - 1)
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "cd ${{ env.APP_ROOT }}; sh startPodJava.sh ${node_id} import"
             sleep 20
           done
@@ -977,7 +963,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/state/NLG_state.tgz ${nlgpod}:/app/NLG_state.tgz 
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp "${{ github.workspace }}"/state/NLG_state.tgz ${nlgpod}:/app/NLG_state.tgz
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c \
             "cd /app; rm -rf saved; tar xvfz NLG_state.tgz"
 
@@ -985,7 +971,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
           n=`expr ${{ inputs.nlg-accounts }} / 1000`
           NLG_c=32
 
@@ -993,11 +979,11 @@ jobs:
 
           NLGargs="-K ECDSA -L -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
 
-          echo kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
+          echo kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
             ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
 
-          kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
+          kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
             ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
           sleep 30
