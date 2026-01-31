@@ -250,11 +250,10 @@ class BEVM {
         _startGas = frame.getRemainingGas();
         _gas = _startGas;
 
-        // Account receiver
+        // Account receiver.  Can be null for various broken calls
         WorldUpdater updater = frame.getWorldUpdater();
         _recv        = updater.get       (frame.getRecipientAddress());
         _recvMutable = updater.getAccount(frame.getRecipientAddress());
-        assert _recv != null;
 
         assert _mem._len == 0;
 
@@ -488,9 +487,7 @@ class BEVM {
         ExceptionalHaltReason halt = null;
 
         while( halt==null ) {
-            if( pc >= _codes.length )
-                { halt = stop(); break; }
-            int op = _codes[pc] & 0xFF;
+            int op = pc < _codes.length ? _codes[pc] & 0xFF : 0;
             preTrace(trace,pc,op);
             pc++;
 
