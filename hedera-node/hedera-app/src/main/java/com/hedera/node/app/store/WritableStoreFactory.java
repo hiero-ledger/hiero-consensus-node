@@ -35,6 +35,7 @@ import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableNodePaymentsStore;
+import com.hedera.node.app.service.token.impl.WritableStakePeriodInfoStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
@@ -83,6 +84,10 @@ public class WritableStoreFactory {
         newMap.put(
                 WritableNodePaymentsStore.class,
                 new StoreEntry(TokenService.NAME, (states, entityCounters) -> new WritableNodePaymentsStore(states)));
+        newMap.put(
+                WritableStakePeriodInfoStore.class,
+                new StoreEntry(
+                        TokenService.NAME, (states, entityCounters) -> new WritableStakePeriodInfoStore(states)));
         // FreezeService
         newMap.put(
                 WritableFreezeStore.class,

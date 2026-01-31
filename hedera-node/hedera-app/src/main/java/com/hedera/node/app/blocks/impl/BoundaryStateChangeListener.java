@@ -24,6 +24,7 @@ import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.NodeRewards;
+import com.hedera.hapi.node.state.token.StakePeriodInfo;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
@@ -222,6 +223,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             }
             case NodePayments nodePayments -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.NODE_PAYMENTS_VALUE, nodePayments);
+            }
+            case StakePeriodInfo stakePeriodInfo -> {
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.STAKE_PERIOD_INFO_VALUE, stakePeriodInfo);
             }
             case ProtoBytes protoBytes -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.BYTES_VALUE, protoBytes.value());
