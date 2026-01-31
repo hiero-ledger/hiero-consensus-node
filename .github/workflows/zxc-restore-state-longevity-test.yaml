@@ -886,9 +886,8 @@ jobs:
           for i in $(seq 1 1 ${NofNodes})
           do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- bash -c \
-              "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -15" &
+              "ps -aef | grep -w java | grep -v grep | awk '{print \$2}' | xargs kill -15"
           done
-          wait
           sleep 30
 
       - name: Copy CN archive to CN nodes
@@ -903,7 +902,7 @@ jobs:
             node_id=$(expr ${i} - 1)
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
               cp "${{ github.workspace }}"/.github/workflows/support/citr/ansible-playbook-templates/generated/override-network-latitude.json network-node${i}-0:${{ env.APP_ROOT }}/data/config/override-network.json
-            kubectl -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/state/lastSnapshot.tgz network-node${i}-0:/tmp/round.tgz
+            kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp "${{ github.workspace }}"/state/lastSnapshot.tgz network-node${i}-0:/tmp/round.tgz
             echo "Status code: $?"
           done
 
@@ -942,7 +941,7 @@ jobs:
           for i in $(seq 1 1 ${NofNodes})
           do
             node_id=$(expr ${i} - 1)
-            kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
+            kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/; tar xfz /tmp/round.tgz; ls -lt; du -sk *"
             echo "Status code: $?"
           done
