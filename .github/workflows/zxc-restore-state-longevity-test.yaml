@@ -894,8 +894,8 @@ jobs:
       - name: Import CN state
         if: ${{ !cancelled() }}
         run: |
-          set +x
-          set +e
+          #set +x
+          #set +e
           NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
 
           for i in $(seq 1 1 ${NofNodes})
@@ -903,9 +903,9 @@ jobs:
             node_id=$(expr ${i} - 1)
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
               cp "${{ github.workspace }}"/.github/workflows/support/citr/ansible-playbook-templates/generated/override-network-latitude.json network-node${i}-0:${{ env.APP_ROOT }}/data/config/override-network.json
-            kubectl -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/state/lastSnapshot.tgz network-node${i}-0:/tmp/round.tgz &
+            kubectl -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/state/lastSnapshot.tgz network-node${i}-0:/tmp/round.tgz #&
           done
-          wait
+          #wait
 
           for i in $(seq 1 1 ${NofNodes})
           do
@@ -927,9 +927,9 @@ jobs:
           do
             node_id=$(expr ${i} - 1)
             kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
-              "cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/; tar xfz /tmp/round.tgz" &
+              "cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/; tar xfz /tmp/round.tgz; ls -lt; du -sk *" #&
           done
-          wait
+          #wait
 
           for i in $(seq 1 1 ${NofNodes})
           do
@@ -1155,10 +1155,11 @@ jobs:
           exit ${ec}
 
   longevity-tests-finish-final:
-    name: Read results of Longevity test
+    name: Read results of restarted Longevity test
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
+      - longevity-tests-start
       - longevity-tests-wait-final
     outputs:
       NFTscore: ${{ steps.NftTransferLoadTestLogs.outputs.value }}
