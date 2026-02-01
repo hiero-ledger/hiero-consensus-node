@@ -1409,9 +1409,10 @@ jobs:
     runs-on: hl-cn-sdlt-lin-sm
     needs:
       - longevity-tests-start
+      - longevity-tests-finish-final
       - single-day-longevity-test-result-final
     if: ${{ (needs.longevity-tests-finish-final.result != 'success' ||
-      needs.single-day-longevity-test-result.result-final != 'success') &&
+      needs.single-day-longevity-test-result-final.result != 'success') &&
       !cancelled() && always() }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
