@@ -902,7 +902,9 @@ jobs:
             node_id=$(expr ${i} - 1)
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
               cp "${{ github.workspace }}"/.github/workflows/support/citr/ansible-playbook-templates/generated/override-network-latitude.json network-node${i}-0:${{ env.APP_ROOT }}/data/config/override-network.json
-            kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp "${{ github.workspace }}"/state/lastSnapshot.tgz network-node${i}-0:/tmp/round.tgz
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- bash -c \
+              "set +x; set +e; rm -f /tmp/round.tgz >/dev/null 2>&1"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp "${{ github.workspace }}"/state/lastSnapshot.tgz network-node${i}-0:/tmp/round.tgz
             echo "Status code: $?"
           done
 
@@ -941,7 +943,7 @@ jobs:
           for i in $(seq 1 1 ${NofNodes})
           do
             node_id=$(expr ${i} - 1)
-            kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/; tar xfz /tmp/round.tgz; ls -lt; du -sk *"
             echo "Status code: $?"
           done
@@ -951,6 +953,8 @@ jobs:
         run: |
           set +x
           set +e
+          roundID=$(tar tvfz "${{ github.workspace }}"/state/lastSnapshot.tgz | head -n 1 | awk '{print $NF}' | sed -e 's/\///g')
+
           NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
 
           for i in $(seq 1 1 ${NofNodes})
@@ -958,7 +962,7 @@ jobs:
             node_id=$(expr ${i} - 1)
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/; \
-              if [ ! -d $roundID/preconsensus-events/${node_id} ];then mv $roundID/preconsensus-events/* $roundID/preconsensus-events/${node_id}; fi"
+              if [ ! -d ${roundID}/preconsensus-events/${node_id} ];then mv ${roundID}/preconsensus-events/* ${roundID}/preconsensus-events/${node_id}; fi"
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "ls -1 ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/${roundID}/preconsensus-events/${node_id}/* " |\
                perl -ne '/^.*[\/](\d+-\d+-\d+)T.*$/; $s=$1; $s=~s/-/\//g; print "$s\n";'
@@ -1291,23 +1295,6 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.longevity-tests-start.outputs.namespace }}" "${{ github.workspace }}"/report/
-
-      - name: Copy CN state
-        run: |
-          kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec -it network-node1-0 -c root-container -- bash -c \
-            "last=\$(ls -1t ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/0/123 | head -n 1);\
-             cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/0/123/; tar cfz /tmp/lastSnapshot.tgz \$last"
-
-          kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp network-node1-0:/tmp/lastSnapshot.tgz "${{ github.workspace }}"/state/lastSnapshot.tgz
-
-      - name: Copy NLG state
-        run: |
-          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec ${nlgpod} -- bash -c \
-          "cd /app; tar cfz NLG_state.tgz saved"
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/NLG_state.tgz "${{ github.workspace }}"/state/NLG_state.tgz
 
       - name: Delete namespace
         if: ${{ inputs.delete-namespace == true }}
