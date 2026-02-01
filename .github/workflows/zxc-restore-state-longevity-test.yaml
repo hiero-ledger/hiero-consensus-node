@@ -1378,12 +1378,12 @@ jobs:
         id: sdlt-status
         run: |
           RESULT="failure"
-          NFT="${{ needs.longevity-tests-finish.outputs.NFTscore }}"
-          HELI="${{ needs.longevity-tests-finish.outputs.Heliscore }}"
-          CRYPTO="${{ needs.longevity-tests-finish.outputs.Cryptoscore }}"
-          HCS="${{ needs.longevity-tests-finish.outputs.HCSscore }}"
-          SMART="${{ needs.longevity-tests-finish.outputs.Smartscore }}"
-          VALIDATOR="${{ needs.longevity-tests-finish.outputs.ValidatorStatus }}"
+          NFT="${{ needs.longevity-tests-finish-final.outputs.NFTscore }}"
+          HELI="${{ needs.longevity-tests-finish-final.outputs.Heliscore }}"
+          CRYPTO="${{ needs.longevity-tests-finish-final.outputs.Cryptoscore }}"
+          HCS="${{ needs.longevity-tests-finish-final.outputs.HCSscore }}"
+          SMART="${{ needs.longevity-tests-finish-final.outputs.Smartscore }}"
+          VALIDATOR="${{ needs.longevity-tests-finish-final.outputs.ValidatorStatus }}"
 
           # Check if any variable is empty. If it is, we set the result to failure.
           if [[ -z "${NFT}" ]] || [[ -z "${HELI}" ]] || [[ -z "${CRYPTO}" ]] || [[ -z "${HCS}" ]] || [[ -z "${SMART}" ]] || [[ -z "${VALIDATOR}" ]]; then
@@ -1408,9 +1408,10 @@ jobs:
     name: Report Failures
     runs-on: hl-cn-sdlt-lin-sm
     needs:
+      - longevity-tests-start
       - single-day-longevity-test-result-final
-    if: ${{ (needs.longevity-tests-finish.result != 'success' ||
-      needs.single-day-longevity-test-result.result != 'success') &&
+    if: ${{ (needs.longevity-tests-finish-final.result != 'success' ||
+      needs.single-day-longevity-test-result.result-final != 'success') &&
       !cancelled() && always() }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -1428,9 +1429,9 @@ jobs:
             echo "------------------------------------"
             echo "Status of each jobs:"
             echo "- Longevity Tests Start: ${{ needs.longevity-tests-start.result }}"
-            echo "- Longevity Tests Wait: ${{ needs.longevity-tests-wait.result }}"
-            echo "- Longevity Tests Finish: ${{ needs.longevity-tests-finish.result }}"
-            echo "- Single Day Longevity Test Result: ${{ needs.single-day-longevity-test-result.result }}"
+            echo "- Longevity Tests Wait: ${{ needs.longevity-tests-wait-final.result }}"
+            echo "- Longevity Tests Finish: ${{ needs.longevity-tests-finish-final.result }}"
+            echo "- Single Day Longevity Test Result: ${{ needs.single-day-longevity-test-result-final.result }}"
             echo "------------------------------------"
             echo "Commit information:"
             echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.longevity-tests-start.outputs.commit-sha }}>"
@@ -1479,13 +1480,13 @@ jobs:
         run: |
 
           report="\
-            NftTransferLoadTest ${{ needs.longevity-tests-finish.outputs.NFTscore }} \n\
-            HCSLoadTest ${{ needs.longevity-tests-finish.outputs.HCSscore }} \n\
-            CryptoTransferLoadTest ${{ needs.longevity-tests-finish.outputs.Cryptoscore }} \n\
-            HeliSwapLoadTest ${{ needs.longevity-tests-finish.outputs.Heliscore }}\n\
-            SmartContractLoadTest ${{ needs.longevity-tests-finish.outputs.Smartscore }}"
+            NftTransferLoadTest ${{ needs.longevity-tests-finish-final.outputs.NFTscore }} \n\
+            HCSLoadTest ${{ needs.longevity-tests-finish-final.outputs.HCSscore }} \n\
+            CryptoTransferLoadTest ${{ needs.longevity-tests-finish-final.outputs.Cryptoscore }} \n\
+            HeliSwapLoadTest ${{ needs.longevity-tests-finish-final.outputs.Heliscore }}\n\
+            SmartContractLoadTest ${{ needs.longevity-tests-finish-final.outputs.Smartscore }}"
 
-          if [[ "${{ needs.longevity-tests-finish.outputs.ValidatorStatus }}" == "0" ]]
+          if [[ "${{ needs.longevity-tests-finish-final.outputs.ValidatorStatus }}" == "0" ]]
           then
             Validator="PASSED"
           else
