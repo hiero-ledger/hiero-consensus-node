@@ -1361,23 +1361,6 @@ jobs:
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
 
-      - name: Archive state
-        if: ${{ !cancelled() }}
-        run: |
-          cd "${{ github.workspace }}"/
-
-          gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
-          if [[ ${?} -ne 0 ]]
-          then
-            sleep 10
-            gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
-          fi
-
-          echo "Size of state dir:"
-          du -sk state
-
-          gcloud --no-user-output-enabled storage cp --recursive state "${{ env.GS_ROOT_SAVED_STATES_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/"
-          echo Done: see results in "${{ env.GS_ROOT_SAVED_STATES_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/"
 
   # Send this output back to the caller workflow
   single-day-longevity-test-result-final:
