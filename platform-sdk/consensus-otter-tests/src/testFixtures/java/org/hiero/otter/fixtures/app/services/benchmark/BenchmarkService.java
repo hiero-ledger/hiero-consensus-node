@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.test.performance.benchmark.fixtures;
+package org.hiero.otter.fixtures.app.services.benchmark;
 
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 
@@ -23,14 +23,7 @@ import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
  *
  * <p>This service listens for {@link BenchmarkTransaction}s and logs the latency
  * between when the transaction was submitted (timestamp embedded in the transaction)
- * and when it reached the handle method. The log output can be parsed by
- * {@link BenchmarkServiceLogParser} and collected by {@link MeasurementsCollector}
- * to compute statistics.
- *
- * <p>This design keeps the node lightweight by not accumulating data in memory,
- * which could affect benchmark measurements. Instead, measurements are logged
- * immediately after being taken (before any logging overhead) and can be
- * collected and analyzed from the test side.
+ * and when it reached the handle method.
  */
 public class BenchmarkService implements OtterService {
 
@@ -44,7 +37,7 @@ public class BenchmarkService implements OtterService {
      * Log prefix used for benchmark measurements. This prefix is used by {@link BenchmarkServiceLogParser}
      * to identify and parse benchmark log entries.
      */
-    public static final String BENCHMARK_LOG_PREFIX = "BENCHMARK:";
+    private static final String BENCHMARK_LOG_PREFIX = "BENCHMARK:";
 
     /**
      * {@inheritDoc}

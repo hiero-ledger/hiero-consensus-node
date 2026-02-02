@@ -8,6 +8,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
+import static org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkServiceLogParser.parseFromLogs;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,7 +24,6 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.network.transactions.BenchmarkTransaction;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.specs.OtterSpecs;
-import org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkServiceLogParser;
 import org.hiero.otter.test.performance.benchmark.fixtures.MeasurementsCollector;
 import org.hiero.otter.test.performance.benchmark.fixtures.MeasurementsCollector.Measurement;
 
@@ -43,7 +43,7 @@ public class BenchmarkTest {
      * Benchmark test that runs a network with 4 nodes and submits benchmark transactions.
      * The BenchmarkService logs the latency for each transaction.
      * <p>
-     * uses {@link org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkService}
+     * uses {@code BenchmarkService}
      *
      * @param env the test environment for this test
      */
@@ -54,8 +54,7 @@ public class BenchmarkTest {
         final TimeManager timeManager = env.timeManager();
 
         // Enable the BenchmarkService
-        network.withConfigValue(
-                "event.services", "org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkService");
+        network.withConfigValue("event.services", "org.hiero.otter.fixtures.app.services.benchmark.BenchmarkService");
 
         network.addNodes(NUMBER_OF_NODES);
 
@@ -85,7 +84,7 @@ public class BenchmarkTest {
 
         // Collect measurements from all nodes' logs and print the benchmark report
         final MeasurementsCollector collector = new MeasurementsCollector();
-        BenchmarkServiceLogParser.parseFromLogs(network.newLogResults(), Measurement::parse, collector::addEntry);
+        parseFromLogs(network.newLogResults(), Measurement::parse, collector::addEntry);
         // Make sure the benchmark run is valid
         assertEquals(
                 TRANSACTION_COUNT * NUMBER_OF_NODES,

@@ -38,7 +38,7 @@ testing {
         // Runs performance benchmarks against the Turtle environment
         targets.configureEach {
             testTask {
-                systemProperty("otter.env", "turtle")
+                systemProperty("otter.env", "container")
                 dependsOn(":consensus-otter-docker-app:assemble")
             }
         }

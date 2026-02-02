@@ -10,9 +10,9 @@ import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 
 /**
- * Parses {@link BenchmarkService} log entries from node logs.
+ * Parses {@code BenchmarkService} log entries from node logs.
  *
- * <p>This class is designed to work with the log output from {@link BenchmarkService}.
+ * <p>This class is designed to work with the log output from {@code BenchmarkService}.
  * It extracts measurement data from log messages and allows running them through a {@link BenchmarkServiceLogEntryParser} to extract information out.
  *
  * <p>Usage:
@@ -28,6 +28,11 @@ import org.hiero.otter.fixtures.result.SingleNodeLogResult;
  * }</pre>
  */
 public final class BenchmarkServiceLogParser {
+    /**
+     * Log prefix used for benchmark measurements. This prefix is used by {@link BenchmarkServiceLogParser}
+     * to identify and parse benchmark log entries.
+     */
+    private static final String BENCHMARK_LOG_PREFIX = "BENCHMARK:";
 
     private BenchmarkServiceLogParser() {
         // Utility class
@@ -68,7 +73,7 @@ public final class BenchmarkServiceLogParser {
             }
 
             final String message = logEntry.message();
-            if (!message.startsWith(BenchmarkService.BENCHMARK_LOG_PREFIX)) {
+            if (!message.startsWith(BENCHMARK_LOG_PREFIX)) {
                 continue;
             }
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.test.performance.benchmark.fixtures;
+package org.hiero.otter.fixtures.app.services.benchmark;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.state.lifecycle.StateDefinition;
