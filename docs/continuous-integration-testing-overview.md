@@ -72,7 +72,7 @@ Or manually using the github CLI:
 
 ```bash
 cd ${REPO_ROOT}/hedera-services
-gh workflow run ./.github/workflows/zxf-dry-run-extended-test-suite.yaml -f commit_sha=`git rev-parse HEAD` -f branch_name='<branch_name>'
+gh workflow run ./.github/workflows/flow-dry-run-extended-test-suite.yaml -f commit_sha=`git rev-parse HEAD` -f branch_name='<branch_name>'
 ```
 
 **Every developer is encouraged to run the XTS Dry-Run workflow against their branch commits prior to merging a PR to default**.

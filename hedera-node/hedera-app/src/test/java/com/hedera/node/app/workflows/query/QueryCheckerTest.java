@@ -43,9 +43,10 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -188,8 +189,8 @@ class QueryCheckerTest extends AppTestBase {
         void setup() {
             setupStandardStates();
 
-            final var storeFactory = new ReadableStoreFactory(state);
-            store = storeFactory.getStore(ReadableAccountStore.class);
+            final var storeFactory = new ReadableStoreFactoryImpl(state);
+            store = storeFactory.readableStore(ReadableAccountStore.class);
         }
 
         @SuppressWarnings("ConstantConditions")
@@ -312,8 +313,8 @@ class QueryCheckerTest extends AppTestBase {
         void setup() {
             setupStandardStates();
 
-            final var storeFactory = new ReadableStoreFactory(state);
-            store = storeFactory.getStore(ReadableAccountStore.class);
+            final var storeFactory = new ReadableStoreFactoryImpl(state);
+            store = storeFactory.readableStore(ReadableAccountStore.class);
         }
 
         @SuppressWarnings("ConstantConditions")

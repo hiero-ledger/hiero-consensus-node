@@ -23,6 +23,7 @@ module com.hedera.node.app.hapi.fees {
     requires transitive dagger;
     requires transitive static java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
+    requires com.hedera.pbj.runtime;
     requires com.fasterxml.jackson.databind;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
