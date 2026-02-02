@@ -1043,6 +1043,7 @@ jobs:
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
+      - longevity-tests-start
       - longevity-tests-finish-restart
     strategy:
       max-parallel: 1
