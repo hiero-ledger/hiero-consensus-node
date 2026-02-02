@@ -3,10 +3,10 @@ package org.hiero.otter.fixtures.chaosbot;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Network;
 
 /**

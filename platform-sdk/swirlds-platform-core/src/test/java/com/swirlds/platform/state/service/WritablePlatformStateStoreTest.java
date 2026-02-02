@@ -7,7 +7,6 @@ import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchem
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
-import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
@@ -15,7 +14,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.StateValue;
@@ -25,6 +23,7 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import java.time.Instant;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,19 +60,6 @@ class WritablePlatformStateStoreTest {
                 .thenReturn(new OnDiskWritableSingletonState<>(
                         PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, codec, virtualMap));
         store = new WritablePlatformStateStore(writableStates);
-    }
-
-    @Test
-    void verifySetAllFrom() {
-        final var platformState = randomPlatformState(randotron);
-        store.setAllFrom(platformState);
-        assertEquals(platformState.getCreationSoftwareVersion(), store.getCreationSoftwareVersion());
-        assertEquals(platformState.getSnapshot().round(), store.getRound());
-        assertEquals(platformState.getLegacyRunningEventHash(), store.getLegacyRunningEventHash());
-        assertEquals(fromPbjTimestamp(platformState.getSnapshot().consensusTimestamp()), store.getConsensusTimestamp());
-        assertEquals(platformState.getRoundsNonAncient(), store.getRoundsNonAncient());
-        assertEquals(platformState.getSnapshot(), store.getSnapshot());
-        assertEquals(platformState.getFreezeTime(), store.getFreezeTime());
     }
 
     @Test

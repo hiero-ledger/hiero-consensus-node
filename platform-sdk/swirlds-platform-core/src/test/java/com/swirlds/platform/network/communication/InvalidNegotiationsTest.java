@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.communication;
 
-import static com.swirlds.platform.network.communication.NegotiatorBytes.ACCEPT;
-import static com.swirlds.platform.network.communication.NegotiatorBytes.KEEPALIVE;
 import static com.swirlds.platform.network.communication.NegotiatorTestSuite.PROTOCOL_1;
 import static com.swirlds.platform.network.communication.NegotiatorTestSuite.PROTOCOL_2;
 import static com.swirlds.platform.network.communication.NegotiatorTestSuite.PROTOCOL_3;
+import static org.hiero.consensus.gossip.impl.network.communication.NegotiatorBytes.ACCEPT;
+import static org.hiero.consensus.gossip.impl.network.communication.NegotiatorBytes.KEEPALIVE;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.EOFException;
 import java.io.IOException;
+import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
+import org.hiero.consensus.gossip.impl.network.communication.NegotiatorBytes;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
