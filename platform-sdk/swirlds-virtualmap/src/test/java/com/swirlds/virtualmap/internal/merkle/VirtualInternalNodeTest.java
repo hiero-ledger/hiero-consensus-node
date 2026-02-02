@@ -9,9 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyBinaryMerkleInternal;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -38,7 +38,7 @@ class VirtualInternalNodeTest extends VirtualTestBase {
         final VirtualMap map = createMap();
         final VirtualInternalNode internalNode = new VirtualInternalNode(map, virtualHashRecord);
 
-        final DummyBinaryMerkleInternal child = new DummyBinaryMerkleInternal();
+        final MerkleInternal child = mock(MerkleInternal.class);
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> internalNode.setChild(3, child),

@@ -55,7 +55,7 @@ on:
     outputs:
       failure-mode:
         description: "Indicates the failure mode of the job, if any."
-        value: ${{ jobs.otter.outputs.failure-mode }}
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
 
 defaults:
   run:
@@ -76,50 +76,82 @@ env:
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 jobs:
-  otter:
-    name: "Otter Tests"
-    runs-on: hiero-cn-otter-linux
-    outputs:
-      failure-mode: ${{ steps.calculate-failure-mode.outputs.failure-mode }}
+  full-otter:
+    name: "Full Otter Tests"
+    runs-on: hl-cn-otter-full-lin
+    if: ${{ inputs.enable-full-otter-tests }}
     steps:
-      - name: Harden Runner
-        id: harden-runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          egress-policy: audit
+          checkout: "true"
+          checkout-ref: ${{ inputs.ref || '' }}
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
 
-      - name: Checkout Code
-        id: checkout-code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Full Otter Testing
+        id: gradle-full-otter-tests
+        if: ${{ inputs.enable-full-otter-tests && !cancelled() }}
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} :consensus-otter-tests:testContainer
+
+      - name: Publish Full Otter Testing Report
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        if: ${{ inputs.enable-full-otter-tests && !cancelled() }}
         with:
-          ref: ${{ inputs.ref || '' }}
+          check_name: "Node: Otter Tests Results"
+          json_thousands_separator: ","
+          junit_files: "**/consensus-otter-tests/build/test-results/testContainer/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Setup Java
-        id: setup-java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+      - name: Upload Full Otter Tests Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-full-otter-tests && !cancelled() }}
         with:
-          distribution: ${{ inputs.java-distribution }}
-          java-version: ${{ inputs.java-version }}
+          name: Otter Tests Report
+          path: "**/consensus-otter-tests/build/test-results/testContainer/TEST-*.xml"
+          retention-days: 7
 
-      - name: Setup Gradle
-        id: setup-gradle
-        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+      - name: Upload Full Otter Tests Container Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-full-otter-tests && inputs.enable-network-log-capture && steps.gradle-full-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
-          cache-read-only: false
+          name: Otter Tests Container Logs
+          path: platform-sdk/consensus-otter-tests/build/container
+          retention-days: 7
 
-      - name: Setup NodeJS
-        id: setup-node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+  fast-otter:
+    name: "Fast Otter Tests"
+    runs-on: hl-cn-otter-fast-lin
+    if: ${{ inputs.enable-fast-otter-tests }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          node-version: ${{ inputs.node-version }}
-
-      - name: Compile
-        id: gradle-build
-        run: ${GRADLE_EXEC} assemble :yahcli:yahCliJar
+          checkout: "true"
+          checkout-ref: ${{ inputs.ref || '' }}
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
 
       - name: Fast Otter Testing
         id: gradle-fast-otter-tests
-        if: ${{ inputs.enable-fast-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && !cancelled() }}
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
@@ -127,7 +159,7 @@ jobs:
 
       - name: Publish Fast Otter Testing Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        if: ${{ inputs.enable-fast-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && !cancelled() }}
         with:
           check_name: "Node: Otter Tests Results"
           json_thousands_separator: ","
@@ -136,7 +168,7 @@ jobs:
 
       - name: Upload Fast Otter Tests Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-fast-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && !cancelled() }}
         with:
           name: Otter Tests Report
           path: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
@@ -158,42 +190,29 @@ jobs:
           path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
-      - name: Full Otter Testing
-        id: gradle-full-otter-tests
-        if: ${{ inputs.enable-full-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        env:
-          LC_ALL: en.UTF-8
-          LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} :consensus-otter-tests:testContainer
-
-      - name: Publish Full Otter Testing Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        if: ${{ inputs.enable-full-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+  chaos-otter:
+    name: "Chaos Otter Tests"
+    runs-on: hl-cn-otter-chaos-lin
+    if: ${{ inputs.enable-chaos-otter-tests }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
         with:
-          check_name: "Node: Otter Tests Results"
-          json_thousands_separator: ","
-          junit_files: "**/consensus-otter-tests/build/test-results/testContainer/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload Full Otter Tests Report Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-full-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        with:
-          name: Otter Tests Report
-          path: "**/consensus-otter-tests/build/test-results/testContainer/TEST-*.xml"
-          retention-days: 7
-
-      - name: Upload Full Otter Tests Container Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-full-otter-tests && inputs.enable-network-log-capture && steps.gradle-full-otter-tests.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: Otter Tests Container Logs
-          path: platform-sdk/consensus-otter-tests/build/container
-          retention-days: 7
+          checkout: "true"
+          checkout-ref: ${{ inputs.ref || '' }}
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
 
       - name: Chaos Otter Testing
         id: gradle-chaos-otter-tests
-        if: ${{ inputs.enable-chaos-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && !cancelled() }}
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
@@ -201,7 +220,7 @@ jobs:
 
       - name: Publish Chaos Otter Testing Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        if: ${{ inputs.enable-chaos-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && !cancelled() }}
         with:
           check_name: "Node: Chaos Otter Tests Result"
           json_thousands_separator: ","
@@ -210,7 +229,7 @@ jobs:
 
       - name: Upload Chaos Otter Test Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-chaos-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && !cancelled() }}
         with:
           name: Chaos Otter Test Report
           path: "**/consensus-otter-tests/build/test-results/testChaos/TEST-*.xml"
@@ -232,26 +251,30 @@ jobs:
           path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
-      - name: Check Results
-        id: calculate-failure-mode
-        if: ${{ always() }}
+  set-failure-mode:
+    name: "Set Failure Mode"
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - full-otter
+      - fast-otter
+      - chaos-otter
+    if: ${{ !cancelled() && always() }} # always run unless cancelled
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+
+      - name: Set Failure Mode
+        id: set-failure-mode
         run: |
-          ci_cd_statuses=(
-            "${{ steps.harden-runner.outcome || 'skipped' }}"
-            "${{ steps.checkout-code.outcome || 'skipped' }}"
-            "${{ steps.setup-java.outcome || 'skipped' }}"
-            "${{ steps.setup-gradle.outcome || 'skipped' }}"
-            "${{ steps.setup-node.outcome || 'skipped' }}"
+          job_statuses=(
+            "${{ needs.full-otter.result || 'skipped' }}"
+            "${{ needs.fast-otter.result || 'skipped' }}"
+            "${{ needs.chaos-otter.result || 'skipped' }}"
           )
 
-          # We can break this down further to set additional failure modes
-          general_statuses=(
-            "${{ steps.gradle-build.outcome || 'skipped' }}"
-            "${{ steps.gradle-full-otter-tests.outcome || 'skipped' }}"
-            "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}"
-            "${{ steps.gradle-chaos-otter-tests.outcome || 'skipped' }}"
-          )
-
+          # final outputs
           failure_mode="none"
 
           has_failure() {
@@ -262,14 +285,8 @@ jobs:
             return 1
           }
 
-          # General check first
-          if has_failure "${general_statuses[@]}"; then
+          if has_failure "${job_statuses[@]}"; then
             failure_mode="general"
-          fi
-
-          # If no general failure, check CI/CD specific steps
-          if has_failure "${ci_cd_statuses[@]}"; then
-            failure_mode="workflow"
           fi
 
           echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
