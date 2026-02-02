@@ -6,7 +6,13 @@ module org.hiero.consensus.pces {
     exports org.hiero.consensus.pces;
     exports org.hiero.consensus.pces.config;
 
+    requires transitive com.swirlds.base;
+    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
+    requires transitive com.swirlds.metrics.api;
+    requires transitive org.hiero.consensus.metrics;
+    requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility;
     requires static transitive com.github.spotbugs.annotations;
 
     provides ConfigurationExtension with
