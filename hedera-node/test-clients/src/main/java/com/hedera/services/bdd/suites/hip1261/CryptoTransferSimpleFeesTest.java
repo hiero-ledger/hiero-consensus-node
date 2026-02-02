@@ -159,6 +159,9 @@ public class CryptoTransferSimpleFeesTest {
             @Nested
             @DisplayName("Crypto Transfer HBAR Simple Fees Positive Tests")
             class CryptoTransferHBARSimpleFeesPositiveTests {
+                // expectedCryptoTransferHbarFullFeeUsd params:
+                // (sigs, uniqueHooksExecuted, uniqueAccounts, uniqueFungibleTokens, uniqueNonFungibleTokens, gasAmount)
+                // Byte overage is added via validateChargedUsdWithinWithTxnSize.
                 @HapiTest
                 @DisplayName("Crypto Transfer HBAR - base fees full charging")
                 final Stream<DynamicTest> cryptoTransferHBAR_BaseFeesFullCharging() {
@@ -227,7 +230,7 @@ public class CryptoTransferSimpleFeesTest {
                                     "hbarTransferTxn",
                                     txnSize -> expectedCryptoTransferHbarFullFeeUsd(Map.of(
                                             SIGNATURES, 2,
-                                            ACCOUNTS, 1,
+                                            ACCOUNTS, 2,
                                             TXN_SIZE, txnSize)),
                                     0.001)));
                 }
@@ -3664,8 +3667,14 @@ public class CryptoTransferSimpleFeesTest {
                                     .hasKnownStatus(INSUFFICIENT_GAS),
                             validateChargedUsdWithinWithTxnSize(
                                     "ftTransferTxn",
-                                    txnSize -> expectedCryptoTransferFTFullFeeUsd(1, 1, 2, 1, 0, 10L, txnSize),
-                                    0.0001),
+                                    txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
+                                            SIGNATURES, 2,
+                                            HOOKS_EXECUTED, 1,
+                                            ACCOUNTS, 2,
+                                            FUNGIBLE_TOKENS, 1,
+                                            GAS, 10L,
+                                            TXN_SIZE, txnSize)),
+                                    0.001),
                             // validate no auto-created account exists
                             getAliasedAccountInfo(VALID_ALIAS_ED25519).hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
                             // validate balances

@@ -22,6 +22,7 @@ open module com.swirlds.common.test.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.logging;
