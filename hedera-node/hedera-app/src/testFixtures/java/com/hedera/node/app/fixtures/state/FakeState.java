@@ -69,6 +69,11 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
+    public boolean isImmutable() {
+        return false;
+    }
+
+    @Override
     public MerkleNode getRoot() {
         return VirtualMapStateTestUtils.createTestState().getRoot();
     }
