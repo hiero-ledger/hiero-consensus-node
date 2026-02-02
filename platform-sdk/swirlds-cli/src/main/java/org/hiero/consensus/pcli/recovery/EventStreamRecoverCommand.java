@@ -8,7 +8,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import java.nio.file.Path;
-import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pcli.AbstractCommand;
 import org.hiero.consensus.pcli.EventStreamCommand;
@@ -98,8 +97,8 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
 
     @Override
     public Integer call() throws Exception {
-        final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
-                    ConfigurationBuilder.create(), configurationPath);
+        final Configuration configuration =
+                DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create(), configurationPath);
 
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
