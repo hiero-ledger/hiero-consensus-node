@@ -20,9 +20,9 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
@@ -48,6 +48,9 @@ class SimpleFeeCalculatorImplTest {
     @Mock
     private ReadableStoreFactory storeFactory;
 
+    @Mock
+    private FeeContext feeContext;
+
     private FeeSchedule testSchedule;
     private Set<ServiceFeeCalculator> serviceFeeCalculators;
 
@@ -59,7 +62,7 @@ class SimpleFeeCalculatorImplTest {
             @Override
             public void accumulateServiceFee(
                     @NonNull TransactionBody txnBody,
-                    @Nullable FeeContext feeContext,
+                    @NonNull SimpleFeeContext simpleFeeContext,
                     @NonNull FeeResult feeResult,
                     @NonNull org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
                 // Set a fixed service fee for testing
@@ -105,7 +108,7 @@ class SimpleFeeCalculatorImplTest {
     @Test
     @DisplayName("With congestion multiplier of 1, total fee equals base fee")
     void calculateTxFee_withCongestionMultiplierOne_returnsBaseFee() {
-        var feeContext = createMockFeeContextImpl();
+        var simpleFeeContext = createMockSimpleFeeContext();
         when(congestionMultipliers.maxCurrentMultiplier(
                         any(TransactionBody.class), any(HederaFunctionality.class), any(ReadableStoreFactory.class)))
                 .thenReturn(1L);
@@ -113,7 +116,7 @@ class SimpleFeeCalculatorImplTest {
         var calculator =
                 new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), congestionMultipliers);
 
-        var result = calculator.calculateTxFee(createFileCreateTxnBody(), feeContext);
+        var result = calculator.calculateTxFee(createFileCreateTxnBody(), simpleFeeContext);
 
         // With multiplier of 1, fee components remain unchanged
         // Calculate expected base fee from components
@@ -125,7 +128,7 @@ class SimpleFeeCalculatorImplTest {
     @Test
     @DisplayName("With congestion multiplier of 7, fee is multiplied by 7")
     void calculateTxFee_withCongestionMultiplierSeven_returnsSevenXFee() {
-        var feeContext = createMockFeeContextImpl();
+        var simpleFeeContext = createMockSimpleFeeContext();
 
         // First calculate base fee with multiplier returning 1
         var noMultiplierMock = mock(CongestionMultipliers.class);
@@ -134,7 +137,7 @@ class SimpleFeeCalculatorImplTest {
                 .thenReturn(1L);
         var calculatorNoMultiplier =
                 new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), noMultiplierMock);
-        var baseFeeResult = calculatorNoMultiplier.calculateTxFee(createFileCreateTxnBody(), feeContext);
+        var baseFeeResult = calculatorNoMultiplier.calculateTxFee(createFileCreateTxnBody(), simpleFeeContext);
         long baseFee = baseFeeResult.totalTinycents();
 
         // Now calculate with congestion multiplier of 7
@@ -143,19 +146,25 @@ class SimpleFeeCalculatorImplTest {
                 .thenReturn(7L);
         var calculator =
                 new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), congestionMultipliers);
-        var result = calculator.calculateTxFee(createFileCreateTxnBody(), feeContext);
+        var result = calculator.calculateTxFee(createFileCreateTxnBody(), simpleFeeContext);
 
         // The total fee should be 7x the base fee
         assertThat(result.totalTinycents()).isEqualTo(baseFee * 7);
     }
 
     @Test
-    @DisplayName("With null fee context, no congestion multiplier applied")
+    @DisplayName("With null fee context inside SimpleFeeContext, no congestion multiplier applied")
     void calculateTxFee_withNullFeeContext_noCongestionApplied() {
+        // Create a SimpleFeeContext that returns null for feeContext()
+        var simpleFeeContext = mock(SimpleFeeContext.class);
+        lenient().when(simpleFeeContext.numTxnSignatures()).thenReturn(1);
+        lenient().when(simpleFeeContext.numTxnBytes()).thenReturn(100);
+        when(simpleFeeContext.feeContext()).thenReturn(null);
+
         var calculator =
                 new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), congestionMultipliers);
 
-        var result = calculator.calculateTxFee(createFileCreateTxnBody(), null);
+        var result = calculator.calculateTxFee(createFileCreateTxnBody(), simpleFeeContext);
 
         verify(congestionMultipliers, never())
                 .maxCurrentMultiplier(
@@ -166,7 +175,7 @@ class SimpleFeeCalculatorImplTest {
     @Test
     @DisplayName("Congestion multiplier is correctly passed HederaFunctionality for the transaction type")
     void calculateTxFee_passesCorrectFunctionality() {
-        var feeContext = createMockFeeContextImpl();
+        var simpleFeeContext = createMockSimpleFeeContext();
         when(congestionMultipliers.maxCurrentMultiplier(
                         any(TransactionBody.class),
                         eq(HederaFunctionality.FILE_CREATE),
@@ -176,7 +185,7 @@ class SimpleFeeCalculatorImplTest {
         var calculator =
                 new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), congestionMultipliers);
 
-        calculator.calculateTxFee(createFileCreateTxnBody(), feeContext);
+        calculator.calculateTxFee(createFileCreateTxnBody(), simpleFeeContext);
 
         verify(congestionMultipliers)
                 .maxCurrentMultiplier(
@@ -188,7 +197,7 @@ class SimpleFeeCalculatorImplTest {
     @Test
     @DisplayName("ReadableStoreFactory is passed to congestion multipliers")
     void calculateTxFee_passesStoreFactory() {
-        var feeContext = createMockFeeContextImpl();
+        var simpleFeeContext = createMockSimpleFeeContext();
         when(congestionMultipliers.maxCurrentMultiplier(
                         any(TransactionBody.class), any(HederaFunctionality.class), eq(storeFactory)))
                 .thenReturn(2L);
@@ -196,7 +205,7 @@ class SimpleFeeCalculatorImplTest {
         var calculator =
                 new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), congestionMultipliers);
 
-        calculator.calculateTxFee(createFileCreateTxnBody(), feeContext);
+        calculator.calculateTxFee(createFileCreateTxnBody(), simpleFeeContext);
 
         // Verify that the ReadableStoreFactory is passed
         verify(congestionMultipliers)
@@ -204,33 +213,28 @@ class SimpleFeeCalculatorImplTest {
     }
 
     @Test
-    @DisplayName("With non-FeeContextImpl context, no congestion multiplier applied")
-    void calculateTxFee_withGenericFeeContext_noCongestionApplied() {
-        // Use a generic mock that doesn't extend FeeContextImpl or ChildFeeContextImpl
-        var feeContext = mock(FeeContext.class);
-        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-        lenient().when(feeContext.numTxnBytes()).thenReturn(100);
+    @DisplayName("With null congestion multipliers, no congestion multiplier applied")
+    void calculateTxFee_withNullCongestionMultipliers_noCongestionApplied() {
+        var simpleFeeContext = createMockSimpleFeeContext();
 
-        var calculator =
-                new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of(), congestionMultipliers);
+        // Use the constructor that passes null for congestionMultipliers
+        var calculator = new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of());
 
-        var result = calculator.calculateTxFee(createFileCreateTxnBody(), feeContext);
+        var result = calculator.calculateTxFee(createFileCreateTxnBody(), simpleFeeContext);
 
-        // No congestion multiplier should be called since we can't get store factory
-        verify(congestionMultipliers, never())
-                .maxCurrentMultiplier(
-                        any(TransactionBody.class), any(HederaFunctionality.class), any(ReadableStoreFactory.class));
+        // Should not throw and should return a valid fee
         assertThat(result.totalTinycents()).isGreaterThan(0);
     }
 
     /**
-     * Creates a mock FeeContextImpl with storeFactory configured.
+     * Creates a mock SimpleFeeContext with feeContext configured to return storeFactory.
      */
-    private FeeContextImpl createMockFeeContextImpl() {
-        var feeContext = mock(FeeContextImpl.class);
-        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-        lenient().when(feeContext.numTxnBytes()).thenReturn(100);
-        lenient().when(feeContext.storeFactory()).thenReturn(storeFactory);
-        return feeContext;
+    private SimpleFeeContext createMockSimpleFeeContext() {
+        var simpleFeeContext = mock(SimpleFeeContext.class);
+        lenient().when(simpleFeeContext.numTxnSignatures()).thenReturn(1);
+        lenient().when(simpleFeeContext.numTxnBytes()).thenReturn(100);
+        lenient().when(simpleFeeContext.feeContext()).thenReturn(feeContext);
+        lenient().when(feeContext.readableStoreFactory()).thenReturn(storeFactory);
+        return simpleFeeContext;
     }
 }
