@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
- * Utility class for formatting node names.
+ * A utility class to help with node-related operations.
  */
 public final class NodeUtilities {
 

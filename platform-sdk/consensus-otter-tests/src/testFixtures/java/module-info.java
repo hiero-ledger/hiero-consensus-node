@@ -13,6 +13,7 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
+    requires transitive org.hiero.consensus.gossip.impl;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
@@ -27,6 +28,7 @@ module org.hiero.otter.fixtures {
     requires transitive org.testcontainers;
     requires com.hedera.node.app.hapi.utils;
     requires com.swirlds.config.extensions;
+    requires com.swirlds.merkledb;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.utility;

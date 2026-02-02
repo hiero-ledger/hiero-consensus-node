@@ -62,6 +62,7 @@ import org.bouncycastle.util.io.pem.PemWriter;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.crypto.CertificateUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -323,23 +324,23 @@ public class EnhancedKeyStoreLoader {
             try {
                 if (!sigPrivateKeys.containsKey(nodeId)) {
                     throw new KeyLoadingException("No private key found for nodeId %s [ purpose = %s ]"
-                            .formatted(nodeId, org.hiero.consensus.crypto.KeyCertPurpose.SIGNING));
+                            .formatted(nodeId, KeyCertPurpose.SIGNING));
                 }
 
                 if (!agrPrivateKeys.containsKey(nodeId)) {
                     throw new KeyLoadingException("No private key found for nodeId %s [purpose = %s ]"
-                            .formatted(nodeId, org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT));
+                            .formatted(nodeId, KeyCertPurpose.AGREEMENT));
                 }
 
                 // the agreement certificate must be present for local nodes
                 if (!agrCertificates.containsKey(nodeId)) {
                     throw new KeyLoadingException("No certificate found for nodeId %s [purpose = %s ]"
-                            .formatted(nodeId, org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT));
+                            .formatted(nodeId, KeyCertPurpose.AGREEMENT));
                 }
 
                 if (!sigCertificates.containsKey(nodeId)) {
                     throw new KeyLoadingException("No certificate found for nodeId %s [purpose = %s ]"
-                            .formatted(nodeId, org.hiero.consensus.crypto.KeyCertPurpose.SIGNING));
+                            .formatted(nodeId, KeyCertPurpose.SIGNING));
                 }
             } catch (final KeyLoadingException e) {
                 logger.warn(STARTUP.getMarker(), e.getMessage());
@@ -384,7 +385,7 @@ public class EnhancedKeyStoreLoader {
 
             if (!(agrCert instanceof final X509Certificate x509AgrCert)) {
                 throw new KeyLoadingException("Illegal agreement certificate type for nodeId: %s [ purpose = %s ]"
-                        .formatted(nodeId, org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT));
+                        .formatted(nodeId, KeyCertPurpose.AGREEMENT));
             }
 
             final X509Certificate sigCert = signing.get(nodeId);
@@ -410,7 +411,7 @@ public class EnhancedKeyStoreLoader {
             }
             if (!(sigCert instanceof final X509Certificate x509SigCert)) {
                 throw new KeyLoadingException("Illegal signing certificate type for nodeId: %s [ purpose = %s ]"
-                        .formatted(nodeId, org.hiero.consensus.crypto.KeyCertPurpose.SIGNING));
+                        .formatted(nodeId, KeyCertPurpose.SIGNING));
             }
             certs.put(nodeId, x509SigCert);
         }
@@ -443,7 +444,7 @@ public class EnhancedKeyStoreLoader {
                     STARTUP.getMarker(),
                     "Found enhanced private key store for nodeId: {} [ purpose = {}, fileName = {} ]",
                     nodeId,
-                    org.hiero.consensus.crypto.KeyCertPurpose.SIGNING,
+                    KeyCertPurpose.SIGNING,
                     ksLocation.getFileName());
             return readPrivateKey(nodeId, ksLocation);
         }
@@ -455,10 +456,9 @@ public class EnhancedKeyStoreLoader {
                     STARTUP.getMarker(),
                     "Found legacy private key store for nodeId: {} [ purpose = {}, fileName = {} ]",
                     nodeId,
-                    org.hiero.consensus.crypto.KeyCertPurpose.SIGNING,
+                    KeyCertPurpose.SIGNING,
                     ksLocation.getFileName());
-            return readLegacyPrivateKey(
-                    nodeId, ksLocation, org.hiero.consensus.crypto.KeyCertPurpose.SIGNING.storeName(nodeId));
+            return readLegacyPrivateKey(nodeId, ksLocation, KeyCertPurpose.SIGNING.storeName(nodeId));
         }
 
         // No keys were found so return null. Missing keys will be detected during a call to
@@ -467,7 +467,7 @@ public class EnhancedKeyStoreLoader {
                 STARTUP.getMarker(),
                 "No private key store found for nodeId: {} [ purpose = {} ]",
                 nodeId,
-                org.hiero.consensus.crypto.KeyCertPurpose.SIGNING);
+                KeyCertPurpose.SIGNING);
         return null;
     }
 
@@ -573,8 +573,7 @@ public class EnhancedKeyStoreLoader {
     @NonNull
     private Path privateKeyStore(@NonNull final NodeId nodeId) {
         return keyStoreDirectory.resolve(String.format(
-                "%s-private-%s.pem",
-                org.hiero.consensus.crypto.KeyCertPurpose.SIGNING.prefix(), NodeUtilities.formatNodeName(nodeId)));
+                "%s-private-%s.pem", KeyCertPurpose.SIGNING.prefix(), NodeUtilities.formatNodeName(nodeId)));
     }
 
     /**
@@ -758,8 +757,8 @@ public class EnhancedKeyStoreLoader {
                         "Extracting private signing key for nodeId: {} from file {}",
                         nodeId,
                         privateKs.getFileName());
-                final PrivateKey privateKey = readLegacyPrivateKey(
-                        nodeId, privateKs, org.hiero.consensus.crypto.KeyCertPurpose.SIGNING.storeName(nodeId));
+                final PrivateKey privateKey =
+                        readLegacyPrivateKey(nodeId, privateKs, KeyCertPurpose.SIGNING.storeName(nodeId));
                 pfxPrivateKeys.put(nodeId, privateKey);
                 if (privateKey == null) {
                     logger.error(
