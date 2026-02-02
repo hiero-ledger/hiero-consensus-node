@@ -531,7 +531,8 @@ public final class PlatformBuilder {
 
         initializeEventCreatorModule();
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
-        initializePcesModule(platformCoordinator, () -> latestImmutableStateNexus.getState("PCES replay"), pipelineTracker);
+        initializePcesModule(
+                platformCoordinator, () -> latestImmutableStateNexus.getState("PCES replay"), pipelineTracker);
         initializeHashgraphModule(pipelineTracker);
 
         PlatformWiring.wire(platformContext, execution, platformComponents, callbacks);
