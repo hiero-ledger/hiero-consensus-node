@@ -8,7 +8,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Random;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.transaction.TransactionGenerator;
 
@@ -92,7 +92,7 @@ public interface EventSource {
      * @param birthRound   the pending consensus round when the event was created
      * @return The random event that was generated.
      */
-    EventImpl generateEvent(
+    PlatformEvent generateEvent(
             @NonNull final Random random,
             final long eventIndex,
             @NonNull final Collection<EventSource> otherParents,
@@ -107,7 +107,7 @@ public interface EventSource {
      * @return the event, if it exists. Null if there are no events, and the oldest possible if the event at the
      * 		requested index is no longer stored.
      */
-    EventImpl getRecentEvent(Random random, int index);
+    PlatformEvent getRecentEvent(Random random, int index);
 
     /**
      * Return the latest event that was generated.
@@ -116,7 +116,7 @@ public interface EventSource {
      * @param random
      * 		a source of randomness
      */
-    default EventImpl getLatestEvent(final Random random) {
+    default PlatformEvent getLatestEvent(final Random random) {
         return getRecentEvent(random, 0);
     }
 
@@ -128,7 +128,7 @@ public interface EventSource {
      * @param event
      * 		an event that was just created by this source
      */
-    void setLatestEvent(Random random, EventImpl event);
+    void setLatestEvent(Random random, PlatformEvent event);
 
     /**
      * Get the event index (i.e. the age of the event) that this node would like to use for its other parent.
