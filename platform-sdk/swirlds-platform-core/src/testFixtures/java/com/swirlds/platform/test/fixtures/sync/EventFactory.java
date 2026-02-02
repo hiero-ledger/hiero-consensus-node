@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.sync;
 
-import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ShadowEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
