@@ -54,49 +54,20 @@ public class UtilizationScaledThrottleMultiplier {
      * Returns the current congestion multiplier applying additional scaling factor based on
      * the number of entities saved in state.
      *
-     * @param txnInfo transaction info
-     * @param feeContext provide the stores needed for determining entity utilization
+     *  @param txnInfo transaction info
+     *  @param storeFactory provide the stores needed for determining entity utilization
      *
      * @return the current congestion multiplier
      */
-    public long currentMultiplier(@NonNull final TransactionInfo txnInfo, @NonNull final FeeContext feeContext) {
-        return currentMultiplier(txnInfo.txBody(), txnInfo.functionality(), feeContext);
-    }
-
-    /**
-     * Returns the current congestion multiplier applying additional scaling factor based on
-     * the number of entities saved in state.
-     *
-     * @param txnInfo transaction info
-     * @param storeFactory provides the stores needed for determining entity utilization
-     *
-     * @return the current congestion multiplier
-     */
-    public long currentMultiplier(@NonNull final TransactionInfo txnInfo, @NonNull final StoreFactory storeFactory) {
+    public long currentMultiplier(
+            @NonNull final TransactionInfo txnInfo, @NonNull final ReadableStoreFactory storeFactory) {
         return currentMultiplier(txnInfo.txBody(), txnInfo.functionality(), storeFactory);
     }
 
     public long currentMultiplier(
             @NonNull final TransactionBody body,
             @NonNull final HederaFunctionality functionality,
-            @NonNull final FeeContext feeContext) {
-        return currentMultiplier(body, functionality, feeContext.storeFactory());
-    }
-
-    /**
-     * Returns the current congestion multiplier applying additional scaling factor based on
-     * the number of entities saved in state.
-     *
-     * @param body transaction body
-     * @param functionality the hedera functionality
-     * @param storeFactory provides the stores needed for determining entity utilization
-     *
-     * @return the current congestion multiplier
-     */
-    public long currentMultiplier(
-            @NonNull final TransactionBody body,
-            @NonNull final HederaFunctionality functionality,
-            @NonNull final StoreFactory storeFactory) {
+            @NonNull final ReadableStoreFactory storeFactory) {
         final var throttleMultiplier = delegate.currentMultiplier();
         final var configuration = configProvider.getConfiguration();
         final var entityScaleFactors =
@@ -144,7 +115,7 @@ public class UtilizationScaledThrottleMultiplier {
         };
     }
 
-    private int roundedAccountPercentUtil(@NonNull final StoreFactory storeFactory) {
+    private int roundedAccountPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfAccounts =
                 configuration.getConfigData(AccountsConfig.class).maxNumber();
@@ -159,7 +130,7 @@ public class UtilizationScaledThrottleMultiplier {
         return maxNumOfAccounts == 0 ? 100 : (int) ((100 * numAccounts) / maxNumOfAccounts);
     }
 
-    private int roundedContractPercentUtil(@NonNull final StoreFactory storeFactory) {
+    private int roundedContractPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfContracts =
                 configuration.getConfigData(ContractsConfig.class).maxNumber();
@@ -170,7 +141,7 @@ public class UtilizationScaledThrottleMultiplier {
         return maxNumOfContracts == 0 ? 100 : (int) ((100 * numContracts) / maxNumOfContracts);
     }
 
-    private int roundedFilePercentUtil(@NonNull final StoreFactory storeFactory) {
+    private int roundedFilePercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfFiles = configuration.getConfigData(FilesConfig.class).maxNumber();
 
@@ -180,7 +151,7 @@ public class UtilizationScaledThrottleMultiplier {
         return maxNumOfFiles == 0 ? 100 : (int) ((100 * numOfFiles) / maxNumOfFiles);
     }
 
-    private int roundedNftPercentUtil(@NonNull final StoreFactory storeFactory) {
+    private int roundedNftPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfNfts = configuration.getConfigData(TokensConfig.class).nftsMaxAllowedMints();
 
@@ -190,7 +161,7 @@ public class UtilizationScaledThrottleMultiplier {
         return maxNumOfNfts == 0 ? 100 : (int) ((100 * numOfNfts) / maxNumOfNfts);
     }
 
-    private int roundedTokenPercentUtil(@NonNull final StoreFactory storeFactory) {
+    private int roundedTokenPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfTokens =
                 configuration.getConfigData(TokensConfig.class).maxNumber();
@@ -201,7 +172,7 @@ public class UtilizationScaledThrottleMultiplier {
         return maxNumOfTokens == 0 ? 100 : (int) ((100 * numOfTokens) / maxNumOfTokens);
     }
 
-    private int roundedTokenRelPercentUtil(@NonNull final StoreFactory storeFactory) {
+    private int roundedTokenRelPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumOfTokenRels =
                 configuration.getConfigData(TokensConfig.class).maxAggregateRels();
@@ -212,7 +183,7 @@ public class UtilizationScaledThrottleMultiplier {
         return maxNumOfTokenRels == 0 ? 100 : (int) ((100 * numOfTokensRels) / maxNumOfTokenRels);
     }
 
-    private int roundedTopicPercentUtil(@NonNull final StoreFactory storeFactory) {
+    private int roundedTopicPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumberOfTopics =
                 configuration.getConfigData(TopicsConfig.class).maxNumber();
@@ -223,7 +194,7 @@ public class UtilizationScaledThrottleMultiplier {
         return maxNumberOfTopics == 0 ? 100 : (int) ((100 * numOfTopics) / maxNumberOfTopics);
     }
 
-    private int roundedAirdropPercentUtil(@NonNull final StoreFactory storeFactory) {
+    private int roundedAirdropPercentUtil(@NonNull final ReadableStoreFactory storeFactory) {
         final var configuration = configProvider.getConfiguration();
         final var maxNumAirdrops =
                 configuration.getConfigData(TokensConfig.class).maxAllowedPendingAirdrops();
