@@ -10,16 +10,18 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -33,6 +35,8 @@ import org.hiero.hapi.support.fees.FeeSchedule;
  * methods provided here to avoid code duplication.
  */
 public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
+
+    private static final Logger log = LogManager.getLogger(SimpleFeeCalculatorImpl.class);
 
     protected final FeeSchedule feeSchedule;
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
@@ -131,22 +135,23 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Gets the ReadableStoreFactory from the FeeContext implementation.
      *
      * @param txnBody the transaction body
-     * @param feeContext the fee context (provides store access)
+     * @param simpleFeeContext the simple fee context
      * @param result the base fee result
      * @return a new FeeResult with congestion multiplier applied, or the original if no multiplier
      */
     private FeeResult applyCongestionMultiplier(
             @NonNull final TransactionBody txnBody,
-            @Nullable final FeeContext feeContext,
+            @Nullable final SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult result) {
-        if (feeContext == null || congestionMultipliers == null) {
+        if (simpleFeeContext == null || simpleFeeContext.feeContext() == null || congestionMultipliers == null) {
             return result;
         }
 
         try {
             final HederaFunctionality functionality = functionOf(txnBody);
-            final long congestionMultiplier =
-                    congestionMultipliers.maxCurrentMultiplier(txnBody, functionality, feeContext.storeFactory());
+            final var feeContext = simpleFeeContext.feeContext();
+            final long congestionMultiplier = congestionMultipliers.maxCurrentMultiplier(
+                    txnBody, functionality, feeContext.readableStoreFactory());
             if (congestionMultiplier <= 1) {
                 return result;
             }
@@ -155,6 +160,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                     clampedMultiply(result.getNodeTotalTinycents(), congestionMultiplier),
                     result.getNetworkMultiplier());
         } catch (UnknownHederaFunctionality e) {
+            log.error("Unknown Hedera functionality for transaction body: {}", txnBody, e);
             return result;
         }
     }
