@@ -263,7 +263,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Most of the ingredients in the block hash are directly in the BlockStreamInfo
             // Branch 1: lastBlockHash
             final var prevBlockHash = blockStreamInfo.blockNumber() <= 0L
-                ? HASH_OF_ZERO
+                    ? HASH_OF_ZERO
                     : BlockRecordInfoUtils.blockHashByBlockNumber(
                             blockStreamInfo.trailingBlockHashes(),
                             blockStreamInfo.blockNumber() - 1,
@@ -279,13 +279,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var allPrevBlocksHash = Bytes.wrap(previousBlockHashes.computeRootHash());
 
             // Branch 3: Retrieve the previous block's starting state hash (not done right here, just part of the
-            // calculated
-            // last block hash below)
+            // calculated last block hash below)
 
             // We have to calculate the final hash of the previous block's state changes subtree because only the
             // penultimate state hash is in the block stream info object (constructed from numPrecedingStateChangesItems
-            // and
-            // rightmostPrecedingStateChangesTreeHashes)
+            // and rightmostPrecedingStateChangesTreeHashes)
             final var initialStateChangesHasher = new IncrementalStreamingHasher(
                     sha384DigestOrThrow(),
                     blockStreamInfo.rightmostPrecedingStateChangesTreeHashes().stream()
@@ -305,7 +303,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     // state change time
                     .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(lastBlockFinalStateChange)))
                     .build();
-			// Add the final state change item's hash to the reconstructed state changes tree, and compute the final hash
+            // Add the final state change item's hash to the reconstructed state changes tree, and use it to compute the
+            // final hash
             initialStateChangesHasher.addLeaf(
                     BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
             final var lastBlockFinalStateChangesHash = Bytes.wrap(initialStateChangesHasher.computeRootHash());
@@ -318,12 +317,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             blockStreamInfo.outputItemRootHash(),
                             lastBlockFinalStateChangesHash,
                             blockStreamInfo.traceDataRootHash(),
-                                blockStreamInfo.blockTimeOrThrow())
-                        .blockRootHash();
-		}
+                            blockStreamInfo.blockTimeOrThrow())
+                    .blockRootHash();
+        }
         this.lastBlockHash = effectiveLastBlockHash;
-
-        // Only add the last hash if it's not `HASH_OF_ZERO`
         if (!Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
             previousBlockHashes.addNodeByHash(effectiveLastBlockHash.toByteArray());
         }
@@ -348,7 +345,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
             lastUsedTime = asTimestamp(round.getConsensusTimestamp());
 
-            final var blockStreamInfo = blockStreamInfoFrom(state, ZERO_BLOCK_HASH.equals(lastBlockHash));
+            final var blockStreamInfo = blockStreamInfoFrom(state, HASH_OF_ZERO.equals(lastBlockHash));
             pendingWork = classifyPendingWork(blockStreamInfo, version);
             lastTopLevelTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
@@ -1236,8 +1233,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             new MerkleSiblingHash(false, depth4Node2)
             // Level 3 has no sibling because reserved roots 9-16 aren't represented as real subroots in the tree. It's
             // just a single child node hash operation. NOTE: if any of the reserved roots are ever included in the
-            // tree,
-            // this level's hash will need to be re-added as an internal node here.
+            // tree, this level's hash will need to be re-added as an internal node here.
             // Level 2's _left_ sibling–the block's timestamp–is represented explicitly outside these sibling hashes
         });
     }
