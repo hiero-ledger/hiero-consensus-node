@@ -103,7 +103,7 @@ public final class StateUtils {
     private static final String DEFAULT = "DEFAULT";
 
     private static final Map<String, MerkleNodeState> states = new HashMap<>();
-    private static final Map<String, DeserializedSignedState> deserializedSignedStates = new HashMap<>();
+    private static final Map<String, Hash> originalStateHashes = new HashMap<>();
 
     // Static JSON codec cache
     private static final Map<Integer, JsonCodec> keyCodecsById = new ConcurrentHashMap<>();
@@ -132,27 +132,7 @@ public final class StateUtils {
     }
 
     /**
-     * Returns <b>immutable</b> instance of {@link DeserializedSignedState} loaded from disk.
-     * @return immutable instance of {@link DeserializedSignedState}
-     */
-    public static DeserializedSignedState getDeserializedSignedState() {
-        return getDeserializedSignedState(DEFAULT);
-    }
-
-    /**
-     * Returns <b>immutable</b> instance of {@link DeserializedSignedState} loaded from disk for a given key.
-     * @param key the key identifying the state
-     * @return immutable instance of {@link DeserializedSignedState}
-     */
-    public static DeserializedSignedState getDeserializedSignedState(String key) {
-        if (!deserializedSignedStates.containsKey(key)) {
-            initState(key);
-        }
-        return deserializedSignedStates.get(key);
-    }
-
-    /**
-     * Returns the original hash of the signed state when it was serialized.
+     * Returns the original hash of the default signed state when it was serialized.
      * <p>
      * Note: This hash may differ from the current hash if the state has been modified since deserialization.
      *
@@ -160,7 +140,10 @@ public final class StateUtils {
      * @see DeserializedSignedState
      */
     public static Hash getOriginalStateHash() {
-        return getDeserializedSignedState(DEFAULT).originalHash();
+        if (!originalStateHashes.containsKey(DEFAULT)) {
+            initState(DEFAULT);
+        }
+        return originalStateHashes.get(DEFAULT);
     }
 
     private static void initState(String key) {
@@ -177,11 +160,9 @@ public final class StateUtils {
                     virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
                     platformContext.getConfiguration());
 
-            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> getState(key)));
-
             final DeserializedSignedState dss =
                     readState(Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(), platformContext, stateLifecycleManager);
-            deserializedSignedStates.put(key, dss);
+            originalStateHashes.put(key, dss.originalHash());
 
             final SignedState signedState = dss.reservedSignedState().get();
 
@@ -190,6 +171,7 @@ public final class StateUtils {
                     copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
             final MerkleNodeState state = hashedSignedState.state().get().getState();
             states.put(key, state);
+            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> getState(key)));
             initServiceMigrator(state, platformContext, serviceRegistry);
             ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
         } catch (Exception e) {

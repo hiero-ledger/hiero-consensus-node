@@ -3,7 +3,7 @@ package com.hedera.statevalidation.util;
 
 import static com.swirlds.merkledb.files.DataFileCommon.dataLocationToString;
 
-import com.hedera.statevalidation.validator.v2.model.DiskDataItem;
+import com.hedera.statevalidation.validator.model.DiskDataItem;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileReader;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,8 +31,7 @@ public final class LogUtils {
         });
     }
 
-    // poc
-    public static void printFileDataLocationErrorPoc(
+    public static void printFileDataLocationError(
             @NonNull final Logger logger,
             @NonNull final String message,
             @NonNull final DataFileCollection dfc,

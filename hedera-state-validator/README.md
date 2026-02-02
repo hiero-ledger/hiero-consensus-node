@@ -14,33 +14,6 @@ Can also be used for development purposes, such as verifying that the node's sta
 2. Run the following command to execute the validation:
 
 ```shell
-java -jar ./validator-<version>.jar {path-to-state-round} validate {tag} [{tag}...]
-```
-
-### Parameters
-
-- `{path-to-state-round}` - Location of the state files (required).
-- `{tag}` - Validation that should be run, multiple tags can be specified, separated by spaces (at least one required). Current supported tags:
-  - [`internal`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateInternalIndex.java) - Validates the consistency of the indices of internal nodes.
-  - [`leaf`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndex.java) - Validates the consistency of the indices of leaf nodes.
-  - [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndexHalfDiskHashMap.java) - Validates the consistency of the indices of leaf nodes in the half-disk hashmap.
-  - [`rehash`](/src/main/java/com/hedera/statevalidation/validator/state/Rehash.java) - Runs a full rehash of the state.
-  - [`account`](/src/main/java/com/hedera/statevalidation/validator/service/AccountValidator.java) - Ensures all accounts have a positive balance, calculates the total HBAR supply,
-    and verifies it totals exactly 50 billion HBAR.
-  - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/service/TokenRelationsIntegrity.java) - Verifies that the accounts and tokens for every token relationship exist.
-
-## Validate2
-
-[Validate2Command](src/main/java/com/hedera/statevalidation/Validate2Command.java) ensures state integrity and validates that Hedera nodes can start from existing state snapshots.
-Can also be used for development purposes, such as verifying that the node's state remains intact after refactoring or debugging to investigate the root cause of a corrupted state.
-This version offers improved performance for large state files by processing data items in parallel for some validation tags.
-
-### Usage
-
-1. Download the state files.
-2. Run the following command to execute the validation:
-
-```shell
 java -jar ./validator-.jar {path-to-state-round} validate2 {tag} [{tag}...] [options]
 ```
 
