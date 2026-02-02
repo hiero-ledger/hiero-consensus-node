@@ -29,6 +29,7 @@ import "services/state/common.proto";
 import "services/state/addressbook/node.proto";
 import "services/state/blockrecords/block_info.proto";
 import "services/state/blockrecords/running_hashes.proto";
+import "services/state/blockrecords/wrapped_record_file_block_hashes.proto";
 import "services/state/blockstream/block_stream_info.proto";
 import "services/state/congestion/congestion_level_starts.proto";
 import "services/state/consensus/topic.proto";
@@ -279,6 +280,11 @@ message StateKey {
      * Queue index for the round receipts queue.
      */
     uint64 RecordCache_I_TRANSACTION_RECEIPTS = 126;
+
+    /**
+     * Queue index for wrapped record-file block hashes.
+     */
+    uint64 BlockRecordService_I_WRAPPED_RECORD_FILE_BLOCK_HASHES = 127;
     
     /**
      * Queue index for the `150` upgrade file data.
@@ -626,6 +632,11 @@ message StateValue {
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
+
+    /**
+     * Metadata of the wrapped record-file block hashes queue.
+     */
+    proto.WrappedRecordFileBlockHashes BlockRecordService_I_WRAPPED_RECORD_FILE_BLOCK_HASHES = 127;
 
     /**
      * Metadata of the queue state.<br/>

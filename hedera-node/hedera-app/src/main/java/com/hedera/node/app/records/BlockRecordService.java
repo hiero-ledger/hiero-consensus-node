@@ -5,6 +5,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.records.schemas.V0560BlockRecordSchema;
+import com.hedera.node.app.records.schemas.V0720BlockRecordSchema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,5 +35,6 @@ public final class BlockRecordService implements Service {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         registry.register(new V0490BlockRecordSchema());
         registry.register(new V0560BlockRecordSchema());
+        registry.register(new V0720BlockRecordSchema());
     }
 }
