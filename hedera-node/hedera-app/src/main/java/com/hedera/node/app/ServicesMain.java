@@ -21,7 +21,6 @@ import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -78,6 +77,7 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
 
 /**
@@ -235,11 +235,19 @@ public class ServicesMain {
             hedera.initializeStatesApi(state, RESTART, platformConfig);
         }
         hedera.setInitialStateHash(reservedState.hash());
+        logger.info("Initial state hash: {}", reservedState.hash().toHex());
 
-        final ReadableRosterStore rosterStore =
-                new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
-        final List<RosterEntry> rosterEntries =
-                requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+        final RosterHistory rosterHistory;
+        final List<RosterEntry> rosterEntries;
+        if (genesisNetwork.get()) {
+            final var genesisRoster = hedera.genesisRosterOrThrow();
+            rosterHistory = RosterHistory.fromGenesis(genesisRoster);
+            rosterEntries = genesisRoster.rosterEntries();
+        } else {
+            rosterHistory = RosterStateUtils.createRosterHistory(state);
+            final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
+            rosterEntries = requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+        }
         final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
 
         final String consensusEventStreamName = genesisNetwork.get()
@@ -256,7 +264,7 @@ public class ServicesMain {
                         consensusStateEventHandler,
                         selfId,
                         consensusEventStreamName,
-                        RosterStateUtils.createRosterHistory(state),
+                        rosterHistory,
                         hedera.getStateLifecycleManager())
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
@@ -344,7 +352,7 @@ public class ServicesMain {
                         new HintsLibraryImpl(),
                         bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
-                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
+                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
                 TssBlockHashSigner::new,
                 configuration,
                 metrics,
@@ -405,11 +413,5 @@ public class ServicesMain {
 
     private static @NonNull Hedera hederaOrThrow() {
         return requireNonNull(hedera);
-    }
-
-    @VisibleForTesting
-    static void initGlobal(@NonNull final Hedera hedera, @NonNull final Metrics metrics) {
-        ServicesMain.hedera = hedera;
-        ServicesMain.metrics = metrics;
     }
 }

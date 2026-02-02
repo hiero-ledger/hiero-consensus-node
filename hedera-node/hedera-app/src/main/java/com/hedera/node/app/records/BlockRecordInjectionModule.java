@@ -15,6 +15,7 @@ import com.hedera.node.app.records.impl.producers.formats.v7.BlockRecordFormatV7
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import dagger.Binds;
 import dagger.Module;
@@ -62,6 +63,7 @@ public abstract class BlockRecordInjectionModule {
     @Provides
     @Singleton
     public static BlockRecordManager provideBlockRecordManager(
+            @NonNull final InitTrigger initTrigger,
             @NonNull final ConfigProvider configProvider,
             @NonNull final WorkingStateAccessor state,
             @NonNull final BlockRecordStreamProducer streamFileProducer,
@@ -73,7 +75,13 @@ public abstract class BlockRecordInjectionModule {
             throw new IllegalStateException("Merkle state is null");
         }
         return new BlockRecordManagerImpl(
-                configProvider, merkleState, streamFileProducer, quiescenceController, quiescedHeartbeat, platform);
+                configProvider,
+                merkleState,
+                streamFileProducer,
+                quiescenceController,
+                quiescedHeartbeat,
+                platform,
+                initTrigger);
     }
 
     @Provides
