@@ -16,12 +16,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.test.performance.benchmark.fixtures.StatisticsCalculator.Statistics;
 
 /**
  * Collects benchmark measurements and computes statistics per node and in aggregate.
  *
- * <p>This class accumulates {@link Measurement} records grouped by node ID and computes
- * latency statistics including average, standard deviation, percentiles, and throughput.
+ * <p>This class accumulates {@link Measurement} records grouped by node ID and delegates
+ * statistics computation to {@link StatisticsCalculator}.
  *
  * <p>Usage:
  * <pre>{@code
@@ -34,54 +35,6 @@ import org.hiero.otter.fixtures.logging.StructuredLog;
 public class MeasurementsCollector {
 
     private static final Logger log = LogManager.getLogger(MeasurementsCollector.class);
-
-    /**
-     * T-values for 99.9% confidence interval (two-tailed, alpha=0.001).
-     * Index corresponds to degrees of freedom (df). For df >= 120, use 3.291 (z-value).
-     * Values from standard t-distribution tables.
-     */
-    private static final double[] T_VALUES_999 = {
-        0.0, // df=0 (not used)
-        636.619, // df=1
-        31.599, // df=2
-        12.924, // df=3
-        8.610, // df=4
-        6.869, // df=5
-        5.959, // df=6
-        5.408, // df=7
-        5.041, // df=8
-        4.781, // df=9
-        4.587, // df=10
-        4.437, // df=11
-        4.318, // df=12
-        4.221, // df=13
-        4.140, // df=14
-        4.073, // df=15
-        4.015, // df=16
-        3.965, // df=17
-        3.922, // df=18
-        3.883, // df=19
-        3.850, // df=20
-        3.819, // df=21
-        3.792, // df=22
-        3.768, // df=23
-        3.745, // df=24
-        3.725, // df=25
-        3.707, // df=26
-        3.690, // df=27
-        3.674, // df=28
-        3.659, // df=29
-        3.646, // df=30
-        3.591, // df=40 (approximated for 31-39)
-        3.551, // df=50 (approximated for 41-49)
-        3.520, // df=60 (approximated for 51-59)
-        3.496, // df=70 (approximated for 61-69)
-        3.476, // df=80 (approximated for 71-79)
-        3.460, // df=90 (approximated for 81-89)
-        3.446, // df=100 (approximated for 91-99)
-    };
-
-    private static final double T_VALUE_INFINITY = 3.291; // z-value for 99.9% CI
 
     // Per-node data
     private final Map<NodeId, List<Long>> latencySamplesByNode = new HashMap<>();
@@ -211,12 +164,12 @@ public class MeasurementsCollector {
             return Statistics.EMPTY;
         }
 
-        final long totalTx = totalTransactionsByNode.getOrDefault(nodeId, 0L);
-        final long negativeTx = negativeLatencyByNode.getOrDefault(nodeId, 0L);
+        final long total = totalTransactionsByNode.getOrDefault(nodeId, 0L);
+        final long invalid = negativeLatencyByNode.getOrDefault(nodeId, 0L);
         final Long firstTime = firstHandleTimeByNode.get(nodeId);
         final Long lastTime = lastHandleTimeByNode.get(nodeId);
 
-        return computeStats(samples, totalTx, negativeTx, firstTime, lastTime);
+        return StatisticsCalculator.compute(samples, total, invalid, firstTime, lastTime);
     }
 
     /**
@@ -252,53 +205,7 @@ public class MeasurementsCollector {
             return Statistics.EMPTY;
         }
 
-        return computeStats(allSamples, totalTx, negativeTx, firstTime, lastTime);
-    }
-
-    private Statistics computeStats(
-            final List<Long> samples,
-            final long totalTx,
-            final long negativeTx,
-            final Long firstTime,
-            final Long lastTime) {
-
-        final int sampleCount = samples.size();
-        final long[] sortedSamples =
-                samples.stream().mapToLong(Long::longValue).sorted().toArray();
-
-        final double average = computeAverage(sortedSamples);
-        final double stdDev = computeStdDev(sortedSamples, average);
-
-        // Calculate 99.9% confidence interval: error = t-value × (stdDev / √n)
-        // This gives the half-width of the CI, so the true mean is likely in [avg - error, avg + error]
-        final int degreesOfFreedom = sampleCount - 1;
-        final double tValue = getTValue999(degreesOfFreedom);
-        final double standardError = stdDev / Math.sqrt(sampleCount);
-        final double error = tValue * standardError;
-
-        final long min = sortedSamples[0];
-        final long max = sortedSamples[sortedSamples.length - 1];
-        final long p50 = percentile(sortedSamples, 50);
-        final long p95 = percentile(sortedSamples, 95);
-        final long p99 = percentile(sortedSamples, 99);
-
-        final long durationMillis = (firstTime != null && lastTime != null) ? lastTime - firstTime : 0;
-        final double throughput = (durationMillis > 0) ? (sampleCount * 1000.0 / durationMillis) : 0;
-
-        return new Statistics(
-                sampleCount,
-                totalTx,
-                negativeTx,
-                average,
-                stdDev,
-                error,
-                min,
-                max,
-                p50,
-                p95,
-                p99,
-                durationMillis,
-                throughput);
+        return StatisticsCalculator.compute(allSamples, totalTx, negativeTx, firstTime, lastTime);
     }
 
     /**
@@ -385,114 +292,5 @@ public class MeasurementsCollector {
                 stats.p99(),
                 stats.min(),
                 stats.max()));
-    }
-
-    private double computeAverage(final long[] samples) {
-        long sum = 0;
-        for (final long sample : samples) {
-            sum += sample;
-        }
-        return (double) sum / samples.length;
-    }
-
-    private double computeStdDev(final long[] samples, final double avg) {
-        if (samples.length < 2) {
-            return 0.0;
-        }
-        double sumSquaredDiff = 0.0;
-        for (final long sample : samples) {
-            final double diff = sample - avg;
-            sumSquaredDiff += diff * diff;
-        }
-        return Math.sqrt(sumSquaredDiff / (samples.length - 1));
-    }
-
-    private long percentile(final long[] sortedSamples, final int percentile) {
-        if (sortedSamples.length == 1) {
-            return sortedSamples[0];
-        }
-        final double index = (percentile / 100.0) * (sortedSamples.length - 1);
-        final int lower = (int) Math.floor(index);
-        final int upper = (int) Math.ceil(index);
-        if (lower == upper) {
-            return sortedSamples[lower];
-        }
-        final double fraction = index - lower;
-        return Math.round(sortedSamples[lower] + fraction * (sortedSamples[upper] - sortedSamples[lower]));
-    }
-
-    /**
-     * Returns the t-value for a 99.9% confidence interval given degrees of freedom.
-     * Uses a lookup table for common values and falls back to the z-value (3.291) for large df.
-     *
-     * @param degreesOfFreedom the degrees of freedom (n - 1)
-     * @return the t-value for 99.9% confidence
-     */
-    private double getTValue999(final int degreesOfFreedom) {
-        if (degreesOfFreedom <= 0) {
-            return T_VALUE_INFINITY;
-        }
-        if (degreesOfFreedom <= 30) {
-            return T_VALUES_999[degreesOfFreedom];
-        }
-        if (degreesOfFreedom <= 40) {
-            return T_VALUES_999[31]; // df=40
-        }
-        if (degreesOfFreedom <= 50) {
-            return T_VALUES_999[32]; // df=50
-        }
-        if (degreesOfFreedom <= 60) {
-            return T_VALUES_999[33]; // df=60
-        }
-        if (degreesOfFreedom <= 70) {
-            return T_VALUES_999[34]; // df=70
-        }
-        if (degreesOfFreedom <= 80) {
-            return T_VALUES_999[35]; // df=80
-        }
-        if (degreesOfFreedom <= 90) {
-            return T_VALUES_999[36]; // df=90
-        }
-        if (degreesOfFreedom <= 100) {
-            return T_VALUES_999[37]; // df=100
-        }
-        // For df > 100, t-distribution approaches normal distribution
-        return T_VALUE_INFINITY;
-    }
-
-    /**
-     * Immutable statistics snapshot.
-     *
-     * @param sampleCount number of valid latency samples
-     * @param totalTransactions total benchmark transactions seen
-     * @param negativeLatencyCount transactions with negative latency
-     * @param average average latency
-     * @param stdDev standard deviation
-     * @param error 99.9% confidence interval half-width
-     * @param min minimum latency
-     * @param max maximum latency
-     * @param p50 50th percentile (median)
-     * @param p95 95th percentile
-     * @param p99 99th percentile
-     * @param durationMillis total duration from first to last transaction in milliseconds
-     * @param throughputPerSecond transactions per second
-     */
-    public record Statistics(
-            int sampleCount,
-            long totalTransactions,
-            long negativeLatencyCount,
-            double average,
-            double stdDev,
-            double error,
-            long min,
-            long max,
-            long p50,
-            long p95,
-            long p99,
-            long durationMillis,
-            double throughputPerSecond) {
-
-        /** Empty statistics for when no samples have been collected. */
-        public static final Statistics EMPTY = new Statistics(0, 0, 0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, 0, 0.0);
     }
 }
