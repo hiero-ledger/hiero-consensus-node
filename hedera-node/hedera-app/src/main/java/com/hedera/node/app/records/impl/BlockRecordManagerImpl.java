@@ -426,6 +426,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var sidecarBundles = buildSidecarBundles(currentBlockSidecarRecords, maxSideCarSizeInBytes);
 
         final var config = configProvider.getConfiguration();
+        // TODO Need to check hapiProtoVersion
         final SemanticVersion hapiProtoVersion = config.getConfigData(com.hedera.node.config.data.VersionConfig.class)
                 .hapiVersion();
 

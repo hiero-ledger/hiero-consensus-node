@@ -45,6 +45,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.CommittableWritableStates;
 import java.io.BufferedOutputStream;
 import java.io.OutputStream;
 import java.security.MessageDigest;
@@ -156,6 +157,12 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             // Cross logPeriod boundary to end record block 0 and enqueue
             final var t1 = InstantUtils.instant(13, 1);
             mgr.startUserTransaction(t1, state);
+
+            // In production, the queue push is committed via HandleWorkflow (similar to record cache receipts).
+            final var writableStates = state.getWritableStates(BlockRecordService.NAME);
+            if (writableStates instanceof CommittableWritableStates committable) {
+                committable.commit();
+            }
 
             final var queue = state.getReadableStates(BlockRecordService.NAME)
                     .<WrappedRecordFileBlockHashes>getQueue(WRAPPED_RECORD_FILE_BLOCK_HASHES_STATE_ID);

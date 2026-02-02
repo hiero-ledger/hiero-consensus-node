@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.blockrecords.WrappedRecordFileBlockHashes;
 import com.swirlds.state.spi.WritableQueueState;
-import com.swirlds.state.spi.WritableQueueStateBase;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -24,20 +23,13 @@ public class WritableWrappedRecordFileBlockHashesStore extends ReadableWrappedRe
 
     public void add(@NonNull final WrappedRecordFileBlockHashes hashes) {
         hashesQueue.add(requireNonNull(hashes));
-        // Ensure the addition is visible via readable states immediately (important for tests and deterministic
-        // behavior)
-        ((WritableQueueStateBase<?>) hashesQueue).commit();
     }
 
     public @Nullable WrappedRecordFileBlockHashes poll() {
-        final var removed = hashesQueue.poll();
-        ((WritableQueueStateBase<?>) hashesQueue).commit();
-        return removed;
+        return hashesQueue.poll();
     }
 
     public @Nullable WrappedRecordFileBlockHashes pop() {
-        final var removed = hashesQueue.poll();
-        ((WritableQueueStateBase<?>) hashesQueue).commit();
-        return removed;
+        return hashesQueue.poll();
     }
 }

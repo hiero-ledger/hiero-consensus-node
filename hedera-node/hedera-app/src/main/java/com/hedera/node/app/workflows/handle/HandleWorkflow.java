@@ -80,6 +80,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -384,6 +385,28 @@ public class HandleWorkflow {
             // to the state so these transactions cannot be replayed in future rounds
             recordCache.commitReceipts(
                     state, round.getConsensusTimestamp(), immediateStateChangeListener, blockStreamManager, streamMode);
+            // Similarly, if configured, commit any wrapped record-file block hashes enqueued into BlockRecordService.
+            // These are treated as non-rollback bookkeeping at record-block boundaries.
+            if (configProvider
+                    .getConfiguration()
+                    .getConfigData(BlockRecordStreamConfig.class)
+                    .storeWrappedRecordFileBlockHashesInState()) {
+                if (streamMode != RECORDS) {
+                    immediateStateChangeListener.resetQueueStateChanges();
+                }
+                final WritableStates blockRecordWritableStates = state.getWritableStates(BlockRecordService.NAME);
+                if (blockRecordWritableStates instanceof CommittableWritableStates committable) {
+                    committable.commit();
+                }
+                if (streamMode != RECORDS) {
+                    final var changes = immediateStateChangeListener.getQueueStateChanges();
+                    if (!changes.isEmpty()) {
+                        blockStreamManager.writeItem((now -> BlockItem.newBuilder()
+                                .stateChanges(new StateChanges(now, new ArrayList<>(changes)))
+                                .build()));
+                    }
+                }
+            }
         }
     }
 
