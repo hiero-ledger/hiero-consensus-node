@@ -89,7 +89,7 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "true") boolean waitForEventsInIntake,
         @ConfigProperty(defaultValue = "true") boolean filterLikelyDuplicates,
         @ConfigProperty(defaultValue = "3s") Duration nonAncestorFilterThreshold,
-        @ConfigProperty(defaultValue = "0s") Duration ancestorFilterThreshold,
+        @ConfigProperty(defaultValue = "250ms") Duration ancestorFilterThreshold,
         @ConfigProperty(defaultValue = "2s") Duration selfFilterThreshold,
         @ConfigProperty(defaultValue = "500ms") Duration syncKeepalivePeriod,
         @ConfigProperty(defaultValue = "1m") Duration maxSyncTime,

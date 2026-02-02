@@ -427,30 +427,38 @@ public final class SyncUtils {
             final PlatformEvent event = eventsTheyNeed.get(index);
 
             // if it is related to self event or its parent, use shorter time limit
-            // in particular, if broadcast is disabled, that limit will be zero, so all self events and parents will be
-            // sent immediately
+            // in particular, if broadcast is disabled, that limit will be zero, so all self events and their recursive
+            // parents will be sent immediately
             final Duration needsToBeAtLeastThatOld;
+            final boolean alwaysRecurse;
             if (event.getCreatorId().equals(selfId)) {
                 needsToBeAtLeastThatOld = selfFilterThreshold;
+                alwaysRecurse = true;
             } else if (parentHashesOfEventsToSend.contains(event.getHash())) {
                 needsToBeAtLeastThatOld = ancestorFilterThreshold;
+                alwaysRecurse = true;
             } else {
                 needsToBeAtLeastThatOld = nonAncestorThreshold;
+                alwaysRecurse = false;
             }
 
             final boolean sendEvent = haveWeKnownAboutEventForALongTime(event, needsToBeAtLeastThatOld, now);
 
             if (sendEvent) {
-                // If we've decided to send an event, we also want to send its parents if those parents are needed
-                // by the peer.
                 filteredList.addFirst(event);
+            }
+
+            // we want to have a chance of iterating parents of events we are potentially sending, even if particular
+            // one won't be ultimately sent due to not fitting in time range
+            // this is to cover situation where limit for self events is bigger than for their parents for example
+            if (sendEvent || alwaysRecurse) {
                 for (final EventDescriptorWrapper otherParent : event.getAllParents()) {
                     parentHashesOfEventsToSend.add(otherParent.hash());
                 }
             }
         }
 
-        return filteredList;
+        return filteredList.stream().toList();
     }
 
     /**
