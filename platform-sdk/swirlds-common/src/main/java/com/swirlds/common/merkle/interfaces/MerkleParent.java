@@ -18,7 +18,7 @@ public interface MerkleParent {
     int MAX_CHILD_COUNT_UBOUND = 64;
 
     /**
-     * 8     * Returns the number of all immediate children that are a MerkleNode object.
+     * Returns the number of all immediate children that are a MerkleNode object.
      *
      * This function must not change the number of children or modify any children in any way.
      *
