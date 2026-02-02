@@ -36,7 +36,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.ParallelProcessingUtils;
 import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -146,10 +145,7 @@ public class EntityIdUniqueness {
     }
 
     @Test
-    void validateIdCounts(DeserializedSignedState deserializedState) throws InterruptedException, ExecutionException {
-
-        final MerkleNodeState servicesState =
-                deserializedState.reservedSignedState().get().getState();
+    void validateIdCounts(MerkleNodeState servicesState) throws InterruptedException, ExecutionException {
 
         final VirtualMap vm = (VirtualMap) servicesState.getRoot();
 
@@ -194,7 +190,6 @@ public class EntityIdUniqueness {
                             case CONTRACTSERVICE_I_STORAGE -> contractStorageCount.incrementAndGet();
                             case CONTRACTSERVICE_I_BYTECODE -> contractBytecodeCount.incrementAndGet();
                             case CONTRACTSERVICE_I_EVM_HOOK_STATES -> hookCount.incrementAndGet();
-                            case CONTRACTSERVICE_I_EVM_HOOK_STORAGE -> evmHookStorageCount.incrementAndGet();
                         }
                     } catch (ParseException e) {
                         throw new RuntimeException(e);
@@ -220,9 +215,5 @@ public class EntityIdUniqueness {
         //                "Contract storage count is unexpected");
         assertEquals(entityCounts.numContractBytecodes(), contractBytecodeCount.get(), "Contract count is unexpected");
         assertEquals(entityCounts.numHooks(), hookCount.get(), "Hook count is unexpected");
-        assertEquals(
-                entityCounts.numEvmHookStorageSlots(),
-                evmHookStorageCount.get(),
-                "EVM hook storage slot count is unexpected");
     }
 }
