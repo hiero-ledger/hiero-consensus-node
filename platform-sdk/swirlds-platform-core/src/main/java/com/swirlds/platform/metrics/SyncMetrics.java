@@ -160,7 +160,8 @@ public class SyncMetrics {
     private static final CountPerSecond.Config BROADCAST_EVENTS_SENT_COUNTER_CONFIG = new CountPerSecond.Config(
                     PLATFORM_CATEGORY, "broadcastEventsSent")
             .withUnit("hz")
-            .withDescription("Number of times per second an event was sent over broadcast to the remote nodes");
+            .withDescription(
+                    "Number of times per second an event was considered being eligible for being sent over broadcast (once per event, not per peer)");
     private final CountPerSecond broadcastEventsSentCounter;
 
     private static final CountPerSecond.Config BROADCAST_EVENTS_RECEIVED_COUNTER_CONFIG = new CountPerSecond.Config(
