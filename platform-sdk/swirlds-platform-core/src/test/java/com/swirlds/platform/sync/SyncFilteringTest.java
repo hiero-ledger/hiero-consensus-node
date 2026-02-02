@@ -215,7 +215,6 @@ class SyncFilteringTest {
         final Duration timeStep = Duration.ofMillis(1);
 
         final List<PlatformEvent> events = generateEvents(eventEmitter, time, timeStep, eventCount).stream()
-                .map(EventImpl::getBaseEvent)
                 .toList();
 
         Set<Hash> expectedEvents =
@@ -261,10 +260,9 @@ class SyncFilteringTest {
         final Duration timeStep = Duration.ofMillis(1);
 
         final List<PlatformEvent> events = generateEvents(eventEmitter, time, timeStep, eventCount).stream()
-                .map(EventImpl::getBaseEvent)
                 .toList();
 
-        Set<Hash> expectedEvents =
+        final Set<Hash> expectedEvents =
                 filterEvents(events, selfThreshold, ancestorThreshold, nonAncestorThreshold, selfId, time);
 
         final List<PlatformEvent> filtered = SyncUtils.filterLikelyDuplicates(
