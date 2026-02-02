@@ -108,7 +108,7 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
     @Override
     public Integer call() throws Exception {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
-                ConfigurationBuilder.create(), getAbsolutePath("settings.txt"), configurationPaths);
+                ConfigurationBuilder.create(), configurationPaths.getFirst());//TODO multiple paths
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         recoverState(

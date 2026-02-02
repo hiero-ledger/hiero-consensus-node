@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.recovery;
 
+import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.utility.AutoCloseableNonThrowing;
 import com.swirlds.common.context.PlatformContext;
@@ -13,18 +16,12 @@ import com.swirlds.platform.state.signed.SignedStateReference;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Collections;
 import java.util.Objects;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterUtils;
-
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 
 /**
  * A simplified version of the platform to be used during the recovery workflow.
@@ -34,7 +31,6 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
     private final NodeId selfId;
     private final Roster roster;
 
-    private final AddressBook addressBook;
     private final KeysAndCerts keysAndCerts;
 
     private final SignedStateReference immutableState = new SignedStateReference();
@@ -62,11 +58,12 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
 
         this.roster = initialState.getRoster();
-        this.addressBook = RosterUtils.buildAddressBook(this.roster);
 
         if (loadSigningKeys) {
-            keysAndCerts = initNodeSecurity(addressBook, configuration, Collections.singleton(selfId))
-                    .get(selfId);
+            keysAndCerts = initNodeSecurity(
+                    configuration,
+                    selfId,
+                    roster.rosterEntries());
         } else {
             keysAndCerts = null;
         }

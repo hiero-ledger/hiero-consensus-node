@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.recovery;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
@@ -43,6 +44,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.consensus.SyntheticSnapshot;
@@ -119,16 +121,6 @@ public final class EventRecoveryWorkflow {
         Objects.requireNonNull(selfId, "selfId must not be null");
 
         setupConstructableRegistry();
-
-        final PathsConfig defaultPathsConfig = ConfigurationBuilder.create()
-                .withConfigDataType(PathsConfig.class)
-                .build()
-                .getConfigData(PathsConfig.class);
-
-        // parameters if the app needs them
-        final ApplicationDefinition appDefinition =
-                ApplicationDefinitionLoader.loadDefault(defaultPathsConfig, getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
-        ParameterProvider.getInstance().setParameters(appDefinition.getAppParameters());
 
         if (!Files.exists(resultingStateDirectory)) {
             Files.createDirectories(resultingStateDirectory);
@@ -300,16 +292,7 @@ public final class EventRecoveryWorkflow {
         }
 
         logger.info(STARTUP.getMarker(), "Hashing resulting signed state");
-        try {
-            platformContext
-                    .getMerkleCryptography()
-                    .digestTreeAsync(signedState.get().getState().getRoot())
-                    .get();
-        } catch (final InterruptedException e) {
-            throw new RuntimeException("interrupted while attempting to hash the state", e);
-        } catch (final ExecutionException e) {
-            throw new RuntimeException(e);
-        }
+        signedState.get().getState().getHash();
         logger.info(STARTUP.getMarker(), "Hashing complete");
 
         // Let the application know about the recovered state
@@ -361,7 +344,7 @@ public final class EventRecoveryWorkflow {
 
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
-                CryptoStatic::verifySignature,
+                ConsensusCryptoUtils::verifySignature,
                 newState,
                 "EventRecoveryWorkflow.handleNextRound()",
                 isFreezeState,
