@@ -11,4 +11,5 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * @param state a state that has had transactions applied to it
  * @param judge the proposed judge for the state
  */
-public record RecoveredState(@NonNull ReservedSignedState state, @NonNull PlatformEvent judge) {}
+public record RecoveredState(
+        @NonNull ReservedSignedState state, @NonNull PlatformEvent judge) {}

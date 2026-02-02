@@ -121,10 +121,8 @@ public final class EventRecoveryWorkflow {
                 virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
                 platformContext.getConfiguration());
 
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
-                signedStateDir,
-                platformContext,
-                stateLifecycleManager);
+        final DeserializedSignedState deserializedSignedState =
+                SignedStateFileReader.readState(signedStateDir, platformContext, stateLifecycleManager);
 
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);

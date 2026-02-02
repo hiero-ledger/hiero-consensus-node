@@ -60,10 +60,7 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
         this.roster = initialState.getRoster();
 
         if (loadSigningKeys) {
-            keysAndCerts = initNodeSecurity(
-                    configuration,
-                    selfId,
-                    roster.rosterEntries());
+            keysAndCerts = initNodeSecurity(configuration, selfId, roster.rosterEntries());
         } else {
             keysAndCerts = null;
         }
