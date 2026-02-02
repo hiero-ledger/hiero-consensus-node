@@ -8,7 +8,6 @@ import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.validator.v2.util.ValidationAssertions;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -39,7 +38,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
     private final AtomicLong contractStorageCount = new AtomicLong(0);
     private final AtomicLong contractBytecodeCount = new AtomicLong(0);
     private final AtomicLong hookCount = new AtomicLong(0);
-    private final AtomicLong lambdaStorageCount = new AtomicLong(0);
+    private final AtomicLong evmHookStorageCount = new AtomicLong(0);
 
     /**
      * {@inheritDoc}
@@ -53,10 +52,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {
-        //noinspection resource
-        final MerkleNodeState state =
-                deserializedSignedState.reservedSignedState().get().getState();
+    public void initialize(@NonNull final MerkleNodeState state) {
         final ReadableSingletonState<EntityCounts> entityIdSingleton =
                 state.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
         this.entityCounts = Objects.requireNonNull(entityIdSingleton.get());
@@ -84,7 +80,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
                 case CONTRACTSERVICE_I_STORAGE -> contractStorageCount.incrementAndGet();
                 case CONTRACTSERVICE_I_BYTECODE -> contractBytecodeCount.incrementAndGet();
                 case CONTRACTSERVICE_I_EVM_HOOK_STATES -> hookCount.incrementAndGet();
-                case CONTRACTSERVICE_I_LAMBDA_STORAGE -> lambdaStorageCount.incrementAndGet();
+                case CONTRACTSERVICE_I_EVM_HOOK_STORAGE -> evmHookStorageCount.incrementAndGet();
             }
         } catch (ParseException e) {
             throw new RuntimeException(e);
@@ -113,7 +109,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
                 //      && entityCounts.numContractStorageSlots() == contractStorageCount.get()
                 && entityCounts.numContractBytecodes() == contractBytecodeCount.get()
                 && entityCounts.numHooks() == hookCount.get()
-                && entityCounts.numLambdaStorageSlots() == lambdaStorageCount.get();
+                && entityCounts.numEvmHookStorageSlots() == evmHookStorageCount.get();
 
         ValidationAssertions.requireTrue(
                 ok,
@@ -159,7 +155,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
                                 contractBytecodeCount.get(),
                                 entityCounts.numHooks(),
                                 hookCount.get(),
-                                entityCounts.numLambdaStorageSlots(),
-                                lambdaStorageCount.get()));
+                                entityCounts.numEvmHookStorageSlots(),
+                                evmHookStorageCount.get()));
     }
 }

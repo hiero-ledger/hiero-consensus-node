@@ -10,7 +10,6 @@ import com.hedera.statevalidation.validator.v2.util.ValidationAssertions;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -52,10 +51,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {
-        //noinspection resource
-        final MerkleNodeState state =
-                deserializedSignedState.reservedSignedState().get().getState();
+    public void initialize(@NonNull final MerkleNodeState state) {
         this.virtualMap = (VirtualMap) state.getRoot();
         final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
         this.pathToKeyValueDfc = vds.getPathToKeyValue().getFileCollection();

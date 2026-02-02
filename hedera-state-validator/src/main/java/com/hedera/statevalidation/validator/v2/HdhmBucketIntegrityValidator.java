@@ -14,7 +14,6 @@ import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -58,10 +57,7 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {
-        //noinspection resource
-        final MerkleNodeState state =
-                deserializedSignedState.reservedSignedState().get().getState();
+    public void initialize(@NonNull final MerkleNodeState state) {
         final VirtualMap virtualMap = (VirtualMap) state.getRoot();
         Objects.requireNonNull(virtualMap);
         final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();

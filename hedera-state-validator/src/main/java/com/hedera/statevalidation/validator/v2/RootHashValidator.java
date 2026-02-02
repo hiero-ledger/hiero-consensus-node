@@ -5,7 +5,6 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoStrin
 
 import com.hedera.statevalidation.util.ConfigUtils;
 import com.hedera.statevalidation.validator.v2.util.ValidationAssertions;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
@@ -51,9 +50,8 @@ public class RootHashValidator implements Validator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {
-        //noinspection resource
-        this.state = deserializedSignedState.reservedSignedState().get().getState();
+    public void initialize(@NonNull final MerkleNodeState state) {
+        this.state = state;
 
         // Read hash info file
         final Path hashInfoPath = Path.of(ConfigUtils.STATE_DIR, HASH_INFO_FILE_NAME);
@@ -70,7 +68,7 @@ public class RootHashValidator implements Validator {
      */
     @Override
     public void validate() {
-        final String infoStringFromState = getInfoString(state, 1);
+        final String infoStringFromState = getInfoString(state);
 
         final List<String> fullList = Arrays.asList(infoStringFromState.split("\n"));
         String actualRootHashLine = "";

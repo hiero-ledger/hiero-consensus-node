@@ -7,7 +7,7 @@ import com.hedera.statevalidation.Validate2Command;
 import com.hedera.statevalidation.validator.v2.listener.ValidationListener;
 import com.hedera.statevalidation.validator.v2.model.DiskDataItem.Type;
 import com.hedera.statevalidation.validator.v2.util.ValidationException;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -108,18 +108,18 @@ public final class ValidatorRegistry {
      * <ol>
      *     <li>Checks if the validator's tag matches the requested tags (or if "all" is specified)</li>
      *     <li>Notifies listeners that validation is starting</li>
-     *     <li>Calls {@link Validator#initialize(DeserializedSignedState)}</li>
+     *     <li>Calls {@link Validator#initialize(MerkleNodeState)}</li>
      *     <li>On success, adds the validator to the result set</li>
      *     <li>On failure, notifies listeners and excludes the validator</li>
      * </ol>
      *
-     * @param deserializedSignedState the state to initialize validators with; must not be null
-     * @param tags array of validator tags to run; use {@link Validator#ALL_TAG} to run all validators
+     * @param state               the state to initialize validators with; must not be null
+     * @param tags                array of validator tags to run; use {@link Validator#ALL_TAG} to run all validators
      * @param validationListeners listeners to notify of initialization events; must not be null
      * @return a map from {@link Type} to thread-safe sets of initialized validators;
      */
     public static Map<Type, Set<Validator>> createAndInitValidators(
-            @NonNull final DeserializedSignedState deserializedSignedState,
+            @NonNull final MerkleNodeState state,
             @NonNull final String[] tags,
             @NonNull final List<ValidationListener> validationListeners) {
 
@@ -132,7 +132,7 @@ public final class ValidatorRegistry {
             final Set<Validator> validatorSet = new HashSet<>();
             for (Validator v : validators) {
                 if (runAll || tagSet.contains(v.getTag())) {
-                    if (tryInitialize(v, deserializedSignedState, validationListeners)) {
+                    if (tryInitialize(v, state, validationListeners)) {
                         validatorSet.add(v);
                     }
                 }
@@ -151,13 +151,13 @@ public final class ValidatorRegistry {
      * <p>Similar to {@link #createAndInitValidators}, but for validators that run
      * independently outside the data pipeline.
      *
-     * @param deserializedSignedState the state to initialize validators with; must not be null
-     * @param tags array of validator tags to run; use {@link Validator#ALL_TAG} to run all validators
+     * @param state               the state to initialize validators with; must not be null
+     * @param tags                array of validator tags to run; use {@link Validator#ALL_TAG} to run all validators
      * @param validationListeners listeners to notify of initialization events; must not be null
      * @return an unmodifiable list of initialized individual validators
      */
     public static List<Validator> createAndInitIndividualValidators(
-            @NonNull final DeserializedSignedState deserializedSignedState,
+            @NonNull final MerkleNodeState state,
             @NonNull final String[] tags,
             @NonNull final List<ValidationListener> validationListeners) {
 
@@ -166,7 +166,7 @@ public final class ValidatorRegistry {
 
         return ValidatorRegistry.getIndividualValidators().stream()
                 .filter(v -> runAll || tagSet.contains(v.getTag()))
-                .filter(v -> tryInitialize(v, deserializedSignedState, validationListeners))
+                .filter(v -> tryInitialize(v, state, validationListeners))
                 .toList();
     }
 
@@ -176,18 +176,18 @@ public final class ValidatorRegistry {
      * <p>This method:
      * <ol>
      *     <li>Notifies all listeners via {@link ValidationListener#onValidationStarted(String)}</li>
-     *     <li>Calls {@link Validator#initialize(DeserializedSignedState)}</li>
+     *     <li>Calls {@link Validator#initialize(MerkleNodeState)}</li>
      *     <li>On failure, notifies listeners via {@link ValidationListener#onValidationFailed(ValidationException)}</li>
      * </ol>
      *
      * @param validator the validator to initialize
-     * @param state the deserialized state to pass to the validator
+     * @param state the state to pass to the validator
      * @param listeners listeners to notify of the initialization outcome
      * @return {@code true} if initialization succeeded, {@code false} otherwise
      */
     public static boolean tryInitialize(
             @NonNull final Validator validator,
-            @NonNull final DeserializedSignedState state,
+            @NonNull final MerkleNodeState state,
             @NonNull final List<ValidationListener> listeners) {
         listeners.forEach(l -> l.onValidationStarted(validator.getTag()));
         try {

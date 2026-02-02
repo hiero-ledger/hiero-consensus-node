@@ -13,4 +13,5 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * @param startByte the starting byte offset (inclusive)
  * @param endByte the ending byte offset (exclusive)
  */
-public record FileReadTask(@NonNull DataFileReader reader, @NonNull Type type, long startByte, long endByte) {}
+public record FileReadTask(
+        @NonNull DataFileReader reader, @NonNull Type type, long startByte, long endByte) {}

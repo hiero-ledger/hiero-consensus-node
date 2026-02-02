@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator.v2;
 
+import com.hedera.statevalidation.util.StateUtils;
 import com.hedera.statevalidation.validator.v2.pipeline.RehashTaskExecutor;
 import com.hedera.statevalidation.validator.v2.util.ValidationAssertions;
 import com.hedera.statevalidation.validator.v2.util.ValidationException;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -44,12 +45,9 @@ public class RehashValidator implements Validator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {
-        this.originalHash = deserializedSignedState.originalHash();
-
-        //noinspection resource
-        final VirtualMap vm = (VirtualMap)
-                deserializedSignedState.reservedSignedState().get().getState().getRoot();
+    public void initialize(@NonNull final MerkleNodeState state) {
+        final VirtualMap vm = (VirtualMap) state.getRoot();
+        this.originalHash = StateUtils.getOriginalStateHash();
         this.records = vm.getRecords();
 
         final VirtualMapMetadata metadata = vm.getMetadata();

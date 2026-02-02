@@ -85,6 +85,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
@@ -148,6 +149,18 @@ public final class StateUtils {
             initState(key);
         }
         return deserializedSignedStates.get(key);
+    }
+
+    /**
+     * Returns the original hash of the signed state when it was serialized.
+     * <p>
+     * Note: This hash may differ from the current hash if the state has been modified since deserialization.
+     *
+     * @return the original hash from {@link DeserializedSignedState#originalHash()}
+     * @see DeserializedSignedState
+     */
+    public static Hash getOriginalStateHash() {
+        return getDeserializedSignedState(DEFAULT).originalHash();
     }
 
     private static void initState(String key) {

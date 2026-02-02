@@ -4,7 +4,7 @@ package com.hedera.statevalidation.validator.v2.pipeline;
 import static com.hedera.statevalidation.util.ParallelProcessingUtils.VALIDATOR_FORK_JOIN_POOL;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
-import com.swirlds.common.merkle.hash.FutureMerkleHash;
+import com.hedera.statevalidation.util.FutureMerkleHash;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;

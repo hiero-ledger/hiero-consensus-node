@@ -127,10 +127,7 @@ public class Validate2Command implements Callable<Integer> {
         try {
             // Initialize state
             parent.initializeStateDir();
-            final var deserializedSignedState = StateUtils.getDeserializedSignedState();
-            //noinspection resource -- doesn't matter in this context
-            final MerkleNodeState state =
-                    deserializedSignedState.reservedSignedState().get().getState();
+            final MerkleNodeState state = StateUtils.getState();
             final VirtualMap virtualMap = (VirtualMap) state.getRoot();
             final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
             if (vds.getFirstLeafPath() == -1) {
@@ -146,7 +143,7 @@ public class Validate2Command implements Callable<Integer> {
 
             // Run individual validators (those that don't use the pipeline)
             final List<Validator> individualValidators =
-                    createAndInitIndividualValidators(deserializedSignedState, tags, validationListeners);
+                    createAndInitIndividualValidators(state, tags, validationListeners);
             for (final Validator validator : individualValidators) {
                 try {
                     validator.validate();
@@ -160,8 +157,7 @@ public class Validate2Command implements Callable<Integer> {
             }
 
             // Run pipeline
-            final Map<Type, Set<Validator>> validators =
-                    createAndInitValidators(deserializedSignedState, tags, validationListeners);
+            final Map<Type, Set<Validator>> validators = createAndInitValidators(state, tags, validationListeners);
             final boolean pipelineSuccess = ValidationPipelineExecutor.run(
                     vds,
                     validators,

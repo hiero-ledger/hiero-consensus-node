@@ -4,7 +4,7 @@ package com.hedera.statevalidation.validator.v2;
 import com.hedera.statevalidation.validator.v2.listener.ValidationListener;
 import com.hedera.statevalidation.validator.v2.util.ValidationAssertions;
 import com.hedera.statevalidation.validator.v2.util.ValidationException;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -13,7 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * <h2>Validator Lifecycle</h2>
  * <p>Each validator follows a three-phase lifecycle:
  * <ol>
- *     <li><b>Initialization</b> - {@link #initialize(DeserializedSignedState)} is called once before any data
+ *     <li><b>Initialization</b> - {@link #initialize(MerkleNodeState)} is called once before any data
  *         processing begins. Validators should extract required state references and initialize counters.</li>
  *     <li><b>Processing</b> - Data items are streamed to validators (for pipeline validators).
  *         Independent validators skip this phase entirely.</li>
@@ -66,24 +66,23 @@ public interface Validator {
     String getTag();
 
     /**
-     * Initializes the validator with access to the deserialized signed state.
+     * Initializes the validator with access to the state.
      *
      * <p>This method is called once before any data processing begins. Implementations can:
      * <ul>
      *     <li>Extract and store references to required state components (e.g., readable states,
-     *         virtual maps, entity stores) via {@code deserializedSignedState.reservedSignedState().get().getState()}</li>
+     *         virtual maps, entity stores)</li>
      *     <li>Initialize any atomic counters or thread-safe collections needed for tracking</li>
      *     <li>Perform any pre-validation setup or initial state queries</li>
-     *     <li>Access the original hash via {@code deserializedSignedState.originalHash()} if needed</li>
      * </ul>
      *
      * <p>If initialization fails, the validator throws an exception and will be excluded
      * from further processing.
      *
-     * @param deserializedSignedState the deserialized signed state providing read-only access to all service states,
-     *              virtual maps, data sources, and the original hash; must not be null
+     * @param state the state providing read-only access to all service states, virtual maps, data
+     *              sources, and the original hash; must not be null
      */
-    void initialize(@NonNull DeserializedSignedState deserializedSignedState);
+    void initialize(@NonNull final MerkleNodeState state);
 
     /**
      * Finalizes validation and asserts results.

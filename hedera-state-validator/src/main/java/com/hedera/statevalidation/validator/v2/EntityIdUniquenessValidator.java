@@ -28,7 +28,6 @@ import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.validator.v2.util.ValidationAssertions;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -69,10 +68,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {
-        //noinspection resource
-        final MerkleNodeState state =
-                deserializedSignedState.reservedSignedState().get().getState();
+    public void initialize(@NonNull final MerkleNodeState state) {
         this.tokensState = Objects.requireNonNull(
                 state.getReadableStates(TokenService.NAME).get(TOKENS_STATE_ID));
         this.accountState = Objects.requireNonNull(
@@ -182,8 +178,8 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
                 return;
             }
 
-            final String errorMessage = String.format(
-                    """
+            final String errorMessage =
+                    String.format("""
             Entity ID %d is not unique, found %d entities.\s
              Token = %s, \
             \s
@@ -192,8 +188,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
              Topic = %s,\s
              File = %s,\s
              Schedule = %s
-            """,
-                    entityId, counter, token, account, contract, topic, file, schedule);
+            """, entityId, counter, token, account, contract, topic, file, schedule);
             log.error(errorMessage);
             issuesFound.incrementAndGet();
         }

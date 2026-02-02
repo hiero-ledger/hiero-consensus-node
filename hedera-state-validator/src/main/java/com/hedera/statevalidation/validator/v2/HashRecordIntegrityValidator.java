@@ -3,7 +3,6 @@ package com.hedera.statevalidation.validator.v2;
 
 import com.hedera.statevalidation.validator.v2.util.ValidationAssertions;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
@@ -41,10 +40,7 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {
-        //noinspection resource -- doesn't matter in this context
-        final MerkleNodeState state =
-                deserializedSignedState.reservedSignedState().get().getState();
+    public void initialize(@NonNull final MerkleNodeState state) {
         final VirtualMap virtualMap = (VirtualMap) state.getRoot();
         final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
         this.lastLeafPath = vds.getLastLeafPath();

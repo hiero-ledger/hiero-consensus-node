@@ -62,8 +62,7 @@ public final class DataStats {
                   Total items: %,d
                   Total space: %,d bytes
                   Obsolete items: %,d
-                  Obsolete space: %,d bytes""",
-                getTotalItemCount(), getTotalSpaceSize(), getObsoleteItemCount(), getObsoleteSpaceSize());
+                  Obsolete space: %,d bytes""", getTotalItemCount(), getTotalSpaceSize(), getObsoleteItemCount(), getObsoleteSpaceSize());
     }
 
     /**

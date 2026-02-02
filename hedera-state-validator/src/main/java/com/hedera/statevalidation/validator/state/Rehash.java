@@ -5,9 +5,9 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoStrin
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.statevalidation.report.SlackReportGenerator;
+import com.hedera.statevalidation.util.junit.DeserializedSignedStateResolver;
 import com.hedera.statevalidation.util.junit.HashInfo;
 import com.hedera.statevalidation.util.junit.HashInfoResolver;
-import com.hedera.statevalidation.util.junit.StateResolver;
 import com.hedera.statevalidation.validator.v2.pipeline.RehashTaskExecutor;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -22,17 +22,11 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, SlackReportGenerator.class, HashInfoResolver.class})
+@ExtendWith({DeserializedSignedStateResolver.class, SlackReportGenerator.class, HashInfoResolver.class})
 @Tag("rehash")
 public class Rehash {
 
     private static final Logger logger = LogManager.getLogger(Rehash.class);
-
-    /**
-     * This parameter defines how deep the hash tree should be traversed.
-     * Note that it doesn't go below the top level of VirtualMap even if the depth is set to a higher value.
-     */
-    public static final int HASH_DEPTH = 5;
 
     @Test
     void reHash(DeserializedSignedState deserializedSignedState) throws Exception {

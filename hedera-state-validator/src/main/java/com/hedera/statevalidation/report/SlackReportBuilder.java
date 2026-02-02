@@ -29,7 +29,8 @@ public final class SlackReportBuilder {
     /**
      * Represents a validation failure with a name and error message.
      */
-    public record ValidationFailure(@NonNull String name, @NonNull String errorMessage) {}
+    public record ValidationFailure(
+            @NonNull String name, @NonNull String errorMessage) {}
 
     /**
      * Generates a Slack report from validation failures.
