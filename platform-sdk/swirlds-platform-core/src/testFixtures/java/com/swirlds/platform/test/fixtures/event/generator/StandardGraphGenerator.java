@@ -10,14 +10,9 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.ConsensusImpl;
-import com.swirlds.platform.event.linking.ConsensusLinker;
-import com.swirlds.platform.event.linking.NoOpLinkerLogsAndMetrics;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
-import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.metrics.NoOpConsensusMetrics;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
@@ -36,7 +31,12 @@ import java.util.Objects;
 import java.util.Random;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
+import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
+import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
+import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -443,7 +443,7 @@ public class StandardGraphGenerator implements GraphGenerator {
             return previousTimestamp;
         }
 
-        final EventImpl previousEvent = source.getLatestEvent(getRandom());
+        final PlatformEvent previousEvent = source.getLatestEvent(getRandom());
         final Instant previousTimestampForSource =
                 previousEvent == null ? Instant.ofEpochSecond(0) : previousEvent.getTimeCreated();
 
@@ -474,7 +474,7 @@ public class StandardGraphGenerator implements GraphGenerator {
      *
      * @param eventIndex the index of the event to build
      */
-    public EventImpl buildNextEvent(final long eventIndex) {
+    public PlatformEvent buildNextEvent(final long eventIndex) {
         final EventSource source = getNextEventSource(eventIndex);
         // using map for parents in case of duplicate sources
         final Map<NodeId, EventSource> otherParentSources = new HashMap<>();
@@ -487,24 +487,24 @@ public class StandardGraphGenerator implements GraphGenerator {
 
         final long birthRound = consensus.getLastRoundDecided() + 1;
 
-        final EventImpl next = source.generateEvent(
+        final PlatformEvent next = source.generateEvent(
                 getRandom(),
                 eventIndex,
                 otherParentSources.values(),
                 getNextTimestamp(source, otherParentSources.keySet()),
                 birthRound);
 
-        new DefaultEventHasher().hashEvent(next.getBaseEvent());
+        new DefaultEventHasher().hashEvent(next);
         updateConsensus(next);
         return next;
     }
 
-    private void updateConsensus(@NonNull final EventImpl e) {
+    private void updateConsensus(@NonNull final PlatformEvent e) {
         /* The event given to the internal consensus needs its own EventImpl & PlatformEvent for
         metadata to be kept separate from the event that is returned to the caller.  The orphan
         buffer assigns an nGen value. The SimpleLinker wraps the event in an EventImpl and links
         it. The event must be hashed and have a descriptor built for its use in the SimpleLinker. */
-        final PlatformEvent copy = e.getBaseEvent().copyGossipedData();
+        final PlatformEvent copy = e.copyGossipedData();
         final List<PlatformEvent> events = orphanBuffer.handleEvent(copy);
         for (final PlatformEvent event : events) {
             final EventImpl linkedEvent = linker.linkEvent(event);
@@ -554,7 +554,7 @@ public class StandardGraphGenerator implements GraphGenerator {
                         .roundsNonAncient()));
         // re-add all non-ancient events
         for (final EventImpl event : nonAncientEvents) {
-            updateConsensus(event);
+            updateConsensus(event.getBaseEvent());
         }
     }
 
@@ -580,28 +580,16 @@ public class StandardGraphGenerator implements GraphGenerator {
     /**
      * {@inheritDoc}
      */
-    public final EventImpl generateEvent() {
+    public final PlatformEvent generateEvent() {
         return generateEventWithoutIndex();
-    }
-
-    /**
-     * Generate the next event and return its base event.
-     *
-     * <p>This is the same as calling {@code generateEvent()}, but returns the {@link PlatformEvent}
-     * as {@link EventImpl} is an internal class.
-     *
-     * @return the next event's base event
-     */
-    public final PlatformEvent generateBaseEvent() {
-        return generateEvent().getBaseEvent();
     }
 
     /**
      * The same as {@link #generateEvent()}, but does not set the stream sequence number.
      */
-    public final EventImpl generateEventWithoutIndex() {
-        final EventImpl next = buildNextEvent(numEventsGenerated);
-        next.getBaseEvent().signalPrehandleCompletion();
+    public final PlatformEvent generateEventWithoutIndex() {
+        final PlatformEvent next = buildNextEvent(numEventsGenerated);
+        next.signalPrehandleCompletion();
         numEventsGenerated++;
         updateMaxBirthRound(next);
         return next;
@@ -622,7 +610,7 @@ public class StandardGraphGenerator implements GraphGenerator {
         return random;
     }
 
-    private void updateMaxBirthRound(@NonNull final EventImpl event) {
+    private void updateMaxBirthRound(@NonNull final PlatformEvent event) {
         maxBirthRoundPerCreator.merge(event.getCreatorId(), event.getBirthRound(), Math::max);
     }
 

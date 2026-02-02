@@ -5,19 +5,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.gossip.Utilities;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.ConnectionTracker;
-import com.swirlds.platform.network.NetworkUtils;
-import com.swirlds.platform.network.PeerInfo;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
+import org.hiero.consensus.gossip.impl.gossip.Utilities;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
+import org.hiero.consensus.gossip.impl.network.NetworkUtils;
+import org.hiero.consensus.gossip.impl.network.PeerInfo;
+import org.hiero.consensus.gossip.impl.network.connectivity.InboundConnectionHandler;
+import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
@@ -28,9 +28,6 @@ import org.mockito.Mockito;
 class InboundConnectionHandlerTest extends ConnectivityTestBase {
 
     private static final int PORT = 31_000;
-    private static final PlatformContext platformContext = TestPlatformContextBuilder.create()
-            .withConfiguration(TLS_NO_IP_TOS_CONFIG)
-            .build();
     private static final ConnectionTracker ct = Mockito.mock(ConnectionTracker.class);
 
     /**
@@ -75,8 +72,8 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
             Assertions.assertEquals(conn.getSelfId(), node1);
         };
 
-        final InboundConnectionHandler inbound =
-                new InboundConnectionHandler(platformContext, ct, node1Peers, node1, connConsumer, Time.getCurrent());
+        final InboundConnectionHandler inbound = new InboundConnectionHandler(
+                TLS_NO_IP_TOS_CONFIG, Time.getCurrent(), ct, node1Peers, node1, connConsumer);
         inbound.handle(socket); // 2 can talk to 1 via tls ok
         socket.close();
     }
@@ -119,8 +116,8 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
         final InterruptableConsumer<Connection> connConsumer =
                 conn -> Assertions.fail("connection should never have been created");
 
-        final InboundConnectionHandler inbound =
-                new InboundConnectionHandler(platformContext, ct, node1Peers, node1, connConsumer, Time.getCurrent());
+        final InboundConnectionHandler inbound = new InboundConnectionHandler(
+                TLS_NO_IP_TOS_CONFIG, Time.getCurrent(), ct, node1Peers, node1, connConsumer);
         inbound.handle(socket);
         Assertions.assertTrue(socket.isClosed());
         serverThread.join();

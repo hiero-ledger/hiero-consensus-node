@@ -31,8 +31,8 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
@@ -110,7 +110,7 @@ public class HollowAccountCompletionsTest {
         when(dispatch.keyVerifier()).thenReturn(keyVerifier);
         when(handleContext.payer()).thenReturn(payerId);
         when(parentTxn.readableStoreFactory()).thenReturn(readableStoreFactory);
-        when(parentTxn.readableStoreFactory().getStore(ReadableAccountStore.class))
+        when(parentTxn.readableStoreFactory().readableStore(ReadableAccountStore.class))
                 .thenReturn(accountStore);
         when(parentTxn.preHandleResult()).thenReturn(preHandleResult);
         when(handleContext.dispatch(any())).thenReturn(recordBuilder);
@@ -219,7 +219,7 @@ public class HollowAccountCompletionsTest {
                 ETHEREUM_TRANSACTION,
                 null);
 
-        when(parentTxn.readableStoreFactory().getStore(ReadableAccountStore.class))
+        when(parentTxn.readableStoreFactory().readableStore(ReadableAccountStore.class))
                 .thenReturn(accountStore);
         when(parentTxn.config()).thenReturn(DEFAULT_CONFIG);
         when(parentTxn.txnInfo()).thenReturn(txnInfo);

@@ -18,7 +18,7 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -107,8 +107,13 @@ public class ChildFeeContextImpl implements FeeContext {
     }
 
     @Override
+    public @NonNull ReadableStoreFactory readableStoreFactory() {
+        return storeFactory;
+    }
+
+    @Override
     public <T> @NonNull T readableStore(@NonNull final Class<T> storeInterface) {
-        return context.readableStore(storeInterface);
+        return storeFactory.readableStore(storeInterface);
     }
 
     @Override

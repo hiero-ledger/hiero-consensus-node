@@ -66,7 +66,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     private static final int NANOS_IN_A_SECOND = 1_000_000_000;
 
     protected static final NodeId MISSING_NODE_ID = NodeId.of(666L);
-    protected static final int MAX_PLATFORM_TXN_SIZE = 1024 * 6;
+    protected static final int MAX_PLATFORM_TXN_SIZE = 1024 * 130;
     protected static final int MAX_QUERY_RESPONSE_SIZE = 1024 * 1024 * 2;
     protected static final Hash FAKE_START_OF_STATE_HASH = new Hash(new byte[48]);
     protected static final TransactionResponse OK_RESPONSE = TransactionResponse.getDefaultInstance();
@@ -282,8 +282,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 this::now,
                 DiskStartupNetworks::new,
                 (appContext, bootstrapConfig) -> this.hintsService = new FakeHintsService(appContext, bootstrapConfig),
-                (appContext, bootstrapConfig) ->
-                        this.historyService = new FakeHistoryService(appContext, bootstrapConfig),
+                (appContext, bootstrapConfig) -> this.historyService = new FakeHistoryService(appContext),
                 (hints, history, configProvider) ->
                         this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
                 PLATFORM_CONFIG,

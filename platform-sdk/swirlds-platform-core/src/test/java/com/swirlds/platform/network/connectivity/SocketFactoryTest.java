@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.connectivity;
 
-import static com.swirlds.platform.network.connectivity.SocketFactory.ALL_INTERFACES;
+import static org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory.ALL_INTERFACES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,12 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.gossip.Utilities;
-import com.swirlds.platform.gossip.config.GossipConfig;
-import com.swirlds.platform.gossip.config.GossipConfig_;
-import com.swirlds.platform.gossip.config.NetworkEndpoint;
-import com.swirlds.platform.network.NetworkUtils;
-import com.swirlds.platform.network.PeerInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.BindException;
@@ -25,6 +19,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.gossip.config.GossipConfig;
+import org.hiero.consensus.gossip.config.GossipConfig_;
+import org.hiero.consensus.gossip.config.NetworkEndpoint;
+import org.hiero.consensus.gossip.impl.gossip.Utilities;
+import org.hiero.consensus.gossip.impl.network.NetworkUtils;
+import org.hiero.consensus.gossip.impl.network.PeerInfo;
+import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.params.ParameterizedTest;

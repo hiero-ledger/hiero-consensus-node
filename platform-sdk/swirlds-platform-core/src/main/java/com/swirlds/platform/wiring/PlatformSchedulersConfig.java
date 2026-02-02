@@ -30,7 +30,6 @@ import java.time.Duration;
  *                                             sentinel
  * @param platformMonitor                      configuration for the platform monitor scheduler
  * @param transactionPool                      configuration for the transaction pool scheduler
- * @param gossip                               configuration for the gossip scheduler
  * @param branchDetector                       configuration for the branch detector scheduler
  * @param branchReporter                       configuration for the branch reporter scheduler
  */
@@ -46,9 +45,6 @@ public record PlatformSchedulersConfig(
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration stateSigner,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
-        TaskSchedulerConfiguration pcesInlineWriter,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
         TaskSchedulerConfiguration futureEventBuffer,
@@ -100,9 +96,6 @@ public record PlatformSchedulersConfig(
         TaskSchedulerConfiguration platformMonitor,
 
         @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration transactionPool,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-        TaskSchedulerConfiguration gossip,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration branchDetector,
