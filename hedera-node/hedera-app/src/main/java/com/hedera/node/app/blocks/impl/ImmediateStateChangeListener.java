@@ -24,6 +24,7 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.blockrecords.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.consensus.Topic;
@@ -330,6 +331,11 @@ public class ImmediateStateChangeListener implements StateChangeListener {
                 return new OneOf<>(
                         QueuePushChange.ValueOneOfType.TRANSACTION_RECEIPT_ENTRIES_ELEMENT,
                         transactionReceiptEntriesElement);
+            }
+            case WrappedRecordFileBlockHashes wrappedRecordFileBlockHashesElement -> {
+                return new OneOf<>(
+                        QueuePushChange.ValueOneOfType.WRAPPED_RECORD_FILE_BLOCK_HASHES_ELEMENT,
+                        wrappedRecordFileBlockHashesElement);
             }
             default ->
                 throw new IllegalArgumentException(

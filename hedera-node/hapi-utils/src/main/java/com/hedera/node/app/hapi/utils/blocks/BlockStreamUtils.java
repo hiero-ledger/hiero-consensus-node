@@ -123,6 +123,8 @@ public final class BlockStreamUtils {
             case UNSET, PROTO_STRING_ELEMENT -> throw new IllegalStateException("Queue push value is not supported");
             case PROTO_BYTES_ELEMENT -> new ProtoBytes(queuePushChange.protoBytesElementOrThrow());
             case TRANSACTION_RECEIPT_ENTRIES_ELEMENT -> queuePushChange.transactionReceiptEntriesElementOrThrow();
+            case WRAPPED_RECORD_FILE_BLOCK_HASHES_ELEMENT ->
+                queuePushChange.wrappedRecordFileBlockHashesElementOrThrow();
         };
     }
 
