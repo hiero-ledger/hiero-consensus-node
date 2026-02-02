@@ -30,7 +30,6 @@ import org.hiero.consensus.model.hashgraph.Round;
  * access to particular properties of the platform state.
  */
 public final class PlatformStateUtils {
-
     /**
      * @param state the state to extract value from
      * @param round the round to check
@@ -295,7 +294,8 @@ public final class PlatformStateUtils {
 
     private static PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {
         final ReadableStates readableStates = state.getReadableStates(NAME);
-        if (readableStates.isEmpty()) {
+        if (readableStates.isEmpty()
+                || readableStates.getSingleton(PLATFORM_STATE_STATE_ID).get() == null) {
             return new SnapshotPlatformStateAccessor(UNINITIALIZED_PLATFORM_STATE);
         }
         return new ReadablePlatformStateStore(readableStates);

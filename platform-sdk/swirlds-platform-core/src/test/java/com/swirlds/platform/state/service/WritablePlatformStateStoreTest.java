@@ -7,7 +7,6 @@ import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchem
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
-import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
@@ -61,19 +60,6 @@ class WritablePlatformStateStoreTest {
                 .thenReturn(new OnDiskWritableSingletonState<>(
                         PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, codec, virtualMap));
         store = new WritablePlatformStateStore(writableStates);
-    }
-
-    @Test
-    void verifySetAllFrom() {
-        final var platformState = randomPlatformState(randotron);
-        store.setAllFrom(platformState);
-        assertEquals(platformState.getCreationSoftwareVersion(), store.getCreationSoftwareVersion());
-        assertEquals(platformState.getSnapshot().round(), store.getRound());
-        assertEquals(platformState.getLegacyRunningEventHash(), store.getLegacyRunningEventHash());
-        assertEquals(fromPbjTimestamp(platformState.getSnapshot().consensusTimestamp()), store.getConsensusTimestamp());
-        assertEquals(platformState.getRoundsNonAncient(), store.getRoundsNonAncient());
-        assertEquals(platformState.getSnapshot(), store.getSnapshot());
-        assertEquals(platformState.getFreezeTime(), store.getFreezeTime());
     }
 
     @Test

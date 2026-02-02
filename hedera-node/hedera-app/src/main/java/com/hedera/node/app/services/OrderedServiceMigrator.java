@@ -11,6 +11,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.state.merkle.MerkleSchemaRegistry;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
@@ -49,6 +50,7 @@ public class OrderedServiceMigrator implements ServiceMigrator {
      * @param startupNetworks The startup networks to use for the migrations
      * @param storeMetricsService The store metrics service to use for the migrations
      * @param configProvider The config provider to use for the migrations
+     * @param trigger the init trigger
      * @return The list of state changes that occurred during the migrations
      */
     @Override
@@ -61,11 +63,15 @@ public class OrderedServiceMigrator implements ServiceMigrator {
             @NonNull final Configuration platformConfig,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StoreMetricsServiceImpl storeMetricsService,
-            @NonNull final ConfigProviderImpl configProvider) {
+            @NonNull final ConfigProviderImpl configProvider,
+            @NonNull final InitTrigger trigger) {
         requireNonNull(state);
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
+        requireNonNull(startupNetworks);
+        requireNonNull(configProvider);
+        requireNonNull(trigger);
 
         final Map<String, Object> sharedValues = new HashMap<>();
         final var migrationStateChanges = new MigrationStateChanges(state, appConfig, storeMetricsService);
@@ -84,7 +90,8 @@ public class OrderedServiceMigrator implements ServiceMigrator {
                     platformConfig,
                     sharedValues,
                     migrationStateChanges,
-                    startupNetworks);
+                    startupNetworks,
+                    trigger);
         });
         return migrationStateChanges.getStateChanges();
     }

@@ -28,6 +28,7 @@ module org.hiero.otter.fixtures {
     requires com.hedera.node.app.hapi.utils;
     requires com.swirlds.common.test.fixtures;
     requires com.swirlds.config.extensions;
+    requires com.swirlds.merkledb;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.utility;
