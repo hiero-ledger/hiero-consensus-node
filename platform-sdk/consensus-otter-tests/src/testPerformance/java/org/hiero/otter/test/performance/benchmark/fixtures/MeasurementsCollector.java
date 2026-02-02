@@ -38,7 +38,7 @@ public class MeasurementsCollector {
 
     // Per-node data
     private final Map<NodeId, List<Long>> latencySamplesByNode = new HashMap<>();
-    private final Map<NodeId, Long> firstHandleTimeByNode = new HashMap<>();
+    private final Map<NodeId, Long> firstSubmissionTimeByNode = new HashMap<>();
     private final Map<NodeId, Long> lastHandleTimeByNode = new HashMap<>();
     private final Map<NodeId, Long> totalTransactionsByNode = new HashMap<>();
     private final Map<NodeId, Long> negativeLatencyByNode = new HashMap<>();
@@ -68,11 +68,11 @@ public class MeasurementsCollector {
                 "nonce=(\\d+),\\s*latency=(-?\\d+)(ms|μs|us|ns),\\s*submissionTime=(\\d+),\\s*handleTime=(\\d+)");
 
         /**
-         * Parses a single log entry into a benchmark entry.
+         * Parses a single log entry into a measurement.
          *
          * @param nodeId the node ID to associate with the entry
          * @param logEntry the structured log entry
-         * @return the parsed benchmark entry, or null if the log entry is not a benchmark log
+         * @return the parsed measurement, or null if the log entry is not a benchmark log
          */
         @Nullable
         public static Measurement parse(@Nullable final NodeId nodeId, @NonNull final StructuredLog logEntry) {
@@ -98,9 +98,9 @@ public class MeasurementsCollector {
     }
 
     /**
-     * Adds a benchmark entry to the collection.
+     * Adds a measurement to the collection.
      *
-     * @param entry the benchmark entry to add
+     * @param entry the measurement to add
      */
     public void addEntry(@NonNull final Measurement entry) {
         final NodeId nodeId = entry.nodeId();
@@ -127,7 +127,8 @@ public class MeasurementsCollector {
 
         latencySamplesByNode.computeIfAbsent(nodeId, k -> new ArrayList<>()).add(entry.latency());
 
-        firstHandleTimeByNode.compute(nodeId, (k, v) -> (v == null || entry.handleTime() < v) ? entry.handleTime() : v);
+        firstSubmissionTimeByNode.compute(
+                nodeId, (k, v) -> (v == null || entry.submissionTime() < v) ? entry.submissionTime() : v);
         lastHandleTimeByNode.compute(nodeId, (k, v) -> (v == null || entry.handleTime() > v) ? entry.handleTime() : v);
     }
 
@@ -152,6 +153,19 @@ public class MeasurementsCollector {
     }
 
     /**
+     * Returns the number of time units per second based on the current measurement unit.
+     *
+     * @return conversion factor to convert from the measurement unit to seconds
+     */
+    private double getUnitsPerSecond() {
+        return switch (getUnit()) {
+            case "ms" -> 1_000.0;
+            case "ns" -> 1_000_000_000.0;
+            default -> 1_000_000.0;
+        };
+    }
+
+    /**
      * Computes and returns statistics for a specific node.
      *
      * @param nodeId the node ID to compute statistics for
@@ -166,10 +180,10 @@ public class MeasurementsCollector {
 
         final long total = totalTransactionsByNode.getOrDefault(nodeId, 0L);
         final long invalid = negativeLatencyByNode.getOrDefault(nodeId, 0L);
-        final Long firstTime = firstHandleTimeByNode.get(nodeId);
-        final Long lastTime = lastHandleTimeByNode.get(nodeId);
+        final Long firstSubmissionTime = firstSubmissionTimeByNode.get(nodeId);
+        final Long lastHandleTime = lastHandleTimeByNode.get(nodeId);
 
-        return StatisticsCalculator.compute(samples, total, invalid, firstTime, lastTime);
+        return StatisticsCalculator.compute(samples, total, invalid, firstSubmissionTime, lastHandleTime);
     }
 
     /**
@@ -190,14 +204,14 @@ public class MeasurementsCollector {
             totalTx += totalTransactionsByNode.getOrDefault(nodeId, 0L);
             negativeTx += negativeLatencyByNode.getOrDefault(nodeId, 0L);
 
-            final Long nodeFirst = firstHandleTimeByNode.get(nodeId);
-            final Long nodeLast = lastHandleTimeByNode.get(nodeId);
+            final Long nodeFirstSubmission = firstSubmissionTimeByNode.get(nodeId);
+            final Long nodeLastHandle = lastHandleTimeByNode.get(nodeId);
 
-            if (nodeFirst != null && (firstTime == null || nodeFirst < firstTime)) {
-                firstTime = nodeFirst;
+            if (nodeFirstSubmission != null && (firstTime == null || nodeFirstSubmission < firstTime)) {
+                firstTime = nodeFirstSubmission;
             }
-            if (nodeLast != null && (lastTime == null || nodeLast > lastTime)) {
-                lastTime = nodeLast;
+            if (nodeLastHandle != null && (lastTime == null || nodeLastHandle > lastTime)) {
+                lastTime = nodeLastHandle;
             }
         }
 
@@ -243,8 +257,11 @@ public class MeasurementsCollector {
         // Throughput summary
         sb.append("\n");
         sb.append(String.format(
-                "Throughput: %.2f tx/s (over %d μs, %d samples)%n",
-                totalStats.throughputPerSecond(), totalStats.duration(), totalStats.sampleCount()));
+                "Throughput: %.2f tx/s (over %d %s, %d total transactions)%n",
+                totalStats.throughput() * getUnitsPerSecond(),
+                totalStats.duration(),
+                u,
+                totalStats.totalMeasurements()));
 
         if (totalStats.invalidMeasurements() > 0) {
             sb.append(String.format(

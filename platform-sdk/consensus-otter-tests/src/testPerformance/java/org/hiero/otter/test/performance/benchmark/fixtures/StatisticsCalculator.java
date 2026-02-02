@@ -37,19 +37,19 @@ public final class StatisticsCalculator {
     /**
      * Immutable statistics snapshot.
      *
-     * @param sampleCount number of valid latency samples
+     * @param sampleCount number of valid samples
      * @param totalMeasurements total measurements taken
-     * @param invalidMeasurements invalid measurements latency (e.g.: negative)
-     * @param average average latency
+     * @param invalidMeasurements invalid measurements (e.g.: negative)
+     * @param average average
      * @param stdDev standard deviation
      * @param error 99.9% confidence interval half-width
-     * @param min minimum latency
-     * @param max maximum latency
+     * @param min minimum
+     * @param max maximum
      * @param p50 50th percentile (median)
      * @param p95 95th percentile
      * @param p99 99th percentile
-     * @param duration total duration from first to last transaction
-     * @param throughputPerSecond transactions per second
+     * @param duration total duration from first submission to last handle
+     * @param throughput transactions per time unit
      */
     public record Statistics(
             int sampleCount,
@@ -64,7 +64,7 @@ public final class StatisticsCalculator {
             long p95,
             long p99,
             long duration,
-            double throughputPerSecond) {
+            double throughput) {
 
         /** Empty statistics for when no samples have been collected. */
         public static final Statistics EMPTY = new Statistics(0, 0, 0, 0.0, 0.0, 0.0, 0, 0, 0, 0, 0, 0, 0.0);
@@ -73,11 +73,11 @@ public final class StatisticsCalculator {
     /**
      * Computes comprehensive statistics from the given samples and metadata.
      *
-     * @param samples list of latency samples (will be sorted in place)
+     * @param samples list of samples (will be sorted in place)
      * @param total total number of attempted measurements
      * @param invalid number of invalid measurements
-     * @param firstTime timestamp of the first transaction (nullable)
-     * @param lastTime timestamp of the last transaction (nullable)
+     * @param firstSubmissionTime timestamp of the first transaction submission (nullable)
+     * @param lastHandleTime timestamp of the last transaction handle (nullable)
      * @return computed statistics
      */
     @NonNull
@@ -85,8 +85,8 @@ public final class StatisticsCalculator {
             @NonNull final List<Long> samples,
             final long total,
             final long invalid,
-            final Long firstTime,
-            final Long lastTime) {
+            final Long firstSubmissionTime,
+            final Long lastHandleTime) {
 
         if (samples.isEmpty()) {
             return Statistics.EMPTY;
@@ -116,23 +116,12 @@ public final class StatisticsCalculator {
         final long p95 = percentile(samples, 95);
         final long p99 = percentile(samples, 99);
 
-        final long durationMicros = (firstTime != null && lastTime != null) ? lastTime - firstTime : 0;
-        final double throughput = (durationMicros > 0) ? (sampleCount * 1_000_000.0 / durationMicros) : 0;
+        final long duration =
+                (firstSubmissionTime != null && lastHandleTime != null) ? lastHandleTime - firstSubmissionTime : 0;
+        final double throughput = (duration > 0) ? ((double) total / duration) : 0;
 
         return new Statistics(
-                sampleCount,
-                total,
-                invalid,
-                average,
-                stdDev,
-                error,
-                min,
-                max,
-                p50,
-                p95,
-                p99,
-                durationMicros,
-                throughput);
+                sampleCount, total, invalid, average, stdDev, error, min, max, p50, p95, p99, duration, throughput);
     }
 
     /**
