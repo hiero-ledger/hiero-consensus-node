@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.recovery;
 
+import static org.hiero.consensus.pcli.recovery.EventRecoveryWorkflow.recoverState;
+
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -12,9 +14,6 @@ import org.hiero.consensus.pcli.AbstractCommand;
 import org.hiero.consensus.pcli.EventStreamCommand;
 import org.hiero.consensus.pcli.SubcommandOf;
 import picocli.CommandLine;
-
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static org.hiero.consensus.pcli.recovery.EventRecoveryWorkflow.recoverState;
 
 @CommandLine.Command(
         name = "recover",

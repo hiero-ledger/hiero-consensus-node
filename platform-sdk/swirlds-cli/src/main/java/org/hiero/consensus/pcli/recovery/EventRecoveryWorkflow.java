@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.recovery;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
+import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.config.PathsConfig;
-import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
 import com.swirlds.platform.recovery.internal.StreamedRound;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -29,7 +34,6 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -38,8 +42,6 @@ import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
@@ -59,25 +61,12 @@ import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.consensus.pces.impl.common.PcesFile;
 import org.hiero.consensus.pces.impl.common.PcesMutableFile;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
-import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
-
 /**
  * Handles the event stream recovery workflow.
  */
 public final class EventRecoveryWorkflow {
 
     private static final Logger logger = LogManager.getLogger(EventRecoveryWorkflow.class);
-
-    public static final long NO_FINAL_ROUND = Long.MAX_VALUE;
 
     private EventRecoveryWorkflow() {}
 
@@ -90,8 +79,7 @@ public final class EventRecoveryWorkflow {
      * @param configurationFiles      files containing configuration
      * @param eventStreamDirectory    a directory containing the event stream
      * @param mainClassName           the fully qualified class name of the {@link SwirldMain} for the app
-     * @param finalRound              if not {@link #NO_FINAL_ROUND} then stop reapplying events after this round has
-     *                                been generated
+     * @param finalRound              stop reapplying events after this round has been generated
      * @param resultingStateDirectory the location where the resulting state will be written
      * @param selfId                  the self ID of the node
      * @param allowPartialRounds      if true then allow the last round to be missing events, if false then ignore the
@@ -182,7 +170,6 @@ public final class EventRecoveryWorkflow {
                     resultingStateDirectory,
                     recoveredState.state().get(),
                     stateLifecycleManager);
-            final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
 
             logger.info(STARTUP.getMarker(), "Signed state written to disk");
 
@@ -239,7 +226,7 @@ public final class EventRecoveryWorkflow {
     public static RecoveredState reapplyTransactions(
             @NonNull final PlatformContext platformContext,
             @NonNull final ReservedSignedState initialSignedState,
-            @NonNull final SwirldMain appMain,
+            @NonNull final SwirldMain<? extends MerkleNodeState> appMain,
             @NonNull final IOIterator<StreamedRound> roundIterator,
             final long finalRound,
             @NonNull final NodeId selfId,
@@ -254,7 +241,7 @@ public final class EventRecoveryWorkflow {
 
         final Configuration configuration = platformContext.getConfiguration();
 
-        MerkleNodeState initialState = initialSignedState.get().getState();
+        final MerkleNodeState initialState = initialSignedState.get().getState();
         initialState.throwIfImmutable("initial state must be mutable");
 
         logger.info(STARTUP.getMarker(), "Initializing application state");
@@ -262,8 +249,8 @@ public final class EventRecoveryWorkflow {
         final RecoveryPlatform platform =
                 new RecoveryPlatform(configuration, initialSignedState.get(), selfId, loadSigningKeys);
 
-        ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
-        SemanticVersion softwareVersion = creationSoftwareVersionOf(initialState);
+        final ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
+        final SemanticVersion softwareVersion = creationSoftwareVersionOf(initialState);
         final var notificationEngine = platform.getNotificationEngine();
         notificationEngine.register(
                 NewRecoveredStateListener.class,
@@ -444,26 +431,5 @@ public final class EventRecoveryWorkflow {
 
         return CompareTo.isLessThan(previousRoundTimestamp, freezeTime)
                 && CompareTo.isGreaterThanOrEqualTo(currentRoundTimestamp, freezeTime);
-    }
-
-    /**
-     * Repair an event stream. A damaged event stream might be created when a network is abruptly shut down in the
-     * middle of writing an event stream file. After the repair has been completed, the new event stream will contain
-     * only events up to the specified event, and the fill will be terminated with a hash that matches the data that
-     * ends up in the resulting stream.
-     *
-     * @param eventStreamDirectory         the original event stream directory
-     * @param repairedEventStreamDirectory the location where the repaired event stream will be written
-     * @param finalEventRound              the round of the final event that should be included in the event stream
-     * @param finalEventHash               the hash of the final event that should be included in the event stream
-     */
-    public static void repairEventStream(
-            final Path eventStreamDirectory,
-            final Path repairedEventStreamDirectory,
-            final long finalEventRound,
-            final Hash finalEventHash) {
-
-        // FUTURE WORK https://github.com/swirlds/swirlds-platform/issues/6235
-
     }
 }
