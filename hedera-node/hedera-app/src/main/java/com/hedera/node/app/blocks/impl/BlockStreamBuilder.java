@@ -472,7 +472,8 @@ public class BlockStreamBuilder
      * @param blockItems the list of block items
      * @param translationContext the translation context
      */
-    public record Output(@NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
+    public record Output(
+            @NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
@@ -1525,7 +1526,12 @@ public class BlockStreamBuilder
      */
     private TranslationContext translationContext() {
         return switch (requireNonNull(functionality)) {
-            case CONTRACT_CALL, CONTRACT_CREATE, CONTRACT_DELETE, CONTRACT_UPDATE, ETHEREUM_TRANSACTION ->
+            case HOOK_DISPATCH,
+                    CONTRACT_CALL,
+                    CONTRACT_CREATE,
+                    CONTRACT_DELETE,
+                    CONTRACT_UPDATE,
+                    ETHEREUM_TRANSACTION ->
                 new ContractOpContext(
                         memo,
                         translationContextExchangeRates,

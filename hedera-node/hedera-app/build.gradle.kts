@@ -9,7 +9,6 @@ description = "Hedera Application - Implementation"
 
 mainModuleInfo {
     annotationProcessor("dagger.compiler")
-    annotationProcessor("com.google.auto.service.processor")
 
     // This is needed to pick up and include the native libraries for the netty epoll transport
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
@@ -20,6 +19,7 @@ mainModuleInfo {
     runtimeOnly("io.helidon.webclient.http2")
     runtimeOnly("com.hedera.pbj.grpc.client.helidon")
     runtimeOnly("com.hedera.pbj.grpc.helidon")
+    runtimeOnly("org.hiero.consensus.pcli")
 }
 
 testModuleInfo {

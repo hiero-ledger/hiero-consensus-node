@@ -63,7 +63,7 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH)"
 val matsSuffix = "MATS"
 
 val basePrCheckTags =
@@ -80,6 +80,7 @@ val basePrCheckTags =
         "hapiTestMisc" to miscTags,
         "hapiTestMiscRecords" to miscTags,
         "hapiTestSimpleFees" to "SIMPLE_FEES",
+        "hapiTestAtomicBatch" to "ATOMIC_BATCH",
     )
 
 val prCheckTags =
@@ -121,6 +122,7 @@ val prCheckStartPorts =
         put("hapiTestMisc", "26800")
         put("hapiTestBlockNodeCommunication", "27000")
         put("hapiTestMiscRecords", "27200")
+        put("hapiTestAtomicBatch", "27400")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -130,23 +132,34 @@ val prCheckStartPorts =
     }
 val prCheckPropOverrides =
     buildMap<String, String> {
-        put("hapiTestAdhoc", "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true")
+        put(
+            "hapiTestAdhoc",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        )
         put(
             "hapiTestCrypto",
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSmartContract", "tss.historyEnabled=false")
         put(
             "hapiTestRestart",
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true",
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
-        put("hapiTestMisc", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put(
+            "hapiTestMisc",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        )
         put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
             "hapiTestMiscRecords",
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSimpleFees", "fees.simpleFeesEnabled=true")
+        put(
+            "hapiTestNDReconnect",
+            "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        )
+        put("hapiTestAtomicBatch", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries

@@ -24,6 +24,7 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
@@ -35,6 +36,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
+import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
@@ -42,8 +44,7 @@ import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -51,7 +52,6 @@ import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.CommandLineArgs;
 import com.swirlds.platform.builder.PlatformBuilder;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -75,7 +75,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterStateUtils;
 
 /**
@@ -183,9 +185,6 @@ public class ServicesMain {
             throw new ConfigurationException();
         }
         final var platformConfig = buildPlatformConfig();
-        // Immediately initialize the cryptography and merkle cryptography factories
-        // to avoid using default behavior instead of that defined in platformConfig
-        final var merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         // Determine which nodes were _requested_ to run from the command line
         final var cliNodesToRun = commandLineArgs.localNodesToStart();
@@ -210,12 +209,12 @@ public class ServicesMain {
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
         final var fileSystemManager = FileSystemManager.create(platformConfig);
-        final var recycleBin =
-                RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        final var recycleBin = RecycleBinImpl.create(
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler =
                 hedera.newConsensusStateEvenHandler();
-        final PlatformContext platformContext = PlatformContext.create(
-                platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
+        final PlatformContext platformContext =
+                PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
@@ -237,10 +236,10 @@ public class ServicesMain {
         }
         hedera.setInitialStateHash(reservedState.hash());
 
-        // --- Create the platform context and initialize the cryptography ---
-        final var rosterHistory = RosterStateUtils.createRosterHistory(state);
-
-        final var keysAndCerts = initNodeSecurity(platformConfig, selfId);
+        final ReadableRosterStore rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
+        final List<RosterEntry> rosterEntries =
+                requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+        final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
 
         final String consensusEventStreamName = genesisNetwork.get()
                 // If at genesis, base the event stream location on the genesis network metadata
@@ -256,7 +255,7 @@ public class ServicesMain {
                         consensusStateEventHandler,
                         selfId,
                         consensusEventStreamName,
-                        rosterHistory,
+                        RosterStateUtils.createRosterHistory(state),
                         hedera.getStateLifecycleManager())
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)

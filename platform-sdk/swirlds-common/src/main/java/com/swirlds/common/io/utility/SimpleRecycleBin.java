@@ -4,6 +4,7 @@ package com.swirlds.common.io.utility;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.consensus.io.RecycleBin;
 
 /**
  * A simple implementation of a recycle bin that deletes files permanently immediately.

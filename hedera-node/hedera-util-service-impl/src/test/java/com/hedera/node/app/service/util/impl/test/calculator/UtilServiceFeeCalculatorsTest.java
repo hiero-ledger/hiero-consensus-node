@@ -12,11 +12,12 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.hapi.node.util.UtilPrngTransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.service.util.impl.calculator.AtomicBatchFeeCalculator;
 import com.hedera.node.app.service.util.impl.calculator.UtilPrngFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
@@ -81,12 +82,12 @@ class UtilServiceFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
+        final var result = feeCalculator.calculateTxFee(testCase.body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
         assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
-        assertThat(result.service).isEqualTo(testCase.expectedServiceFee);
-        assertThat(result.network).isEqualTo(testCase.expectedNetworkFee);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(testCase.expectedNodeFee);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(testCase.expectedServiceFee);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(testCase.expectedNetworkFee);
     }
 
     @Test

@@ -285,16 +285,11 @@ public final class PlatformStateUtils {
     /**
      * Generate a string that describes this state.
      *
-     * @param hashDepth the depth of the tree to visit and print
      */
     @NonNull
-    public static String getInfoString(@NonNull final State state, final int hashDepth) {
+    public static String getInfoString(@NonNull final State state) {
         final MerkleNodeState merkleNodeState = (MerkleNodeState) state;
-        return createInfoString(
-                        hashDepth,
-                        readablePlatformStateStore(state),
-                        merkleNodeState.getHash(),
-                        merkleNodeState.getRoot())
+        return createInfoString(readablePlatformStateStore(state), merkleNodeState.getHash())
                 .concat(merkleNodeState.getInfoJson());
     }
 

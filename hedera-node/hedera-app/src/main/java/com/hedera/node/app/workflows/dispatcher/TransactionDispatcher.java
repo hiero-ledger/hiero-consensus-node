@@ -10,6 +10,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -138,7 +139,7 @@ public class TransactionDispatcher {
             final var handler = getHandler(feeContext.body());
             if (shouldUseSimpleFees(feeContext)) {
                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                        .calculateTxFee(feeContext.body(), feeContext);
+                        .calculateTxFee(feeContext.body(), SimpleFeeContextUtil.fromFeeContext(feeContext));
                 return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
             }
             return handler.calculateFees(feeContext);
@@ -189,6 +190,13 @@ public class TransactionDispatcher {
                     TOKEN_UPDATE_NFTS,
                     TOKEN_WIPE -> true;
             case NODE_CREATE, NODE_UPDATE, NODE_DELETE -> true;
+            case CONTRACT_CREATE_INSTANCE,
+                    CONTRACT_DELETE_INSTANCE,
+                    CONTRACT_CALL,
+                    CONTRACT_UPDATE_INSTANCE,
+                    ETHEREUM_TRANSACTION,
+                    HOOK_STORE,
+                    HOOK_DISPATCH -> true;
             default -> false;
         };
     }
@@ -298,7 +306,7 @@ public class TransactionDispatcher {
                     case FILE_ID -> handlers.fileSystemUndeleteHandler();
                     default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
                 };
-            case LEDGER_ID_PUBLICATION -> NOOP_HANDLER;
+            case LEDGER_ID_PUBLICATION, NODE_STAKE_UPDATE -> NOOP_HANDLER;
 
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };

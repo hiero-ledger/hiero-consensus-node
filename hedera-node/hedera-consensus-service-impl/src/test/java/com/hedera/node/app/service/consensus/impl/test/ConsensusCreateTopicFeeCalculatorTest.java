@@ -10,9 +10,9 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusCreateTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.Assertions;
@@ -54,12 +54,13 @@ public class ConsensusCreateTopicFeeCalculatorTest {
             final var op = ConsensusCreateTopicTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusCreateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(
+                    body, com.hedera.node.app.spi.fees.SimpleFeeContextUtil.fromFeeContext(feeContext));
 
             assertThat(result).isNotNull();
-            Assertions.assertThat(result.node).isEqualTo(100000L);
-            Assertions.assertThat(result.service).isEqualTo(498500000L);
-            Assertions.assertThat(result.network).isEqualTo(200000L);
+            Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+            Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L);
+            Assertions.assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
         }
     }
 

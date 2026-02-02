@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookId;
@@ -19,8 +18,13 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import java.util.List;
+import org.assertj.core.api.Assertions;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
+import org.hiero.hapi.support.fees.ExtraFeeDefinition;
+import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 import org.hiero.hapi.support.fees.ServiceFeeSchedule;
@@ -93,15 +97,24 @@ public class HookStoreHandlerTest {
         final var hookFeeSchedule = ServiceFeeSchedule.newBuilder()
                 .schedule(ServiceFeeDefinition.newBuilder()
                         .name(HederaFunctionality.HOOK_STORE)
-                        .baseFee(1000000000L)
+                        .baseFee(0)
+                        .extras(ExtraFeeReference.newBuilder()
+                                .name(Extra.HOOK_SLOT_UPDATE)
+                                .includedCount(1)
+                                .build())
                         .build())
                 .build();
-        final var feeSchedule =
-                FeeSchedule.newBuilder().services(List.of(hookFeeSchedule)).build();
+        final var feeSchedule = FeeSchedule.newBuilder()
+                .services(List.of(hookFeeSchedule))
+                .extras(ExtraFeeDefinition.newBuilder()
+                        .name(Extra.HOOK_SLOT_UPDATE)
+                        .fee(500000000L)
+                        .build())
+                .build();
         final var subject = new HookStoreHandler.FeeCalculator();
 
-        subject.accumulateServiceFee(tx, feeContext, feeResult, feeSchedule);
-
-        verify(feeResult).addServiceFee(3, 1000000000L);
+        final var feeResult = new FeeResult();
+        subject.accumulateServiceFee(tx, SimpleFeeContextUtil.fromFeeContext(feeContext), feeResult, feeSchedule);
+        Assertions.assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(1000000000L);
     }
 }

@@ -8,21 +8,15 @@ module com.swirlds.common {
     exports com.swirlds.common.io;
     exports com.swirlds.common.io.config;
     exports com.swirlds.common.io.exceptions;
-    exports com.swirlds.common.io.extendable;
-    exports com.swirlds.common.io.extendable.extensions;
     exports com.swirlds.common.io.filesystem;
     exports com.swirlds.common.io.streams;
     exports com.swirlds.common.io.utility;
     exports com.swirlds.common.merkle;
-    exports com.swirlds.common.merkle.copy;
-    exports com.swirlds.common.merkle.crypto;
     exports com.swirlds.common.merkle.exceptions;
-    exports com.swirlds.common.merkle.hash;
     exports com.swirlds.common.merkle.impl;
     exports com.swirlds.common.merkle.impl.destroyable;
     exports com.swirlds.common.merkle.impl.internal;
     exports com.swirlds.common.merkle.interfaces;
-    exports com.swirlds.common.merkle.iterators;
     exports com.swirlds.common.merkle.route;
     exports com.swirlds.common.merkle.synchronization;
     exports com.swirlds.common.merkle.synchronization.config;
@@ -31,7 +25,6 @@ module com.swirlds.common {
     exports com.swirlds.common.merkle.synchronization.utility;
     exports com.swirlds.common.merkle.synchronization.views;
     exports com.swirlds.common.merkle.utility;
-    exports com.swirlds.common.metrics.event;
     exports com.swirlds.common.notification;
     exports com.swirlds.common.platform;
     exports com.swirlds.common.stream;
@@ -51,8 +44,6 @@ module com.swirlds.common {
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.stream to
             com.fasterxml.jackson.databind;
-    opens com.swirlds.common.merkle.copy to
-            com.fasterxml.jackson.databind;
     opens com.swirlds.common.merkle.impl to
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.merkle.impl.internal to
@@ -63,8 +54,6 @@ module com.swirlds.common {
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.stream.internal to
             com.fasterxml.jackson.databind;
-    opens com.swirlds.common.merkle.crypto to
-            com.fasterxml.jackson.databind;
 
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
@@ -74,6 +63,7 @@ module com.swirlds.common {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
     requires com.hedera.pbj.runtime;

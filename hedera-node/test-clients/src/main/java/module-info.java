@@ -98,7 +98,6 @@ open module com.hedera.node.test.clients {
     requires com.hedera.pbj.grpc.helidon;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.base;
-    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.merkledb;
@@ -112,6 +111,7 @@ open module com.hedera.node.test.clients {
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.roster;
+    requires org.hiero.consensus.utility;
     requires com.esaulpaugh.headlong;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
