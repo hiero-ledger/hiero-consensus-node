@@ -10,7 +10,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
@@ -33,6 +32,7 @@ import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -196,10 +196,9 @@ public class ReconnectStateTeacher {
                         otherId.id(),
                         lastRoundReceived));
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
-        logger.info(
-                RECONNECT.getMarker(), """
+        logger.info(RECONNECT.getMarker(), """
                         The following state will be sent to the learner:
-                        {}""", () -> getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
+                        {}""", () -> getInfoString(signedState.getState()));
     }
 
     private void logReconnectFinish() {

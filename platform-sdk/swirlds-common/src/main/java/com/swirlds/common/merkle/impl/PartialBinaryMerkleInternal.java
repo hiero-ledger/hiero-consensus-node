@@ -9,7 +9,7 @@ import com.swirlds.common.merkle.impl.internal.AbstractMerkleInternal;
 /**
  * This class implements boilerplate functionality for a binary {@link MerkleInternal}
  * (i.e. an internal node with 2 or fewer children). Classes that implement {@link MerkleInternal}
- * are not required to extend a class such as this or {@link PartialNaryMerkleInternal},
+ * are not required to extend this class
  * but absent a reason it is recommended to do so in order to avoid re-implementation of this code.
  */
 public non-sealed class PartialBinaryMerkleInternal extends AbstractMerkleInternal implements PartialMerkleInternal {

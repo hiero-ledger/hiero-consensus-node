@@ -253,7 +253,7 @@ class DefaultSignedStateValidatorTests {
 
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        validator = new DefaultSignedStateValidator(configuration);
+        validator = new DefaultSignedStateValidator();
 
         final SignedState signedState = stateSignedByNodes(signingNodes);
         final SignedStateValidationData originalData = new SignedStateValidationData(signedState.getState(), roster);

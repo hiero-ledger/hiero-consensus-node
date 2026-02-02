@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.turtle;
 
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.platform.config.PathsConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -36,6 +37,8 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
 
         this.overrideProperties.withConfigValue(MetricsConfig_.DISABLE_METRICS_OUTPUT, true);
         this.overrideProperties.withConfigValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, 0);
+        this.overrideProperties.withConfigValue(MerkleDbConfig_.INITIAL_CAPACITY, 10_000L);
+        this.overrideProperties.withConfigValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, 100_000L);
         this.overrideProperties.withConfigValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false);
         this.overrideProperties.withConfigValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM);
         this.overrideProperties.withConfigValue(EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp"));

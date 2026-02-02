@@ -27,12 +27,10 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -83,6 +81,7 @@ import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A {@link MerkleInternal} node that virtualizes all of its children, such that the child nodes
@@ -146,7 +145,6 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * internal nodes. Indeed, you <strong>MUST NOT</strong> modify the tree structure directly, only
  * through the map-like methods.
  */
-@DebugIterationEndpoint
 @ConstructableIgnored
 public final class VirtualMap extends PartialBinaryMerkleInternal implements Labeled, MerkleInternal, VirtualRoot {
 
