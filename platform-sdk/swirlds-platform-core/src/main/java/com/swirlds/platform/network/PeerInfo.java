@@ -5,8 +5,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterEntryNotFoundException;
 import org.hiero.consensus.node.NodeUtilities;
+import org.hiero.consensus.roster.RosterEntryNotFoundException;
 
 /**
  * A record representing a peer's network information.  If the certificate is not null, it must be encodable as a valid

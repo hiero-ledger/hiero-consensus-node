@@ -11,8 +11,8 @@ import com.swirlds.platform.gui.components.PrePaintableJPanel;
 import com.swirlds.platform.system.Platform;
 import java.util.Collection;
 import javax.swing.JTextArea;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.node.NodeUtilities;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * The tab in the Browser window that shows available apps, running swirlds, and saved swirlds.
