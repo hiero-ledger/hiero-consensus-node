@@ -17,3 +17,11 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.mockito")
 }
+
+jmhModuleInfo {
+    requires("com.hedera.node.hapi")
+    requires("jmh.core")
+    requires("com.swirlds.base.test.fixtures")
+    requires("com.swirlds.common.test.fixtures")
+    requires("com.swirlds.platform.core.test.fixtures")
+}

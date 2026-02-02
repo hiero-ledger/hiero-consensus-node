@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.gui;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGeneratorBuilder;
 
@@ -28,7 +25,6 @@ public class HashgraphGui {
                 .numNodes(4)
                 .maxOtherParents(2)
                 .seed(0)
-                .realSignatures(true)
                 .build();
 
         final TestGuiSource guiSource = new TestGuiSource(
