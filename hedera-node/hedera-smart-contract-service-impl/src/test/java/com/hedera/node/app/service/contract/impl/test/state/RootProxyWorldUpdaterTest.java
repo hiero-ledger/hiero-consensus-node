@@ -153,7 +153,7 @@ class RootProxyWorldUpdaterTest {
         given(rentCalculator.computeFor(sizeExcludingPendingRemovals, 2, aSlotsUsedBeforeCommit, aExpiry))
                 .willReturn(rentInTinycents);
         given(hederaOperations.valueInTinybars(rentInTinycents)).willReturn(rentInTinybars);
-        given(hederaOperations.readableStore()).willReturn(store);
+        given(hederaOperations.getStore()).willReturn(store);
         final var createdIds = new ArrayList<>(List.of(CALLED_CONTRACT_ID));
         final var updatedNonces = new ArrayList<>(List.of(new ContractNonceInfo(CALLED_CONTRACT_ID, 1L)));
         given(hederaOperations.summarizeContractChanges())
