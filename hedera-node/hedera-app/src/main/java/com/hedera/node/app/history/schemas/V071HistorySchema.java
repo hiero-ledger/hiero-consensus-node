@@ -9,16 +9,18 @@ import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
-import com.hedera.hapi.node.state.history.RecordedHistorySignature;
+import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.config.data.TssConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -42,14 +44,13 @@ import java.util.Set;
  *     vote for the metadata proof for that construction.</li>
  * </ul>
  */
-public class V059HistorySchema extends Schema<SemanticVersion> {
-
+public class V071HistorySchema extends Schema<SemanticVersion> {
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().minor(59).build();
+            SemanticVersion.newBuilder().minor(71).build();
 
     private static final long MAX_PROOF_KEYS = 1L << 21;
-    private static final long MAX_ASSEMBLY_SIGNATURES = MAX_PROOF_KEYS;
-    private static final long MAX_PROOF_VOTES = MAX_ASSEMBLY_SIGNATURES;
+    private static final long MAX_PROOF_VOTES = MAX_PROOF_KEYS;
+    private static final long MAX_WRAPS_MESSAGE_HISTORIES = 1L << 21;
 
     public static final String LEDGER_ID_KEY = "LEDGER_ID";
     public static final int LEDGER_ID_STATE_ID = SingletonType.HISTORYSERVICE_I_LEDGER_ID.protoOrdinal();
@@ -66,18 +67,18 @@ public class V059HistorySchema extends Schema<SemanticVersion> {
     public static final int PROOF_KEY_SETS_STATE_ID =
             StateKey.KeyOneOfType.HISTORYSERVICE_I_PROOF_KEY_SETS.protoOrdinal();
 
-    public static final String HISTORY_SIGNATURES_KEY = "HISTORY_SIGNATURES";
-    public static final int HISTORY_SIGNATURES_STATE_ID =
-            StateKey.KeyOneOfType.HISTORYSERVICE_I_HISTORY_SIGNATURES.protoOrdinal();
-
     public static final String PROOF_VOTES_KEY = "PROOF_VOTES";
     public static final int PROOF_VOTES_STATE_ID = StateKey.KeyOneOfType.HISTORYSERVICE_I_PROOF_VOTES.protoOrdinal();
 
+    public static final String WRAPS_MESSAGE_HISTORIES_KEY = "WRAPS_MESSAGE_HISTORIES";
+    public static final int WRAPS_MESSAGE_HISTORIES_STATE_ID =
+            StateKey.KeyOneOfType.HISTORYSERVICE_I_WRAPS_MESSAGE_HISTORIES.protoOrdinal();
+
     private final HistoryService historyService;
 
-    public V059HistorySchema(@NonNull final HistoryService historyService) {
+    public V071HistorySchema(@NonNull final HistoryService historyService) {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
-        this.historyService = requireNonNull(historyService);
+        this.historyService = Objects.requireNonNull(historyService);
     }
 
     @Override
@@ -99,37 +100,28 @@ public class V059HistorySchema extends Schema<SemanticVersion> {
                         ProofKeySet.PROTOBUF,
                         MAX_PROOF_KEYS),
                 StateDefinition.onDisk(
-                        HISTORY_SIGNATURES_STATE_ID,
-                        HISTORY_SIGNATURES_KEY,
-                        ConstructionNodeId.PROTOBUF,
-                        RecordedHistorySignature.PROTOBUF,
-                        MAX_ASSEMBLY_SIGNATURES),
-                StateDefinition.onDisk(
                         PROOF_VOTES_STATE_ID,
                         PROOF_VOTES_KEY,
                         ConstructionNodeId.PROTOBUF,
                         HistoryProofVote.PROTOBUF,
-                        MAX_PROOF_VOTES));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        final var states = ctx.newStates();
-        states.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID).put(ProtoBytes.DEFAULT);
-        states.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
-                .put(HistoryProofConstruction.DEFAULT);
-        states.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
-                .put(HistoryProofConstruction.DEFAULT);
+                        MAX_PROOF_VOTES),
+                StateDefinition.onDisk(
+                        WRAPS_MESSAGE_HISTORIES_STATE_ID,
+                        WRAPS_MESSAGE_HISTORIES_KEY,
+                        ConstructionNodeId.PROTOBUF,
+                        WrapsMessageHistory.PROTOBUF,
+                        MAX_WRAPS_MESSAGE_HISTORIES));
     }
 
     @Override
     public void restart(@NonNull final MigrationContext ctx) {
-        final var states = ctx.newStates();
-        final var activeConstruction =
-                requireNonNull(states.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
-                        .get());
-        if (activeConstruction.hasTargetProof()) {
-            historyService.setLatestHistoryProof(activeConstruction.targetProofOrThrow());
+        if (!ctx.isGenesis() && ctx.appConfig().getConfigData(TssConfig.class).historyEnabled()) {
+            final var activeConstruction = requireNonNull(ctx.newStates()
+                    .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
+                    .get());
+            if (activeConstruction.hasTargetProof()) {
+                historyService.setLatestHistoryProof(activeConstruction.targetProofOrThrow());
+            }
         }
     }
 }
