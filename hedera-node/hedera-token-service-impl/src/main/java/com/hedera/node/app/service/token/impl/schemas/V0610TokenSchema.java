@@ -14,7 +14,6 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.workflows.SystemContext;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -40,15 +39,6 @@ public class V0610TokenSchema extends Schema<SemanticVersion> {
     @Override
     public Set<StateDefinition> statesToCreate() {
         return Set.of(StateDefinition.singleton(NODE_REWARDS_STATE_ID, NODE_REWARDS_KEY, NodeRewards.PROTOBUF));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        final var previousStates = ctx.previousStates();
-        if (ctx.isGenesis() || !previousStates.contains(NODE_REWARDS_STATE_ID)) {
-            final var nodeRewardsState = ctx.newStates().getSingleton(NODE_REWARDS_STATE_ID);
-            nodeRewardsState.put(NodeRewards.DEFAULT);
-        }
     }
 
     /**

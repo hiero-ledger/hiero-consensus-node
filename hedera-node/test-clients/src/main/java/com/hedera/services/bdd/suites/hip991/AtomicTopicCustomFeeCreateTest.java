@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip991;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
@@ -64,9 +65,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TopicCustomFeeCreateTest. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
+@Tag(ATOMIC_BATCH)
 @DisplayName("Topic custom fees")
 @HapiTestLifecycle
 class AtomicTopicCustomFeeCreateTest extends TopicCustomFeeBase {

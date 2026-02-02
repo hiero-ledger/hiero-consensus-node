@@ -92,7 +92,7 @@ public class DefaultHashLogger implements HashLogger {
      */
     @NonNull
     private Message generateLogMessage(@NonNull final SignedState signedState) {
-        final String platformInfo = getInfoString(signedState.getState(), depth);
+        final String platformInfo = getInfoString(signedState.getState());
 
         return MESSAGE_FACTORY.newMessage("""
                         State Info, round = {}:

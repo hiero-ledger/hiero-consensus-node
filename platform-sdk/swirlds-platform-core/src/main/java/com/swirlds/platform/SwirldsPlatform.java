@@ -16,7 +16,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.common.utility.AutoCloseableWrapper;
@@ -31,8 +30,6 @@ import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.event.EventCounter;
-import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
@@ -70,14 +67,14 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.pces.config.PcesConfig;
-import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.round.EventWindowUtils;
 
 /**
@@ -134,11 +131,6 @@ public class SwirldsPlatform implements Platform {
     private final PlatformContext platformContext;
 
     /**
-     * The initial preconsensus event files read from disk.
-     */
-    private final PcesFileTracker initialPcesFiles;
-
-    /**
      * Controls which states are saved to disk
      */
     private final SavedStateController savedStateController;
@@ -166,13 +158,6 @@ public class SwirldsPlatform implements Platform {
 
         selfId = blocks.selfId();
 
-        // This will be initialized to a non-null value if birth round migration is performed. This is necessary
-        // in order to ensure that new PCES file writer detects the special migrated PCES file and starts new files with
-        // the correct sequence number.
-        final InlinePcesWriter inlinePcesWriter = null;
-
-        initialPcesFiles = blocks.initialPcesFiles();
-
         notificationEngine = blocks.notificationEngine();
 
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
@@ -184,8 +169,6 @@ public class SwirldsPlatform implements Platform {
         RuntimeMetrics.setup(metrics);
 
         keysAndCerts = blocks.keysAndCerts();
-
-        EventCounter.registerEventCounterMetrics(metrics);
 
         final LatestCompleteStateNexus latestCompleteStateNexus = new DefaultLatestCompleteStateNexus(platformContext);
 
@@ -218,16 +201,20 @@ public class SwirldsPlatform implements Platform {
         final StateLifecycleManager stateLifecycleManager = blocks.stateLifecycleManager();
         final MerkleNodeState state = initialState.getState();
         stateLifecycleManager.initState(state);
-        setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
+        // Genesis state must stay empty until changes can be externalized in the block stream
+        if (!initialState.isGenesisState()) {
+            setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
+        }
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
         final ReconnectController reconnectController = new ReconnectController(
+                configuration,
+                platformContext.getTime(),
                 currentRoster,
                 this,
-                platformContext,
                 platformCoordinator,
                 stateLifecycleManager,
                 savedStateController,
@@ -235,7 +222,7 @@ public class SwirldsPlatform implements Platform {
                 blocks.reservedSignedStateResultPromise(),
                 selfId,
                 blocks.fallenBehindMonitor(),
-                new DefaultSignedStateValidator(platformContext));
+                new DefaultSignedStateValidator());
 
         final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
                 .setComponent("platform-core")
@@ -252,7 +239,6 @@ public class SwirldsPlatform implements Platform {
                 pcesReplayer,
                 stateSignatureCollector,
                 eventWindowManager,
-                inlinePcesWriter,
                 latestImmutableStateNexus,
                 latestCompleteStateNexus,
                 savedStateController,
@@ -396,7 +382,7 @@ public class SwirldsPlatform implements Platform {
         platformCoordinator.submitStatusAction(new StartedReplayingEventsAction());
 
         final IOIterator<PlatformEvent> iterator =
-                initialPcesFiles.getEventIterator(pcesReplayLowerBound, startingRound);
+                platformComponents.pcesModule().storedEvents(pcesReplayLowerBound, startingRound);
 
         logger.info(STARTUP.getMarker(), "replaying preconsensus event stream starting at {}", pcesReplayLowerBound);
 

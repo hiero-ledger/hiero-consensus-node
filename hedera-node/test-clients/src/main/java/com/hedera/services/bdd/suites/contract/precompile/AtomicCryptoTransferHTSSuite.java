@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -79,7 +79,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 public class AtomicCryptoTransferHTSSuite {
     private static final long GAS_FOR_AUTO_ASSOCIATING_CALLS = 2_000_000;
     private static final Tuple[] EMPTY_TUPLE_ARRAY = new Tuple[] {};

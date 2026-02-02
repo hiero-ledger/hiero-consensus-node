@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
@@ -251,10 +251,9 @@ class DefaultSignedStateValidatorTests {
         final Randotron randotron = Randotron.create();
         roster = createRoster(randotron, nodes);
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        validator = new DefaultSignedStateValidator(platformContext);
+        validator = new DefaultSignedStateValidator();
 
         final SignedState signedState = stateSignedByNodes(signingNodes);
         final SignedStateValidationData originalData = new SignedStateValidationData(signedState.getState(), roster);

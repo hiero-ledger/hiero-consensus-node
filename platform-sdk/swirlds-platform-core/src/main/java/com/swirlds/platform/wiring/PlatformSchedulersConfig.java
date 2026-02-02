@@ -48,9 +48,6 @@ public record PlatformSchedulersConfig(
         TaskSchedulerConfiguration stateSigner,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
-        TaskSchedulerConfiguration pcesInlineWriter,
-
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
         TaskSchedulerConfiguration futureEventBuffer,
 
         @ConfigProperty(defaultValue = "DIRECT") TaskSchedulerConfiguration pcesSequencer,
