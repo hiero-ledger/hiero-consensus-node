@@ -246,9 +246,9 @@ public class MeasurementsCollector {
                 "Throughput: %.2f tx/s (over %d ms, %d samples)%n",
                 totalStats.throughputPerSecond(), totalStats.durationMillis(), totalStats.sampleCount()));
 
-        if (totalStats.negativeLatencyCount() > 0) {
+        if (totalStats.invalidMeasurements() > 0) {
             sb.append(String.format(
-                    "Warning: %d measurements with negative latency%n", totalStats.negativeLatencyCount()));
+                    "Warning: %d measurements with negative latency%n", totalStats.invalidMeasurements()));
         }
 
         // TSV for spreadsheet

@@ -8,6 +8,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -85,6 +86,11 @@ public class BenchmarkTest {
         // Collect measurements from all nodes' logs and print the benchmark report
         final MeasurementsCollector collector = new MeasurementsCollector();
         BenchmarkServiceLogParser.parseFromLogs(network.newLogResults(), Measurement::parse, collector::addEntry);
+        //Make sure the benchmark run is valid
+        assertEquals(
+                TRANSACTION_COUNT * NUMBER_OF_NODES,
+                collector.computeStatistics().totalMeasurements(),
+                "The benchmark is invalid as some of the transactions sent were not measured");
         log.info(collector.generateReport());
     }
 

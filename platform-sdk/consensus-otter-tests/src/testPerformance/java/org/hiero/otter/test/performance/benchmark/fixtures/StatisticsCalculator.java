@@ -38,8 +38,8 @@ public final class StatisticsCalculator {
      * Immutable statistics snapshot.
      *
      * @param sampleCount number of valid latency samples
-     * @param totalTransactions total benchmark transactions seen
-     * @param negativeLatencyCount transactions with negative latency
+     * @param totalMeasurements total measurements taken
+     * @param invalidMeasurements invalid measurements latency (e.g.: negative)
      * @param average average latency
      * @param stdDev standard deviation
      * @param error 99.9% confidence interval half-width
@@ -53,8 +53,8 @@ public final class StatisticsCalculator {
      */
     public record Statistics(
             int sampleCount,
-            long totalTransactions,
-            long negativeLatencyCount,
+            long totalMeasurements,
+            long invalidMeasurements,
             double average,
             double stdDev,
             double error,
