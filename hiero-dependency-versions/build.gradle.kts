@@ -8,7 +8,6 @@ dependencies {
     }
 }
 
-val autoService = "1.1.1"
 val besu = "25.2.2"
 val bouncycastle = "1.81"
 val dagger = "2.56.2"
@@ -22,7 +21,7 @@ val log4j = "2.25.0"
 val mockito = "5.18.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val protobuf = "4.31.1"
-val blockNodeProtobufSources = "0.25.0"
+val blockNodeProtobufSources = "0.26.2"
 val testContainers = "2.0.2"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
@@ -47,12 +46,6 @@ dependencies.constraints {
     api("com.github.docker-java:docker-java-api:3.7.0") { because("com.github.dockerjava.api") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
         because("com.github.spotbugs.annotations")
-    }
-    api("com.google.auto.service:auto-service-annotations:$autoService") {
-        because("com.google.auto.service")
-    }
-    api("com.google.auto.service:auto-service:$autoService") {
-        because("com.google.auto.service.processor")
     }
     api("com.google.guava:guava:33.4.8-jre") { because("com.google.common") }
     api("com.google.j2objc:j2objc-annotations:3.0.0") { because("com.google.j2objc.annotations") }

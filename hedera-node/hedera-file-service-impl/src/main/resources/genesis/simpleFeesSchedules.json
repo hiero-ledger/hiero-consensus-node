@@ -18,7 +18,7 @@
   },
 
   "extras": [
-    { "name":  "SIGNATURES",                     "fee": 1000000 },
+    { "name":  "SIGNATURES",                     "fee": 100000 },
     { "name":  "BYTES",                          "fee": 110000 },
     { "name":  "KEYS",                           "fee": 100000000 },
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
@@ -29,7 +29,9 @@
     { "name":  "ALLOWANCES",                     "fee": 500000000 },
     { "name":  "TOKEN_ASSOCIATE",                "fee": 500000000 },
     { "name":  "TOKEN_CREATE_WITH_CUSTOM_FEE",   "fee": 10000000000 },
-    { "name":  "TOKEN_MINT_NFT",                 "fee": 199000000 },
+    { "name":  "TOKEN_MINT_NFT_BASE",            "fee": 190000000 },
+    { "name":  "TOKEN_MINT_NFT",                 "fee": 200000000 },
+    { "name":  "NFT_UPDATE",                     "fee": 10000000 },
     { "name":  "AIRDROPS",                       "fee": 500000000 },
     { "name":  "HOOK_UPDATES",                   "fee": 10000000000 },
     { "name":  "TOKEN_TRANSFER_BASE",                       "fee": 9000000 },
@@ -129,6 +131,16 @@
           "name": "CryptoGetAccountBalance",
           "baseFee": 0,
           "extras": []
+        },
+        {
+          "name": "CryptoGetInfo",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "CryptoGetAccountRecords",
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },
@@ -188,16 +200,6 @@
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 0,
-          "extras": []
-        },
-        {
-          "name": "CryptoGetInfo",
-          "baseFee": 0,
-          "extras": []
-        },
-        {
-          "name": "CryptoGetAccountRecords",
           "baseFee": 0,
           "extras": []
         }
@@ -326,7 +328,8 @@
           "name": "TokenMint",
           "baseFee": 9000000,
           "extras": [
-            {"name": "TOKEN_MINT_NFT", "includedCount": 0 }
+            {"name": "TOKEN_MINT_NFT_BASE", "includedCount": 0 },
+            {"name": "TOKEN_MINT_NFT", "includedCount": 1 }
           ],
           "highVolumeRates": {
             "maxMultiplier": 150000,
@@ -505,6 +508,7 @@
           "name": "TokenUpdateNfts",
           "baseFee": 9000000,
           "extras": [
+            {"name": "NFT_UPDATE", "includedCount": 1}
           ]
         },
         {
@@ -638,12 +642,7 @@
         {
           "name": "EthereumTransaction",
           "baseFee": 0,
-          "extras": [
-            {
-              "name": "BYTES",
-              "includedCount": 6144
-            }
-          ]
+          "extras": []
         },
         {
           "name": "ContractCreate",
@@ -711,12 +710,12 @@
         },
         {
           "name": "ContractCallLocal",
-          "baseFee": 0,
+          "baseFee": 9000000,
           "extras": []
         },
         {
           "name": "ContractGetBytecode",
-          "baseFee": 0,
+          "baseFee": 499000000,
           "extras": [
             {
               "name": "BYTES", "includedCount": 1000

@@ -3,6 +3,7 @@ import com.swirlds.platform.reconnect.api.ProtocolFactory;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.pces.PcesModule;
 
 /**
  * The Swirlds public API module used by platform applications.
@@ -12,6 +13,7 @@ module com.swirlds.platform.core {
     uses EventIntakeModule;
     uses HashgraphModule;
     uses ProtocolFactory;
+    uses PcesModule;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;
@@ -104,7 +106,8 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
-    requires transitive org.hiero.consensus.pces.impl;
+    requires transitive org.hiero.consensus.pces;
+    requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
     requires transitive org.apache.logging.log4j;
@@ -113,7 +116,7 @@ module com.swirlds.platform.core {
     requires com.swirlds.merkledb;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
-    requires org.hiero.consensus.pces;
+    requires org.hiero.consensus.pces.impl;
     requires com.github.spotbugs.annotations;
     requires java.desktop;
     requires java.management;
