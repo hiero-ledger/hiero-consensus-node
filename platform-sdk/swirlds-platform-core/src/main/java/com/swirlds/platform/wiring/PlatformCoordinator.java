@@ -316,10 +316,10 @@ public record PlatformCoordinator(
     }
 
     /**
-     * @see com.swirlds.platform.event.preconsensus.PcesReplayer#replayPces
+     * @see PcesModule#eventsToReplayInputWire()
      */
     public void injectPcesReplayerIterator(@NonNull final IOIterator<PlatformEvent> iterator) {
-        components.pcesReplayerWiring().pcesIteratorInputWire().inject(iterator);
+        components.pcesModule().eventsToReplayInputWire().inject(iterator);
     }
 
     /**

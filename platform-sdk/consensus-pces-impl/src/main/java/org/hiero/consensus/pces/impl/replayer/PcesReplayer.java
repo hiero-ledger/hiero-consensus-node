@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.preconsensus;
+package org.hiero.consensus.pces.impl.replayer;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.commaSeparatedNumber;
 import static com.swirlds.base.units.TimeUnit.UNIT_MILLISECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
+import static java.util.Objects.requireNonNullElse;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.swirlds.base.formatting.UnitFormatter;
@@ -12,9 +13,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
@@ -26,13 +25,17 @@ import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.pces.PcesModule.PcesReplayLogResult;
 import org.hiero.consensus.pces.config.PcesConfig;
 
 /**
  * This class encapsulates the logic for replaying preconsensus events at boot up time.
  */
 public class PcesReplayer {
+
     private static final Logger logger = LogManager.getLogger(PcesReplayer.class);
+
+    private static final PcesReplayLogResult NO_STATE_BEFORE_REPLAY = new PcesReplayLogResult(null, -1);
 
     private final Time time;
 
@@ -41,7 +44,7 @@ public class PcesReplayer {
     private final Runnable flushIntake;
     private final Runnable flushTransactionHandling;
 
-    private final Supplier<ReservedSignedState> latestImmutableState;
+    private final Supplier<PcesReplayLogResult> pcesReplayLogResultsSupplier;
     private final Supplier<Boolean> isSystemHealthy;
 
     private final PcesConfig config;
@@ -54,7 +57,7 @@ public class PcesReplayer {
      * @param eventOutputWire the wire to put events on, to be replayed
      * @param flushIntake a runnable that flushes the intake pipeline
      * @param flushTransactionHandling a runnable that flushes the transaction handling pipeline
-     * @param latestImmutableState a supplier of the latest immutable state
+     * @param pcesReplayLogResultsSupplier a supplier that provides meta-data of the latest immutable state used to log the results of the PCES replay
      * @param isSystemHealthy a supplier that returns true if the system is healthy and false if the system is
      * overwhelmed
      */
@@ -64,14 +67,14 @@ public class PcesReplayer {
             @NonNull final StandardOutputWire<PlatformEvent> eventOutputWire,
             @NonNull final Runnable flushIntake,
             @NonNull final Runnable flushTransactionHandling,
-            @NonNull final Supplier<ReservedSignedState> latestImmutableState,
+            @NonNull final Supplier<PcesReplayLogResult> pcesReplayLogResultsSupplier,
             @NonNull final Supplier<Boolean> isSystemHealthy) {
 
         this.time = requireNonNull(time);
         this.eventOutputWire = requireNonNull(eventOutputWire);
         this.flushIntake = requireNonNull(flushIntake);
         this.flushTransactionHandling = requireNonNull(flushTransactionHandling);
-        this.latestImmutableState = requireNonNull(latestImmutableState);
+        this.pcesReplayLogResultsSupplier = requireNonNull(pcesReplayLogResultsSupplier);
         this.isSystemHealthy = requireNonNull(isSystemHealthy);
 
         this.config = configuration.getConfigData(PcesConfig.class);
@@ -80,61 +83,59 @@ public class PcesReplayer {
     /**
      * Log information about the replay
      *
-     * @param timestampBeforeReplay the consensus timestamp before replay
-     * @param roundBeforeReplay the round before replay
+     * @param resultBeforeReplay meta-data of state before replaying events
      * @param eventCount the number of events replayed
      * @param transactionCount the number of transactions replayed
      * @param elapsedTime the elapsed wall clock time during replay
      * @param maxBirthRound the maximum birth round of the events that were replayed
      */
     private void logReplayInfo(
-            @Nullable final Instant timestampBeforeReplay,
-            final long roundBeforeReplay,
+            @NonNull final PcesReplayLogResult resultBeforeReplay,
             final long eventCount,
             final long transactionCount,
             @NonNull final Duration elapsedTime,
             final long maxBirthRound) {
 
-        try (final ReservedSignedState stateAfterReplay = latestImmutableState.get()) {
-            if (stateAfterReplay == null || stateAfterReplay.isNull()) {
-                logger.info(
-                        STARTUP.getMarker(),
-                        "Replayed {} preconsensus events. No rounds reached consensus.",
-                        commaSeparatedNumber(eventCount));
-                return;
-            }
-
-            final long roundAfterReplay = stateAfterReplay.get().getRound();
-            final long elapsedRounds = roundAfterReplay - roundBeforeReplay;
-
-            final Instant timestampAfterReplay = stateAfterReplay.get().getConsensusTimestamp();
-
-            final Duration elapsedConsensusTime;
-            if (timestampBeforeReplay != null) {
-                elapsedConsensusTime = Duration.between(timestampBeforeReplay, timestampAfterReplay);
-            } else {
-                elapsedConsensusTime = null;
-            }
-
+        final PcesReplayLogResult resultAfterReplay = pcesReplayLogResultsSupplier.get();
+        if (resultAfterReplay == null) {
             logger.info(
                     STARTUP.getMarker(),
-                    "Replayed {} preconsensus events with max birth round {}. These events contained {} transactions. "
-                            + "{} rounds reached consensus spanning {} of consensus time. The latest "
-                            + "round to reach consensus is round {}. Replay took {}.",
-                    commaSeparatedNumber(eventCount),
-                    commaSeparatedNumber(maxBirthRound),
-                    commaSeparatedNumber(transactionCount),
-                    commaSeparatedNumber(elapsedRounds),
-                    elapsedConsensusTime != null
-                            ? new UnitFormatter(elapsedConsensusTime.toMillis(), UNIT_MILLISECONDS)
-                                    .setAbbreviate(false)
-                                    .render()
-                            : "n/a",
-                    commaSeparatedNumber(roundAfterReplay),
-                    new UnitFormatter(elapsedTime.toMillis(), UNIT_MILLISECONDS)
-                            .setAbbreviate(false)
-                            .render());
+                    "Replayed {} preconsensus events. No rounds reached consensus.",
+                    commaSeparatedNumber(eventCount));
+            return;
         }
+
+        final long roundAfterReplay = resultAfterReplay.round();
+        final long elapsedRounds = roundAfterReplay - resultBeforeReplay.round();
+
+        final Instant timestampBeforeReplay = resultBeforeReplay.consensusTime();
+        final Instant timestampAfterReplay = resultAfterReplay.consensusTime();
+
+        final Duration elapsedConsensusTime;
+        if (timestampBeforeReplay != null) {
+            elapsedConsensusTime = Duration.between(timestampBeforeReplay, timestampAfterReplay);
+        } else {
+            elapsedConsensusTime = null;
+        }
+
+        logger.info(
+                STARTUP.getMarker(),
+                "Replayed {} preconsensus events with max birth round {}. These events contained {} transactions. "
+                        + "{} rounds reached consensus spanning {} of consensus time. The latest "
+                        + "round to reach consensus is round {}. Replay took {}.",
+                commaSeparatedNumber(eventCount),
+                commaSeparatedNumber(maxBirthRound),
+                commaSeparatedNumber(transactionCount),
+                commaSeparatedNumber(elapsedRounds),
+                elapsedConsensusTime != null
+                        ? new UnitFormatter(elapsedConsensusTime.toMillis(), UNIT_MILLISECONDS)
+                                .setAbbreviate(false)
+                                .render()
+                        : "n/a",
+                commaSeparatedNumber(roundAfterReplay),
+                new UnitFormatter(elapsedTime.toMillis(), UNIT_MILLISECONDS)
+                        .setAbbreviate(false)
+                        .render());
     }
 
     /**
@@ -148,17 +149,8 @@ public class PcesReplayer {
         requireNonNull(eventIterator);
 
         final Instant start = time.now();
-        final Instant timestampBeforeReplay;
-        final long roundBeforeReplay;
-        try (final ReservedSignedState startState = latestImmutableState.get()) {
-            if (startState == null || startState.isNull()) {
-                timestampBeforeReplay = null;
-                roundBeforeReplay = -1;
-            } else {
-                timestampBeforeReplay = startState.get().getConsensusTimestamp();
-                roundBeforeReplay = startState.get().getRound();
-            }
-        }
+        final PcesReplayLogResult resultBeforeReplay =
+                requireNonNullElse(pcesReplayLogResultsSupplier.get(), NO_STATE_BEFORE_REPLAY);
 
         final RateLimiter rateLimiter = new RateLimiter(time, config.maxEventReplayFrequency());
 
@@ -193,8 +185,7 @@ public class PcesReplayer {
 
         final Duration elapsedTime = Duration.between(start, time.now());
 
-        logReplayInfo(
-                timestampBeforeReplay, roundBeforeReplay, eventCount, transactionCount, elapsedTime, maxBirthRound);
+        logReplayInfo(resultBeforeReplay, eventCount, transactionCount, elapsedTime, maxBirthRound);
 
         return NoInput.getInstance();
     }

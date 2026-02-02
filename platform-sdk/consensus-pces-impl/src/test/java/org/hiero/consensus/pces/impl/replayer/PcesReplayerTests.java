@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.preconsensus;
+package org.hiero.consensus.pces.impl.replayer;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
@@ -16,8 +15,6 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -28,6 +25,7 @@ import java.util.function.Supplier;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.pces.PcesModule.PcesReplayLogResult;
 import org.hiero.consensus.pces.config.PcesConfig_;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,7 +45,7 @@ class PcesReplayerTests {
     private Runnable flushIntake;
     private AtomicBoolean flushTransactionHandlingCalled;
     private Runnable flushTransactionHandling;
-    private Supplier<ReservedSignedState> latestImmutableStateSupplier;
+    private Supplier<PcesReplayLogResult> pcesReplayLogResultsSupplier;
     private IOIterator<PlatformEvent> ioIterator;
 
     private final int eventCount = 100;
@@ -73,11 +71,7 @@ class PcesReplayerTests {
         flushTransactionHandlingCalled = new AtomicBoolean(false);
         flushTransactionHandling = () -> flushTransactionHandlingCalled.set(true);
 
-        final ReservedSignedState latestImmutableState = mock(ReservedSignedState.class);
-        final SignedState signedState = mock(SignedState.class);
-        when(latestImmutableState.get()).thenReturn(signedState);
-
-        latestImmutableStateSupplier = () -> latestImmutableState;
+        pcesReplayLogResultsSupplier = () -> new PcesReplayLogResult(null, 0L);
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < eventCount; i++) {
@@ -116,7 +110,7 @@ class PcesReplayerTests {
                 eventOutputWire,
                 flushIntake,
                 flushTransactionHandling,
-                latestImmutableStateSupplier,
+                pcesReplayLogResultsSupplier,
                 () -> true);
 
         replayer.replayPces(ioIterator);
@@ -140,7 +134,7 @@ class PcesReplayerTests {
                 eventOutputWire,
                 flushIntake,
                 flushTransactionHandling,
-                latestImmutableStateSupplier,
+                pcesReplayLogResultsSupplier,
                 () -> true);
 
         final Thread thread = new Thread(() -> {

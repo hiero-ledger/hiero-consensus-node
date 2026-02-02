@@ -17,6 +17,7 @@ import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.function.Supplier;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
@@ -28,6 +29,7 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
+import org.hiero.consensus.pces.PcesModule.PcesReplayLogResult;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -151,11 +153,25 @@ public class ConsensusModuleBuilder {
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final RecycleBin recycleBin = new SimpleRecycleBin();
         final long startingRound = 0L;
+        final Runnable flushIntake = () -> {};
+        final Runnable flushTransactionHandling = () -> {};
+        final Supplier<PcesReplayLogResult> pcesReplayLogResultSupplier =
+                () -> new PcesReplayLogResult(time.instant(), startingRound);
         final EventPipelineTracker eventPipelineTracker = null;
 
         final PcesModule pcesModule = createPcesModule();
         pcesModule.initialize(
-                model, configuration, metrics, time, selfId, recycleBin, startingRound, eventPipelineTracker);
+                model,
+                configuration,
+                metrics,
+                time,
+                selfId,
+                recycleBin,
+                startingRound,
+                flushIntake,
+                flushTransactionHandling,
+                pcesReplayLogResultSupplier,
+                eventPipelineTracker);
         return pcesModule;
     }
 

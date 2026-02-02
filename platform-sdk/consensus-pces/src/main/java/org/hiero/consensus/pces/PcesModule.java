@@ -5,12 +5,13 @@ import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Instant;
+import java.util.function.Supplier;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
@@ -38,7 +39,18 @@ public interface PcesModule {
             @NonNull NodeId selfId,
             @NonNull RecycleBin recycleBin,
             long startingRound,
+            @NonNull final Runnable flushIntake,
+            @NonNull final Runnable flushTransactionHandling,
+            @NonNull final Supplier<PcesReplayLogResult> pcesReplayLogResultsSupplier,
             @Nullable EventPipelineTracker pipelineTracker);
+
+    /**
+     * {@link OutputWire} for events that have been replayed from the preconsensus event stream.
+     *
+     * @return the {@link OutputWire} for replayed events
+     */
+    @NonNull
+    OutputWire<PlatformEvent> replayedEventsOutputWire();
 
     /**
      * {@link OutputWire} for events that have been durably written to the preconsensus event stream.
@@ -76,15 +88,14 @@ public interface PcesModule {
     InputWire<Long> minimumBirthRoundInputWire();
 
     /**
-     * {@link InputWire} to signal that the PCES replaying from disk is complete.
+     * {@link InputWire} for the iterator of events to replay from the preconsensus event stream.
      *
-     * <p>This is a temporary wire that will be removed once the {@code PcesReplayer} also moves into this module.
+     * <p>This is a temporary wire that will be removed once the {@code PcesCoordinator} also moves into this module.
      *
-     * @return the {@link InputWire} to signal that PCES replaying is done
+     * @return the {@link InputWire} for the iterator of events to replay
      */
-    @InputWireLabel("done streaming pces")
     @NonNull
-    InputWire<NoInput> beginStreamingNewEventsInputWire();
+    InputWire<IOIterator<PlatformEvent>> eventsToReplayInputWire();
 
     /**
      * {@link InputWire} for signaling a discontinuity in the preconsensus event stream.
@@ -114,4 +125,12 @@ public interface PcesModule {
      * Flushes all events of the internal components.
      */
     void flush();
+
+    /**
+     * Metadata of the latest immutable state that is used to log the result of a PCES replay.
+     *
+     * @param consensusTime the consensus time of the state
+     * @param round the round of the state
+     */
+    record PcesReplayLogResult(@Nullable Instant consensusTime, long round) {}
 }

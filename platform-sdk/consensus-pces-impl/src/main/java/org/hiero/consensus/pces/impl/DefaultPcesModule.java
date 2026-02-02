@@ -2,12 +2,12 @@
 package org.hiero.consensus.pces.impl;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.CompareTo.isLessThan;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -16,6 +16,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.util.function.Supplier;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
@@ -29,6 +31,8 @@ import org.hiero.consensus.pces.impl.common.PcesFileManager;
 import org.hiero.consensus.pces.impl.common.PcesFileReader;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
 import org.hiero.consensus.pces.impl.common.PcesUtilities;
+import org.hiero.consensus.pces.impl.replayer.PcesReplayer;
+import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
 import org.hiero.consensus.pces.impl.writer.DefaultInlinePcesWriter;
 import org.hiero.consensus.pces.impl.writer.InlinePcesWriter;
 
@@ -43,6 +47,9 @@ public class DefaultPcesModule implements PcesModule {
     @Nullable
     private PcesFileTracker initialPcesFiles;
 
+    @Nullable
+    private PcesReplayerWiring pcesReplayerWiring;
+
     /**
      * {@inheritDoc}
      */
@@ -55,6 +62,9 @@ public class DefaultPcesModule implements PcesModule {
             @NonNull final NodeId selfId,
             @NonNull final RecycleBin recycleBin,
             final long startingRound,
+            @NonNull final Runnable flushIntake,
+            @NonNull final Runnable flushTransactionHandling,
+            @NonNull final Supplier<PcesReplayLogResult> pcesReplayLogResultsSupplier,
             @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
         if (pcesWriterWiring != null) {
@@ -64,6 +74,10 @@ public class DefaultPcesModule implements PcesModule {
         // Set up wiring
         final PcesWiringConfig wiringConfig = configuration.getConfigData(PcesWiringConfig.class);
         this.pcesWriterWiring = new ComponentWiring<>(model, InlinePcesWriter.class, wiringConfig.pcesInlineWriter());
+        this.pcesReplayerWiring = PcesReplayerWiring.create(model);
+        pcesReplayerWiring
+                .doneStreamingPcesOutputWire()
+                .solderTo(pcesWriterWiring.getInputWire(InlinePcesWriter::beginStreamingNewEvents));
 
         // Wire metrics
         if (pipelineTracker != null) {
@@ -92,6 +106,27 @@ public class DefaultPcesModule implements PcesModule {
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
+
+        final Duration replayHealthThreshold =
+                configuration.getConfigData(PcesConfig.class).replayHealthThreshold();
+        final PcesReplayer pcesReplayer = new PcesReplayer(
+                configuration,
+                time,
+                pcesReplayerWiring.eventOutput(),
+                flushIntake,
+                flushTransactionHandling,
+                pcesReplayLogResultsSupplier,
+                () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
+        pcesReplayerWiring.bind(pcesReplayer);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public OutputWire<PlatformEvent> replayedEventsOutputWire() {
+        return requireNonNull(pcesReplayerWiring, "Not initialized").eventOutput();
     }
 
     /**
@@ -137,9 +172,8 @@ public class DefaultPcesModule implements PcesModule {
      */
     @Override
     @NonNull
-    public InputWire<NoInput> beginStreamingNewEventsInputWire() {
-        return requireNonNull(pcesWriterWiring, "Not initialized")
-                .getInputWire(InlinePcesWriter::beginStreamingNewEvents);
+    public InputWire<IOIterator<PlatformEvent>> eventsToReplayInputWire() {
+        return requireNonNull(pcesReplayerWiring, "Not initialized").pcesIteratorInputWire();
     }
 
     /**
