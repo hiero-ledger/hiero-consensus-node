@@ -16,7 +16,7 @@ import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -28,7 +28,7 @@ import org.mockito.Mock.Strictness;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ReadableStoreFactoryTest {
+class ReadableStoreFactoryImplTest {
 
     @Mock
     private State state;
@@ -57,10 +57,10 @@ class ReadableStoreFactoryTest {
         // given
         given(readableStates.get(anyInt())).willReturn(readableKVState);
         given(state.getReadableStates(anyString())).willReturn(readableStates);
-        final ReadableStoreFactory subject = new ReadableStoreFactory(state);
+        final ReadableStoreFactoryImpl subject = new ReadableStoreFactoryImpl(state);
 
         // when
-        final var store = subject.getStore(storeClass);
+        final var store = subject.readableStore(storeClass);
 
         // then
         assertThat(store).isInstanceOf(storeClass);
