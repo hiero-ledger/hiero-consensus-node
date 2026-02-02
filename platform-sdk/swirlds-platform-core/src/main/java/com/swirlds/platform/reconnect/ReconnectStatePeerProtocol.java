@@ -345,7 +345,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                     """
                             Information for state received during reconnect:
                             {}""",
-                    () -> getInfoString(reservedSignedState.get().getState(), debugHashDepth));
+                    () -> getInfoString(reservedSignedState.get().getState()));
 
             reservedSignedStateResultProvider.provide(new ReservedSignedStateResult(reservedSignedState, null));
 

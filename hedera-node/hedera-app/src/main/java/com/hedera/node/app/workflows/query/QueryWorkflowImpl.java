@@ -30,6 +30,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -247,7 +248,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             long queryFees;
                             if (shouldUseSimpleFees(context)) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(context.query(), context);
+                                        .calculateQueryFee(
+                                                context.query(), SimpleFeeContextUtil.fromQueryContext(context));
                                 queryFees = tinycentsToTinybars(
                                                 queryFeeTinyCents,
                                                 fromPbj(context.exchangeRateInfo()
@@ -301,9 +303,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     long queryFees;
                     if (shouldUseSimpleFees(context)) {
                         final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                .calculateQueryFee(context.query(), context);
+                                .calculateQueryFee(context.query(), SimpleFeeContextUtil.fromQueryContext(context));
                         queryFees = tinycentsToTinybars(
-                                queryFeeTinyCents,
+                                queryFeeTinyCents.totalTinycents(),
                                 fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                     } else {
                         queryFees = handler.computeFees(context).totalFee();

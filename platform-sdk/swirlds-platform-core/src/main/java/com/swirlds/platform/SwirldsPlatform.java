@@ -219,7 +219,7 @@ public class SwirldsPlatform implements Platform {
                 blocks.reservedSignedStateResultPromise(),
                 selfId,
                 blocks.fallenBehindMonitor(),
-                new DefaultSignedStateValidator(configuration));
+                new DefaultSignedStateValidator());
 
         final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
                 .setComponent("platform-core")

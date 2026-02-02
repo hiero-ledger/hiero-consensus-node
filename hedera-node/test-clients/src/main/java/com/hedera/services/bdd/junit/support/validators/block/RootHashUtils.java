@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.regex.Pattern;
 
@@ -12,7 +11,7 @@ public class RootHashUtils {
     private static final Pattern STATE_ROOT_PATTERN = Pattern.compile(".*VirtualMap.*/.*\\s+(.+)");
 
     /**
-     * Extracts the root mnemonic from a text visualization of a Merkle tree created by {@link MerkleTreeVisualizer}.
+     * Extracts the root mnemonic from a text visualization of a Merkle tree
      * @param visualizedHashes the text visualization
      * @return the root mnemonic
      */
