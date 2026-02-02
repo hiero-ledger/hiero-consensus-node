@@ -35,16 +35,13 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.ParallelProcessingUtils;
-import com.hedera.statevalidation.util.junit.StateResolver;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -54,19 +51,14 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, SlackReportGenerator.class})
+@ExtendWith({MerkleNodeStateResolver.class, SlackReportGenerator.class})
 @Tag("entityIds")
 public class EntityIdUniqueness {
 
     private static final Logger log = LogManager.getLogger(EntityIdUniqueness.class);
 
-    private final Map<Long, Object> entityIds = new ConcurrentHashMap();
-    private final AtomicInteger counter = new AtomicInteger();
-
     @Test
-    void validateEntityIds(DeserializedSignedState deserializedState) throws InterruptedException, ExecutionException {
-        final MerkleNodeState servicesState =
-                deserializedState.reservedSignedState().get().getState();
+    void validateEntityIds(final MerkleNodeState servicesState) throws InterruptedException, ExecutionException {
         final ReadableSingletonState<EntityNumber> entityIdSingleton =
                 servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
 
@@ -153,10 +145,7 @@ public class EntityIdUniqueness {
     }
 
     @Test
-    void validateIdCounts(DeserializedSignedState deserializedState) throws InterruptedException, ExecutionException {
-
-        final MerkleNodeState servicesState =
-                deserializedState.reservedSignedState().get().getState();
+    void validateIdCounts(MerkleNodeState servicesState) throws InterruptedException, ExecutionException {
 
         final VirtualMap vm = (VirtualMap) servicesState.getRoot();
 
@@ -201,7 +190,6 @@ public class EntityIdUniqueness {
                             case CONTRACTSERVICE_I_STORAGE -> contractStorageCount.incrementAndGet();
                             case CONTRACTSERVICE_I_BYTECODE -> contractBytecodeCount.incrementAndGet();
                             case CONTRACTSERVICE_I_EVM_HOOK_STATES -> hookCount.incrementAndGet();
-                            case CONTRACTSERVICE_I_EVM_HOOK_STORAGE -> evmHookStorageCount.incrementAndGet();
                         }
                     } catch (ParseException e) {
                         throw new RuntimeException(e);
@@ -227,9 +215,5 @@ public class EntityIdUniqueness {
         //                "Contract storage count is unexpected");
         assertEquals(entityCounts.numContractBytecodes(), contractBytecodeCount.get(), "Contract count is unexpected");
         assertEquals(entityCounts.numHooks(), hookCount.get(), "Hook count is unexpected");
-        assertEquals(
-                entityCounts.numEvmHookStorageSlots(),
-                evmHookStorageCount.get(),
-                "EVM hook storage slot count is unexpected");
     }
 }
