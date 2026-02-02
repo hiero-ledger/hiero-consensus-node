@@ -13,8 +13,6 @@ tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add("-Xlint:-deprecation,-exports,-removal,-varargs")
 }
 
-mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
-
 testModuleInfo {
     requires("org.apache.logging.log4j.core")
     requires("org.apache.commons.lang3")
