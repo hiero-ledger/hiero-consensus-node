@@ -117,12 +117,11 @@ public class ValidateInternalIndex {
         assertEquals(0, nullErrorCount.get(), "Some chunks are null");
         assertEquals(0, onDiskExceptionCount.get(), "Some operations failed with exceptions");
 
-        final long expectedChunkCount = lastChunkId + 1;
+        final long chunkCount = lastChunkId + 1;
         assertEquals(
-                expectedChunkCount,
+                chunkCount,
                 successCount.get(),
-                "Not all chunks were validated successfully. Expected: " + expectedChunkCount + ", Actual: "
-                        + successCount.get());
+                "Not all chunks were validated successfully, exp: " + chunkCount + ", act: " + successCount.get());
 
         log.info("Successfully validated {} chunks (including root)", successCount.get());
     }
