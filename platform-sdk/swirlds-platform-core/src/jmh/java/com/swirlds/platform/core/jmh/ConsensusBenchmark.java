@@ -4,14 +4,16 @@ package com.swirlds.platform.core.jmh;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
+import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
+import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -46,7 +48,8 @@ public class ConsensusBenchmark {
     @Param({"100000"})
     public int numEvents;
 
-    private List<EventImpl> events;
+    private List<PlatformEvent> platformEvents;
+    private List<EventImpl> linkedEvents;
     private Consensus consensus;
 
     @Setup(Level.Invocation)
@@ -59,16 +62,22 @@ public class ConsensusBenchmark {
                 .setMaxOtherParents(numOP)
                 .setWeightGenerator(WeightGenerators.BALANCED)
                 .build();
-        events = emitter.emitEvents(numEvents);
+        platformEvents = emitter.emitEvents(numEvents);
 
         // We pass the events through the orphan buffer so that their nGen is set
         final DefaultOrphanBuffer orphanBuffer =
                 new DefaultOrphanBuffer(new NoOpMetrics(), new NoOpIntakeEventCounter());
-        for (final EventImpl event : events) {
-            final List<PlatformEvent> obOut = orphanBuffer.handleEvent(event.getPlatformEvent());
+        final ConsensusLinker consensusLinker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
+        for (final PlatformEvent event : platformEvents) {
+            final List<PlatformEvent> obOut = orphanBuffer.handleEvent(event);
             if (obOut.size() != 1) {
                 throw new IllegalStateException("Orphan buffer should not be producing orphans in this benchmark");
             }
+            final EventImpl linkedEvent = consensusLinker.linkEvent(obOut.getFirst());
+            if (linkedEvent == null) {
+                throw new IllegalStateException("Linker should always link each event in this benchmark");
+            }
+            linkedEvents.add(linkedEvent);
         }
 
         consensus = new ConsensusImpl(
@@ -82,7 +91,7 @@ public class ConsensusBenchmark {
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     public void calculateConsensus(final Blackhole bh) {
-        for (final EventImpl event : events) {
+        for (final EventImpl event : linkedEvents) {
             bh.consume(consensus.addEvent(event));
         }
 

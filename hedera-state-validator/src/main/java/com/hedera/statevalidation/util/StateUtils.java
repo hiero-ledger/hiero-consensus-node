@@ -6,7 +6,6 @@ import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.ConfigUtils.resetConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static com.hedera.statevalidation.util.PlatformContextHelper.resetPlatformContext;
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static com.swirlds.platform.state.signed.StartupStateUtils.copyInitialSignedState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
@@ -63,6 +62,7 @@ import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
@@ -171,7 +171,9 @@ public final class StateUtils {
                     copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
             final MerkleNodeState state = hashedSignedState.state().get().getState();
             states.put(key, state);
-            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> getState(key)));
+            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> getState(key), () -> {
+                throw new UnsupportedOperationException("No startup networks available");
+            }));
             initServiceMigrator(state, platformContext, serviceRegistry);
             ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
         } catch (Exception e) {
@@ -246,8 +248,10 @@ public final class StateUtils {
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
                                         .blockPeriod()),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState),
-                        PLATFORM_STATE_SERVICE)
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
+                            throw new UnsupportedOperationException("No startup networks available");
+                        }),
+                        new PlatformStateService())
                 .forEach(servicesRegistry::register);
 
         return servicesRegistry;
@@ -267,9 +271,6 @@ public final class StateUtils {
         final Configuration configuration = platformContext.getConfiguration();
         final ServiceMigrator serviceMigrator = new OrderedServiceMigrator();
         final SemanticVersion version = creationSoftwareVersionOf(state);
-
-        PlatformStateService.PLATFORM_STATE_SERVICE.setAppVersionFn(v -> version);
-
         // previousVersion and currentVersion are the same!
         serviceMigrator.doMigrations(
                 (MerkleNodeState) state,
@@ -280,7 +281,8 @@ public final class StateUtils {
                 configuration,
                 new FakeStartupNetworks(Network.newBuilder().build()),
                 new StoreMetricsServiceImpl(new NoOpMetrics()),
-                new ConfigProviderImpl());
+                new ConfigProviderImpl(),
+                InitTrigger.RESTART);
     }
 
     // Uses cached JSON codecs
