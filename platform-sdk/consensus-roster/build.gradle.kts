@@ -15,7 +15,6 @@ testModuleInfo {
     requires("com.swirlds.state.impl")
     requires("com.swirlds.state.impl.test.fixtures")
     requires("com.swirlds.virtualmap")
-    requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("org.junit.jupiter.api")

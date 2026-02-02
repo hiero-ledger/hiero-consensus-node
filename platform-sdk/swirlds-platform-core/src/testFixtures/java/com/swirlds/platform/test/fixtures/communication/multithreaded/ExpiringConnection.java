@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.communication.multithreaded;
 
-import com.swirlds.platform.gossip.sync.SyncInputStream;
-import com.swirlds.platform.gossip.sync.SyncOutputStream;
-import com.swirlds.platform.network.Connection;
 import java.io.IOException;
 import java.net.SocketException;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
+import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

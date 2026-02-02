@@ -7,19 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 /**
  * Factory for creating stores and service APIs.
  */
-public interface StoreFactory {
-
-    /**
-     * Get a readable store given the store's interface. This gives read-only access to the store.
-     *
-     * @param storeInterface The store interface to find and create a store for
-     * @param <T> Interface class for a Store
-     * @return An implementation of the provided store interface
-     * @throws IllegalArgumentException if the storeInterface class provided is unknown to the app
-     * @throws NullPointerException if {@code storeInterface} is {@code null}
-     */
-    @NonNull
-    <T> T readableStore(@NonNull Class<T> storeInterface);
+public interface StoreFactory extends ReadableStoreFactory {
 
     /**
      * Return a writable store given the store's interface. This gives write access to the store.

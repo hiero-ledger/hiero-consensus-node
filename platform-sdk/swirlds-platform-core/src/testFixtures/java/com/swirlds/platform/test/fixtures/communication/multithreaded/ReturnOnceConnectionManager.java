@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.communication.multithreaded;
 
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.ConnectionManager;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.ConnectionManager;
 
 /**
  * A connection manager that returns a connection once after which it throws an interrupted exception every time

@@ -14,7 +14,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedT
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
+import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
 import static com.swirlds.platform.state.service.PlatformStateUtils.creationSemanticVersionOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.lastFrozenTimeOf;
@@ -26,6 +26,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
+import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Duration;
@@ -89,15 +90,15 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
-import com.hedera.node.app.tss.TssBaseServiceImpl;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
@@ -145,7 +146,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -528,6 +528,9 @@ public final class Hedera
         networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
+        final var rosterServiceImpl = new RosterServiceImpl(
+                this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState), this::startupNetworks);
+        final var platformStateService = new PlatformStateService();
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
                 bootstrapConfig.getConfigData(HederaConfig.class).nodeTransactionMaxBytes(),
@@ -546,7 +549,6 @@ public final class Hedera
                         fileServiceImpl,
                         hintsService,
                         historyService,
-                        new TssBaseServiceImpl(),
                         new FreezeServiceImpl(),
                         scheduleServiceImpl,
                         new TokenServiceImpl(appContext),
@@ -558,9 +560,8 @@ public final class Hedera
                         new CongestionThrottleService(),
                         networkServiceImpl,
                         addressBookServiceImpl,
-                        new RosterServiceImpl(
-                                this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState)),
-                        PLATFORM_STATE_SERVICE)
+                        rosterServiceImpl,
+                        platformStateService)
                 .forEach(servicesRegistry::register);
         final var blockStreamsEnabled = isBlockStreamEnabled();
         stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
@@ -653,15 +654,7 @@ public final class Hedera
                 .getConfigData(BlockStreamConfig.class)
                 .streamToBlockNodes();
         switch (platformStatus) {
-            case ACTIVE -> {
-                startGrpcServer();
-                if (initState != null) {
-                    // Disabling start up mode, so since now singletons will be commited only on block close
-                    if (initState instanceof VirtualMapState virtualMapState) {
-                        virtualMapState.disableStartupMode();
-                    }
-                }
-            }
+            case ACTIVE -> startGrpcServer();
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
@@ -738,10 +731,12 @@ public final class Hedera
             logger.fatal("Critical failure during schema migration", t);
             throw new IllegalStateException("Critical failure during migration", t);
         }
-        logger.info(
-                "Platform state includes freeze time={} and last frozen={}",
-                freezeTimeOf(state),
-                lastFrozenTimeOf(state));
+        if (trigger != GENESIS) {
+            logger.info(
+                    "Platform state includes freeze time={} and last frozen={}",
+                    freezeTimeOf(state),
+                    lastFrozenTimeOf(state));
+        }
     }
 
     /**
@@ -816,8 +811,6 @@ public final class Hedera
                 () -> trigger);
         blockStreamService.resetMigratedLastBlockHash();
         startupNetworks = startupNetworksFactory.apply(configProvider);
-        PLATFORM_STATE_SERVICE.setAppVersionFn(
-                config -> platformConfig.getConfigData(VersionConfig.class).servicesVersion());
         this.initState = state;
         final var migrationChanges = serviceMigrator.doMigrations(
                 state,
@@ -830,7 +823,8 @@ public final class Hedera
                 platformConfig,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                trigger);
         this.initState = null;
         migrationStateChanges = new ArrayList<>(migrationChanges);
         immediateStateChangeListener.reset(null);
@@ -1001,13 +995,16 @@ public final class Hedera
             @NonNull final Event event,
             @NonNull final MerkleNodeState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
-        final var readableStoreFactory = new ReadableStoreFactory(state);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
         // Will be null if the submitting node is no longer in the address book
         final var creatorInfo =
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
-        final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, ignored) -> {
-            final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
-            stateSignatureTxnCallback.accept(scopedTxn);
+        final ShortCircuitCallback shortCircuitTxnCallback = (stateSignatureTx, ignored) -> {
+            if (stateSignatureTx != null) {
+                final var scopedTxn =
+                        new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), stateSignatureTx);
+                stateSignatureTxnCallback.accept(scopedTxn);
+            }
         };
         final var transactions = new ArrayList<Transaction>(1000);
         event.forEachTransaction(transactions::add);
@@ -1096,6 +1093,13 @@ public final class Hedera
      */
     public @NonNull StartupNetworks startupNetworks() {
         return requireNonNull(startupNetworks);
+    }
+
+    /**
+     * Returns the genesis roster, or throws if none is available.
+     */
+    public @NonNull Roster genesisRosterOrThrow() {
+        return rosterFrom(startupNetworks().genesisNetworkOrThrow(configProvider.getConfiguration()));
     }
 
     /*==================================================================================================================
@@ -1250,19 +1254,24 @@ public final class Hedera
         }
         // For other triggers the initial state hash must have been set already
         requireNonNull(initialStateHashFuture);
-        final var roundNum = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
-                        .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
-                        .get())
-                .consensusSnapshotOrThrow()
-                .round();
+        final long roundNum = trigger == GENESIS
+                ? GENESIS_ROUND
+                : requireNonNull(state.getReadableStates(PlatformStateService.NAME)
+                                .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
+                                .get())
+                        .consensusSnapshotOrThrow()
+                        .round();
         final var initialStateHash = new InitialStateHash(initialStateHashFuture, roundNum);
 
-        final var rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
-        final var currentRoster = requireNonNull(rosterStore.getActiveRoster());
+        final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
+        final var currentRoster =
+                trigger == GENESIS ? genesisRosterOrThrow() : requireNonNull(rosterStore.getActiveRoster());
         final var networkInfo = new StateNetworkInfo(
-                platform.getSelfId().id(), state, currentRoster, configProvider, () -> requireNonNull(
-                                genesisNetworkSupplier)
-                        .get());
+                platform.getSelfId().id(),
+                trigger == GENESIS ? null : state,
+                currentRoster,
+                configProvider,
+                () -> requireNonNull(genesisNetworkSupplier).get());
         final var selfNodeAccountIdManager = new SelfNodeAccountIdManagerImpl(configProvider, networkInfo, state);
         hintsService.initCurrentRoster(currentRoster);
         final var blockHashSigner = blockHashSignerFactory.apply(hintsService, historyService, configProvider);

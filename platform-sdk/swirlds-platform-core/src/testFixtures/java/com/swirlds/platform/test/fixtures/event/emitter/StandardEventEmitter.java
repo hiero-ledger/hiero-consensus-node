@@ -2,7 +2,7 @@
 package com.swirlds.platform.test.fixtures.event.emitter;
 
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Emits events in the order in which the generator creates them.
@@ -23,8 +23,8 @@ public class StandardEventEmitter extends AbstractEventEmitter {
      * {@inheritDoc}
      */
     @Override
-    public EventImpl emitEvent() {
-        final EventImpl event = getGraphGenerator().generateEvent();
+    public PlatformEvent emitEvent() {
+        final PlatformEvent event = getGraphGenerator().generateEvent();
         numEventsEmitted++;
         return event;
     }

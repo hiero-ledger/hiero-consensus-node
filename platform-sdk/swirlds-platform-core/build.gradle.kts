@@ -27,9 +27,11 @@ jmhModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.hedera.node.hapi")
+    requires("org.hiero.consensus.gossip.impl")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.pces")
     requires("org.hiero.consensus.pces.impl")
+    requires("org.hiero.consensus.utility.test.fixtures")
     requires("jmh.core")
 }
 
