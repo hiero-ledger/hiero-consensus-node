@@ -146,10 +146,7 @@ public class EntityIdUniqueness {
     }
 
     @Test
-    void validateIdCounts(DeserializedSignedState deserializedState) throws InterruptedException, ExecutionException {
-
-        final MerkleNodeState servicesState =
-                deserializedState.reservedSignedState().get().getState();
+    void validateIdCounts(MerkleNodeState servicesState) throws InterruptedException, ExecutionException {
 
         final VirtualMap vm = (VirtualMap) servicesState.getRoot();
 
