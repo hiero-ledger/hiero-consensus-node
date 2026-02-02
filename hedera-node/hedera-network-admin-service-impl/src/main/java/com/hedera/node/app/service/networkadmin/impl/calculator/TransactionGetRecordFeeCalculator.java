@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.networkadmin.impl.calculator;
 
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
+import static org.hiero.hapi.support.fees.Extra.ADDITIONAL_RECORDS;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
@@ -22,6 +23,7 @@ public class TransactionGetRecordFeeCalculator implements QueryFeeCalculator {
             @NonNull SimpleFeeContext simpleFeeContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
+        final var queryContext = simpleFeeContext.queryContext();
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TRANSACTION_GET_RECORD);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
@@ -38,7 +40,7 @@ public class TransactionGetRecordFeeCalculator implements QueryFeeCalculator {
                             op.includeChildRecords() ? history.childRecords().size() : 0;
                 }
             }
-            feeResult.multiplyServiceTotal(recordCount);
+            addExtraFee(feeResult, serviceDef, ADDITIONAL_RECORDS, feeSchedule, recordCount);
         }
     }
 

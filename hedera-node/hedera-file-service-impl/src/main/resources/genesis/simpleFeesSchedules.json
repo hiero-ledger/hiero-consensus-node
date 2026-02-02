@@ -34,6 +34,7 @@
     { "name":  "NFT_UPDATE",                     "fee": 10000000 },
     { "name":  "AIRDROPS",                       "fee": 500000000 },
     { "name":  "HOOK_UPDATES",                   "fee": 10000000000 },
+    { "name":  "ADDITIONAL_RECORDS",             "fee": 1000000 },
     { "name":  "TOKEN_TRANSFER_BASE",                       "fee": 9000000 },
     { "name":  "TOKEN_TRANSFER_BASE_CUSTOM_FEES",           "fee": 19000000 },
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
@@ -129,17 +130,17 @@
         },
         {
           "name": "CryptoGetAccountBalance",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         },
         {
           "name": "CryptoGetInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         },
         {
           "name": "CryptoGetAccountRecords",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]
@@ -200,7 +201,7 @@
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]
@@ -282,14 +283,14 @@
         },
         {
           "name": "FileGetContents",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": [
             { "name": "BYTES", "includedCount": 1000}
           ]
         },
         {
           "name": "FileGetInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]
@@ -513,13 +514,13 @@
         },
         {
           "name": "TokenGetInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": [
           ]
         },
         {
           "name": "TokenGetNftInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": [
           ]
         }
@@ -567,7 +568,7 @@
         },
         {
           "name": "ScheduleGetInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]
@@ -577,22 +578,27 @@
       "schedule": [
         {
           "name": "GetVersionInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         },
         {
           "name": "TransactionGetRecord",
-          "baseFee": 1000000,
-          "extras": []
+          "baseFee": 0,
+          "extras": [
+            {
+              "name": "ADDITIONAL_RECORDS",
+              "includedCount": 0
+            }
+          ]
         },
         {
           "name": "TransactionGetReceipt",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         },
         {
           "name": "GetByKey",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]
@@ -710,12 +716,12 @@
         },
         {
           "name": "ContractCallLocal",
-          "baseFee": 10000000,
+          "baseFee": 9000000,
           "extras": []
         },
         {
           "name": "ContractGetBytecode",
-          "baseFee": 500000000,
+          "baseFee": 499000000,
           "extras": [
             {
               "name": "BYTES", "includedCount": 1000
@@ -724,7 +730,7 @@
         },
         {
           "name": "ContractGetInfo",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": []
         }
       ]

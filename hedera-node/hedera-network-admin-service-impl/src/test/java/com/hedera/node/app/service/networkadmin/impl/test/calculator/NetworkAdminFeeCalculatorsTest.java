@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.networkadmin.impl.test.calculator;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.Mockito.mock;
@@ -21,6 +23,7 @@ import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import java.util.List;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -111,7 +114,7 @@ class NetworkAdminFeeCalculatorsTest {
                         .transactionGetRecord(
                                 TransactionGetRecordQuery.newBuilder().build())
                         .build(),
-                null,
+                SimpleFeeContextUtil.fromQueryContext(null),
                 feeResult,
                 createTestFeeSchedule());
 
@@ -151,13 +154,10 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                Query.newBuilder().build(),
-                SimpleFeeContextUtil.fromQueryContext(mockQueryContext),
-                feeResult,
-                createTestFeeSchedule());
-        calculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+                query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
 
-        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(TRANSACTION_GET_RECORD_FEE * expectedMultiplier);
+        assertThat(feeResult.getServiceTotalTinycents())
+                .isEqualTo(TRANSACTION_GET_RECORD_FEE + (TRANSACTION_GET_RECORD_FEE * (expectedMultiplier - 1)));
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.TRANSACTION_GET_RECORD);
     }
 
@@ -179,7 +179,8 @@ class NetworkAdminFeeCalculatorsTest {
         when(recordCache.getHistory(transactionID)).thenReturn(null);
         final var feeResult = new FeeResult();
 
-        calculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+        calculator.accumulateNodePayment(
+                query, SimpleFeeContextUtil.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(TRANSACTION_GET_RECORD_FEE);
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.TRANSACTION_GET_RECORD);
@@ -193,7 +194,11 @@ class NetworkAdminFeeCalculatorsTest {
                         makeServiceFee(HederaFunctionality.GET_VERSION_INFO, GET_VERSION_INFO_FEE),
                         makeServiceFee(HederaFunctionality.GET_BY_KEY, GET_BY_KEY_FEE),
                         makeServiceFee(HederaFunctionality.TRANSACTION_GET_RECEIPT, TRANSACTION_GET_RECEIPT_FEE),
-                        makeServiceFee(HederaFunctionality.TRANSACTION_GET_RECORD, TRANSACTION_GET_RECORD_FEE)))
+                        makeServiceFee(
+                                HederaFunctionality.TRANSACTION_GET_RECORD,
+                                TRANSACTION_GET_RECORD_FEE,
+                                makeExtraIncluded(Extra.ADDITIONAL_RECORDS, 1))))
+                .extras(makeExtraDef(Extra.ADDITIONAL_RECORDS, TRANSACTION_GET_RECORD_FEE))
                 .build();
     }
 }

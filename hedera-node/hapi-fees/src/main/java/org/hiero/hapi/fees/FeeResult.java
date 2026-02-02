@@ -49,24 +49,6 @@ public class FeeResult {
     }
 
     /**
-     * Multiply the service fee
-     *
-     * @param multiplier the multiplier
-     */
-    public void multiplyServiceTotal(long multiplier) {
-        this.serviceTotal = clampedMultiply(serviceTotal, multiplier);
-    }
-
-    /**
-     * Multiply the node fee
-     *
-     * @param multiplier the multiplier
-     */
-    public void multiplyNodeTotal(long multiplier) {
-        this.nodeTotal = clampedMultiply(nodeTotal, multiplier);
-    }
-
-    /**
      * Get the Service base fee in tiny cents.
      *
      * @return service base fee

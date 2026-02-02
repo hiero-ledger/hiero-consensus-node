@@ -237,13 +237,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                 throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
                             }
 
-                            // The fee for the crypto transfer that pays the fee
-                            final var cryptoTransferTxnFee = queryChecker.estimateTxFees(
-                                    storeFactory,
-                                    consensusTime,
-                                    checkerResult.txnInfoOrThrow(),
-                                    payer.keyOrThrow(),
-                                    configuration);
                             // 3.iv Calculate costs
                             long queryFees;
                             if (shouldUseSimpleFees(context)) {
@@ -251,13 +244,19 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                         .calculateQueryFee(
                                                 context.query(), SimpleFeeContextUtil.fromQueryContext(context));
                                 queryFees = tinycentsToTinybars(
-                                                queryFeeTinyCents,
-                                                fromPbj(context.exchangeRateInfo()
-                                                        .activeRate(consensusTime)))
-                                        - cryptoTransferTxnFee;
+                                        queryFeeTinyCents.totalTinycents(),
+                                        fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                             } else {
                                 queryFees = handler.computeFees(context).totalFee();
                             }
+
+                            // The fee for the crypto transfer that pays the fee
+                            final var cryptoTransferTxnFee = queryChecker.estimateTxFees(
+                                    storeFactory,
+                                    consensusTime,
+                                    checkerResult.txnInfoOrThrow(),
+                                    payer.keyOrThrow(),
+                                    configuration);
 
                             // 3.v Check account balances
                             queryChecker.validateAccountBalances(
