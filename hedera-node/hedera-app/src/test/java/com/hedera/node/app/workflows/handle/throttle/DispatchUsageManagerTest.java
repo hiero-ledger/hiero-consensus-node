@@ -35,8 +35,8 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -285,7 +285,7 @@ class DispatchUsageManagerTest {
         given(dispatch.config()).willReturn(DEFAULT_CONFIG);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
-        given(readableStoreFactory.getStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(readableStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
 
         subject.finalizeAndSaveUsage(dispatch);
 
@@ -317,7 +317,7 @@ class DispatchUsageManagerTest {
         given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
-        given(readableStoreFactory.getStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(readableStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
         given(throttleServiceManager.numImplicitCreations(NONDESCRIPT_TXN_BODY, readableAccountStore))
                 .willReturn(1);
         given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
@@ -337,7 +337,7 @@ class DispatchUsageManagerTest {
         given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
-        given(readableStoreFactory.getStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(readableStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
         given(throttleServiceManager.numImplicitCreations(NONDESCRIPT_TXN_BODY, readableAccountStore))
                 .willReturn(0);
 
@@ -355,7 +355,7 @@ class DispatchUsageManagerTest {
         given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
-        given(readableStoreFactory.getStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(readableStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
         given(throttleServiceManager.numImplicitCreations(NONDESCRIPT_TXN_BODY, readableAccountStore))
                 .willReturn(1);
         given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);

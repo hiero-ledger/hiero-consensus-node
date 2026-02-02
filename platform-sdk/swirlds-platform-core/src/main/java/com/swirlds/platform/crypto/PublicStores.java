@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -71,10 +72,7 @@ public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
      * 		if the given alias already exists and does not identify an entry containing a trusted certificate,
      * 		or this operation fails for some other reason
      */
-    public void setCertificate(
-            final org.hiero.consensus.crypto.KeyCertPurpose type,
-            final X509Certificate certificate,
-            final NodeId nodeId)
+    public void setCertificate(final KeyCertPurpose type, final X509Certificate certificate, final NodeId nodeId)
             throws KeyStoreException {
         switch (type) {
             case SIGNING -> sigTrustStore.setCertificateEntry(type.storeName(nodeId), certificate);
@@ -90,10 +88,9 @@ public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
      * @throws KeyLoadingException
      * 		if the certificate is missing or is not an instance of X509Certificate
      */
-    public X509Certificate getCertificate(final org.hiero.consensus.crypto.KeyCertPurpose type, final NodeId nodeId)
-            throws KeyLoadingException {
+    public X509Certificate getCertificate(final KeyCertPurpose type, final NodeId nodeId) throws KeyLoadingException {
         final Certificate certificate;
-        final var name = type.storeName(nodeId);
+        final String name = type.storeName(nodeId);
         try {
             certificate = switch (type) {
                 case SIGNING -> sigTrustStore.getCertificate(name);
