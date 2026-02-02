@@ -24,6 +24,7 @@ module org.hiero.consensus.pces.impl {
     requires com.swirlds.logging;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.concurrent;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
