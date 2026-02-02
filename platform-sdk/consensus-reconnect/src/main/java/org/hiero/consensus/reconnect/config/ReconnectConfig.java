@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.merkle.synchronization.config;
+package org.hiero.consensus.reconnect.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
@@ -14,12 +14,8 @@ import java.time.Duration;
  *                                               allowed to reconnect. If -1 then a node is always allowed to reconnect.
  *                                               Respects {@link #active} -- if active is false then reconnect is never
  *                                               allowed.
- * @param asyncStreamTimeout                     The amount of time that an
- *                                               {@link
- *                                               com.swirlds.common.merkle.synchronization.streams.AsyncInputStream} and
- *                                               {@link
- *                                               com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream}
- *                                               will wait before throwing a timeout.
+ * @param asyncStreamTimeout                     The amount of time that an {@code AsyncInputStream} and
+ *                                               {@code AsyncOutputStream} will wait before throwing a timeout.
  * @param asyncOutputStreamFlush                 In order to ensure that data is not languishing in the
  *                                               asyncOutputStream buffer a periodic flush is performed.
  * @param asyncStreamBufferSize                  The size of the buffers for async input and output streams.
