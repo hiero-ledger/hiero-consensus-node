@@ -2,7 +2,6 @@
 package com.swirlds.common.merkle;
 
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
-import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
 import com.swirlds.common.merkle.interfaces.MerkleParent;
 import com.swirlds.common.merkle.interfaces.Rebuildable;
 
@@ -25,9 +24,8 @@ import com.swirlds.common.merkle.interfaces.Rebuildable;
  * - getChild()
  * - isLeaf()
  *
- * It is highly recommended that any class implementing this interface extend either
- * {@link PartialBinaryMerkleInternal} (if the node has 2 or fewer children) or {@link PartialNaryMerkleInternal}
- * (if the node has greater than 2 children).
+ * It is highly recommended that any class implementing this interface extend
+ * {@link PartialBinaryMerkleInternal}.
  */
 public interface MerkleInternal extends MerkleNode, MerkleParent, Rebuildable {
 

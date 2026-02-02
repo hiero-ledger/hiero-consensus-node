@@ -16,11 +16,12 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.MerkleStateUtils;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
@@ -61,7 +62,7 @@ public final class SignedStateFileWriter {
             @NonNull final MerkleNodeState state)
             throws IOException {
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
-        final String platformInfo = getInfoString(state, stateConfig.debugHashDepth());
+        final String platformInfo = getInfoString(state);
 
         logger.info(STATE_TO_DISK.getMarker(), """
                         Information for state written to disk:
@@ -69,11 +70,11 @@ public final class SignedStateFileWriter {
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
 
-        final String hashInfo = new MerkleTreeVisualizer(state.getRoot())
-                .setDepth(stateConfig.debugHashDepth())
-                .render();
+        final String hashInfo = Mnemonics.generateMnemonic(state.getHash());
         try (final BufferedWriter writer = new BufferedWriter(new FileWriter(hashInfoFile.toFile()))) {
-            writer.write(hashInfo);
+            // even though hash info template content is not required, it's there to preserve backwards compatibility of
+            // the file format
+            writer.write(String.format(MerkleStateUtils.HASH_INFO_TEMPLATE, hashInfo));
         }
     }
 
