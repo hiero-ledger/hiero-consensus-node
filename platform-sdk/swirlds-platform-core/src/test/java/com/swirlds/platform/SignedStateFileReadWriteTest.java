@@ -190,6 +190,7 @@ class SignedStateFileReadWriteTest {
                 .withConfiguration(configuration)
                 .build();
 
+        // Async snapshot requires all references to the state being written to disk to be released
         stateLifecycleManager.getLatestImmutableState().release();
 
         writeSignedStateToDisk(

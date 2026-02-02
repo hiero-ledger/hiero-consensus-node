@@ -169,6 +169,7 @@ class StateFileManagerTests {
                 new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
 
         final StateSavingResult stateSavingResult = manager.saveStateTask(signedState.reserve("test"));
+        // This state is irrelevant in this test context and thus should be released
         stateLifecycleManager.getMutableState().release();
 
         if (successExpected) {

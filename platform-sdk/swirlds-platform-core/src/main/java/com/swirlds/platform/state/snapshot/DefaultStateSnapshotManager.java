@@ -119,7 +119,10 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         final long start = time.nanoTime();
         final StateSavingResult stateSavingResult;
 
-        // the state is reserved before it is handed to this method, and it is released when we are done
+        // The state is reserved before it is handed to this method, and it is released in the snapshot
+        // saving process (see SignedStateFileWriter#writeSignedStateFilesToDirectory).
+        // This try-finally ensures the state is closed on early returns (e.g., already saved to disk)
+        // or if an error occurs before reaching the inner close logic.
         try {
             final SignedState signedState = reservedSignedState.get();
             if (signedState.hasStateBeenSavedToDisk()) {
@@ -158,9 +161,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      */
     @Override
     public void dumpStateTask(@NonNull final StateDumpRequest request) {
-        // the state is reserved before it is handed to this method, and it is released when we are done
         final ReservedSignedState reservedSignedState = request.reservedSignedState();
         final SignedState signedState = reservedSignedState.get();
+
+        // The state is reserved before it is handed to this method, and it is released in the snapshot
+        // saving process (see SignedStateFileWriter#writeSignedStateFilesToDirectory);
+        // additionally, this try-finally ensures cleanup if an error occurs before reaching that point.
         try {
             // states requested to be written out-of-band are always written to disk
             saveStateTask(
@@ -169,12 +175,13 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                             .getSignedStatesBaseDirectory()
                             .resolve(getReason(signedState).getDescription())
                             .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
-            request.finishedCallback().run();
         } finally {
             if (!reservedSignedState.isClosed()) {
                 reservedSignedState.close();
             }
         }
+
+        request.finishedCallback().run();
     }
 
     @NonNull

@@ -129,6 +129,7 @@ public class StartupStateUtilsTests {
         final StateLifecycleManager stateLifecycleManager = createLifecycleManager();
         final MerkleNodeState state = signedState.getState();
         stateLifecycleManager.initState(state);
+        // Async snapshot requires all references to the state being written to disk to be released
         state.release();
 
         final Path savedStateDirectory =

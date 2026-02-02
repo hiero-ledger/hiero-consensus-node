@@ -32,6 +32,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
@@ -134,10 +135,8 @@ public final class SignedStateFileWriter {
         final SignedState signedState = reservedSignedState.get();
 
         try {
-            //noinspection DataFlowIssue -- it is checked in isStateToSave()
             if (stateConfig.saveStateAsync()
-                    && signedState.isStateToSave()
-                    && signedState.getStateToDiskReason().equals(StateToDiskReason.PERIODIC_SNAPSHOT)) {
+                    && StateToDiskReason.PERIODIC_SNAPSHOT.equals(signedState.getStateToDiskReason())) {
                 // Creating the snapshot asynchronously is the optimization which allows it to be created faster within
                 // the `VirtualMap#flush`, because it is done without one extra data source snapshot as data source and
                 // cache are already in place, so the only thing needed is an actual data source snapshot.
@@ -145,12 +144,13 @@ public final class SignedStateFileWriter {
                 // the backpressure.
                 // This optimization applies only to PERIODIC_SNAPSHOT states. States saved for other reasons
                 // (e.g., freeze states) may retain additional references and won't be destroyed here, and thus flushed.
-                final var snapshotAsync = stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
+                final Future<Void> snapshotFuture =
+                        stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
                 // Release the state reference so that current snapshot creation can be unblocked in `VirtualMap#flush`,
                 // because the copy becomes destroyed and thus can be flushed.
                 reservedSignedState.close();
                 // Block until the snapshot is created.
-                snapshotAsync.get();
+                snapshotFuture.get();
             } else {
                 stateLifecycleManager.createSnapshot(signedState.getState(), directory);
                 reservedSignedState.close();
@@ -163,6 +163,8 @@ public final class SignedStateFileWriter {
                     directory,
                     e);
         } finally {
+            // Ensures cleanup if an error occurs during snapshot creation. The isClosed() check
+            // prevents double-close since ReservedSignedState can only be closed once.
             if (!reservedSignedState.isClosed()) {
                 reservedSignedState.close();
             }
