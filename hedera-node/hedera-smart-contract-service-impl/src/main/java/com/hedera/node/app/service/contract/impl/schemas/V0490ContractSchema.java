@@ -9,7 +9,6 @@ import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.platform.state.StateKey;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,14 +35,6 @@ public class V0490ContractSchema extends Schema<SemanticVersion> {
 
     public V0490ContractSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        // There are no contracts at genesis
     }
 
     @Override
