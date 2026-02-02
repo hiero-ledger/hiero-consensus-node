@@ -87,7 +87,8 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
     public void validate() {
         log.info("Checked {} VirtualHashRecord entries", processedCount.get());
 
-        final long expectedCount = lastLeafPath;
+        // All virtual paths 0 to lastLeafPath, inclusive
+        final long expectedCount = lastLeafPath + 1;
         final boolean ok =
                 processedCount.get() == expectedCount && nullHashCount.get() == 0 && nullHashSentinelCount.get() == 0;
 
