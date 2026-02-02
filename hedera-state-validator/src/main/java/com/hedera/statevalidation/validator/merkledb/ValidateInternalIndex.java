@@ -70,28 +70,31 @@ public class ValidateInternalIndex {
             assertNotEquals(-1, dataLocation);
             try {
                 final BufferedData data = dfc.readDataItem(dataLocation);
-                if (data != null) {
-                    final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(data);
-                    assertNotNull(hashChunk);
-                    assertEquals(hashChunk.getChunkId(), chunkId);
+                if (data == null) {
+                    nullErrorCount.incrementAndGet();
+                    printFileDataLocationError(log, "Missing entry on disk!", dfc, dataLocation);
+                    return;
+                }
+                final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(data);
+                assertNotNull(hashChunk);
+                final long expectedChunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
+                assertEquals(expectedChunkPath, hashChunk.path(), "Wrong chunk path");
+                assertEquals(hashChunk.getChunkId(), chunkId, "Wrong chunk ID");
+                assertEquals(hashChunkHeight, hashChunk.height(), "Wrong chunk height");
 
-                    final long hashChunkPath = hashChunk.path();
-                    final Hash calculatedChunkHash = hashChunk.chunkRootHash(firstLeafPath, lastLeafPath);
-
-                    // Check the root chunk
-                    if (chunkId == 0) {
-                        assertEquals(calculatedChunkHash, virtualMap.getHash(), "Hash mismatch for root chunk");
-                        successCount.incrementAndGet();
-                        return;
-                    }
-
+                final long hashChunkPath = hashChunk.path();
+                final Hash calculatedChunkHash = hashChunk.chunkRootHash(firstLeafPath, lastLeafPath);
+                if (chunkId == 0) {
+                    // The root chunk. Compare the hash with VM root hash
+                    assertEquals(calculatedChunkHash, virtualMap.getHash(), "Hash mismatch for root chunk");
+                } else {
                     // Find the parent chunk that contains the hash for hashChunkPath
                     final long parentChunkPath = VirtualHashChunk.pathToChunkPath(hashChunkPath, hashChunkHeight);
                     final long parentChunkId = VirtualHashChunk.chunkPathToChunkId(parentChunkPath, hashChunkHeight);
 
                     // Load the parent chunk
                     final VirtualHashChunk parentChunk = dataSource.loadHashChunk(parentChunkId);
-                    assertNotNull(parentChunk);
+                    assertNotNull(parentChunk, "Chunk with ID " + parentChunkId + " is not found");
                     assertEquals(parentChunk.path(), parentChunkPath);
                     assertEquals(parentChunk.getChunkId(), parentChunkId);
 
@@ -100,18 +103,15 @@ public class ValidateInternalIndex {
 
                     // Compare the calculated hash with the stored hash
                     assertEquals(calculatedChunkHash, storedHash, "Hash mismatch for chunk ID " + chunkId);
-                    successCount.incrementAndGet();
-                } else {
-                    nullErrorCount.incrementAndGet();
-                    printFileDataLocationError(log, "Missing entry on disk!", dfc, dataLocation);
                 }
+                successCount.incrementAndGet();
             } catch (IOException e) {
                 printFileDataLocationError(log, e.getMessage(), dfc, dataLocation);
                 onDiskExceptionCount.incrementAndGet();
             }
         };
 
-        ForkJoinTask<?> chunkValidationTask = processRange(0, lastChunkId + 1, indexProcessor);
+        final ForkJoinTask<?> chunkValidationTask = processRange(0, lastChunkId + 1, indexProcessor);
         chunkValidationTask.join();
 
         assertEquals(0, nullErrorCount.get(), "Some chunks are null");
@@ -121,8 +121,8 @@ public class ValidateInternalIndex {
         assertEquals(
                 expectedChunkCount,
                 successCount.get(),
-                "Not all chunks were validated successfully. Expected: " + expectedChunkCount
-                        + ", Actual: " + successCount.get());
+                "Not all chunks were validated successfully. Expected: " + expectedChunkCount + ", Actual: "
+                        + successCount.get());
 
         log.info("Successfully validated {} chunks (including root)", successCount.get());
     }
