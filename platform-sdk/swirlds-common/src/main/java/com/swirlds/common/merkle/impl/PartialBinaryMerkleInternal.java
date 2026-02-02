@@ -9,7 +9,7 @@ import com.swirlds.common.merkle.impl.internal.AbstractMerkleInternal;
 /**
  * This class implements boilerplate functionality for a binary {@link MerkleInternal}
  * (i.e. an internal node with 2 or fewer children). Classes that implement {@link MerkleInternal}
- * are not required to extend a class such as this or {@link PartialNaryMerkleInternal},
+ * are not required to extend this class
  * but absent a reason it is recommended to do so in order to avoid re-implementation of this code.
  */
 public non-sealed class PartialBinaryMerkleInternal extends AbstractMerkleInternal implements PartialMerkleInternal {
@@ -43,28 +43,6 @@ public non-sealed class PartialBinaryMerkleInternal extends AbstractMerkleIntern
     @Override
     public int getNumberOfChildren() {
         // binary tree, we always have two children, even if null
-        return BINARY_CHILD_COUNT;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * In the binary case this is always BINARY_CHILD_COUNT (2).
-     */
-    @Override
-    public int getMinimumChildCount() {
-        return MIN_BINARY_CHILD_COUNT;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * In the binary case this is always BINARY_CHILD_COUNT (2).
-     *
-     * @return always BINARY_CHILD_COUNT (2), even if the children are null
-     */
-    @Override
-    public int getMaximumChildCount() {
         return BINARY_CHILD_COUNT;
     }
 

@@ -2,14 +2,12 @@
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
+    id("org.hiero.gradle.feature.test-fixtures")
 }
 
 description = "Consensus PCES-file handling"
 
-mainModuleInfo {
-    annotationProcessor("com.swirlds.config.processor")
-    annotationProcessor("com.google.auto.service.processor")
-}
+mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
     requires("com.swirlds.common.test.fixtures")

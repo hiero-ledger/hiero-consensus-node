@@ -4,7 +4,6 @@ package org.hiero.consensus.event.creator.impl;
 import static com.swirlds.component.framework.wires.SolderType.OFFER;
 import static java.util.Objects.requireNonNull;
 
-import com.google.auto.service.AutoService;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.ComponentWiring;
@@ -36,7 +35,6 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 /**
  * Default implementation of the {@link EventCreatorModule}.
  */
-@AutoService(EventCreatorModule.class)
 public class DefaultEventCreatorModule implements EventCreatorModule {
 
     @Nullable

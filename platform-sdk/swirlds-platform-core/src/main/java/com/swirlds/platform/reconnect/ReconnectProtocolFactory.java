@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import com.google.auto.service.AutoService;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.reconnect.api.ProtocolFactory;
 import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -14,12 +13,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Factory for creating the {@link ReconnectStateSyncProtocol}.
  */
-@AutoService(ProtocolFactory.class)
 public class ReconnectProtocolFactory implements ProtocolFactory {
 
     /**
@@ -28,22 +28,25 @@ public class ReconnectProtocolFactory implements ProtocolFactory {
     @Override
     @NonNull
     public Protocol createProtocol(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final StateLifecycleManager stateLifecycleManager) {
-        final ReconnectConfig reconnectConfig =
-                platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
+        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
         final ReconnectStateTeacherThrottle reconnectStateTeacherThrottle =
-                new ReconnectStateTeacherThrottle(reconnectConfig, platformContext.getTime());
+                new ReconnectStateTeacherThrottle(reconnectConfig, time);
 
-        final ReconnectMetrics reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics());
+        final ReconnectMetrics reconnectMetrics = new ReconnectMetrics(metrics);
 
         return new ReconnectStateSyncProtocol(
-                platformContext,
+                configuration,
+                metrics,
+                time,
                 threadManager,
                 reconnectStateTeacherThrottle,
                 latestCompleteState,

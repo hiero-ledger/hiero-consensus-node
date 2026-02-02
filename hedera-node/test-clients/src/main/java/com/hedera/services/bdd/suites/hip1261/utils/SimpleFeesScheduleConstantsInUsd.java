@@ -11,6 +11,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double NODE_BASE_FEE_USD = 0.00001;
     public static final long NODE_INCLUDED_SIGNATURES = 1L;
+    public static final long NODE_INCLUDED_BYTES = 1024L;
 
     public static final int NETWORK_MULTIPLIER = 9;
 
@@ -18,7 +19,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     /* ---------- Global extras price table ("extras") ---------- */
 
-    public static final double SIGNATURE_FEE_USD = 0.0001;
+    public static final double SIGNATURE_FEE_USD = 0.00001;
     public static final double BYTES_FEE_USD = 0.000011;
     public static final double KEYS_FEE_USD = 0.01;
     public static final double NFT_SERIALS_FEE_USD = 0.00089;
@@ -32,7 +33,9 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double ALLOWANCES_FEE_USD = 0.05;
 
     public static final double TOKEN_CREATE_WITH_CUSTOM_FEES_FEE_USD = 1.0;
-    public static final double TOKEN_MINT_NFT_FEE_USD = 0.0199;
+    public static final double TOKEN_MINT_FT_BASE_FEE = 0.001;
+    public static final double TOKEN_MINT_NFT_FEE_USD = 0.02;
+    public static final double TOKEN_UPDATE_NFT_FEE = 0.001;
 
     public static final double AIRDROPS_FEE_USD = 0.05;
     public static final double HOOK_UPDATES_FEE_USD = 1.0;

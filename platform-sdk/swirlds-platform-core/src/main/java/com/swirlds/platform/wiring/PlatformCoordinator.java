@@ -13,7 +13,6 @@ import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -37,6 +36,7 @@ import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.round.EventWindowUtils;
@@ -70,7 +70,7 @@ public record PlatformCoordinator(
         // whether to change the order of these lines.
 
         components.eventIntakeModule().flush();
-        components.pcesInlineWriterWiring().flush();
+        components.pcesModule().flush();
         components.gossipWiring().flush();
         components.hashgraphModule().flush();
         components.applicationTransactionPrehandlerWiring().flush();
@@ -291,13 +291,10 @@ public record PlatformCoordinator(
     }
 
     /**
-     * @see InlinePcesWriter#registerDiscontinuity
+     * @see PcesModule#discontinuityInputWire()
      */
     public void registerPcesDiscontinuity(final long round) {
-        components
-                .pcesInlineWriterWiring()
-                .getInputWire(InlinePcesWriter::registerDiscontinuity)
-                .inject(round);
+        components.pcesModule().discontinuityInputWire().inject(round);
     }
 
     /**
@@ -312,13 +309,10 @@ public record PlatformCoordinator(
     }
 
     /**
-     * @see InlinePcesWriter#setMinimumAncientIdentifierToStore
+     * @see PcesModule#minimumAncientIdentifierInputWire()
      */
     public void injectPcesMinimumGenerationToStore(@NonNull final long minimumGenerationNonAncientForOldestState) {
-        components
-                .pcesInlineWriterWiring()
-                .getInputWire(InlinePcesWriter::setMinimumAncientIdentifierToStore)
-                .inject(minimumGenerationNonAncientForOldestState);
+        components.pcesModule().minimumAncientIdentifierInputWire().inject(minimumGenerationNonAncientForOldestState);
     }
 
     /**
