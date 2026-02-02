@@ -24,6 +24,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
@@ -99,7 +100,7 @@ class TokenAirdropFeeCalculatorsTest {
                         .build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
         assertThat(result).isNotNull();
         assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
@@ -118,7 +119,7 @@ class TokenAirdropFeeCalculatorsTest {
                         TokenCancelAirdropTransactionBody.newBuilder().build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
         assertThat(result).isNotNull();
         assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
@@ -141,7 +142,7 @@ class TokenAirdropFeeCalculatorsTest {
                 .tokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder().build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
         assertThat(result).isNotNull();
         assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
