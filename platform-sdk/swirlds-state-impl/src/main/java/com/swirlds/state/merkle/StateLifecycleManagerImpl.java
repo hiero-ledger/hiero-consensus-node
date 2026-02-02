@@ -19,6 +19,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -230,10 +231,46 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
                     state);
         } catch (final Throwable e) {
             log.error(
-                    EXCEPTION.getMarker(), "Unable to write a snapshot on demand for {} to {}.", state, targetPath, e);
+                    EXCEPTION.getMarker(),
+                    "Unable to write a snapshot on demand for {} to {}: {}",
+                    state,
+                    targetPath,
+                    e);
         }
 
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Future<Void> createSnapshotAsync(final @NonNull MerkleNodeState state, final @NonNull Path targetPath) {
+        state.throwIfMutable();
+        state.throwIfDestroyed();
+
+        // includes pipeline queue wait, not just snapshot I/O
+        final long startTime = time.currentTimeMillis();
+        log.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand (async) in {} for {}", targetPath, state);
+
+        final VirtualMap virtualMap = (VirtualMap) state.getRoot();
+        return virtualMap.createSnapshotAsync(targetPath).whenComplete((result, error) -> {
+            if (error != null) {
+                log.error(
+                        EXCEPTION.getMarker(),
+                        "Unable to write a snapshot on demand (async) for {} to {}: {}",
+                        state,
+                        targetPath,
+                        error);
+            } else {
+                log.info(
+                        STATE_TO_DISK.getMarker(),
+                        "Successfully created a snapshot on demand (async) in {} for {}",
+                        targetPath,
+                        state);
+            }
+            snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
+        });
     }
 
     /**

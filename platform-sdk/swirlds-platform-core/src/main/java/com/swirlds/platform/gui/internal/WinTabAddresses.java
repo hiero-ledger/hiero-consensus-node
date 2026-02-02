@@ -11,6 +11,7 @@ import com.swirlds.platform.gui.components.PrePaintableJPanel;
 import com.swirlds.platform.system.Platform;
 import java.util.Collection;
 import javax.swing.JTextArea;
+import org.hiero.consensus.node.NodeUtilities;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -44,7 +45,7 @@ class WinTabAddresses extends PrePaintableJPanel {
             for (final Platform p : platforms) {
                 final RosterEntry entry =
                         RosterUtils.getRosterEntry(p.getRoster(), p.getSelfId().id());
-                final String name = RosterUtils.formatNodeName(entry.nodeId());
+                final String name = NodeUtilities.formatNodeName(entry.nodeId());
                 s += "\n" + entry.nodeId() + "   " + name
                         + "   " + name
                         + "   " + RosterUtils.fetchHostname(entry, 0)

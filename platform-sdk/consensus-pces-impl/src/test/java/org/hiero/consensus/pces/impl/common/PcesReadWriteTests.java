@@ -92,7 +92,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long upperBound = Long.MIN_VALUE;
@@ -149,7 +149,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long upperBound = Long.MIN_VALUE;
@@ -236,7 +236,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long upperBound = Long.MIN_VALUE;
@@ -310,7 +310,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long upperBound = Long.MIN_VALUE;
@@ -379,7 +379,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long lowerBound = Long.MAX_VALUE;
@@ -451,7 +451,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long lowerBound = Long.MAX_VALUE;
@@ -523,7 +523,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < numEvents; i++) {
-            events.add(generator.generateBaseEvent());
+            events.add(generator.generateEvent());
         }
 
         long lowerBound = Long.MAX_VALUE;

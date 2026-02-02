@@ -72,18 +72,6 @@ class V0700TokenSchemaTest {
     }
 
     @Test
-    @DisplayName("Migrate should initialize NodePayments on genesis")
-    void testMigrateOnGenesis() {
-        given(ctx.isGenesis()).willReturn(true);
-        given(ctx.newStates()).willReturn(newStates);
-        given(newStates.getSingleton(NODE_PAYMENTS_STATE_ID)).willReturn(nodePaymentsState);
-
-        subject.migrate(ctx);
-
-        verify(nodePaymentsState).put(NodePayments.DEFAULT);
-    }
-
-    @Test
     @DisplayName("Migrate should initialize NodePayments when state doesn't exist in previous states")
     void testMigrateWhenStateDoesNotExist() {
         given(ctx.isGenesis()).willReturn(false);

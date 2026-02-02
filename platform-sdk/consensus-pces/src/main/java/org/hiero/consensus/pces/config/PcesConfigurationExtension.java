@@ -15,6 +15,6 @@ public class PcesConfigurationExtension implements ConfigurationExtension {
      */
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(PcesConfig.class);
+        return Set.of(PcesConfig.class, PcesWiringConfig.class);
     }
 }

@@ -53,7 +53,7 @@ javaModules {
     directory("example-apps") { group = "com.hedera.hashgraph" }
 
     directory("hiero-observability") {
-        group = "org.hiero.observability"
+        group = "com.hedera.hashgraph"
 
         module("hiero-metrics") { artifact = "hiero-metrics" }
         module("openmetrics-httpserver") { artifact = "openmetrics-httpserver" }
