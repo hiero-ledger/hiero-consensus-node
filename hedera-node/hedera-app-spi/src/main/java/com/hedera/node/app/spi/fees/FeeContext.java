@@ -60,9 +60,7 @@ public interface FeeContext {
      * @throws NullPointerException if {@code storeInterface} is {@code null}
      */
     @NonNull
-    default <T> T readableStore(@NonNull Class<T> storeInterface) {
-        return readableStoreFactory().readableStore(storeInterface);
-    }
+    <T> T readableStore(@NonNull Class<T> storeInterface);
 
     /**
      * Returns the current {@link Configuration} for the node.
