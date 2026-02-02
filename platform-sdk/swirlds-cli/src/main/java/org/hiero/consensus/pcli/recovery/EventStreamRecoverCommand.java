@@ -28,17 +28,18 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
     private boolean ignorePartialRounds;
     private long finalRound = -1;
     private Path eventStreamDirectory;
-    private List<Path> configurationPaths = List.of();
+    private Path configurationPath;
     private boolean loadSigningKeys;
 
     private EventStreamRecoverCommand() {}
 
     @CommandLine.Option(
             names = {"-c", "--config"},
+            required = true,
             description = "A path to where a configuration file can be found. If not provided then defaults are used.")
-    private void setConfigurationPath(final List<Path> configurationPaths) {
-        configurationPaths.forEach(this::pathMustExist);
-        this.configurationPaths = configurationPaths;
+    private void setConfigurationPath(final Path configurationPath) {
+        pathMustExist(configurationPath);
+        this.configurationPath = configurationPath;
     }
 
     @CommandLine.Option(
@@ -98,13 +99,13 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
     @Override
     public Integer call() throws Exception {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
-                ConfigurationBuilder.create(), configurationPaths.getFirst()); // TODO multiple paths and no paths
+                    ConfigurationBuilder.create(), configurationPath);
+
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         recoverState(
                 platformContext,
                 bootstrapSignedState,
-                configurationPaths,
                 eventStreamDirectory,
                 !ignorePartialRounds,
                 finalRound,

@@ -40,7 +40,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -76,7 +75,6 @@ public final class EventRecoveryWorkflow {
      *
      * @param platformContext         the platform context
      * @param signedStateDir         the bootstrap signed state file
-     * @param configurationFiles      files containing configuration
      * @param eventStreamDirectory    a directory containing the event stream
      * @param finalRound              stop reapplying events after this round has been generated
      * @param resultingStateDirectory the location where the resulting state will be written
@@ -88,7 +86,6 @@ public final class EventRecoveryWorkflow {
     public static void recoverState(
             @NonNull final PlatformContext platformContext,
             @NonNull final Path signedStateDir,
-            @NonNull final List<Path> configurationFiles,
             @NonNull final Path eventStreamDirectory,
             @NonNull final Boolean allowPartialRounds,
             @NonNull final Long finalRound,
@@ -98,7 +95,6 @@ public final class EventRecoveryWorkflow {
             throws IOException, ParseException {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(signedStateDir, "signedStateDir must not be null");
-        Objects.requireNonNull(configurationFiles, "configurationFiles must not be null");
         Objects.requireNonNull(eventStreamDirectory, "eventStreamDirectory must not be null");
         Objects.requireNonNull(allowPartialRounds, "allowPartialRounds must not be null");
         Objects.requireNonNull(finalRound, "finalRound must not be null");
