@@ -7,7 +7,6 @@ import static com.swirlds.platform.exceptions.ExceptionAssertions.MESSAGE;
 import static com.swirlds.platform.exceptions.ExceptionAssertions.assertExceptionContains;
 import static com.swirlds.platform.exceptions.ExceptionAssertions.assertExceptionSame;
 
-import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeyLoadingException;
 import java.time.Duration;
 import java.util.List;
