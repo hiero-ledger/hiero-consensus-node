@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto;
 
+import static org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT;
+import static org.hiero.consensus.crypto.KeyCertPurpose.SIGNING;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -9,10 +12,9 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
-import org.hiero.base.crypto.internal.DetRandomProvider;
+import org.hiero.base.crypto.DetRandomProvider;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.utility.NodeNameFormatter;
 
 /**
  * This class is responsible for generating the keys and certificates {@link KeysAndCerts} used in the system.
@@ -94,9 +96,8 @@ public class KeysAndCertsGenerator {
         final KeyPair sigKeyPair = SigningFactory.generateKeyPair(schema, sigDetRandom);
         final KeyPair agrKeyPair = agrKeyGen.generateKeyPair();
 
-        final String nodeName = NodeNameFormatter.formatNodeName(nodeId);
-        final String dnS = CertificateUtils.distinguishedName("s-" + nodeName);
-        final String dnA = CertificateUtils.distinguishedName("a-" + nodeName);
+        final String dnS = CertificateUtils.distinguishedName(SIGNING.storeName(nodeId));
+        final String dnA = CertificateUtils.distinguishedName(AGREEMENT.storeName(nodeId));
 
         // create the 2 certs (java.security.cert.Certificate)
         // both are signed by sigKeyPair, so sigCert is self-signed

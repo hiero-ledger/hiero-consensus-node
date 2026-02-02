@@ -20,7 +20,7 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.internal.DetRandomProvider;
+import org.hiero.base.crypto.DetRandomProvider;
 import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.SigningSchema;

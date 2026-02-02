@@ -30,7 +30,6 @@ import javax.swing.SwingUtilities;
  */
 public class CommonUtils {
 
-
     /** used by beep() */
     private static Synthesizer synthesizer;
 

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.crypto;
 
-import static com.swirlds.platform.crypto.KeyCertPurpose.AGREEMENT;
-import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
+import static org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT;
+import static org.hiero.consensus.crypto.KeyCertPurpose.SIGNING;
 
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -71,7 +71,10 @@ public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
      * 		if the given alias already exists and does not identify an entry containing a trusted certificate,
      * 		or this operation fails for some other reason
      */
-    public void setCertificate(final KeyCertPurpose type, final X509Certificate certificate, final NodeId nodeId)
+    public void setCertificate(
+            final org.hiero.consensus.crypto.KeyCertPurpose type,
+            final X509Certificate certificate,
+            final NodeId nodeId)
             throws KeyStoreException {
         switch (type) {
             case SIGNING -> sigTrustStore.setCertificateEntry(type.storeName(nodeId), certificate);
@@ -87,7 +90,8 @@ public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
      * @throws KeyLoadingException
      * 		if the certificate is missing or is not an instance of X509Certificate
      */
-    public X509Certificate getCertificate(final KeyCertPurpose type, final NodeId nodeId) throws KeyLoadingException {
+    public X509Certificate getCertificate(final org.hiero.consensus.crypto.KeyCertPurpose type, final NodeId nodeId)
+            throws KeyLoadingException {
         final Certificate certificate;
         final var name = type.storeName(nodeId);
         try {

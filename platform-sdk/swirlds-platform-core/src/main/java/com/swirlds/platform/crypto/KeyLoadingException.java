@@ -11,7 +11,8 @@ public class KeyLoadingException extends Exception {
         super(message);
     }
 
-    public KeyLoadingException(final String message, final KeyCertPurpose type, final NodeId id) {
+    public KeyLoadingException(
+            final String message, final org.hiero.consensus.crypto.KeyCertPurpose type, final NodeId id) {
         super(message + " Missing:" + type.storeName(id));
     }
 
