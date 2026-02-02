@@ -16,7 +16,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
@@ -36,6 +35,7 @@ import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**

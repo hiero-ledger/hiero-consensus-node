@@ -61,8 +61,10 @@ import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.node.NodeUtilities;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -567,7 +569,7 @@ public class EnhancedKeyStoreLoader {
     @NonNull
     private Path privateKeyStore(@NonNull final NodeId nodeId) {
         return keyStoreDirectory.resolve(String.format(
-                "%s-private-%s.pem", KeyCertPurpose.SIGNING.prefix(), RosterUtils.formatNodeName(nodeId)));
+                "%s-private-%s.pem", KeyCertPurpose.SIGNING.prefix(), NodeUtilities.formatNodeName(nodeId)));
     }
 
     /**
@@ -581,7 +583,7 @@ public class EnhancedKeyStoreLoader {
     @NonNull
     private Path legacyPrivateKeyStore(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, MSG_NODE_ALIAS_NON_NULL);
-        return keyStoreDirectory.resolve(String.format("private-%s.pfx", RosterUtils.formatNodeName(nodeId)));
+        return keyStoreDirectory.resolve(String.format("private-%s.pfx", NodeUtilities.formatNodeName(nodeId)));
     }
 
     /**
@@ -743,7 +745,7 @@ public class EnhancedKeyStoreLoader {
         for (final NodeId nodeId : this.nodeIds) {
             // extract private keys for local nodes
             final Path sPrivateKeyLocation =
-                    keyStoreDirectory.resolve(String.format("s-private-%s.pem", RosterUtils.formatNodeName(nodeId)));
+                    keyStoreDirectory.resolve(String.format("s-private-%s.pem", NodeUtilities.formatNodeName(nodeId)));
             final Path privateKs = legacyPrivateKeyStore(nodeId);
             if (!Files.exists(sPrivateKeyLocation) && Files.exists(privateKs)) {
                 logger.info(

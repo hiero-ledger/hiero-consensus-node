@@ -16,7 +16,7 @@ import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.node.NodeUtilities;
 
 /**
  * This class is responsible for generating and loading the keys and certificates {@link KeysAndCertsGenerator} used
@@ -115,7 +115,7 @@ public class KeysAndCertsGenerator {
         final KeyPair sigKeyPair = SigningFactory.generateKeyPair(schema, sigDetRandom);
         final KeyPair agrKeyPair = agrKeyGen.generateKeyPair();
 
-        final String nodeName = RosterUtils.formatNodeName(nodeId);
+        final String nodeName = NodeUtilities.formatNodeName(nodeId);
         final String dnS = CryptoStatic.distinguishedName("s-" + nodeName);
         final String dnA = CryptoStatic.distinguishedName("a-" + nodeName);
 
