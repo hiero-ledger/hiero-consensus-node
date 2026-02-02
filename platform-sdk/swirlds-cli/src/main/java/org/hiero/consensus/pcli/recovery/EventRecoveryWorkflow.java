@@ -78,7 +78,6 @@ public final class EventRecoveryWorkflow {
      * @param signedStateDir         the bootstrap signed state file
      * @param configurationFiles      files containing configuration
      * @param eventStreamDirectory    a directory containing the event stream
-     * @param mainClassName           the fully qualified class name of the {@link SwirldMain} for the app
      * @param finalRound              stop reapplying events after this round has been generated
      * @param resultingStateDirectory the location where the resulting state will be written
      * @param selfId                  the self ID of the node
@@ -91,7 +90,6 @@ public final class EventRecoveryWorkflow {
             @NonNull final Path signedStateDir,
             @NonNull final List<Path> configurationFiles,
             @NonNull final Path eventStreamDirectory,
-            @NonNull final String mainClassName,
             @NonNull final Boolean allowPartialRounds,
             @NonNull final Long finalRound,
             @NonNull final Path resultingStateDirectory,
@@ -102,7 +100,6 @@ public final class EventRecoveryWorkflow {
         Objects.requireNonNull(signedStateDir, "signedStateDir must not be null");
         Objects.requireNonNull(configurationFiles, "configurationFiles must not be null");
         Objects.requireNonNull(eventStreamDirectory, "eventStreamDirectory must not be null");
-        Objects.requireNonNull(mainClassName, "mainClassName must not be null");
         Objects.requireNonNull(allowPartialRounds, "allowPartialRounds must not be null");
         Objects.requireNonNull(finalRound, "finalRound must not be null");
         Objects.requireNonNull(resultingStateDirectory, "resultingStateDirectory must not be null");

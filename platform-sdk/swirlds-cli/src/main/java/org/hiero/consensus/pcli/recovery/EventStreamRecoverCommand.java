@@ -23,7 +23,6 @@ import picocli.CommandLine;
 public final class EventStreamRecoverCommand extends AbstractCommand {
 
     private Path outputPath = Path.of("./out");
-    private String appMainName;
     private Path bootstrapSignedState;
     private NodeId selfId;
     private boolean ignorePartialRounds;
@@ -53,14 +52,6 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
     @CommandLine.Parameters(index = "1", description = "The path to a directory tree containing event stream files.")
     private void setEventStreamDirectory(final Path eventStreamDirectory) {
         this.eventStreamDirectory = pathMustExist(eventStreamDirectory.toAbsolutePath());
-    }
-
-    @CommandLine.Option(
-            names = {"-n", "--main-name"},
-            required = true,
-            description = "The fully qualified name of the application's main class.")
-    private void setAppMainName(final String appMainName) {
-        this.appMainName = appMainName;
     }
 
     @CommandLine.Parameters(
@@ -107,7 +98,7 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
     @Override
     public Integer call() throws Exception {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
-                ConfigurationBuilder.create(), configurationPaths.getFirst());//TODO multiple paths
+                ConfigurationBuilder.create(), configurationPaths.getFirst());//TODO multiple paths and no paths
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         recoverState(
@@ -115,7 +106,6 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
                 bootstrapSignedState,
                 configurationPaths,
                 eventStreamDirectory,
-                appMainName,
                 !ignorePartialRounds,
                 finalRound,
                 outputPath,
