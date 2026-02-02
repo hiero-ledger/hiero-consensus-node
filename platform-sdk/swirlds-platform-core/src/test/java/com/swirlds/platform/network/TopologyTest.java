@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +25,7 @@ import org.hiero.consensus.gossip.impl.network.RandomGraph;
 import org.hiero.consensus.gossip.impl.network.topology.NetworkTopology;
 import org.hiero.consensus.gossip.impl.network.topology.StaticTopology;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
