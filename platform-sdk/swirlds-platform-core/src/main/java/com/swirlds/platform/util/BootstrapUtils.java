@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
-import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -17,14 +16,11 @@ import com.swirlds.config.api.source.ConfigSource;
 import com.swirlds.config.extensions.export.ConfigExport;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.config.extensions.sources.YamlConfigSource;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.platform.JVMPauseDetectorThread;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.internal.ConfigMappings;
 import com.swirlds.platform.config.internal.PlatformConfigUtils;
 import com.swirlds.platform.config.legacy.ConfigurationException;
-import com.swirlds.platform.gui.WindowConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.health.OSHealthChecker;
 import com.swirlds.platform.health.clock.OSClockSpeedSourceChecker;
@@ -34,7 +30,6 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.awt.Dimension;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -45,14 +40,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import javax.swing.JFrame;
-import javax.swing.UIManager;
-import javax.swing.UnsupportedLookAndFeelException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -107,12 +99,13 @@ public final class BootstrapUtils {
     /**
      * Perform health all health checks
      *
-     * @param configPath    the path to the config.txt file
+     * @param settingsPath  the path to the settings.txt file
      * @param configuration the configuration
      */
-    public static void performHealthChecks(@NonNull final Path configPath, @NonNull final Configuration configuration) {
+    public static void performHealthChecks(
+            @NonNull final Path settingsPath, @NonNull final Configuration configuration) {
         requireNonNull(configuration);
-        final OSFileSystemChecker osFileSystemChecker = new OSFileSystemChecker(configPath);
+        final OSFileSystemChecker osFileSystemChecker = new OSFileSystemChecker(settingsPath);
 
         OSHealthChecker.performOSHealthChecks(
                 configuration.getConfigData(OSHealthCheckConfig.class),
@@ -123,40 +116,11 @@ public final class BootstrapUtils {
     }
 
     /**
-     * Sets up the browser window
-     */
-    public static void setupBrowserWindow()
-            throws UnsupportedLookAndFeelException, ClassNotFoundException, InstantiationException,
-                    IllegalAccessException {
-        // discover the inset size and set the look and feel
-        UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
-        final JFrame jframe = new JFrame();
-        jframe.setPreferredSize(new Dimension(200, 200));
-        jframe.pack();
-        WindowConfig.setInsets(jframe.getInsets());
-        jframe.dispose();
-    }
-
-    /**
      * Add all classes to the constructable registry.
      */
     public static void setupConstructableRegistry() {
         try {
             ConstructableRegistry.getInstance().registerConstructables("");
-        } catch (final ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * Add all classes to the constructable registry which need the configuration.
-     */
-    public static void setupConstructableRegistryWithConfiguration(final Configuration configuration) {
-        try {
-            ConstructableRegistry.getInstance()
-                    .registerConstructable(new ClassConstructorPair(
-                            MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
-            registerVirtualMapConstructables(configuration);
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }

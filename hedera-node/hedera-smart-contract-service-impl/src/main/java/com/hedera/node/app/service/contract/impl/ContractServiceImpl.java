@@ -4,6 +4,15 @@ package com.hedera.node.app.service.contract.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.contract.ContractService;
+import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractCallLocalFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractDeleteFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractGetByteCodeFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractGetInfoFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractUpdateFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.EthereumFeeCalculator;
+import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.DefaultVerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
@@ -11,10 +20,14 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
+import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
+import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -26,7 +39,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.hyperledger.besu.evm.operation.Operation;
-import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 /**
  * Implementation of the {@link ContractService}.
@@ -50,14 +62,14 @@ public class ContractServiceImpl implements ContractService {
     /**
      * @param appContext the current application context
      * @param verificationStrategies the current verification strategy used
-     * @param addOnTracers all operation tracer callbacks
+     * @param addOnTracers all action sidecar content tracer callbacks
      * @param customOps any additional custom operations to use when constructing the EVM
      */
     public ContractServiceImpl(
             @NonNull final AppContext appContext,
             @NonNull final Metrics metrics,
             @Nullable final VerificationStrategies verificationStrategies,
-            @Nullable final Supplier<List<OperationTracer>> addOnTracers,
+            @Nullable final Supplier<List<ActionSidecarContentTracer>> addOnTracers,
             @NonNull final Set<Operation> customOps) {
         requireNonNull(appContext);
         requireNonNull(customOps);
@@ -86,6 +98,26 @@ public class ContractServiceImpl implements ContractService {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         registry.registerAll(new V0490ContractSchema(), new V065ContractSchema());
+    }
+
+    @Override
+    public Set<ServiceFeeCalculator> serviceFeeCalculators() {
+        return Set.of(
+                new HookStoreHandler.FeeCalculator(),
+                new HookDispatchHandler.FeeCalculator(),
+                new ContractCreateFeeCalculator(),
+                new ContractCallFeeCalculator(),
+                new ContractDeleteFeeCalculator(),
+                new ContractUpdateFeeCalculator(),
+                new EthereumFeeCalculator());
+    }
+
+    @Override
+    public Set<QueryFeeCalculator> queryFeeCalculators() {
+        return Set.of(
+                new ContractCallLocalFeeCalculator(),
+                new ContractGetByteCodeFeeCalculator(),
+                new ContractGetInfoFeeCalculator());
     }
 
     public void createMetrics() {

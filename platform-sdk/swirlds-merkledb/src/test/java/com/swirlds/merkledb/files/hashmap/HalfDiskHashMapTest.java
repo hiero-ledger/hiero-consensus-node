@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -258,6 +260,21 @@ class HalfDiskHashMapTest {
                 // key4 is missing in the map, it cannot be restored from pathToKeyValue store
                 assertThrows(IOException.class, () -> map.repair(2, 4, kv));
             }
+        }
+    }
+
+    @Test
+    void testInitialBucketIndexCapacity() throws Exception {
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final long maxNumOfKeys = merkleDbConfig.maxNumOfKeys();
+        final long goodAverageBucketEntryCount = merkleDbConfig.goodAverageBucketEntryCount();
+        // Bucket index capacity doesn't depend on HDHM initial size, so 1024 below can be anything
+        try (final HalfDiskHashMap hdhm = createNewTempMap("testInitialBucketIndexCapacity", 1024)) {
+            final LongList bucketIndex = (LongList) hdhm.getBucketIndexToBucketLocation();
+            final long maxNumOfBuckets = maxNumOfKeys / goodAverageBucketEntryCount;
+            final long expectedCapacity =
+                    Long.highestOneBit(maxNumOfBuckets * 100 / HalfDiskHashMap.PERCENT_START_RESIZE) * 2;
+            assertEquals(expectedCapacity, bucketIndex.capacity());
         }
     }
 
@@ -574,6 +591,36 @@ class HalfDiskHashMapTest {
                 final long path2 = first + N + i;
                 assertEquals(path2, map.get(key2, hash2, -1));
             }
+        }
+    }
+
+    @Test
+    void testResizeRespectsBucketIndexCapacity() throws Exception {
+        final Configuration config = ConfigurationBuilder.create()
+                .withConfigDataType(MerkleDbConfig.class)
+                .withValue("merkleDb.maxNumOfKeys", "500")
+                .build();
+        final HalfDiskHashMap hdhm = new HalfDiskHashMap(
+                config, 100, tempDirPath.resolve("test"), "testResizeRespectsBucketIndexCapacity", null, false);
+        try {
+            final LongList bucketIndex = (LongList) hdhm.getBucketIndexToBucketLocation();
+            // 500 / 32 / 0.7, rounded up -> 32
+            assertEquals(32, bucketIndex.capacity());
+            assertEquals(4, hdhm.getNumOfBuckets());
+            // Resize to 8 buckets
+            hdhm.resizeIfNeeded(800, 1600);
+            assertEquals(8, hdhm.getNumOfBuckets());
+            // Resize again, 16 buckets
+            hdhm.resizeIfNeeded(800, 1600);
+            assertEquals(16, hdhm.getNumOfBuckets());
+            // Resize again, 32 buckets
+            hdhm.resizeIfNeeded(800, 1600);
+            assertEquals(32, hdhm.getNumOfBuckets());
+            // And again. This time resizeIfNeeded() should stay at 32 buckets to respect bucket index capacity
+            hdhm.resizeIfNeeded(800, 1600);
+            assertEquals(32, hdhm.getNumOfBuckets());
+        } finally {
+            hdhm.close();
         }
     }
 

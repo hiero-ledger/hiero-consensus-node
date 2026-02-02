@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.exporter;
 
-import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.hedera.statevalidation.util.ConfigUtils.MAX_OBJ_PER_FILE;
 import static com.hedera.statevalidation.util.ConfigUtils.PRETTY_PRINT_ENABLED;
+import static com.swirlds.state.merkle.StateKeyUtils.extractStateIdFromStateKeyOneOf;
 import static java.lang.StrictMath.toIntExact;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.JsonUtils;
 import com.hedera.statevalidation.util.StateUtils;
@@ -165,11 +164,8 @@ public class JsonExporter {
                 final StateKey stateKey;
                 final StateValue stateValue;
                 try {
-                    final ReadableSequentialData keyData = keyBytes.toReadableSequentialData();
-                    final int tag = keyData.readVarInt(false);
                     // normalize stateId for singletons
-                    final int actualStateId =
-                            tag >> TAG_FIELD_OFFSET == 1 ? keyData.readVarInt(false) : tag >> TAG_FIELD_OFFSET;
+                    final int actualStateId = extractStateIdFromStateKeyOneOf(keyBytes);
                     if (expectedStateId != -1 && expectedStateId != actualStateId) {
                         continue;
                     }

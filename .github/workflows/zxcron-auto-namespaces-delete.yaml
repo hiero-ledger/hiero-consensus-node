@@ -66,7 +66,7 @@ on:
 
 jobs:
   delete-selected-namespaces:
-    runs-on: hiero-citr-linux-small
+    runs-on: hl-cn-default-lin-sm
     env:
       Dallas_n1: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n1 }}
       Dallas_n2: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n2 }}
@@ -101,6 +101,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access to Dallas Cluster
         id: auth-k8s-dal
@@ -109,7 +110,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: k8s.pft.dal.lat.ope.eng.hashgraph.io
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Dallas Latitude namespaces
         run: |
@@ -136,7 +137,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: k8s.pft.chi.lat.ope.eng.hashgraph.io
-          certificate-ttl: 20h
+          certificate-ttl: 24h
 
       - name: Chicago Latitude namespaces
         run: |

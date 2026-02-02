@@ -40,7 +40,7 @@ defaults:
 jobs:
   build-publish:
     name: Build & Publish State Validator Uber JAR
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-state-validator-lin
 
     outputs:
       gcs-uri: ${{ steps.upload.outputs.gcs_uri || '' }}

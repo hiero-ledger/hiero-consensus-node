@@ -10,8 +10,9 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusGetTopicInfoQuery;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusGetTopicInfoFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import java.util.List;
 import java.util.Set;
@@ -46,9 +47,9 @@ public class ConsensusGetTopicInfoFeeCalculatorTest {
     void calculateFee() {
         final var op = ConsensusGetTopicInfoQuery.newBuilder().build();
         final var query = Query.newBuilder().consensusGetTopicInfo(op).build();
-        final var result = feeCalculator.calculateQueryFee(query, queryContext);
+        final var result = feeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromQueryContext(queryContext));
 
-        assertThat(result).isEqualTo(GET_INFO_BASE_FEE);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(GET_INFO_BASE_FEE);
     }
 
     private static FeeSchedule createTestFeeSchedule() {

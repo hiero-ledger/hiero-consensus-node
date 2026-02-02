@@ -9,7 +9,6 @@ import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.PING;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.PING_REPLY;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.SYNC_DATA;
 
-import com.google.common.collect.Lists;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.message.GossipKnownTips;
 import com.hedera.hapi.platform.message.GossipPing;
@@ -17,20 +16,18 @@ import com.hedera.hapi.platform.message.GossipSyncData;
 import com.swirlds.base.time.Time;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
+import com.swirlds.platform.gossip.rpc.GossipRpcReceiverHandler;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
-import com.swirlds.platform.gossip.shadowgraph.RpcPeerHandler;
 import com.swirlds.platform.gossip.shadowgraph.SyncPhase;
 import com.swirlds.platform.gossip.shadowgraph.SyncTimeoutException;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
 import com.swirlds.platform.gossip.sync.SyncOutputStream;
-import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.gossip.sync.protocol.SyncStatusChecker;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkMetrics;
 import com.swirlds.platform.network.NetworkProtocolException;
-import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -48,6 +45,7 @@ import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
 import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -73,12 +71,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * (in most cases, writing the number of messages, the type of message, then finally the serialized PBJ on the
      * wire)
      */
-    private final BlockingQueue<StreamWriter> outputQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<StreamWriter> outputQueue;
 
     /**
      * All incoming messages from remote node to be passed to dispatch thread
      */
-    private final BlockingQueue<Runnable> inputQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<Runnable> inputQueue;
 
     /**
      * Helper class to handle ping logic
@@ -91,11 +89,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private static final Duration SOCKET_EXCEPTION_DURATION = Duration.ofMinutes(1);
 
     private final RateLimiter exceptionRateLimiter;
+    private final RpcInternalExceptionHandler exceptionHandler;
 
     /**
      * State machine for rpc exchange process (mostly sync process)
      */
-    private RpcPeerHandler rpcPeerHandler;
+    private GossipRpcReceiverHandler rpcPeerHandler;
 
     /**
      * Handler of incoming messages, in current implementation same as {@link #rpcPeerHandler}
@@ -188,6 +187,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      *                       platform
      * @param syncMetrics    metrics tracking syncing
      * @param syncConfig     sync configuration
+     * @param exceptionHandler handler for errors which happens when managing the connection/dispatch loop
      */
     public RpcPeerProtocol(
             @NonNull final NodeId peerId,
@@ -198,7 +198,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             @NonNull final NetworkMetrics networkMetrics,
             @NonNull final Time time,
             @NonNull final SyncMetrics syncMetrics,
-            @NonNull final SyncConfig syncConfig) {
+            @NonNull final SyncConfig syncConfig,
+            @NonNull final RpcInternalExceptionHandler exceptionHandler) {
         this.executor = Objects.requireNonNull(executor);
         this.remotePeerId = Objects.requireNonNull(peerId);
         this.gossipHalted = Objects.requireNonNull(gossipHalted);
@@ -213,6 +214,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         this.keepSendingEventsWhenUnhealthy = syncConfig.keepSendingEventsWhenUnhealthy();
 
         this.exceptionRateLimiter = new RateLimiter(time, SOCKET_EXCEPTION_DURATION);
+        this.exceptionHandler = exceptionHandler;
+
+        this.inputQueue =
+                syncMetrics.createMeasuredQueue("rpc_input_%02d".formatted(peerId.id()), new LinkedBlockingQueue<>());
+        this.outputQueue =
+                syncMetrics.createMeasuredQueue("rpc_output_%02d".formatted(peerId.id()), new LinkedBlockingQueue<>());
     }
 
     /**
@@ -296,7 +303,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     () -> readMessages(connection),
                     () -> writeMessages(connection));
         } catch (final ParallelExecutionException e) {
-            NetworkUtils.handleNetworkException(e, connection, exceptionRateLimiter);
+            exceptionHandler.handleNetworkException(e, connection, exceptionRateLimiter);
         } finally {
             inputQueue.clear();
             outputQueue.clear();
@@ -317,7 +324,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         syncMetrics.rpcDispatchThreadRunning(+1);
         try {
             while (true) {
-                syncMetrics.rpcInputQueueSize(remotePeerId, inputQueue.size());
                 final Runnable message = inputQueue.poll(idleDispatchPollTimeoutMs, TimeUnit.MILLISECONDS);
                 if (message != null) {
                     if (message == POISON_PILL) {
@@ -358,7 +364,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         syncMetrics.rpcWriteThreadRunning(+1);
         try {
             while (shouldContinueProcessingMessages()) {
-                syncMetrics.rpcOutputQueueSize(remotePeerId, outputQueue.size());
                 final StreamWriter message;
                 try {
                     final long startNanos = time.nanoTime();
@@ -503,15 +508,14 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     @Override
     public void sendEvents(@NonNull final List<GossipEvent> gossipEvents) {
         outputQueue.add(out -> {
-            final List<List<GossipEvent>> batches = Lists.partition(gossipEvents, EVENT_BATCH_SIZE);
-            {
-                for (final List<GossipEvent> batch : batches) {
-                    if (!batch.isEmpty()) {
-                        out.writeShort(batch.size());
-                        for (final GossipEvent gossipEvent : batch) {
-                            out.write(EVENT);
-                            out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
-                        }
+            for (int i = 0; i < gossipEvents.size(); i += EVENT_BATCH_SIZE) {
+                final List<GossipEvent> batch =
+                        gossipEvents.subList(i, Math.min(i + EVENT_BATCH_SIZE, gossipEvents.size()));
+                if (!batch.isEmpty()) {
+                    out.writeShort(batch.size());
+                    for (final GossipEvent gossipEvent : batch) {
+                        out.write(EVENT);
+                        out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
                     }
                 }
             }
@@ -552,7 +556,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         this.processMessages = false;
     }
 
-    public void setRpcPeerHandler(final RpcPeerHandler rpcPeerHandler) {
+    public void setRpcPeerHandler(final GossipRpcReceiverHandler rpcPeerHandler) {
         this.rpcPeerHandler = rpcPeerHandler;
         this.receiver = rpcPeerHandler;
     }

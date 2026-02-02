@@ -17,7 +17,6 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -68,28 +67,17 @@ public final class StateInitializer {
         consensusStateEventHandler.onStateInitialized(
                 signedState.getState(), platform, trigger, previousSoftwareVersion);
 
+        // calculate hash
         abortAndThrowIfInterrupted(
-                () -> {
-                    try {
-                        platformContext
-                                .getMerkleCryptography()
-                                .digestTreeAsync(initialState.getRoot())
-                                .get();
-                    } catch (final ExecutionException e) {
-                        throw new RuntimeException(e);
-                    }
-                },
+                initialState::getHash, // calculate hash
                 "interrupted while attempting to hash the state");
 
         // If our hash changes as a result of the new address book then our old signatures may become invalid.
         signedState.pruneInvalidSignatures();
 
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
-        logger.info(
-                STARTUP.getMarker(),
-                """
+        logger.info(STARTUP.getMarker(), """
                         The platform is using the following initial state:
-                        {}""",
-                getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
+                        {}""", getInfoString(signedState.getState()));
     }
 }

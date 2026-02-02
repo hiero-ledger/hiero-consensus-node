@@ -10,12 +10,10 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.Utilities;
+import com.swirlds.platform.gossip.Utilities;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
 import com.swirlds.platform.network.connectivity.OutboundConnectionCreator;
 import com.swirlds.platform.network.connectivity.SocketFactory;
@@ -31,6 +29,7 @@ import java.net.SocketTimeoutException;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.gossip.config.SocketConfig_;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -79,12 +78,8 @@ class OutboundConnectionCreatorTest {
         final SocketFactory socketFactory = mock(SocketFactory.class);
         doAnswer(i -> socket).when(socketFactory).createClientSocket(any(), anyInt());
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(getConfig())
-                .build();
-
         final OutboundConnectionCreator occ = new OutboundConnectionCreator(
-                platformContext,
+                getConfig(),
                 thisNode,
                 mock(ConnectionTracker.class),
                 socketFactory,
@@ -167,12 +162,8 @@ class OutboundConnectionCreatorTest {
         final SocketFactory socketFactory = mock(SocketFactory.class);
         doAnswer(i -> socket).when(socketFactory).createClientSocket(any(), anyInt());
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(getConfig())
-                .build();
-
         final OutboundConnectionCreator occ = new OutboundConnectionCreator(
-                platformContext,
+                getConfig(),
                 thisNode,
                 mock(ConnectionTracker.class),
                 socketFactory,

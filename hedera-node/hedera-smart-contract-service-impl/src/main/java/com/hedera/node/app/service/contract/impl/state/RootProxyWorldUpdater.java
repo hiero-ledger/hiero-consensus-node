@@ -124,6 +124,19 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     }
 
     /**
+     * Returns the {@link EvmFrameState} that manages this updater's EVM state.
+     *
+     * <p>This provides real-time access to storage changes during EVM execution,
+     * which is needed for opcode tracing functionality (similar to Ethereum's
+     * {@code debug_traceTransaction}).
+     *
+     * @return the EVM frame state for this updater
+     */
+    public @NonNull EvmFrameState getEvmFrameState() {
+        return evmFrameState;
+    }
+
+    /**
      * If a successful commit has been made, returns the list of contract ids created during the transaction.
      *
      * @return the list of contract ids created during the transaction

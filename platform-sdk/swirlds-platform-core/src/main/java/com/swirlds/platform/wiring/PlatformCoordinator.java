@@ -5,17 +5,14 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSna
 import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningEventHashOverride;
+import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
-import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
-import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -33,11 +30,13 @@ import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.round.EventWindowUtils;
@@ -47,7 +46,8 @@ import org.hiero.consensus.round.EventWindowUtils;
  *
  * @param components
  */
-public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
+public record PlatformCoordinator(
+        @NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
         implements StatusActionSubmitter {
 
     /**
@@ -70,11 +70,9 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // whether to change the order of these lines.
 
         components.eventIntakeModule().flush();
-        components.eventSignatureValidatorWiring().flush();
-        components.orphanBufferWiring().flush();
-        components.pcesInlineWriterWiring().flush();
+        components.pcesModule().flush();
         components.gossipWiring().flush();
-        components.consensusEngineWiring().flush();
+        components.hashgraphModule().flush();
         components.applicationTransactionPrehandlerWiring().flush();
         components.eventCreatorModule().flush();
         components.branchDetectorWiring().flush();
@@ -97,8 +95,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // Phase 1: squelch
         // Break cycles in the system. Flush squelched components just in case there is a task being executed when
         // squelch is activated.
-        components.consensusEngineWiring().startSquelching();
-        components.consensusEngineWiring().flush();
+        components.hashgraphModule().startSquelching();
+        components.hashgraphModule().flush();
         components.eventCreatorModule().startSquelching();
         components.eventCreatorModule().flush();
 
@@ -119,14 +117,13 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
 
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
-        components.consensusEngineWiring().stopSquelching();
+        components.hashgraphModule().stopSquelching();
         components.eventCreatorModule().stopSquelching();
         components.transactionHandlerWiring().stopSquelching();
 
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
         components.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
-        components.orphanBufferWiring().getInputWire(OrphanBuffer::clear).inject(NoInput.getInstance());
         components.gossipWiring().getClearInput().inject(NoInput.getInstance());
         components
                 .stateSignatureCollectorWiring()
@@ -232,10 +229,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
      * @param consensusSnapshot the new consensus snapshot
      */
     public void consensusSnapshotOverride(@NonNull final ConsensusSnapshot consensusSnapshot) {
-        components
-                .consensusEngineWiring()
-                .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)
-                .inject(consensusSnapshot);
+        components.hashgraphModule().consensusSnapshotInputWire().inject(consensusSnapshot);
         if (callbacks.snapshotOverrideConsumer() != null) {
             callbacks.snapshotOverrideConsumer().accept(consensusSnapshot);
         }
@@ -290,23 +284,17 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
     }
 
     /**
-     * @see EventSignatureValidator#updateRosterHistory
+     * @see EventIntakeModule#rosterHistoryInputWire()
      */
     public void injectRosterHistory(@NonNull final RosterHistory rosterHistory) {
-        components
-                .eventSignatureValidatorWiring()
-                .getInputWire(EventSignatureValidator::updateRosterHistory)
-                .inject(rosterHistory);
+        components.eventIntakeModule().rosterHistoryInputWire().inject(rosterHistory);
     }
 
     /**
-     * @see InlinePcesWriter#registerDiscontinuity
+     * @see PcesModule#discontinuityInputWire()
      */
     public void registerPcesDiscontinuity(final long round) {
-        components
-                .pcesInlineWriterWiring()
-                .getInputWire(InlinePcesWriter::registerDiscontinuity)
-                .inject(round);
+        components.pcesModule().discontinuityInputWire().inject(round);
     }
 
     /**
@@ -321,13 +309,10 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
     }
 
     /**
-     * @see InlinePcesWriter#setMinimumAncientIdentifierToStore
+     * @see PcesModule#minimumAncientIdentifierInputWire()
      */
     public void injectPcesMinimumGenerationToStore(@NonNull final long minimumGenerationNonAncientForOldestState) {
-        components
-                .pcesInlineWriterWiring()
-                .getInputWire(InlinePcesWriter::setMinimumAncientIdentifierToStore)
-                .inject(minimumGenerationNonAncientForOldestState);
+        components.pcesModule().minimumAncientIdentifierInputWire().inject(minimumGenerationNonAncientForOldestState);
     }
 
     /**

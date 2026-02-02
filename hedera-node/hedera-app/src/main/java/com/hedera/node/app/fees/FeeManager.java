@@ -4,7 +4,7 @@ package com.hedera.node.app.fees;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_ACCOUNT_DETAILS;
-import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_ACCOUNT_NFT_INFOS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_NFT_INFOS;
@@ -29,7 +29,6 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -194,7 +193,7 @@ public final class FeeManager {
                         new SimpleFeeCalculatorImpl(schedule, serviceFeeCalculators, queryFeeCalculators);
                 return SUCCESS;
             } else {
-                logger.warn("Unable to validate fee schedule.");
+                logger.error("Unable to validate simple fee schedule.");
                 return ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
             }
         } catch (final BufferUnderflowException | ParseException ex) {
@@ -221,8 +220,8 @@ public final class FeeManager {
             return NoOpFeeCalculator.INSTANCE;
         }
 
-        // LambdaSStore is charged based on the equivalent gas cost in an EVM transaction, so it inherits EthTx prices
-        functionality = functionality == LAMBDA_S_STORE ? CONTRACT_CALL : functionality;
+        // HookStore is charged based on the equivalent gas cost in an EVM transaction, so it inherits EVM prices
+        functionality = functionality == HOOK_STORE ? CONTRACT_CALL : functionality;
 
         // Determine which fee schedule to use, based on the consensus time
         // If it is not known, that is, if we have no fee data for that transaction, then we MUST NOT execute that

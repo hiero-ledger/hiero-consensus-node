@@ -55,14 +55,14 @@ public class Rehash {
     /**
      * This test validates the Merkle tree structure of the state.
      *
-     * @param deserializedSignedState The deserialized signed state, propagated by the StateResolver.
+     * @param deserializedSignedState The deserialized signed state, propagated by the DeserializedSignedStateResolver.
      * @param hashInfo                The hash info object, propagated by the HashInfoResolver.
      */
     @Test
     void validateMerkleTree(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
 
         var infoStringFromState = getInfoString(
-                deserializedSignedState.reservedSignedState().get().getState(), HASH_DEPTH);
+                deserializedSignedState.reservedSignedState().get().getState());
 
         final var originalLines = Arrays.asList(hashInfo.content().split("\n")).getFirst();
         final var fullList = Arrays.asList(infoStringFromState.split("\n"));

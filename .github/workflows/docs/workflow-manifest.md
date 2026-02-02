@@ -6,9 +6,6 @@
 | node-zxcron-release-branching.yaml                    | ZXCron: Automatic Release Branching                               |                  |                      |
 | zxcron-clean.yaml                                     | CronClean Latitude Namespaces                                     |                  |                      |
 | zxcron-auto-namespaces-delete.yaml                    | Delete automation Latitude Namespaces                             |                  |                      |
-| node-zxcron-main-fsts-regression.yaml                 | ZXCron: [Node] Main JRS Tests                                     |                  |                      |
-| node-zxcron-release-fsts-regression.yaml              | ZXCron: [Node] Release JRS Tests                                  |                  |                      |
-| platform-zxcron-release-jrs-regression.yaml           | ZXCron: [Platform] Release JRS Regression                         |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # REUSABLE                                            |                                                                   |                  |                      |
 | zxc-block-node-regression.yaml                        | ZXC: Block Node Explorer Regression                               |                  |                      |
@@ -20,7 +17,6 @@
 | zxc-single-day-longevity-test.yaml                    | ZXC: [CITR] Single Day Longevity Test                             |                  |                      |
 | zxc-single-day-performance-test.yaml                  | ZXC: [CITR] Single Day Performance Test                           |                  |                      |
 | zxc-tck-regression.yaml                               | ZXC: TCK Regression                                               |                  |                      |
-| platform-zxc-launch-jrs-workflow.yaml                 | ZXC: Launch JRS Workflow                                          |                  |                      |
 | node-zxc-build-release-artifact.yaml                  | ZXC: [Node] Deploy Release Artifacts                              |                  |                      |
 | node-zxc-deploy-preview.yaml                          | ZXC: [Node] Deploy Preview Network Release                        |                  |                      |
 | zxc-xts-tests.yaml                                    | ZXC: Executable XTS Tests                                         |                  |                      |
@@ -34,13 +30,10 @@
 | zxc-execute-integration-tests.yaml                    | ZXC: Execute Integration Tests                                    |                  |                      |
 | zxc-execute-hapi-tests.yaml                           | ZXC: Execute HAPI Tests                                           |                  |                      |
 | zxc-execute-timing-sensitive-tests.yaml               | ZXC: Execute Timing Sensitive Tests                               |                  |                      |
-| zxc-execute-time-consuming-tests.yaml                 | ZXC: Execute Time Consuming Tests                                 |                  |                      |
 | zxc-execute-hammer-tests.yaml                         | ZXC: Execute Hammer Tests                                         |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # CICD                                                |                                                                   |                  |                      |
 | zxf-collect-workflow-logs.yaml                        | ZXF: Collect Workflow Run Logs                                    |                  |                      |
-| zxf-dry-run-extended-test-suite.yaml                  | ZXF: [CITR] XTS Dry Run                                           |                  |                      |
-| zxf-dry-run-mats-suite.yaml                           | ZXF: [CITR] MATS Dry Run                                          |                  |                      |
 | zxf-prepare-extended-test-suite.yaml                  | ZXF: [CITR] Prepare Extended Test Suite                           |                  |                      |
 | zxf-single-day-canonical-test.yaml                    | ZXF: [CITR] Single Day Canonical Test (SDCT)                      |                  |                      |
 | zxf-single-day-longevity-test-controller-adhoc.yaml   | ZXF: [CITR] Adhoc - Single Day Longevity Test Controller          |                  |                      |
@@ -68,18 +61,9 @@
 | node-zxf-deploy-integration.yaml                      | ZXF: [Node] Deploy Integration Network Release                    |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # General Testing                                     |                                                                   |                  |                      |
+| flow-dry-run-extended-test-suite.yaml                 | [CITR] XTS Dry Run                                                |                  |                      |
+| flow-dry-run-mats-suite.yaml                          | [CITR] MATS Dry Run                                               |                  |                      |
 | node-flow-pull-request-checks.yaml                    | Node: PR Checks                                                   |                  |                      |
-|                                                       |                                                                   |                  |                      |
-| # JRS Testing                                         |                                                                   |                  |                      |
-| platform-pull-request-extended-checks.yaml            | Platform: PR Extended Checks                                      |                  |                      |
-| node-flow-fsts-custom-regression.yaml                 | Node: FSTS Custom Regression                                      |                  |                      |
-| node-flow-fsts-daily-interval-01.yaml                 | ZXF: [Node] FSTS Daily (Interval: 1)                              |                  |                      |
-| node-flow-fsts-daily-interval-02.yaml                 | ZXF: [Node] FSTS Daily (Interval: 2)                              |                  |                      |
-| node-flow-fsts-daily-interval-03.yaml                 | ZXF: [Node] FSTS Daily (Interval: 3)                              |                  |                      |
-| node-flow-fsts-daily-interval-04.yaml                 | ZXF: [Node] FSTS Daily (Interval: 4)                              |                  |                      |
-| node-flow-fsts-daily-interval-05.yaml                 | ZXF: [Node] FSTS Daily (Interval: 5)                              |                  |                      |
-| node-flow-fsts-daily-interval-06.yaml                 | ZXF: [Node] FSTS Daily (Interval: 6)                              |                  |                      |
-| node-flow-fsts-daily-regression.yaml                  | Node: FSTS Daily Regression                                       |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # QOL                                                 |                                                                   |                  |                      |
 | zxf-update-gs-state-variable.yaml                     | ZXF: Update GS_STATE Variable                                     |                  |                      |

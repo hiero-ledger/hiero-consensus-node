@@ -23,27 +23,55 @@ import java.time.Duration;
  */
 @ConfigData("networkAdmin")
 public record NetworkAdminConfig(
-        @ConfigProperty(defaultValue = "data/upgrade/current") @NodeProperty String upgradeArtifactsPath,
-        @ConfigProperty(defaultValue = "data/upgrade/current/data/keys") @NodeProperty String keysPath,
+        @ConfigProperty(defaultValue = "data/upgrade/current") @NodeProperty
+        String upgradeArtifactsPath,
+
+        @ConfigProperty(defaultValue = "data/upgrade/current/data/keys") @NodeProperty
+        String keysPath,
+
         @ConfigProperty(defaultValue = "data/config") String upgradeSysFilesLoc,
         @ConfigProperty(defaultValue = "feeSchedules.json") String upgradeFeeSchedulesFile,
-        @ConfigProperty(defaultValue = "simpleFeesSchedules.json") String upgradeSimpleFeeSchedulesFile,
+
+        @ConfigProperty(defaultValue = "simpleFeesSchedules.json")
+        String upgradeSimpleFeeSchedulesFile,
+
         @ConfigProperty(defaultValue = "throttles.json") String upgradeThrottlesFile,
-        @ConfigProperty(defaultValue = "application-override.properties") String upgradePropertyOverridesFile,
-        @ConfigProperty(defaultValue = "api-permission-override.properties") String upgradePermissionOverridesFile,
-        @ConfigProperty(defaultValue = "node-admin-keys.json") String upgradeNodeAdminKeysFile,
+
+        @ConfigProperty(defaultValue = "application-override.properties")
+        String upgradePropertyOverridesFile,
+
+        @ConfigProperty(defaultValue = "api-permission-override.properties")
+        String upgradePermissionOverridesFile,
+
+        @ConfigProperty(defaultValue = "node-admin-keys.json")
+        String upgradeNodeAdminKeysFile,
+
         @ConfigProperty(
-                        defaultValue =
-                                "HintsKeyPublication,HintsPreprocessingVote,HintsPartialSignature,HistoryAssemblySignature,HistoryProofKeyPublication,HistoryProofVote,CrsPublication")
-                @NetworkProperty
-                HederaFunctionalitySet nodeTransactionsAllowList,
-        @ConfigProperty(defaultValue = "output/network.json") @NodeProperty String diskNetworkExportFile,
+                defaultValue =
+                        "HintsKeyPublication,HintsPreprocessingVote,HintsPartialSignature,HistoryAssemblySignature,HistoryProofKeyPublication,HistoryProofVote,CrsPublication")
+        @NetworkProperty
+        HederaFunctionalitySet nodeTransactionsAllowList,
+
+        @ConfigProperty(defaultValue = "output/network.json") @NodeProperty
+        String diskNetworkExportFile,
+
         @ConfigProperty(defaultValue = "NEVER") DiskNetworkExport diskNetworkExport,
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean exportCandidateRoster,
-        @ConfigProperty(defaultValue = "candidate-roster.json") @NodeProperty String candidateRosterExportFile,
-        @ConfigProperty(defaultValue = "50") @NetworkProperty int timesToTrySubmission,
-        @ConfigProperty(defaultValue = "5s") @NetworkProperty Duration retryDelay,
-        @ConfigProperty(defaultValue = "10") @NetworkProperty int distinctTxnIdsToTry,
+
+        @ConfigProperty(defaultValue = "candidate-roster.json") @NodeProperty
+        String candidateRosterExportFile,
+
+        @ConfigProperty(defaultValue = "50") @NetworkProperty
+        int timesToTrySubmission,
+
+        @ConfigProperty(defaultValue = "5s") @NetworkProperty
+        Duration retryDelay,
+
+        @ConfigProperty(defaultValue = "10") @NetworkProperty
+        int distinctTxnIdsToTry,
+
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean preserveStateWeightsDuringOverride,
-        // Default value is the working directory
-        @ConfigProperty(defaultValue = "") @NodeProperty String configTxtPath) {}
+        @ConfigProperty(defaultValue = "true") boolean createCandidateRosterOnPrepareUpgrade,
+        // Config for high volume throttles
+        @ConfigProperty(defaultValue = "false") @NodeProperty
+        boolean highVolumeThrottlesEnabled) {}

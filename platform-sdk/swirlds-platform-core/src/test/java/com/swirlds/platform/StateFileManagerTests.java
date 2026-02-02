@@ -7,7 +7,6 @@ import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -17,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
@@ -82,7 +82,6 @@ class StateFileManagerTests {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
         registry.registerConstructables("org.hiero");
-        registerConstructablesForStorage(CONFIGURATION);
     }
 
     @BeforeEach
@@ -113,7 +112,7 @@ class StateFileManagerTests {
     /**
      * Make sure the signed state was properly saved.
      */
-    private void validateSavingOfState(final SignedState originalState) throws IOException {
+    private void validateSavingOfState(final SignedState originalState) throws IOException, ParseException {
 
         final Path stateDirectory = signedStateFilePath.getSignedStateDirectory(
                 MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, originalState.getRound());
@@ -124,7 +123,8 @@ class StateFileManagerTests {
     /**
      * Make sure the signed state was properly saved.
      */
-    private void validateSavingOfState(final SignedState originalState, final Path stateDirectory) throws IOException {
+    private void validateSavingOfState(final SignedState originalState, final Path stateDirectory)
+            throws IOException, ParseException {
         assertEventuallyEquals(
                 -1, originalState::getReservationCount, Duration.ofSeconds(1), "invalid reservation count");
 
@@ -153,7 +153,7 @@ class StateFileManagerTests {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     @DisplayName("Standard Operation Test")
-    void standardOperationTest(final boolean successExpected) throws IOException {
+    void standardOperationTest(final boolean successExpected) throws IOException, ParseException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
         initLifecycleManagerAndMakeStateImmutable(signedState);
         hashState(signedState);
@@ -181,7 +181,7 @@ class StateFileManagerTests {
 
     @Test
     @DisplayName("Save ISS Signed State")
-    void saveISSignedState() throws IOException {
+    void saveISSignedState() throws IOException, ParseException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
 
         final StateSnapshotManager manager =
@@ -202,7 +202,7 @@ class StateFileManagerTests {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     @DisplayName("Sequence Of States Test")
-    void sequenceOfStatesTest(final boolean startAtGenesis) throws IOException {
+    void sequenceOfStatesTest(final boolean startAtGenesis) throws IOException, ParseException {
 
         final Random random = getRandomPrintSeed();
 
@@ -332,7 +332,7 @@ class StateFileManagerTests {
     @SuppressWarnings("resource")
     @Test
     @DisplayName("State Deletion Test")
-    void stateDeletionTest() throws IOException {
+    void stateDeletionTest() throws IOException, ParseException {
         final Random random = getRandomPrintSeed();
         final int statesOnDisk = 3;
 
