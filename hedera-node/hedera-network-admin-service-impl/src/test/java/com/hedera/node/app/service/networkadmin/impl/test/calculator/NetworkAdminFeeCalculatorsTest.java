@@ -197,8 +197,8 @@ class NetworkAdminFeeCalculatorsTest {
                         makeServiceFee(
                                 HederaFunctionality.TRANSACTION_GET_RECORD,
                                 TRANSACTION_GET_RECORD_FEE,
-                                makeExtraIncluded(Extra.ADDITIONAL_RECORDS, 1))))
-                .extras(makeExtraDef(Extra.ADDITIONAL_RECORDS, TRANSACTION_GET_RECORD_FEE))
+                                makeExtraIncluded(Extra.RECORDS, 1))))
+                .extras(makeExtraDef(Extra.RECORDS, TRANSACTION_GET_RECORD_FEE))
                 .build();
     }
 }
