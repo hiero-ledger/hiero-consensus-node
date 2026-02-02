@@ -232,13 +232,14 @@ public final class EventRecoveryWorkflow {
 
         final Configuration configuration = platformContext.getConfiguration();
 
-        final MerkleNodeState initialState = initialSignedState.get().getState();
+        final ReservedSignedState workingSignedState = ensureMutableState(initialSignedState, configuration);
+        final MerkleNodeState initialState = workingSignedState.get().getState();
         initialState.throwIfImmutable("initial state must be mutable");
 
         logger.info(STARTUP.getMarker(), "Initializing application state");
 
         final RecoveryPlatform platform =
-                new RecoveryPlatform(configuration, initialSignedState.get(), selfId, loadSigningKeys);
+                new RecoveryPlatform(configuration, workingSignedState.get(), selfId, loadSigningKeys);
 
         final ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
         final SemanticVersion softwareVersion = creationSoftwareVersionOf(initialState);
@@ -250,7 +251,7 @@ public final class EventRecoveryWorkflow {
                 initialState, platform, InitTrigger.EVENT_STREAM_RECOVERY, softwareVersion);
         appMain.init(platform, platform.getSelfId());
 
-        ReservedSignedState signedState = initialSignedState;
+        ReservedSignedState signedState = workingSignedState;
 
         // Apply events to the state
         ConsensusEvent lastEvent = null;
@@ -279,6 +280,30 @@ public final class EventRecoveryWorkflow {
         platform.close();
 
         return new RecoveredState(signedState, ((CesEvent) Objects.requireNonNull(lastEvent)).getPlatformEvent());
+    }
+
+    private static ReservedSignedState ensureMutableState(
+            @NonNull final ReservedSignedState initialSignedState, @NonNull final Configuration configuration) {
+        final SignedState signedState = initialSignedState.get();
+        final MerkleNodeState state = signedState.getState();
+        if (!state.isHashed()) {
+            return initialSignedState;
+        }
+
+        // Snapshot loading hashes the map, which freezes leaf mutations; copy to regain mutability.
+        final MerkleNodeState mutableState = state.copy();
+        final SignedState mutableSignedState = new SignedState(
+                configuration,
+                ConsensusCryptoUtils::verifySignature,
+                mutableState,
+                "EventRecoveryWorkflow.ensureMutableState()",
+                signedState.isFreezeState(),
+                false,
+                signedState.isPcesRound());
+        mutableSignedState.setSigSet(signedState.getSigSet().copy());
+
+        initialSignedState.close();
+        return mutableSignedState.reserve("EventRecoveryWorkflow.ensureMutableState()");
     }
 
     /**

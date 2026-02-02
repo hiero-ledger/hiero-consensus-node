@@ -34,7 +34,7 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
 
     @CommandLine.Option(
             names = {"-c", "--config"},
-            required = true,
+            required = false,
             description = "A path to where a configuration file can be found. If not provided then defaults are used.")
     private void setConfigurationPath(final Path configurationPath) {
         pathMustExist(configurationPath);
