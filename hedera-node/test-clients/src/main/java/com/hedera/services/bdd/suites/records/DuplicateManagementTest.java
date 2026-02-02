@@ -110,7 +110,7 @@ public class DuplicateManagementTest {
                                     costlyRecord.getTransactionID().getAccountID())
                             .orElse(0);
                     assertEquals(
-                            3 * cheapPrice - 1,
+                            3 * cheapPrice,
                             costlyPrice,
                             String.format(
                                     "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",

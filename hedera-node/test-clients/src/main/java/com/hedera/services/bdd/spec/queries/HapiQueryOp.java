@@ -51,8 +51,6 @@ import org.apache.logging.log4j.Logger;
 
 public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOperation {
     private static final Logger log = LogManager.getLogger(HapiQueryOp.class);
-    // Hbar equivalent of $0.0001 for cryptoTransfer fee for the query payment
-    private static final long TRANSFER_FEE_FOR_QUERY_PAYMENT = 83333L;
 
     @Nullable
     private QueryMutation queryMutation = null;
@@ -291,11 +289,6 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
             query = maybeModified(queryFor(spec, payment, ResponseType.COST_ANSWER), spec);
             response = spec.targetNetworkOrThrow().send(query, type(), targetNodeFor(spec), asNodeOperator);
             var realNodePayment = costFrom(response);
-            final var simpleFeesEnabled = Boolean.parseBoolean(
-                    spec.targetNetworkOrThrow().startupProperties().get("fees.simpleFeesEnabled"));
-            if (simpleFeesEnabled) {
-                realNodePayment -= TRANSFER_FEE_FOR_QUERY_PAYMENT;
-            }
             final long finalRealNodePayment = realNodePayment;
             Optional.ofNullable(nodePaymentObserver).ifPresent(observer -> observer.accept(finalRealNodePayment));
             if (expectedCostAnswerPrecheck() != OK) {

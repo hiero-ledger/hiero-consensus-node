@@ -34,7 +34,7 @@
     { "name":  "NFT_UPDATE",                     "fee": 10000000 },
     { "name":  "AIRDROPS",                       "fee": 500000000 },
     { "name":  "HOOK_UPDATES",                   "fee": 10000000000 },
-    { "name":  "ADDITIONAL_RECORDS",             "fee": 1000000 },
+    { "name":  "RECORDS",                        "fee": 1000000 },
     { "name":  "TOKEN_TRANSFER_BASE",                       "fee": 9000000 },
     { "name":  "TOKEN_TRANSFER_BASE_CUSTOM_FEES",           "fee": 19000000 },
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
@@ -586,8 +586,8 @@
           "baseFee": 0,
           "extras": [
             {
-              "name": "ADDITIONAL_RECORDS",
-              "includedCount": 0
+              "name": "RECORDS",
+              "includedCount": 1
             }
           ]
         },
