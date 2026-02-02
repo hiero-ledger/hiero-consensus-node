@@ -44,7 +44,8 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
 
     private static final Logger log = LogManager.getLogger(EntityIdUniquenessValidator.class);
 
-    public static final String ENTITY_ID_UNIQUENESS_TAG = "entityIdUniqueness";
+    public static final String ENTITY_ID_GROUP = "entityIds";
+    public static final String ENTITY_ID_UNIQUENESS_NAME = "entityIdUniqueness";
     private static final long IMPERMISSIBLE_ENTITY_ID = -1L;
 
     private ReadableKVState<TokenID, Token> tokensState;
@@ -60,8 +61,17 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull String getTag() {
-        return ENTITY_ID_UNIQUENESS_TAG;
+    @NonNull
+    public String getGroup() {
+        return ENTITY_ID_GROUP;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull String getName() {
+        return ENTITY_ID_UNIQUENESS_NAME;
     }
 
     /**
@@ -132,7 +142,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
      */
     @Override
     public void validate() {
-        ValidationAssertions.requireEqual(0, issuesFound.get(), getTag());
+        ValidationAssertions.requireEqual(0, issuesFound.get(), getName());
     }
 
     private void checkEntityUniqueness(long entityId) {

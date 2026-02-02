@@ -8,20 +8,20 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public class ValidationException extends RuntimeException {
 
-    private final String validatorTag;
+    private final String validatorName;
 
-    public ValidationException(@NonNull final String validatorTag, @NonNull final String message) {
-        super(String.format("[%s] Validation failed: %s", validatorTag, message));
-        this.validatorTag = validatorTag;
+    public ValidationException(@NonNull final String validatorName, @NonNull final String message) {
+        super(String.format("[%s] Validation failed: %s", validatorName, message));
+        this.validatorName = validatorName;
     }
 
     public ValidationException(
-            @NonNull final String validatorTag, @NonNull final String message, @NonNull final Throwable cause) {
-        super(String.format("[%s] Validation failed at: %s", validatorTag, message), cause);
-        this.validatorTag = validatorTag;
+            @NonNull final String validatorName, @NonNull final String message, @NonNull final Throwable cause) {
+        super(String.format("[%s] Validation failed at: %s", validatorName, message), cause);
+        this.validatorName = validatorName;
     }
 
-    public String getValidatorTag() {
-        return validatorTag;
+    public String getValidatorName() {
+        return validatorName;
     }
 }

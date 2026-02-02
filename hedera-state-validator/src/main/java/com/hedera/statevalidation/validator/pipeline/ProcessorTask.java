@@ -205,7 +205,7 @@ public class ProcessorTask implements Callable<Void> {
                 ((HashRecordValidator) validator).processHashRecord(hashRecord);
             } catch (final Exception e) {
                 validationListeners.forEach(listener -> listener.onValidationFailed(
-                        new ValidationException(validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                        new ValidationException(validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
             }
         });
     }
@@ -239,7 +239,7 @@ public class ProcessorTask implements Callable<Void> {
                         ((LeafBytesValidator) validator).processLeafBytes(data.location(), virtualLeafBytes);
                     } catch (final Exception e) {
                         validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
-                                validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                                validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                     }
                 });
             } else if (data.location() == -1) {
@@ -290,7 +290,7 @@ public class ProcessorTask implements Callable<Void> {
                         ((HashRecordValidator) validator).processHashRecord(virtualHashRecord);
                     } catch (final Exception e) {
                         validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
-                                validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                                validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                     }
                 });
             } else if (data.location() == -1) {
@@ -341,7 +341,7 @@ public class ProcessorTask implements Callable<Void> {
                             ((HdhmBucketValidator) validator).processBucket(data.location(), bucket);
                         } catch (final Exception e) {
                             validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
-                                    validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                                    validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                         }
                     });
                 } else if (data.location() == -1) {

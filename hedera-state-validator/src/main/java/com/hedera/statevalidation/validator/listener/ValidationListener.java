@@ -38,9 +38,9 @@ public interface ValidationListener {
      * <p>This callback is invoked before the validator's initialization phase.
      * It provides an opportunity to log or track which validators are being executed.
      *
-     * @param tag the unique identifier tag of the validator that is starting
+     * @param validatorName the unique name of the validator that is starting
      */
-    default void onValidationStarted(@NonNull String tag) {}
+    default void onValidationStarted(@NonNull String validatorName) {}
 
     /**
      * Called when a validator successfully completes its validation.
@@ -49,14 +49,14 @@ public interface ValidationListener {
      * returns without throwing an exception, indicating that all validation
      * assertions passed.
      *
-     * @param tag the unique identifier tag of the validator that completed successfully
+     * @param validatorName the unique name of the validator that completed successfully
      */
-    default void onValidationCompleted(@NonNull String tag) {}
+    default void onValidationCompleted(@NonNull String validatorName) {}
 
     /**
      * Called when a validator fails during initialization, processing, or final validation.
      *
-     * @param error the validation exception containing the validator tag and failure details
+     * @param error the validation exception containing the validator name and failure details
      */
     default void onValidationFailed(@NonNull ValidationException error) {}
 }

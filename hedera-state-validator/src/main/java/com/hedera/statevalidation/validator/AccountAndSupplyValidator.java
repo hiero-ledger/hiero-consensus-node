@@ -30,7 +30,7 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
 
     private static final Logger log = LogManager.getLogger(AccountAndSupplyValidator.class);
 
-    public static final String ACCOUNT_TAG = "account";
+    public static final String ACCOUNT_GROUP = "account";
 
     // 1_000_000_000 tiny bar  = 1 h
     // https://help.hedera.com/hc/en-us/articles/360000674317-What-are-the-official-HBAR-cryptocurrency-denominations-
@@ -47,8 +47,19 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull String getTag() {
-        return ACCOUNT_TAG;
+    @NonNull
+    public String getGroup() {
+        return ACCOUNT_GROUP;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public String getName() {
+        // Intentionally same as group, as currently it is the only one
+        return ACCOUNT_GROUP;
     }
 
     /**
@@ -112,14 +123,14 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
 
         ValidationAssertions.requireTrue(
                 ok,
-                getTag(),
+                getName(),
                 ("""
                         %s validation failed.
                         totalSupplyExpected=%d vs totalSupplyActual=%d
                         accountsExpected=%d vs accountsObserved=%d
                         invalidAccountBalanceCount=%d""")
                         .formatted(
-                                getTag(),
+                                getName(),
                                 TOTAL_tHBAR_SUPPLY,
                                 totalBalance.get(),
                                 numAccounts,

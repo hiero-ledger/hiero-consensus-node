@@ -20,7 +20,7 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
 
     private static final Logger log = LogManager.getLogger(HashRecordIntegrityValidator.class);
 
-    public static final String INTERNAL_TAG = "internal";
+    public static final String INTERNAL_GROUP = "internal";
 
     private final AtomicLong processedCount = new AtomicLong(0);
     private final AtomicLong nullHashCount = new AtomicLong(0);
@@ -32,8 +32,19 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull String getTag() {
-        return INTERNAL_TAG;
+    @NonNull
+    public String getGroup() {
+        return INTERNAL_GROUP;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public String getName() {
+        // Intentionally same as group, as currently it is the only one
+        return INTERNAL_GROUP;
     }
 
     /**
@@ -82,10 +93,10 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
 
         ValidationAssertions.requireTrue(
                 ok,
-                getTag(),
+                getName(),
                 ("%s validation failed. Hash record count exp=%d act=%d, nullHashCount=%d, nullHashSentinelCount=%d")
                         .formatted(
-                                getTag(),
+                                getName(),
                                 expectedCount,
                                 processedCount.get(),
                                 nullHashCount.get(),

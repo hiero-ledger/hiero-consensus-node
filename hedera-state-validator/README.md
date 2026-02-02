@@ -20,17 +20,19 @@ java -jar ./validator-.jar {path-to-state-round} validate2 {tag} [{tag}...] [opt
 ### Parameters
 
 - `{path-to-state-round}` - Location of the state files (required).
-- `{tag}` - Validation that should be run, multiple tags can be specified, separated by spaces (at least one required). Current supported tags:
+- `{group}` - Validation group that should be run, multiple groups can be specified, separated by spaces (at least one required). Current supported groups:
   - [`all`](/src/main/java/com/hedera/statevalidation/validator/v2/Validator.java) - Runs all validators.
   - [`internal`](/src/main/java/com/hedera/statevalidation/validator/v2/HashRecordIntegrityValidator.java) - Validates hash record integrity for internal nodes.
   - [`leaf`](/src/main/java/com/hedera/statevalidation/validator/v2/LeafBytesIntegrityValidator.java) - Validates leaf bytes integrity.
   - [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/v2/HdhmBucketIntegrityValidator.java) - Validates HDHM bucket integrity in the half-disk hashmap.
   - [`account`](/src/main/java/com/hedera/statevalidation/validator/v2/AccountAndSupplyValidator.java) - Ensures all accounts have a positive balance and verifies total HBAR supply.
   - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/v2/TokenRelationsIntegrityValidator.java) - Verifies that the accounts and tokens for every token relationship exist.
-  - [`entityIdCount`](/src/main/java/com/hedera/statevalidation/validator/v2/EntityIdCountValidator.java) - Validates entity ID counts match expected values.
-  - [`entityIdUniqueness`](/src/main/java/com/hedera/statevalidation/validator/v2/EntityIdUniquenessValidator.java) - Verifies entity IDs are unique across entity types.
-  - [`rehash`](/src/main/java/com/hedera/statevalidation/validator/v2/RehashValidator.java) - Runs a full rehash of the state and compares against the original hash from the `DeserializedSignedState`.
-  - [`rootHash`](/src/main/java/com/hedera/statevalidation/validator/v2/RootHashValidator.java) - Validates the root hash against a `hashInfo.txt`.
+  - `entityIds` - Verifies entity IDs are valid and unique. Validators:
+    - [`entityIdCount`](/src/main/java/com/hedera/statevalidation/validator/v2/EntityIdCountValidator.java) - Validates entity ID counts match expected values.
+    - [`entityIdUniqueness`](/src/main/java/com/hedera/statevalidation/validator/v2/EntityIdUniquenessValidator.java) - Verifies entity IDs are unique across entity types.
+  - `rehash` - Compare root hashes. Validators:
+    - [`rehash`](/src/main/java/com/hedera/statevalidation/validator/v2/RehashValidator.java) - Runs a full rehash of the state and compares against the original hash from the `DeserializedSignedState`.
+    - [`rootHash`](/src/main/java/com/hedera/statevalidation/validator/v2/RootHashValidator.java) - Validates the root hash against a `hashInfo.txt`.
 
 ### Options
 

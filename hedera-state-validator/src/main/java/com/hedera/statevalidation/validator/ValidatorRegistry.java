@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator;
 
-import static com.hedera.statevalidation.validator.Validator.ALL_TAG;
+import static com.hedera.statevalidation.validator.Validator.ALL_GROUP;
 
 import com.hedera.statevalidation.ValidateCommand;
 import com.hedera.statevalidation.validator.listener.ValidationListener;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  *         ({@link HashRecordValidator}, {@link HdhmBucketValidator}, {@link LeafBytesValidator},
  *         or base {@link Validator} for individual validators)</li>
  *     <li>Add a new instance to {@link #ALL_VALIDATORS} list below</li>
- *     <li>Add a new tag to {@link ValidateCommand}</li>
+ *     <li>Optionally, add a new validator group to {@link ValidateCommand}</li>
  * </ol>
  *
  * <p>That's it. The registry automatically categorizes validators based on their interface:
@@ -102,11 +102,11 @@ public final class ValidatorRegistry {
     }
 
     /**
-     * Creates, filters, and initializes pipeline validators based on the provided tags.
+     * Creates, filters, and initializes pipeline validators based on the provided validation groups.
      *
      * <p>This method performs the following steps for each registered pipeline validator:
      * <ol>
-     *     <li>Checks if the validator's tag matches the requested tags (or if "all" is specified)</li>
+     *     <li>Checks if the validator's group matches the requested groups (or if "all" is specified)</li>
      *     <li>Notifies listeners that validation is starting</li>
      *     <li>Calls {@link Validator#initialize(MerkleNodeState)}</li>
      *     <li>On success, adds the validator to the result set</li>
@@ -114,24 +114,24 @@ public final class ValidatorRegistry {
      * </ol>
      *
      * @param state               the state to initialize validators with; must not be null
-     * @param tags                array of validator tags to run; use {@link Validator#ALL_TAG} to run all validators
+     * @param validationGroups    array of validator groups to run; use {@link Validator#ALL_GROUP} to run all validators
      * @param validationListeners listeners to notify of initialization events; must not be null
      * @return a map from {@link Type} to thread-safe sets of initialized validators;
      */
     public static Map<Type, Set<Validator>> createAndInitValidators(
             @NonNull final MerkleNodeState state,
-            @NonNull final String[] tags,
+            @NonNull final String[] validationGroups,
             @NonNull final List<ValidationListener> validationListeners) {
 
-        final Set<String> tagSet = Set.of(tags);
-        final boolean runAll = tagSet.contains(ALL_TAG);
+        final Set<String> groupSet = Set.of(validationGroups);
+        final boolean runAll = groupSet.contains(ALL_GROUP);
 
         final Map<Type, Set<Validator>> result = new EnumMap<>(Type.class);
 
         ValidatorRegistry.getPipelineValidators().forEach((type, validators) -> {
             final Set<Validator> validatorSet = new HashSet<>();
             for (Validator v : validators) {
-                if (runAll || tagSet.contains(v.getTag())) {
+                if (runAll || groupSet.contains(v.getGroup())) {
                     if (tryInitialize(v, state, validationListeners)) {
                         validatorSet.add(v);
                     }
@@ -146,26 +146,26 @@ public final class ValidatorRegistry {
     }
 
     /**
-     * Creates, filters, and initializes individual validators based on the provided tags.
+     * Creates, filters, and initializes individual validators based on the provided validation groups.
      *
      * <p>Similar to {@link #createAndInitValidators}, but for validators that run
      * independently outside the data pipeline.
      *
      * @param state               the state to initialize validators with; must not be null
-     * @param tags                array of validator tags to run; use {@link Validator#ALL_TAG} to run all validators
+     * @param validationGroups    array of validator groups to run; use {@link Validator#ALL_GROUP} to run all validators
      * @param validationListeners listeners to notify of initialization events; must not be null
      * @return an unmodifiable list of initialized individual validators
      */
     public static List<Validator> createAndInitIndividualValidators(
             @NonNull final MerkleNodeState state,
-            @NonNull final String[] tags,
+            @NonNull final String[] validationGroups,
             @NonNull final List<ValidationListener> validationListeners) {
 
-        final Set<String> tagSet = Set.of(tags);
-        final boolean runAll = tagSet.contains(ALL_TAG);
+        final Set<String> groupSet = Set.of(validationGroups);
+        final boolean runAll = groupSet.contains(ALL_GROUP);
 
         return ValidatorRegistry.getIndividualValidators().stream()
-                .filter(v -> runAll || tagSet.contains(v.getTag()))
+                .filter(v -> runAll || groupSet.contains(v.getGroup()))
                 .filter(v -> tryInitialize(v, state, validationListeners))
                 .toList();
     }
@@ -189,7 +189,7 @@ public final class ValidatorRegistry {
             @NonNull final Validator validator,
             @NonNull final MerkleNodeState state,
             @NonNull final List<ValidationListener> listeners) {
-        listeners.forEach(l -> l.onValidationStarted(validator.getTag()));
+        listeners.forEach(l -> l.onValidationStarted(validator.getName()));
         try {
             validator.initialize(state);
             return true;
@@ -197,7 +197,7 @@ public final class ValidatorRegistry {
             listeners.forEach(l -> l.onValidationFailed(e));
         } catch (Exception e) {
             listeners.forEach(l -> l.onValidationFailed(
-                    new ValidationException(validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                    new ValidationException(validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
         }
         return false;
     }

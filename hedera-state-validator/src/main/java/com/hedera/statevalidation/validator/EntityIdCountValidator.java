@@ -2,6 +2,7 @@
 package com.hedera.statevalidation.validator;
 
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.statevalidation.validator.EntityIdUniquenessValidator.ENTITY_ID_GROUP;
 
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.platform.state.StateKey;
@@ -20,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class EntityIdCountValidator implements LeafBytesValidator {
 
-    public static final String ENTITY_ID_COUNT_TAG = "entityIdCount";
+    public static final String ENTITY_ID_COUNT_NAME = "entityIdCount";
 
     private EntityCounts entityCounts;
 
@@ -44,8 +45,17 @@ public class EntityIdCountValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull String getTag() {
-        return ENTITY_ID_COUNT_TAG;
+    @NonNull
+    public String getGroup() {
+        return ENTITY_ID_GROUP;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull String getName() {
+        return ENTITY_ID_COUNT_NAME;
     }
 
     /**
@@ -92,7 +102,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
      */
     @Override
     public void validate() {
-        ValidationAssertions.requireNonNull(entityCounts, getTag());
+        ValidationAssertions.requireNonNull(entityCounts, getName());
 
         final boolean ok = entityCounts.numAccounts() == accountCount.get()
                 && entityCounts.numAliases() == aliasesCount.get()
@@ -113,7 +123,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
 
         ValidationAssertions.requireTrue(
                 ok,
-                getTag(),
+                getName(),
                 ("""
                         %s validation failed.
                         accounts exp=%d act=%d
@@ -130,7 +140,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
                         hooks exp=%d act=%d
                         lambdaStorageSlots exp=%d act=%d""")
                         .formatted(
-                                getTag(),
+                                getName(),
                                 entityCounts.numAccounts(),
                                 accountCount.get(),
                                 entityCounts.numAliases(),

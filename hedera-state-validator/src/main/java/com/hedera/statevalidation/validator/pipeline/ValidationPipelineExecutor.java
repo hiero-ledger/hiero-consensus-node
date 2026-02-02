@@ -247,12 +247,13 @@ public final class ValidationPipelineExecutor {
                     for (final var validator : validatorSet) {
                         try {
                             validator.validate();
-                            validationListeners.forEach(listener -> listener.onValidationCompleted(validator.getTag()));
+                            validationListeners.forEach(
+                                    listener -> listener.onValidationCompleted(validator.getName()));
                         } catch (final ValidationException e) {
                             validationListeners.forEach(listener -> listener.onValidationFailed(e));
                         } catch (final Exception e) {
                             validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
-                                    validator.getTag(),
+                                    validator.getName(),
                                     "Unexpected exception during validation: " + e.getMessage(),
                                     e)));
                         }

@@ -25,7 +25,7 @@ public class RehashValidator implements Validator {
 
     private static final Logger logger = LogManager.getLogger(RehashValidator.class);
 
-    public static final String REHASH_TAG = "rehash";
+    public static final String REHASH_GROUP = "rehash";
 
     private RecordAccessor records;
     private long firstLeafPath;
@@ -37,8 +37,18 @@ public class RehashValidator implements Validator {
      */
     @Override
     @NonNull
-    public String getTag() {
-        return REHASH_TAG;
+    public String getGroup() {
+        return REHASH_GROUP;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public String getName() {
+        // Intentionally same as group, as its the most appropriate name for this validator
+        return REHASH_GROUP;
     }
 
     /**
@@ -69,10 +79,10 @@ public class RehashValidator implements Validator {
         try {
             computedHash = executor.execute();
         } catch (final Exception e) {
-            throw new ValidationException(REHASH_TAG, "Unexpected exception: " + e.getMessage(), e);
+            throw new ValidationException(REHASH_GROUP, "Unexpected exception: " + e.getMessage(), e);
         }
 
-        ValidationAssertions.requireEqual(originalHash, computedHash, getTag());
+        ValidationAssertions.requireEqual(originalHash, computedHash, getName());
 
         logger.debug("It took {} ms to rehash the state", System.currentTimeMillis() - startTime);
     }

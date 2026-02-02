@@ -31,7 +31,7 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
 
     private static final Logger log = LogManager.getLogger(HdhmBucketIntegrityValidator.class);
 
-    public static final String HDHM_TAG = "hdhm";
+    public static final String HDHM_GROUP = "hdhm";
 
     private DataFileCollection keyToPathDfc;
     private DataFileCollection pathToKeyValueDfc;
@@ -49,8 +49,19 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull String getTag() {
-        return HDHM_TAG;
+    @NonNull
+    public String getGroup() {
+        return HDHM_GROUP;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public String getName() {
+        // Intentionally same as group, as currently it is the only one
+        return HDHM_GROUP;
     }
 
     /**
@@ -173,7 +184,7 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                         && unexpectedKeyInfos.isEmpty()
                         && pathMismatchInfos.isEmpty()
                         && hashCodeMismatchInfos.isEmpty(),
-                getTag(),
+                getName(),
                 "One of the test condition hasn't been met. "
                         + "Conditions: "
                         + ("stalePathsInfos.isEmpty() = %s, "

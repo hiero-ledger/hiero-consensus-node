@@ -27,7 +27,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
 
     private static final Logger log = LogManager.getLogger(LeafBytesIntegrityValidator.class);
 
-    public static final String LEAF_TAG = "leaf";
+    public static final String LEAF_GROUP = "leaf";
 
     private VirtualMap virtualMap;
     private DataFileCollection pathToKeyValueDfc;
@@ -43,8 +43,19 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull String getTag() {
-        return LEAF_TAG;
+    @NonNull
+    public String getGroup() {
+        return LEAF_GROUP;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public String getName() {
+        // Intentionally same as group, as currently it is the only one
+        return LEAF_GROUP;
     }
 
     /**
@@ -105,10 +116,10 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
         final boolean ok = pathErrorCount.get() == 0 && valueErrorCount.get() == 0 && exceptionCount.get() == 0;
         ValidationAssertions.requireTrue(
                 ok,
-                getTag(),
+                getName(),
                 ("%s validation failed. " + "pathErrorCount=%d, valueErrorCount=%d, exceptionCount=%d, successCount=%d")
                         .formatted(
-                                getTag(),
+                                getName(),
                                 pathErrorCount.get(),
                                 valueErrorCount.get(),
                                 exceptionCount.get(),

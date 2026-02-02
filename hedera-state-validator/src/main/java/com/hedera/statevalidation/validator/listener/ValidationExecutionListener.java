@@ -25,8 +25,8 @@ public class ValidationExecutionListener implements ValidationListener {
      * <p>Logs the validator start event.
      */
     @Override
-    public void onValidationStarted(@NonNull final String tag) {
-        log.info("Validator [{}] started", tag);
+    public void onValidationStarted(@NonNull final String validatorName) {
+        log.info("Validator [{}] started", validatorName);
     }
 
     /**
@@ -34,8 +34,8 @@ public class ValidationExecutionListener implements ValidationListener {
      * <p>Logs the validator completion event.
      */
     @Override
-    public void onValidationCompleted(@NonNull final String tag) {
-        log.info("Validator [{}] completed successfully", tag);
+    public void onValidationCompleted(@NonNull final String validatorName) {
+        log.info("Validator [{}] completed successfully", validatorName);
     }
 
     /**
@@ -44,8 +44,8 @@ public class ValidationExecutionListener implements ValidationListener {
      */
     @Override
     public void onValidationFailed(@NonNull final ValidationException error) {
-        this.failedValidations.putIfAbsent(error.getValidatorTag(), error);
-        log.error("Validator [{}] failed: {}", error.getValidatorTag(), error.getMessage(), error);
+        this.failedValidations.putIfAbsent(error.getValidatorName(), error);
+        log.error("Validator [{}] failed: {}", error.getValidatorName(), error.getMessage(), error);
     }
 
     /**

@@ -46,16 +46,24 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public interface Validator {
 
     /**
-     * Special tag that matches all validators. When specified, all available validators will be run.
+     * Special group that matches all validators. When specified, all available validators will be run.
      */
-    String ALL_TAG = "all";
+    String ALL_GROUP = "all";
 
     /**
-     * Returns the unique identifier tag for this validator.
+     * Returns the group of this validator. There can be multiple validators in the same group.
+     * The group is used for Filtering which validators to run via command-line parameters.
      *
-     * <p>The tag is used for:
+     * @return a non-null, string identifier for this validator's group
+     */
+    @NonNull
+    String getGroup();
+
+    /**
+     * Returns the unique name of this validator.
+     *
+     * <p>The name is used for:
      * <ul>
-     *     <li>Filtering which validators to run via command-line parameters</li>
      *     <li>Logging and error reporting to identify which validator produced output</li>
      *     <li>Listener notifications about validation lifecycle events</li>
      * </ul>
@@ -63,7 +71,7 @@ public interface Validator {
      * @return a non-null, unique string identifier for this validator
      */
     @NonNull
-    String getTag();
+    String getName();
 
     /**
      * Initializes the validator with access to the state.

@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation;
 
-import static com.hedera.statevalidation.validator.AccountAndSupplyValidator.ACCOUNT_TAG;
-import static com.hedera.statevalidation.validator.EntityIdCountValidator.ENTITY_ID_COUNT_TAG;
-import static com.hedera.statevalidation.validator.EntityIdUniquenessValidator.ENTITY_ID_UNIQUENESS_TAG;
-import static com.hedera.statevalidation.validator.HashRecordIntegrityValidator.INTERNAL_TAG;
-import static com.hedera.statevalidation.validator.HdhmBucketIntegrityValidator.HDHM_TAG;
-import static com.hedera.statevalidation.validator.LeafBytesIntegrityValidator.LEAF_TAG;
-import static com.hedera.statevalidation.validator.RehashValidator.REHASH_TAG;
-import static com.hedera.statevalidation.validator.RootHashValidator.ROOT_HASH_TAG;
-import static com.hedera.statevalidation.validator.TokenRelationsIntegrityValidator.TOKEN_RELATIONS_TAG;
-import static com.hedera.statevalidation.validator.Validator.ALL_TAG;
+import static com.hedera.statevalidation.validator.AccountAndSupplyValidator.ACCOUNT_GROUP;
+import static com.hedera.statevalidation.validator.EntityIdUniquenessValidator.ENTITY_ID_GROUP;
+import static com.hedera.statevalidation.validator.HashRecordIntegrityValidator.INTERNAL_GROUP;
+import static com.hedera.statevalidation.validator.HdhmBucketIntegrityValidator.HDHM_GROUP;
+import static com.hedera.statevalidation.validator.LeafBytesIntegrityValidator.LEAF_GROUP;
+import static com.hedera.statevalidation.validator.RehashValidator.REHASH_GROUP;
+import static com.hedera.statevalidation.validator.TokenRelationsIntegrityValidator.TOKEN_RELATIONS_GROUP;
+import static com.hedera.statevalidation.validator.Validator.ALL_GROUP;
 import static com.hedera.statevalidation.validator.ValidatorRegistry.createAndInitIndividualValidators;
 import static com.hedera.statevalidation.validator.ValidatorRegistry.createAndInitValidators;
 
@@ -83,38 +81,32 @@ public class ValidateCommand implements Callable<Integer> {
 
     @CommandLine.Parameters(
             arity = "1..*",
-            description = "Tag to run: ["
-                    + ALL_TAG
+            description = "Groups to run: ["
+                    + ALL_GROUP
                     + ", "
-                    + INTERNAL_TAG
+                    + INTERNAL_GROUP
                     + ", "
-                    + LEAF_TAG
+                    + LEAF_GROUP
                     + ", "
-                    + HDHM_TAG
+                    + HDHM_GROUP
                     + ", "
-                    + ACCOUNT_TAG
+                    + ACCOUNT_GROUP
                     + ", "
-                    + TOKEN_RELATIONS_TAG
+                    + TOKEN_RELATIONS_GROUP
                     + ", "
-                    + ENTITY_ID_COUNT_TAG
+                    + ENTITY_ID_GROUP
                     + ", "
-                    + ENTITY_ID_UNIQUENESS_TAG
-                    + ", "
-                    + REHASH_TAG
-                    + ", "
-                    + ROOT_HASH_TAG
+                    + REHASH_GROUP
                     + "]")
-    private String[] tags = {
-        ALL_TAG,
-        INTERNAL_TAG,
-        LEAF_TAG,
-        HDHM_TAG,
-        ACCOUNT_TAG,
-        TOKEN_RELATIONS_TAG,
-        ENTITY_ID_COUNT_TAG,
-        ENTITY_ID_UNIQUENESS_TAG,
-        REHASH_TAG,
-        ROOT_HASH_TAG
+    private String[] validationGroups = {
+        ALL_GROUP,
+        INTERNAL_GROUP,
+        LEAF_GROUP,
+        HDHM_GROUP,
+        ACCOUNT_GROUP,
+        TOKEN_RELATIONS_GROUP,
+        ENTITY_ID_GROUP,
+        REHASH_GROUP
     };
 
     private ValidateCommand() {}
@@ -140,21 +132,22 @@ public class ValidateCommand implements Callable<Integer> {
 
             // Run individual validators (those that don't use the pipeline)
             final List<Validator> individualValidators =
-                    createAndInitIndividualValidators(state, tags, validationListeners);
+                    createAndInitIndividualValidators(state, validationGroups, validationListeners);
             for (final Validator validator : individualValidators) {
                 try {
                     validator.validate();
-                    validationListeners.forEach(listener -> listener.onValidationCompleted(validator.getTag()));
+                    validationListeners.forEach(listener -> listener.onValidationCompleted(validator.getName()));
                 } catch (final ValidationException e) {
                     validationListeners.forEach(listener -> listener.onValidationFailed(e));
                 } catch (final Exception e) {
-                    validationListeners.forEach(listener -> listener.onValidationFailed(
-                            new ValidationException(validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                    validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
+                            validator.getName(), "Unexpected exception: " + e.getMessage(), e)));
                 }
             }
 
             // Run pipeline
-            final Map<Type, Set<Validator>> validators = createAndInitValidators(state, tags, validationListeners);
+            final Map<Type, Set<Validator>> validators =
+                    createAndInitValidators(state, validationGroups, validationListeners);
             final boolean pipelineSuccess = ValidationPipelineExecutor.run(
                     vds,
                     validators,
@@ -174,7 +167,8 @@ public class ValidateCommand implements Callable<Integer> {
                 // Generate Slack report for failures
                 final List<SlackReportBuilder.ValidationFailure> failures =
                         validationExecutionListener.getFailedValidations().stream()
-                                .map(e -> new SlackReportBuilder.ValidationFailure(e.getValidatorTag(), e.getMessage()))
+                                .map(e ->
+                                        new SlackReportBuilder.ValidationFailure(e.getValidatorName(), e.getMessage()))
                                 .toList();
                 SlackReportBuilder.generateReport(failures);
 

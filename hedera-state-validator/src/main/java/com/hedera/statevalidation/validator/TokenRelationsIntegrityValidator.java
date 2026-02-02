@@ -32,7 +32,7 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
 
     private static final Logger log = LogManager.getLogger(TokenRelationsIntegrityValidator.class);
 
-    public static final String TOKEN_RELATIONS_TAG = "tokenRelations";
+    public static final String TOKEN_RELATIONS_GROUP = "tokenRelations";
 
     private VirtualMap virtualMap;
     private long numTokenRelations = 0L;
@@ -48,8 +48,18 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull String getTag() {
-        return TOKEN_RELATIONS_TAG;
+    @NonNull
+    public String getGroup() {
+        return TOKEN_RELATIONS_GROUP;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull String getName() {
+        // Intentionally same as group, as currently it is the only one
+        return TOKEN_RELATIONS_GROUP;
     }
 
     /**
@@ -177,14 +187,14 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
 
         ValidationAssertions.requireTrue(
                 ok,
-                getTag(),
+                getName(),
                 ("""
                         %s validation failed.
                         objectsProcessed=%d vs expectedNumTokenRelations=%d
                         accountFailCount=%d tokenFailCount=%d
                         nullObjectsCount=%d unequalObjectsCount=%d""")
                         .formatted(
-                                getTag(),
+                                getName(),
                                 objectsProcessed.get(),
                                 numTokenRelations,
                                 accountFailCounter.get(),

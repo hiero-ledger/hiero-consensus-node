@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator;
 
+import static com.hedera.statevalidation.validator.RehashValidator.REHASH_GROUP;
 import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 
 import com.hedera.statevalidation.util.ConfigUtils;
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
  */
 public class RootHashValidator implements Validator {
 
-    public static final String ROOT_HASH_TAG = "rootHash";
+    public static final String ROOT_HASH_NAME = "rootHash";
 
     /**
      * The file name containing the expected hash info.
@@ -42,8 +43,17 @@ public class RootHashValidator implements Validator {
      */
     @Override
     @NonNull
-    public String getTag() {
-        return ROOT_HASH_TAG;
+    public String getGroup() {
+        return REHASH_GROUP;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public String getName() {
+        return ROOT_HASH_NAME;
     }
 
     /**
@@ -79,6 +89,6 @@ public class RootHashValidator implements Validator {
             }
         }
 
-        ValidationAssertions.requireEqual(expectedRootHashLine, actualRootHashLine, getTag());
+        ValidationAssertions.requireEqual(expectedRootHashLine, actualRootHashLine, getName());
     }
 }
