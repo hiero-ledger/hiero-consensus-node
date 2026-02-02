@@ -3,7 +3,6 @@ package org.hiero.consensus.pcli.graph.utils;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,6 +26,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
 import org.hiero.consensus.pces.impl.common.PcesFileManager;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.test.fixtures.Randotron;
 
 /**
  * Platform level unit test base class for common setup and teardown.
