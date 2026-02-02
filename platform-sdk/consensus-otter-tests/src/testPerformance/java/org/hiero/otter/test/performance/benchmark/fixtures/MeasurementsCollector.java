@@ -144,11 +144,11 @@ public class MeasurementsCollector {
     /**
      * Returns the time unit used for measurements (e.g., "ms", "μs", "ns").
      *
-     * @return the time unit, or "ms" if no measurements have been recorded
+     * @return the time unit, or "μs" if no measurements have been recorded
      */
     @NonNull
     public String getUnit() {
-        return unit != null ? unit : "ms";
+        return unit != null ? unit : "μs";
     }
 
     /**
@@ -243,8 +243,8 @@ public class MeasurementsCollector {
         // Throughput summary
         sb.append("\n");
         sb.append(String.format(
-                "Throughput: %.2f tx/s (over %d ms, %d samples)%n",
-                totalStats.throughputPerSecond(), totalStats.durationMillis(), totalStats.sampleCount()));
+                "Throughput: %.2f tx/s (over %d μs, %d samples)%n",
+                totalStats.throughputPerSecond(), totalStats.duration(), totalStats.sampleCount()));
 
         if (totalStats.invalidMeasurements() > 0) {
             sb.append(String.format(

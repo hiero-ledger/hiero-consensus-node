@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,7 +42,7 @@ public class BenchmarkTest {
     /**
      * Benchmark test that runs a network with 4 nodes and submits benchmark transactions.
      * The BenchmarkService logs the latency for each transaction.
-     *
+     * <p>
      * uses {@link org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkService}
      *
      * @param env the test environment for this test
@@ -71,8 +72,7 @@ public class BenchmarkTest {
 
         // Submit benchmark transactions
         for (int i = 0; i < TRANSACTION_COUNT; i++) {
-            final OtterTransaction tx =
-                    createBenchmarkTransaction(NONCE_GENERATOR.incrementAndGet(), System.currentTimeMillis());
+            final OtterTransaction tx = createBenchmarkTransaction(NONCE_GENERATOR.incrementAndGet(), Instant.now());
             network.submitTransaction(tx);
         }
 
@@ -86,7 +86,7 @@ public class BenchmarkTest {
         // Collect measurements from all nodes' logs and print the benchmark report
         final MeasurementsCollector collector = new MeasurementsCollector();
         BenchmarkServiceLogParser.parseFromLogs(network.newLogResults(), Measurement::parse, collector::addEntry);
-        //Make sure the benchmark run is valid
+        // Make sure the benchmark run is valid
         assertEquals(
                 TRANSACTION_COUNT * NUMBER_OF_NODES,
                 collector.computeStatistics().totalMeasurements(),
@@ -98,17 +98,24 @@ public class BenchmarkTest {
      * Creates a new benchmark transaction with the specified submission timestamp.
      *
      * @param nonce the nonce for the benchmark transaction
-     * @param submissionTimeMillis the submission timestamp in epoch milliseconds
+     * @param submissionTime the submission timestamp
      * @return a benchmark transaction
      */
     @NonNull
-    public static OtterTransaction createBenchmarkTransaction(final long nonce, final long submissionTimeMillis) {
+    public static OtterTransaction createBenchmarkTransaction(final long nonce, @NonNull final Instant submissionTime) {
         final BenchmarkTransaction benchmarkTransaction = BenchmarkTransaction.newBuilder()
-                .setSubmissionTimeMillis(submissionTimeMillis)
+                .setSubmissionTimeMicros(instantToMicros(submissionTime))
                 .build();
         return OtterTransaction.newBuilder()
                 .setNonce(nonce)
                 .setBenchmarkTransaction(benchmarkTransaction)
                 .build();
+    }
+
+    /**
+     * Converts an Instant to epoch microseconds.
+     */
+    private static long instantToMicros(@NonNull final Instant instant) {
+        return instant.getEpochSecond() * 1_000_000L + instant.getNano() / 1_000L;
     }
 }

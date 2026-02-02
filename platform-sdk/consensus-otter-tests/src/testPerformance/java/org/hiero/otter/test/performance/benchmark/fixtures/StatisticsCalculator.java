@@ -48,7 +48,7 @@ public final class StatisticsCalculator {
      * @param p50 50th percentile (median)
      * @param p95 95th percentile
      * @param p99 99th percentile
-     * @param durationMillis total duration from first to last transaction in milliseconds
+     * @param duration total duration from first to last transaction
      * @param throughputPerSecond transactions per second
      */
     public record Statistics(
@@ -63,7 +63,7 @@ public final class StatisticsCalculator {
             long p50,
             long p95,
             long p99,
-            long durationMillis,
+            long duration,
             double throughputPerSecond) {
 
         /** Empty statistics for when no samples have been collected. */
@@ -116,8 +116,8 @@ public final class StatisticsCalculator {
         final long p95 = percentile(samples, 95);
         final long p99 = percentile(samples, 99);
 
-        final long durationMillis = (firstTime != null && lastTime != null) ? lastTime - firstTime : 0;
-        final double throughput = (durationMillis > 0) ? (sampleCount * 1000.0 / durationMillis) : 0;
+        final long durationMicros = (firstTime != null && lastTime != null) ? lastTime - firstTime : 0;
+        final double throughput = (durationMicros > 0) ? (sampleCount * 1_000_000.0 / durationMicros) : 0;
 
         return new Statistics(
                 sampleCount,
@@ -131,7 +131,7 @@ public final class StatisticsCalculator {
                 p50,
                 p95,
                 p99,
-                durationMillis,
+                durationMicros,
                 throughput);
     }
 
