@@ -2,8 +2,6 @@
 package org.hiero.metrics.openmetrics;
 
 import java.io.IOException;
-import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import org.hiero.metrics.openmetrics.framework.HieroMetricsFramework;
 import org.hiero.metrics.openmetrics.framework.MetricsFramework;
@@ -22,16 +20,18 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
 /**
- * JMH benchmark for Hiero metrics and HTTP server in production-like environment.
+ * Stress test that uses JMH framework to simulate productional-like environment, that can be used to analyze memory,
+ * but not latency or throughput of the benchmark method ({@link Mode#Throughput} is just used as one of the available modes).
+ * <p>
  * Test scenario:
  * <ul>
  *   <li><b>Init phase</b> - Initialize the framework, generate metrics based on provided configuration.</li>
- *   <li><b>Test phase</b> - Update random metrics measurements in 8 threads with some sleep to simulate work
- *   between updates, and export metrics via HTTP after each iteration (3 seconds).</li>
+ *   <li><b>Metrics updates</b> - Update random metric measurement in 8 threads (actual benchmark method invocations).</li>
+ *   <li><b>Metrics export</b> - Export metrics via HTTP after each iteration (3 seconds).</li>
  * </ul>
  */
 @State(Scope.Benchmark)
-public class FrameworksProductionSimulationBenchmark {
+public class HieroMetricsStressTest {
 
     /** Whether to request gzip compression from the endpoint. */
     @Param({"true"})
@@ -94,10 +94,7 @@ public class FrameworksProductionSimulationBenchmark {
     @Threads(8)
     @Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
     @Measurement(iterations = 200, time = 3, timeUnit = TimeUnit.SECONDS)
-    public void callOpenMetricsEndpoint() throws InterruptedException {
-        Random random = ThreadLocalRandom.current();
-        int measurementsToUpdate = random.nextInt(10);
-        testScenario.updateRandomMetricMeasurements(measurementsToUpdate);
-        Thread.sleep(random.nextLong(50, 100)); // simulate work
+    public void callOpenMetricsEndpoint() {
+        testScenario.updateRandomMetricMeasurement();
     }
 }

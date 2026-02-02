@@ -35,11 +35,11 @@ testModuleInfo {
 
 jmhModuleInfo {
     requires("org.hiero.metrics")
-    requires("org.hiero.metrics.openmetrics.httpserver")
     requires("com.swirlds.config.api")
     requires("io.prometheus.metrics.model")
     requires("io.prometheus.metrics.core")
     requires("io.prometheus.metrics.exporter.httpserver")
     requires("java.net.http")
+    runtimeOnly("org.hiero.metrics.openmetrics.httpserver")
     runtimeOnly("com.swirlds.config.impl")
 }
