@@ -161,6 +161,11 @@ class ChildFeeContextImplTest {
     }
 
     @Test
+    void returnsReadableStoreFactory() {
+        assertSame(storeFactory, subject.readableStoreFactory());
+    }
+
+    @Test
     void delegatesReadableStoreCreation() {
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
 

@@ -74,6 +74,15 @@ class StoreFactoryImplTest {
         assertThat(actual).isSameAs(result);
     }
 
+    @Test
+    void testAsReadOnly() {
+        // when
+        final var actual = subject.asReadOnly();
+
+        // then
+        assertThat(actual).isSameAs(readableStoreFactory);
+    }
+
     @SuppressWarnings("ConstantConditions")
     @Test
     void testCreateStoreWithInvalidParameters() {

@@ -483,6 +483,11 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         assertThat(subject.keyVerifier()).isEqualTo(verifier);
     }
 
+    @Test
+    void getsReadableStoreFactory() {
+        assertThat(subject.readableStoreFactory()).isEqualTo(storeFactory.asReadOnly());
+    }
+
     @Nested
     @DisplayName("Handling of stack data")
     final class StackDataTest {
