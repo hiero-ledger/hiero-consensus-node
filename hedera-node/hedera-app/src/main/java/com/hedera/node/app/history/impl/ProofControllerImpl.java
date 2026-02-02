@@ -167,7 +167,9 @@ public class ProofControllerImpl implements ProofController {
             }
             // Unless we are specifically swapping in an existing target proof's aggregate signature
             // proof with a recursive WRAPS proof when WRAPS is enabled, we can return here
-            if (!construction.hasTargetProof() || !tssConfig.wrapsEnabled() || isWrapsExtensible(construction.targetProofOrThrow())) {
+            if (!construction.hasTargetProof()
+                    || !tssConfig.wrapsEnabled()
+                    || isWrapsExtensible(construction.targetProofOrThrow())) {
                 return;
             }
         }
