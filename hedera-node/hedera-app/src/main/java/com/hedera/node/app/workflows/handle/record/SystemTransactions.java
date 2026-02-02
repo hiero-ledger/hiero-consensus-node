@@ -24,7 +24,7 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.utility.NodeNameFormatter.formatNodeName;
+import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
 
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;

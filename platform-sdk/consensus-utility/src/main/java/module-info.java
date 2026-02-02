@@ -15,6 +15,7 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.transaction;
     exports org.hiero.consensus.round;
     exports org.hiero.consensus.utility;
+    exports org.hiero.consensus.node;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

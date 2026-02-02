@@ -13,7 +13,7 @@ import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.utility.NodeNameFormatter;
+import org.hiero.consensus.node.NodeUtilities;
 import picocli.CommandLine;
 import picocli.CommandLine.Parameters;
 
@@ -49,9 +49,9 @@ public class GenerateKeysCommand extends AbstractCommand {
         }
         for (var kEntry : keysEntries.entrySet()) {
             var publicKeyStorePath = sigCertPath.resolve(
-                    String.format("s-public-%s.pem", NodeNameFormatter.formatNodeName(kEntry.getKey())));
+                    String.format("s-public-%s.pem", NodeUtilities.formatNodeName(kEntry.getKey())));
             var privateKeyStorePath = sigCertPath.resolve(
-                    String.format("s-private-%s.pem", NodeNameFormatter.formatNodeName(kEntry.getKey())));
+                    String.format("s-private-%s.pem", NodeUtilities.formatNodeName(kEntry.getKey())));
             EnhancedKeyStoreLoader.writePemFile(
                     true,
                     privateKeyStorePath,

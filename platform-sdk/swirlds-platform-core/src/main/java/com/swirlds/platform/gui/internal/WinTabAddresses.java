@@ -12,7 +12,7 @@ import com.swirlds.platform.system.Platform;
 import java.util.Collection;
 import javax.swing.JTextArea;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.utility.NodeNameFormatter;
+import org.hiero.consensus.node.NodeUtilities;
 
 /**
  * The tab in the Browser window that shows available apps, running swirlds, and saved swirlds.
@@ -45,7 +45,7 @@ class WinTabAddresses extends PrePaintableJPanel {
             for (final Platform p : platforms) {
                 final RosterEntry entry =
                         RosterUtils.getRosterEntry(p.getRoster(), p.getSelfId().id());
-                final String name = NodeNameFormatter.formatNodeName(entry.nodeId());
+                final String name = NodeUtilities.formatNodeName(entry.nodeId());
                 s += "\n" + entry.nodeId() + "   " + name
                         + "   " + name
                         + "   " + RosterUtils.fetchHostname(entry, 0)

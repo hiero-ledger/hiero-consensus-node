@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.utility;
+package org.hiero.consensus.node;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.node.NodeId;
@@ -7,9 +7,9 @@ import org.hiero.consensus.model.node.NodeId;
 /**
  * Utility class for formatting node names.
  */
-public final class NodeNameFormatter {
+public final class NodeUtilities {
 
-    private NodeNameFormatter() {}
+    private NodeUtilities() {}
 
     /**
      * Formats a "node name" for a given node id, e.g. "node1" for nodeId == 0.

@@ -6,7 +6,7 @@ import java.security.cert.X509Certificate;
 import java.util.Collection;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterEntryNotFoundException;
-import org.hiero.consensus.utility.NodeNameFormatter;
+import org.hiero.consensus.node.NodeUtilities;
 
 /**
  * A record representing a peer's network information.  If the certificate is not null, it must be encodable as a valid
@@ -30,7 +30,7 @@ public record PeerInfo(
      */
     @NonNull
     public String nodeName() {
-        return NodeNameFormatter.formatNodeName(nodeId.id());
+        return NodeUtilities.formatNodeName(nodeId.id());
     }
 
     public static @NonNull PeerInfo find(@NonNull Collection<PeerInfo> peers, @NonNull NodeId nodeId) {
