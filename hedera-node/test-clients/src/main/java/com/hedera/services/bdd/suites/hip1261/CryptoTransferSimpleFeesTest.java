@@ -136,7 +136,6 @@ public class CryptoTransferSimpleFeesTest {
     private static final String NON_FUNGIBLE_TOKEN = "nonFungibleToken";
     private static final String NON_FUNGIBLE_TOKEN_2 = "nonFungibleToken2";
     private static final String NON_FUNGIBLE_TOKEN_3 = "nonFungibleToken3";
-    private static final String DUPLICATE_TXN_ID = "duplicateTxnId";
     private static final String adminKey = "adminKey";
     private static final String supplyKey = "supplyKey";
     private static final String PAYER_KEY = "payerKey";

@@ -824,6 +824,18 @@ public class FeesChargingUtils {
         return nodeAndNetworkWithBytes + serviceOnly;
     }
 
+    public static double expectedCryptoTransferTokenWithCustomFullFeeUsd(final Map<Extra, Object> extras) {
+
+        return expectedCryptoTransferTokenWithCustomFullFeeUsd(
+                longValue(extras, Extra.SIGNATURES, 0),
+                longValue(extras, Extra.HOOKS_EXECUTED, 0),
+                longValue(extras, Extra.ACCOUNTS, 0),
+                longValue(extras, Extra.FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.NON_FUNGIBLE_TOKENS, 0),
+                longValue(extras, Extra.GAS, 0),
+                intValue(extras, Extra.TXN_SIZE, 0));
+    }
+
     public static double expectedCryptoTransferNetworkFeeOnlyUsd(long sigs) {
 
         // ----- node fees -----
