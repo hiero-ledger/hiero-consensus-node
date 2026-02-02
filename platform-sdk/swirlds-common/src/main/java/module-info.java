@@ -19,7 +19,6 @@ module com.swirlds.common {
     exports com.swirlds.common.merkle.interfaces;
     exports com.swirlds.common.merkle.route;
     exports com.swirlds.common.merkle.synchronization;
-    exports com.swirlds.common.merkle.synchronization.config;
     exports com.swirlds.common.merkle.synchronization.streams;
     exports com.swirlds.common.merkle.synchronization.task;
     exports com.swirlds.common.merkle.synchronization.utility;
@@ -63,6 +62,7 @@ module com.swirlds.common {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.utility;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
