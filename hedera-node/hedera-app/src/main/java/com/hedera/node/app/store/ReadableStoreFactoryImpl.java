@@ -59,6 +59,7 @@ import com.hedera.node.app.service.token.impl.ReadableNodeRewardsStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.state.State;
@@ -78,7 +79,7 @@ import org.hiero.consensus.roster.ReadableRosterStoreImpl;
  * <p>The initial implementation creates all known stores hard-coded. In a future version, this will be replaced by a
  * dynamic approach.
  */
-public class ReadableStoreFactory {
+public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
     // This is the hard-coded part that needs to be replaced by a dynamic approach later,
     // e.g. services have to register their stores
     private static final Map<Class<?>, StoreEntry> STORE_FACTORY = createFactoryMap();
@@ -167,11 +168,11 @@ public class ReadableStoreFactory {
     private final State state;
 
     /**
-     * Constructor of {@code ReadableStoreFactory}
+     * Constructor of {@code ReadableStoreFactoryImpl}
      *
      * @param state the {@link State} to use
      */
-    public ReadableStoreFactory(@NonNull final State state) {
+    public ReadableStoreFactoryImpl(@NonNull final State state) {
         this.state = requireNonNull(state, "The supplied argument 'state' cannot be null!");
     }
 
@@ -185,7 +186,8 @@ public class ReadableStoreFactory {
      * @throws NullPointerException     if {@code storeInterface} is {@code null}
      */
     @NonNull
-    public <C> C getStore(@NonNull final Class<C> storeInterface) throws IllegalArgumentException {
+    @Override
+    public <C> C readableStore(@NonNull final Class<C> storeInterface) throws IllegalArgumentException {
         requireNonNull(storeInterface, "The supplied argument 'storeInterface' cannot be null!");
         final var entry = STORE_FACTORY.get(storeInterface);
         if (entry != null) {

@@ -36,12 +36,12 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStrategy;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.Dispatch;
@@ -266,7 +266,7 @@ class ChildDispatchFactoryTest {
         given(parentDispatch.handleContext()).willReturn(handleContext);
         given(handleContext.configuration()).willReturn(configuration);
         given(parentDispatch.readableStoreFactory()).willReturn(readableStoreFactory);
-        given(readableStoreFactory.getStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(readableStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountById(payerId))
                 .willReturn(Account.newBuilder().key(Key.DEFAULT).build());
         given(parentDispatch.stack()).willReturn(savepointStack);
