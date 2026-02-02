@@ -295,8 +295,7 @@ public class EnhancedKeyStoreLoader {
                 final KeyPair signingKeyPair = new KeyPair(publicSigningKey, privateSigningKey);
 
                 // generate the agreement certificate
-                final String dnA = CertificateUtils.distinguishedName(
-                        org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT.storeName(nodeId));
+                final String dnA = CertificateUtils.distinguishedName(KeyCertPurpose.AGREEMENT.storeName(nodeId));
                 final X509Certificate agrCert = CertificateUtils.generateCertificate(
                         dnA,
                         agrKeyPair,

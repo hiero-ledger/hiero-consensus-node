@@ -43,7 +43,7 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.state.WorkingStateAccessor;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.FeesConfig;
@@ -317,7 +317,7 @@ public interface FacilityInitModule {
 
     private static @Nullable File getFileFromStorage(
             @NonNull final State state, @NonNull final ConfigProvider configProvider, final long fileNum) {
-        final var readableFileStore = new ReadableStoreFactory(state).getStore(ReadableFileStore.class);
+        final var readableFileStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableFileStore.class);
         final var hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
         final var fileId = FileID.newBuilder()
                 .fileNum(fileNum)
