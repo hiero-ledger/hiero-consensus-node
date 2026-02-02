@@ -50,7 +50,7 @@ message HashPartition {
 // A transaction used for benchmark measurements.
 // Contains a submission timestamp to calculate latency when the transaction reaches consensus.
 message BenchmarkTransaction {
-  // The timestamp (in epoch milliseconds) when this transaction was submitted.
-  uint64 submission_time_millis = 1;
+  // The timestamp (in epoch microseconds) when this transaction was submitted.
+  uint64 submission_time_micros = 1;
 }
 

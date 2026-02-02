@@ -7,6 +7,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -79,21 +80,38 @@ public class BenchmarkService implements OtterService {
         }
 
         // Capture handle time immediately before any other operations
-        final long handleTimeMillis = System.currentTimeMillis();
+        final Instant handleTime = Instant.now();
 
         final BenchmarkTransaction benchmarkTx = transaction.getBenchmarkTransaction();
-        final long submissionTimeMillis = benchmarkTx.getSubmissionTimeMillis();
-        final long latencyMillis = handleTimeMillis - submissionTimeMillis;
+        final Instant submissionTime = microsToInstant(benchmarkTx.getSubmissionTimeMicros());
+        final long latencyMicros = ChronoUnit.MICROS.between(submissionTime, handleTime);
 
         // Log the measurement data in a parseable format
-        // Format: BENCHMARK: nonce=<n>, latency=<l>ms, submissionTime=<s>, handleTime=<h>
+        // Format: BENCHMARK: nonce=<n>, latency=<l>μs, submissionTime=<s>, handleTime=<h>
         log.info(
                 DEMO_INFO.getMarker(),
-                "{} nonce={}, latency={}ms, submissionTime={}, handleTime={}",
+                "{} nonce={}, latency={}μs, submissionTime={}, handleTime={}",
                 BENCHMARK_LOG_PREFIX,
                 transaction.getNonce(),
-                latencyMillis,
-                submissionTimeMillis,
-                handleTimeMillis);
+                latencyMicros,
+                instantToMicros(submissionTime),
+                instantToMicros(handleTime));
+    }
+
+    /**
+     * Converts an Instant to epoch microseconds.
+     */
+    private static long instantToMicros(@NonNull final Instant instant) {
+        return instant.getEpochSecond() * 1_000_000L + instant.getNano() / 1_000L;
+    }
+
+    /**
+     * Converts epoch microseconds to an Instant.
+     */
+    @NonNull
+    private static Instant microsToInstant(final long micros) {
+        final long seconds = micros / 1_000_000L;
+        final int nanos = (int) ((micros % 1_000_000L) * 1_000L);
+        return Instant.ofEpochSecond(seconds, nanos);
     }
 }
