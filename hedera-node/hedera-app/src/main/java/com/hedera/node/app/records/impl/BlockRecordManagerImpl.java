@@ -381,18 +381,12 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         }
         if (storeWrappedRecordFileBlockHashesInState) {
             final var items = recordStreamItems.toList();
-            // lazily initialize tracking in case we are restarted mid-block
-            if (currentBlockNumber < 0) {
-                beginTrackingNewBlock(lastBlockInfo.lastBlockNumber() + 1, streamFileProducer.getRunningHash());
-            }
             for (final var item : items) {
                 currentBlockRecordStreamItems.add(new RecordStreamItem(item.transaction(), item.transactionRecord()));
                 currentBlockSidecarRecords.addAll(item.transactionSidecarRecords());
             }
-            // pass to record stream writer to handle
             streamFileProducer.writeRecordStreamItems(items.stream());
         } else {
-            // pass to record stream writer to handle
             streamFileProducer.writeRecordStreamItems(recordStreamItems);
         }
     }
@@ -465,11 +459,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
         final var hashesToEnqueue = new WrappedRecordFileBlockHashes(
                 justFinishedBlockNumber, consensusTimestampHash, outputItemsTreeRootHash);
-        logger.info(
-                "Enqueuing wrapped record-file block hashes for block {}: consensusTimestampLeafHash {}, outputItemsRootHash {}",
-                justFinishedBlockNumber,
-                hashesToEnqueue.consensusTimestampHash().toHex(),
-                hashesToEnqueue.outputItemsTreeRootHash().toHex());
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                    "Enqueuing wrapped record-file block hashes for block {}: consensusTimestampLeafHash {}, outputItemsRootHash {}",
+                    justFinishedBlockNumber,
+                    hashesToEnqueue.consensusTimestampHash().toHex(),
+                    hashesToEnqueue.outputItemsTreeRootHash().toHex());
+        }
         new WritableWrappedRecordFileBlockHashesStore(state.getWritableStates(BlockRecordService.NAME))
                 .add(hashesToEnqueue);
     }
