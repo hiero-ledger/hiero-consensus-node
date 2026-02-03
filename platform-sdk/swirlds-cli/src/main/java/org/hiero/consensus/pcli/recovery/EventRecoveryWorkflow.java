@@ -159,7 +159,7 @@ public final class EventRecoveryWorkflow {
                     platformContext,
                     selfId,
                     resultingStateDirectory,
-                    recoveredState.state().get(),
+                    recoveredState.state(),
                     stateLifecycleManager);
 
             logger.info(STARTUP.getMarker(), "Signed state written to disk");
