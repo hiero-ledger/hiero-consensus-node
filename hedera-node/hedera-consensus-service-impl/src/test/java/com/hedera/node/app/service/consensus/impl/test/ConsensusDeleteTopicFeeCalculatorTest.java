@@ -55,7 +55,7 @@ public class ConsensusDeleteTopicFeeCalculatorTest {
             final var op = ConsensusDeleteTopicTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusDeleteTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);

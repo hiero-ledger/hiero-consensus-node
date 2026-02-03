@@ -61,7 +61,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
             // Then: Base fee (500000000) with 1 allowance included (includedCount=1)
             assertThat(result.getServiceTotalTinycents()).isEqualTo(500000000L);
@@ -96,7 +96,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
             // Then: Base fee (500000000) + 2 extra allowances (2 * 500000000 = 1000000000)
             assertThat(result.getServiceTotalTinycents()).isEqualTo(1500000000L);
@@ -122,7 +122,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
             // Then: Base fee (500000000) + 9 extra allowances (9 * 500000000 = 4500000000)
             assertThat(result.getServiceTotalTinycents()).isEqualTo(5000000000L);

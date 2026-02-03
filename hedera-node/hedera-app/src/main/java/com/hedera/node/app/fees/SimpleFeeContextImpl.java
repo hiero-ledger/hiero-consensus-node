@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
@@ -20,17 +17,12 @@ public final class SimpleFeeContextImpl implements SimpleFeeContext {
     @Nullable
     private final QueryContext queryContext;
 
-    private SimpleFeeContextImpl(@Nullable final FeeContext feeContext, @Nullable final QueryContext queryContext) {
+    public SimpleFeeContextImpl(@Nullable final FeeContext feeContext, @Nullable final QueryContext queryContext) {
+        if (feeContext != null && queryContext != null) {
+            throw new IllegalArgumentException("Only one of feeContext or queryContext may be set");
+        }
         this.feeContext = feeContext;
         this.queryContext = queryContext;
-    }
-
-    public static SimpleFeeContext fromFeeContext(@NonNull final FeeContext feeContext) {
-        return new SimpleFeeContextImpl(requireNonNull(feeContext), null);
-    }
-
-    public static SimpleFeeContext fromQueryContext(@Nullable final QueryContext queryContext) {
-        return new SimpleFeeContextImpl(null, queryContext);
     }
 
     @Override

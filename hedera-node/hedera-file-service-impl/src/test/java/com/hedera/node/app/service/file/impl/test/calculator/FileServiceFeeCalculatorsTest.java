@@ -180,7 +180,7 @@ class FileServiceFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result = feeCalculator.calculateTxFee(testCase.body, SimpleFeeContextImpl.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(testCase.body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result).isNotNull();
         assertThat(result.getNodeTotalTinycents()).isEqualTo(testCase.expectedNodeFee);
@@ -196,7 +196,7 @@ class FileServiceFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         fileGetInfoFeeCalculator.accumulateNodePayment(
-                query, SimpleFeeContextImpl.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+                query, new SimpleFeeContextImpl(null, mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
@@ -221,7 +221,7 @@ class FileServiceFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         fileGetContentsFeeCalculator.accumulateNodePayment(
-                query, SimpleFeeContextImpl.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+                query, new SimpleFeeContextImpl(null, mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);

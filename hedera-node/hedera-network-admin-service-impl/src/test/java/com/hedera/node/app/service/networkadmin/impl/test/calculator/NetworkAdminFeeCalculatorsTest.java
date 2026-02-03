@@ -55,7 +55,7 @@ class NetworkAdminFeeCalculatorsTest {
 
         calculator.accumulateNodePayment(
                 Query.newBuilder().build(),
-                SimpleFeeContextImpl.fromQueryContext(mockQueryContext),
+                new SimpleFeeContextImpl(null, mockQueryContext),
                 feeResult,
                 createTestFeeSchedule());
 
@@ -74,7 +74,7 @@ class NetworkAdminFeeCalculatorsTest {
 
         calculator.accumulateNodePayment(
                 Query.newBuilder().build(),
-                SimpleFeeContextImpl.fromQueryContext(mockQueryContext),
+                new SimpleFeeContextImpl(null, mockQueryContext),
                 feeResult,
                 createTestFeeSchedule());
 
@@ -93,7 +93,7 @@ class NetworkAdminFeeCalculatorsTest {
 
         calculator.accumulateNodePayment(
                 Query.newBuilder().build(),
-                SimpleFeeContextImpl.fromQueryContext(mockQueryContext),
+                new SimpleFeeContextImpl(null, mockQueryContext),
                 feeResult,
                 createTestFeeSchedule());
 
@@ -114,7 +114,7 @@ class NetworkAdminFeeCalculatorsTest {
                         .transactionGetRecord(
                                 TransactionGetRecordQuery.newBuilder().build())
                         .build(),
-                SimpleFeeContextImpl.fromQueryContext(null),
+                new SimpleFeeContextImpl(null, null),
                 feeResult,
                 createTestFeeSchedule());
 
@@ -154,7 +154,7 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                query, SimpleFeeContextImpl.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+                query, new SimpleFeeContextImpl(null, mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getServiceTotalTinycents())
                 .isEqualTo(TRANSACTION_GET_RECORD_FEE + (TRANSACTION_GET_RECORD_FEE * (expectedMultiplier - 1)));
@@ -180,7 +180,7 @@ class NetworkAdminFeeCalculatorsTest {
         final var feeResult = new FeeResult();
 
         calculator.accumulateNodePayment(
-                query, SimpleFeeContextImpl.fromQueryContext(mockQueryContext), feeResult, createTestFeeSchedule());
+                query, new SimpleFeeContextImpl(null, mockQueryContext), feeResult, createTestFeeSchedule());
 
         assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(TRANSACTION_GET_RECORD_FEE);
         assertThat(calculator.getQueryType()).isEqualTo(Query.QueryOneOfType.TRANSACTION_GET_RECORD);

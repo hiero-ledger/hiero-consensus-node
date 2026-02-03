@@ -63,7 +63,7 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
             final var op = ConsensusUpdateTopicTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusUpdateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
             Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L);
@@ -87,7 +87,7 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
                     .build();
             final var body =
                     TransactionBody.newBuilder().consensusUpdateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
             // update topic base 498500000L
@@ -114,7 +114,7 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
                     .build();
             final var body =
                     TransactionBody.newBuilder().consensusUpdateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
             // update topic base 498500000L

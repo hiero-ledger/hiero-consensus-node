@@ -174,7 +174,7 @@ public class TokenServiceFeeCalculatorTests {
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_CREATE_BASE_FEE, result.totalTinycents());
     }
@@ -185,7 +185,7 @@ public class TokenServiceFeeCalculatorTests {
         final var txBody2 = TransactionBody.newBuilder()
                 .tokenCreation(TokenCreateTransactionBody.newBuilder().tokenType(TokenType.NON_FUNGIBLE_UNIQUE))
                 .build();
-        final var result = feeCalculator.calculateTxFee(txBody2, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(txBody2, new SimpleFeeContextImpl(calculatorState, null));
 
         assertNotNull(result);
         assertEquals(TOKEN_CREATE_BASE_FEE, result.totalTinycents());
@@ -197,7 +197,7 @@ public class TokenServiceFeeCalculatorTests {
         final var body = TransactionBody.newBuilder()
                 .tokenUpdate(TokenUpdateTransactionBody.newBuilder().build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_UPDATE_BASE_FEE, result.totalTinycents());
     }
@@ -212,7 +212,7 @@ public class TokenServiceFeeCalculatorTests {
                         .amount(10)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_MINT_BASE_FEE, result.totalTinycents());
     }
@@ -227,7 +227,7 @@ public class TokenServiceFeeCalculatorTests {
                         .metadata(List.of(Bytes.wrap("Bart Simpson")))
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(txBody2, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(txBody2, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_MINT_BASE_FEE + UNIQUE_TOKEN_FEE, result.totalTinycents());
     }
@@ -240,7 +240,7 @@ public class TokenServiceFeeCalculatorTests {
                         .token(commonToken)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_FREEZE_BASE_FEE, result.totalTinycents());
     }
@@ -253,7 +253,7 @@ public class TokenServiceFeeCalculatorTests {
                         .token(commonToken)
                         .build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_UNFREEZE_BASE_FEE, result.totalTinycents());
     }
@@ -265,7 +265,7 @@ public class TokenServiceFeeCalculatorTests {
                 .tokenPause(
                         TokenPauseTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_PAUSE_BASE_FEE, result.totalTinycents());
     }
@@ -277,7 +277,7 @@ public class TokenServiceFeeCalculatorTests {
                 .tokenUnpause(
                         TokenUnpauseTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_UNPAUSE_BASE_FEE, result.totalTinycents());
     }
@@ -288,7 +288,7 @@ public class TokenServiceFeeCalculatorTests {
         final var body = TransactionBody.newBuilder()
                 .tokenBurn(TokenBurnTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_BURN_BASE_FEE, result.totalTinycents());
     }
@@ -299,7 +299,7 @@ public class TokenServiceFeeCalculatorTests {
         final var body = TransactionBody.newBuilder()
                 .tokenBurn(TokenBurnTransactionBody.newBuilder().token(tokenId).build())
                 .build();
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_BURN_BASE_FEE, result.totalTinycents());
     }
@@ -310,7 +310,7 @@ public class TokenServiceFeeCalculatorTests {
         final var deleteBody =
                 TokenDeleteTransactionBody.newBuilder().token(tokenId).build();
         final var body = TransactionBody.newBuilder().tokenDeletion(deleteBody).build();
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_DELETE_BASE_FEE, result.totalTinycents());
     }
@@ -326,7 +326,7 @@ public class TokenServiceFeeCalculatorTests {
                 .account(accountId)
                 .build();
         final var txnBody = TransactionBody.newBuilder().tokenAssociate(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_ASSOCIATE_BASE_FEE, result.totalTinycents());
     }
@@ -340,7 +340,7 @@ public class TokenServiceFeeCalculatorTests {
                 .account(accountId)
                 .build();
         final var txnBody = TransactionBody.newBuilder().tokenDissociate(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_DISSOCIATE_BASE_FEE, result.totalTinycents());
     }
@@ -349,7 +349,7 @@ public class TokenServiceFeeCalculatorTests {
     void grantKyc() {
         final var opBody = TokenGrantKycTransactionBody.newBuilder().build();
         final var txnBody = TransactionBody.newBuilder().tokenGrantKyc(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_GRANT_KYC_BASE_FEE, result.totalTinycents());
     }
@@ -358,7 +358,7 @@ public class TokenServiceFeeCalculatorTests {
     void revokeKyc() {
         final var opBody = TokenRevokeKycTransactionBody.newBuilder().build();
         final var txnBody = TransactionBody.newBuilder().tokenRevokeKyc(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_REVOKE_KYC_BASE_FEE, result.totalTinycents());
     }
@@ -367,7 +367,7 @@ public class TokenServiceFeeCalculatorTests {
     void reject() {
         final var opBody = TokenRejectTransactionBody.newBuilder().build();
         final var txnBody = TransactionBody.newBuilder().tokenReject(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_REJECT_BASE_FEE, result.totalTinycents());
     }
@@ -376,7 +376,7 @@ public class TokenServiceFeeCalculatorTests {
     void tokenWipeAccount() {
         final var opBody = TokenWipeAccountTransactionBody.newBuilder().build();
         final var txnBody = TransactionBody.newBuilder().tokenWipe(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_WIPE_BASE_FEE, result.totalTinycents());
     }
@@ -386,7 +386,7 @@ public class TokenServiceFeeCalculatorTests {
         final var opBody = TokenFeeScheduleUpdateTransactionBody.newBuilder().build();
         final var txnBody =
                 TransactionBody.newBuilder().tokenFeeScheduleUpdate(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_FEE_SCHEDULE_UPDATE_BASE_FEE, result.totalTinycents());
     }
@@ -395,7 +395,7 @@ public class TokenServiceFeeCalculatorTests {
     void tokenUpdateNft() {
         final var opBody = TokenUpdateNftsTransactionBody.newBuilder().build();
         final var txnBody = TransactionBody.newBuilder().tokenUpdateNfts(opBody).build();
-        final var result = feeCalculator.calculateTxFee(txnBody, SimpleFeeContextImpl.fromFeeContext(calculatorState));
+        final var result = feeCalculator.calculateTxFee(txnBody, new SimpleFeeContextImpl(calculatorState, null));
         assertNotNull(result);
         assertEquals(TOKEN_UPDATE_NFTS_BASE_FEE, result.totalTinycents());
     }
@@ -405,7 +405,7 @@ public class TokenServiceFeeCalculatorTests {
         final var opBody = TokenGetInfoQuery.newBuilder().build();
         final var queryBody = Query.newBuilder().tokenGetInfo(opBody).build();
         final var result =
-                feeCalculator.calculateQueryFee(queryBody, SimpleFeeContextImpl.fromQueryContext(queryContext));
+                feeCalculator.calculateQueryFee(queryBody, new SimpleFeeContextImpl(null, queryContext));
         ;
         assertEquals(TOKEN_GET_INFO_BASE_FEE, result.getServiceTotalTinycents());
     }
@@ -415,7 +415,7 @@ public class TokenServiceFeeCalculatorTests {
         final var opBody = TokenGetNftInfoQuery.newBuilder().build();
         final var queryBody = Query.newBuilder().tokenGetNftInfo(opBody).build();
         final var result =
-                feeCalculator.calculateQueryFee(queryBody, SimpleFeeContextImpl.fromQueryContext(queryContext));
+                feeCalculator.calculateQueryFee(queryBody, new SimpleFeeContextImpl(null, queryContext));
         ;
         assertEquals(TOKEN_GET_NFT_INFO_BASE_FEE, result.getServiceTotalTinycents());
     }

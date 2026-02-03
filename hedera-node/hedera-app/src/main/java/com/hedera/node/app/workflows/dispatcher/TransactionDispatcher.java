@@ -139,7 +139,7 @@ public class TransactionDispatcher {
             final var handler = getHandler(feeContext.body());
             if (shouldUseSimpleFees(feeContext)) {
                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                        .calculateTxFee(feeContext.body(), SimpleFeeContextImpl.fromFeeContext(feeContext));
+                        .calculateTxFee(feeContext.body(), new SimpleFeeContextImpl(feeContext, null));
                 return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
             }
             return handler.calculateFees(feeContext);
