@@ -58,7 +58,7 @@ import com.hedera.node.app.service.schedule.impl.ReadableScheduleStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
@@ -194,11 +194,21 @@ public class ThrottleAccumulator {
         if (throttleType == NOOP_THROTTLE) {
             return false;
         }
+        final int initialThrottleUsagesSize = throttleUsages == null ? 0 : throttleUsages.size();
         resetLastAllowedUse();
         lastTxnWasGasThrottled = false;
 
         if (shouldThrottleTxn(txnInfo, now, state, throttleUsages, gasThrottleAlwaysEnabled)) {
             reclaimLastAllowedUse();
+            if (throttleUsages != null) {
+                // Remove only the usages added during this check to avoid discarding prior usage records
+                final int currentSize = throttleUsages.size();
+                if (currentSize > initialThrottleUsagesSize) {
+                    throttleUsages
+                            .subList(initialThrottleUsagesSize, currentSize)
+                            .clear();
+                }
+            }
             return true;
         }
 
@@ -272,7 +282,7 @@ public class ThrottleAccumulator {
         final boolean allReqMet;
         if (queryFunction == CRYPTO_GET_ACCOUNT_BALANCE
                 && configuration.getConfigData(TokensConfig.class).countingGetBalanceThrottleEnabled()) {
-            final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
+            final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
             final var tokenConfig = configuration.getConfigData(TokensConfig.class);
             final int associationCount =
                     Math.clamp(getAssociationCount(query, accountStore), 1, tokenConfig.maxRelsPerInfoQuery());
@@ -484,8 +494,9 @@ public class ThrottleAccumulator {
             case TOKEN_MINT ->
                 shouldThrottleMint(effectiveManager, txBody.tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
-                final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
-                final var relationStore = new ReadableStoreFactory(state).getStore(ReadableTokenRelationStore.class);
+                final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
+                final var relationStore =
+                        new ReadableStoreFactoryImpl(state).readableStore(ReadableTokenRelationStore.class);
                 yield shouldThrottleCryptoTransfer(
                         effectiveManager,
                         now,
@@ -495,7 +506,7 @@ public class ThrottleAccumulator {
                         throttleUsages);
             }
             case ETHEREUM_TRANSACTION -> {
-                final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
+                final var accountStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
                 yield shouldThrottleEthTxn(
                         effectiveManager, now, getImplicitCreationsCount(txBody, accountStore), throttleUsages);
             }
@@ -536,7 +547,8 @@ public class ThrottleAccumulator {
             if (scheduledFunction == CRYPTO_TRANSFER) {
                 final var transfer = scheduled.cryptoTransferOrThrow();
                 if (usesAliases(transfer)) {
-                    final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
+                    final var accountStore =
+                            new ReadableStoreFactoryImpl(state).readableStore(ReadableAccountStore.class);
                     final var transferTxnBody = TransactionBody.newBuilder()
                             .cryptoTransfer(transfer)
                             .build();

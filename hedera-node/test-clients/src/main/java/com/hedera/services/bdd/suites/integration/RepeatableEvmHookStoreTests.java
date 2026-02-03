@@ -86,8 +86,6 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
@@ -102,8 +100,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 // Ordered because a final test deletes the hook owner and confirms its HookStore operations fail
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class RepeatableEvmHookStoreTests {
-    private static final Logger log = LogManager.getLogger(RepeatableEvmHookStoreTests.class);
-
     private static final long EVM_HOOK_ID = 124L;
     private static final long DELETED_HOOK_ID = 125L;
     private static final long MISSING_HOOK_ID = 126L;

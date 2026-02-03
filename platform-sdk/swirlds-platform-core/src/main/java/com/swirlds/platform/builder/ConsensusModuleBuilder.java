@@ -6,24 +6,28 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.crypto.KeysAndCertsGenerator;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
+import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -104,7 +108,6 @@ public class ConsensusModuleBuilder {
                 new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
         final TransactionLimits transactionLimits = new TransactionLimits(0, 0);
-        final long startingRound = 0L;
         final EventPipelineTracker eventPipelineTracker = null;
 
         final EventIntakeModule eventIntakeModule = createEventIntakeModule();
@@ -114,11 +117,78 @@ public class ConsensusModuleBuilder {
                 metrics,
                 time,
                 rosterHistory,
-                selfId,
                 intakeEventCounter,
                 transactionLimits,
-                startingRound,
                 eventPipelineTracker);
         return eventIntakeModule;
+    }
+
+    /**
+     * Create an instance of the {@link PcesModule} using {@link ServiceLoader}.
+     *
+     * @return an instance of {@code PcesModule}
+     * @throws IllegalStateException if no implementation is found
+     */
+    @NonNull
+    public static PcesModule createPcesModule() {
+        return ServiceLoader.load(PcesModule.class)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No PcesModule implementation found!"));
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link PcesModule}.
+     *
+     * @param model the wiring model
+     * @param configuration the configuration
+     * @return an initialized no-op instance of {@code PcesModule}
+     */
+    @NonNull
+    public static PcesModule createNoOpPcesModule(
+            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final RecycleBin recycleBin = new SimpleRecycleBin();
+        final long startingRound = 0L;
+        final EventPipelineTracker eventPipelineTracker = null;
+
+        final PcesModule pcesModule = createPcesModule();
+        pcesModule.initialize(
+                model, configuration, metrics, time, selfId, recycleBin, startingRound, eventPipelineTracker);
+        return pcesModule;
+    }
+
+    /**
+     * Create an instance of the {@link HashgraphModule} using {@link ServiceLoader}.
+     *
+     * @return an instance of {@code HashgraphModule}
+     * @throws IllegalStateException if no implementation is found
+     */
+    public static HashgraphModule createHashgraphModule() {
+        return ServiceLoader.load(HashgraphModule.class)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("No HashgraphModule implementation found!"));
+    }
+
+    /**
+     * Create and initialize a no-op instance of the {@link HashgraphModule}.
+     *
+     * @param model the wiring model
+     * @param configuration the configuration
+     * @return an initialized no-op instance of {@code HashgraphModule}
+     */
+    public static HashgraphModule createNoOpHashgraphModule(
+            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final NodeId selfId = NodeId.FIRST_NODE_ID;
+        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
+        final Roster roster = new Roster(List.of(rosterEntry));
+        final HashgraphModule hashgraphModule = createHashgraphModule();
+        final EventPipelineTracker eventPipelineTracker = null;
+        hashgraphModule.initialize(
+                model, configuration, metrics, time, roster, selfId, instant -> false, eventPipelineTracker);
+        return hashgraphModule;
     }
 }

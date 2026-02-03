@@ -106,8 +106,7 @@ class HighVolumePricingCalculatorTest {
         @DisplayName("Interpolates correctly between curve points")
         void interpolatesBetweenCurvePoints() {
             // Create a curve: 0% -> 1.0x, 50% -> 2.0x, 100% -> 5.0x
-            final var curve =
-                    createPiecewiseLinearCurve(point(0, 1_000), point(5_000, 2_000), point(10_000, 5_000));
+            final var curve = createPiecewiseLinearCurve(point(0, 1_000), point(5_000, 2_000), point(10_000, 5_000));
             final var variableRate = createVariableRateWithCurve(5_000, curve);
 
             // At 25% (between 0% and 50%), should interpolate to 1.5x (1,500)

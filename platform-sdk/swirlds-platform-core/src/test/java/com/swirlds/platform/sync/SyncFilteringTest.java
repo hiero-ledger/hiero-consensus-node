@@ -8,10 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
-import com.swirlds.platform.gossip.shadowgraph.SyncUtils;
-import com.swirlds.platform.gossip.sync.config.SyncConfig;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,6 +23,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.hiero.base.CompareTo;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
+import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -46,17 +45,17 @@ class SyncFilteringTest {
      * @param count        the number of events to generate
      * @return the list of events
      */
-    private static List<EventImpl> generateEvents(
+    private static List<PlatformEvent> generateEvents(
             final StandardEventEmitter eventEmitter,
             @NonNull final FakeTime time,
             final Duration timeStep,
             final int count) {
 
-        final List<EventImpl> events = new ArrayList<>(count);
+        final List<PlatformEvent> events = new ArrayList<>(count);
 
         for (int i = 0; i < count; i++) {
-            final EventImpl event = eventEmitter.getGraphGenerator().generateEvent();
-            event.getBaseEvent().setTimeReceived(time.now());
+            final PlatformEvent event = eventEmitter.getGraphGenerator().generateEvent();
+            event.setTimeReceived(time.now());
             time.tick(timeStep);
             events.add(event);
         }
@@ -124,9 +123,7 @@ class SyncFilteringTest {
         final FakeTime time = new FakeTime(startingTime, Duration.ZERO);
 
         final int eventCount = 1000;
-        final List<PlatformEvent> events = generateEvents(eventEmitter, time, timeStep, eventCount).stream()
-                .map(EventImpl::getBaseEvent)
-                .toList();
+        final List<PlatformEvent> events = generateEvents(eventEmitter, time, timeStep, eventCount);
 
         final Map<Hash, PlatformEvent> eventMap =
                 events.stream().collect(Collectors.toMap(PlatformEvent::getHash, Function.identity()));

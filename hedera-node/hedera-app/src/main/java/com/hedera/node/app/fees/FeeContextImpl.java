@@ -14,6 +14,7 @@ import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -124,8 +125,14 @@ public class FeeContextImpl implements FeeContext {
 
     @NonNull
     @Override
+    public ReadableStoreFactory readableStoreFactory() {
+        return storeFactory;
+    }
+
+    @NonNull
+    @Override
     public <T> T readableStore(@NonNull Class<T> storeInterface) {
-        return storeFactory.getStore(storeInterface);
+        return storeFactory.readableStore(storeInterface);
     }
 
     @Override

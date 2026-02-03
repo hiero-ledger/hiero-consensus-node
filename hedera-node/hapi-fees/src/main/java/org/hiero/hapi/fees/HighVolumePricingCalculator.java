@@ -62,7 +62,8 @@ public final class HighVolumePricingCalculator {
         long rawMultiplier;
         if (pricingCurve == null || !pricingCurve.hasPiecewiseLinear()) {
             // No pricing curve specified - use linear interpolation between 1x (1000) and max_multiplier
-            rawMultiplier = linearInterpolate(0, (int) MULTIPLIER_SCALE, UTILIZATION_SCALE, maxMultiplier, clampedUtilization);
+            rawMultiplier =
+                    linearInterpolate(0, (int) MULTIPLIER_SCALE, UTILIZATION_SCALE, maxMultiplier, clampedUtilization);
         } else {
             // Use piecewise linear curve
             rawMultiplier = interpolatePiecewiseLinear(pricingCurve.piecewiseLinear(), clampedUtilization);

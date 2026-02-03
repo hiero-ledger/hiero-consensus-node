@@ -13,7 +13,6 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.SavedStateLoadedPayload;
 import com.swirlds.platform.config.StateConfig;
@@ -23,6 +22,7 @@ import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -33,6 +33,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -200,7 +201,7 @@ public final class StartupStateUtils {
             }
         }
 
-        final MerkleNodeState state =
+        final MerkleNodeState<VirtualMap> state =
                 deserializedSignedState.reservedSignedState().get().getState();
 
         final Hash oldHash = deserializedSignedState.originalHash();

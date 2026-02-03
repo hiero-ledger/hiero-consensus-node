@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.communication;
 
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.NetworkProtocolException;
-import com.swirlds.platform.network.protocol.PeerProtocol;
-import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
+import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
+import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
 import org.junit.jupiter.api.Assertions;
 
 public class TestPeerProtocol implements PeerProtocol {

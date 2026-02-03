@@ -14,7 +14,6 @@ import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -32,10 +31,9 @@ public interface EventIntakeModule {
      * @param metrics provides the metrics
      * @param time provides the time source
      * @param rosterHistory provides the roster history
-     * @param selfId the ID of this node
      * @param intakeEventCounter counter for the number of events in the intake pipeline
      * @param transactionLimits provides transaction limits
-     * @param startingRound the round number of the system's initial state
+     * @param eventPipelineTracker tracker for event pipeline statistics, or null if not used
      */
     void initialize(
             @NonNull WiringModel model,
@@ -43,10 +41,8 @@ public interface EventIntakeModule {
             @NonNull Metrics metrics,
             @NonNull Time time,
             @NonNull RosterHistory rosterHistory,
-            @NonNull NodeId selfId,
             @NonNull IntakeEventCounter intakeEventCounter,
             @NonNull TransactionLimits transactionLimits,
-            long startingRound,
             @Nullable EventPipelineTracker eventPipelineTracker);
 
     /**
@@ -56,14 +52,6 @@ public interface EventIntakeModule {
      */
     @NonNull
     OutputWire<PlatformEvent> validatedEventsOutputWire();
-
-    /**
-     * {@link OutputWire} for validated but not yet persisted events.
-     *
-     * @return the {@link OutputWire} for validated but non-persisted events
-     */
-    @NonNull
-    OutputWire<PlatformEvent> validatedNonPersistedEventsOutputWire();
 
     /**
      * {@link InputWire} for gossiped events received from other nodes.
@@ -102,25 +90,7 @@ public interface EventIntakeModule {
     InputWire<RosterHistory> rosterHistoryInputWire();
 
     /**
-     * Destroys the module.
-     */
-    void destroy();
-
-    // *************************************************************
-    // Temporary workaround to allow reuse of the EventIntake module
-    // *************************************************************
-
-    /**
-     * Flushes all events of the internal components.
-     *
-     * <p>Please note that this method is a temporary workaround and will be removed in the future.
-     */
-    void flush();
-
-    /**
      * Get an {@link InputWire} to clear the state of the internal components.
-     *
-     * <p>Please note that this method is a temporary workaround and will be removed in the future.
      *
      * @return the {@link InputWire} to clear the internal state
      */
@@ -129,37 +99,12 @@ public interface EventIntakeModule {
     InputWire<Object> clearComponentsInputWire();
 
     /**
-     * Prior to this method being called, all events added to the preconsensus event stream are assumed to be events
-     * read from the preconsensus event stream on disk. The events from the stream on disk are not re-written to the
-     * disk, and are considered to be durable immediately upon ingest.
-     *
-     * <p>Please note that this method is a temporary workaround and will be removed in the future.
-     *
-     * @return the {@link InputWire} to signal beginning of new event streaming
+     * Flushes all events of the internal components.
      */
-    @InputWireLabel("done streaming pces")
-    @NonNull
-    InputWire<Object> beginStreamingNewEventsInputWire();
+    void flush();
 
     /**
-     * Inform the preconsensus event writer that a discontinuity has occurred in the preconsensus event stream.
-     *
-     * <p>Please note that this method is a temporary workaround and will be removed in the future.
-     *
-     * @return the {@link InputWire} for the round of the state that the new stream will be starting from
+     * Destroys the module.
      */
-    @InputWireLabel("discontinuity")
-    @NonNull
-    InputWire<Long> registerDiscontinuityInputWire();
-
-    /**
-     * Set the minimum ancient indicator needed to be kept on disk.
-     *
-     * <p>Please note that this method is a temporary workaround and will be removed in the future.
-     *
-     * @return the {@link InputWire} for the minimum ancient indicator required to be stored on disk
-     */
-    @InputWireLabel("minimum identifier to store")
-    @NonNull
-    InputWire<Long> setMinimumAncientIdentifierToStore();
+    void destroy();
 }
