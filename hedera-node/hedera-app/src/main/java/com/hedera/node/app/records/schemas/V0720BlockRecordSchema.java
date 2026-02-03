@@ -28,7 +28,7 @@ public class V0720BlockRecordSchema extends Schema<SemanticVersion> {
             computeLabel(BlockRecordService.NAME, WRAPPED_RECORD_FILE_BLOCK_HASHES_KEY);
 
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().major(0).minor(57).patch(0).build();
+            SemanticVersion.newBuilder().major(0).minor(72).patch(0).build();
 
     public V0720BlockRecordSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);

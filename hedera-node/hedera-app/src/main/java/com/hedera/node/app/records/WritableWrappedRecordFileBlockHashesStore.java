@@ -28,8 +28,4 @@ public class WritableWrappedRecordFileBlockHashesStore extends ReadableWrappedRe
     public @Nullable WrappedRecordFileBlockHashes poll() {
         return hashesQueue.poll();
     }
-
-    public @Nullable WrappedRecordFileBlockHashes pop() {
-        return hashesQueue.poll();
-    }
 }

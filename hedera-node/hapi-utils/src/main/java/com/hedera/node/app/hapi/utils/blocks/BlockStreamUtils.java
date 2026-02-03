@@ -90,6 +90,7 @@ public final class BlockStreamUtils {
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
             case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
             case STATE_ID_NODE_PAYMENTS -> "TokenService.NODE_PAYMENTS";
+            case STATE_ID_WRAPPED_RECORD_FILE_BLOCK_HASHES -> "BlockRecordService.WRAPPED_RECORD_FILE_BLOCK_HASHES";
         };
     }
 

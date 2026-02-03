@@ -74,7 +74,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
-import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -284,7 +283,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             if (storeWrappedRecordFileBlockHashesInState) {
                 // Capture the just-finished record block's creation time before updating lastBlockInfo
                 final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
-                maybeEnqueueWrappedRecordFileBlockHashes(
+                enqueueWrappedRecordFileBlockHashes(
                         state, justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
             }
             lastBlockInfo =
@@ -405,26 +404,11 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         this.currentBlockSidecarRecords.clear();
     }
 
-    private void maybeEnqueueWrappedRecordFileBlockHashes(
+    private void enqueueWrappedRecordFileBlockHashes(
             @NonNull final State state,
             final long justFinishedBlockNumber,
             @NonNull final Timestamp justFinishedBlockCreationTime,
             @NonNull final Bytes endRunningHash) {
-        // Only enqueue if we have data and the tracking corresponds to the just-finished block
-        if (currentBlockNumber != justFinishedBlockNumber) {
-            logger.warn(
-                    "Skipping wrapped record-file block hashes enqueue due to block number mismatch (tracked={}, finished={})",
-                    currentBlockNumber,
-                    justFinishedBlockNumber);
-            return;
-        }
-        if (currentBlockRecordStreamItems.isEmpty()) {
-            logger.warn(
-                    "Skipping wrapped record-file block hashes enqueue for block {} due to empty record stream items",
-                    justFinishedBlockNumber);
-            return;
-        }
-
         final var cfg = configProvider.getConfiguration();
         final var cfgServicesVersion = cfg.getConfigData(VersionConfig.class).servicesVersion();
         final var cfgConfigVersion = cfg.getConfigData(HederaConfig.class).configVersion();
@@ -475,6 +459,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             hasher.addLeaf(recordFileLeafBytes.toByteArray());
             outputItemsTreeRootHash = Bytes.wrap(hasher.computeRootHash());
         } catch (NoSuchAlgorithmException e) {
+            logger.fatal("Unable to create SHA-384 message digest", e);
             throw new IllegalStateException("Unable to create SHA-384 message digest", e);
         }
 
