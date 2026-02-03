@@ -67,8 +67,11 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.ReadableKVStateBase;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.virtualmap.constructable.ConstructableUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
@@ -94,7 +97,7 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 @SuppressWarnings({"rawtypes", "resource"})
 public final class StateUtils {
 
-    private static MerkleNodeState state;
+    private static AtomicReference<MerkleNodeState> stateRef = new AtomicReference<>();
     private static DeserializedSignedState deserializedSignedState;
 
     // Static JSON codec cache
@@ -108,10 +111,34 @@ public final class StateUtils {
      * @return mutable instance of {@link MerkleNodeState}
      */
     public static MerkleNodeState getState() {
-        if (state == null) {
+        if (stateRef.get() == null) {
             initState();
         }
-        return state;
+        return stateRef.get();
+    }
+
+    /**
+     * Resets the caches of all on-disk readable states to free up memory.
+     */
+    public static synchronized void resetCache() {
+        if (stateRef.get() == null) {
+            throw new IllegalStateException("State is not initialized yet");
+        }
+        VirtualMapState state = (VirtualMapState) stateRef.get().copy();
+        stateRef.set(state);
+
+        Set<Map.Entry<String, Map<Integer, StateMetadata<?, ?>>>> serviceEntries = state.getServices().entrySet();
+        // resetting readable state caches
+        for (Map.Entry<String, Map<Integer, StateMetadata<?, ?>>> serviceEntry : serviceEntries) {
+            ReadableStates readableStates = state.getReadableStates(serviceEntry.getKey());
+            for (Map.Entry<Integer, StateMetadata<?, ?>> stateEntry : serviceEntry.getValue().entrySet()) {
+                StateMetadata<?, ?> md = stateEntry.getValue();
+                if (md.stateDefinition().onDisk()) {
+                    ReadableKVStateBase<?, ?> readableState = (ReadableKVStateBase) readableStates.get(stateEntry.getKey());
+                    readableState.reset();
+                }
+            }
+        }
     }
 
     /**
@@ -148,8 +175,8 @@ public final class StateUtils {
             // need to create copy of the loaded state to make it mutable
             final HashedReservedSignedState hashedSignedState =
                     copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
-            state = hashedSignedState.state().get().getState();
-            initServiceMigrator(state, platformContext, serviceRegistry);
+            stateRef.set(hashedSignedState.state().get().getState());
+            initServiceMigrator(stateRef.get(), platformContext, serviceRegistry);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
