@@ -715,7 +715,6 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
 
         @HapiTest
         @DisplayName("Auto Create Hollow Account in one Batch, Finalize it and Token Transfer in Another Atomic Batch")
-        // @Tag(MATS)
         Stream<DynamicTest> autoCreateHollowAccountInOneBatchFinalizeAndTokenTransferInAnotherBatch() {
 
             final AtomicReference<ByteString> evmAlias = new AtomicReference<>();

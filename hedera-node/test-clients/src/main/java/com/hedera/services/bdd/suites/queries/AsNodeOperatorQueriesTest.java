@@ -89,7 +89,6 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
 
     @HapiTest
     @DisplayName("Only node operators don't need to sign file contents queries")
-    // @Tag(MATS)
     final Stream<DynamicTest> fileGetContentsNoSigRequired() {
         final var filename = "anyFile.txt";
         final var someoneElse = "someoneElse";

@@ -70,7 +70,7 @@ val basePrCheckTags =
     mapOf(
         "hapiTestAdhoc" to "ADHOC",
         "hapiTestCrypto" to "CRYPTO",
-        "hapiTestCryptoLeaky" to "(CRYPTO&LEAKY)|(CRYPTO&ORDERED_IN_ISOLATION)",
+        "hapiTestCryptoXts" to "(CRYPTO&XTS)",
         "hapiTestToken" to "TOKEN",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
@@ -84,18 +84,14 @@ val basePrCheckTags =
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
     )
 
+val cryptoTasks = setOf("hapiTestCrypto", "hapiTestCryptoXts")
+
 val prCheckTags =
     buildMap<String, String> {
         basePrCheckTags.forEach { (task, tags) ->
-
-            // XTS task → explicitly EXCLUDE MATS
             put(task, "($tags)&(!MATS)")
 
-            // MATS task → for crypto, run same tests as PR checks (non-MATS crypto tests)
-            // For other test suites, explicitly REQUIRE MATS
-            if (task == "hapiTestCrypto") {
-                put("$task$matsSuffix", "($tags)&(!MATS)")
-            } else {
+            if (task !in cryptoTasks) {
                 put("$task$matsSuffix", "($tags)&MATS")
             }
         }
@@ -119,7 +115,7 @@ val prCheckStartPorts =
     buildMap<String, String> {
         put("hapiTestAdhoc", "25000")
         put("hapiTestCrypto", "25200")
-        put("hapiTestCryptoLeaky", "25210")
+        put("hapiTestCryptoXts", "25210")
         put("hapiTestToken", "25400")
         put("hapiTestRestart", "25600")
         put("hapiTestSmartContract", "25800")
@@ -131,10 +127,10 @@ val prCheckStartPorts =
         put("hapiTestMiscRecords", "27200")
         put("hapiTestAtomicBatch", "27400")
 
-        // Create the MATS variants
+        // Create the MATS variants (crypto uses same task name, no MATS variant)
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, port: String) ->
-            put("$taskName$matsSuffix", port)
+            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", port)
         }
     }
 val prCheckPropOverrides =
@@ -148,7 +144,7 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put(
-            "hapiTestCryptoLeaky",
+            "hapiTestCryptoXts",
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSmartContract", "tss.historyEnabled=false")
@@ -172,20 +168,18 @@ val prCheckPropOverrides =
         )
         put("hapiTestAtomicBatch", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
 
-        // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, overrides: String) ->
-            put("$taskName$matsSuffix", overrides)
+            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", overrides)
         }
     }
 val prCheckPrepareUpgradeOffsets =
     buildMap<String, String> {
         put("hapiTestAdhoc", "PT300S")
 
-        // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, offset: String) ->
-            put("$taskName$matsSuffix", offset)
+            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", offset)
         }
     }
 // Note: no MATS variants needed for history proofs
@@ -195,14 +189,13 @@ val prCheckNetSizeOverrides =
     buildMap<String, String> {
         put("hapiTestAdhoc", "3")
         put("hapiTestCrypto", "3")
-        put("hapiTestCryptoLeaky", "3")
+        put("hapiTestCryptoXts", "3")
         put("hapiTestToken", "3")
         put("hapiTestSmartContract", "4")
 
-        // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, size: String) ->
-            put("$taskName$matsSuffix", size)
+            if (taskName !in cryptoTasks) put("$taskName$matsSuffix", size)
         }
     }
 
@@ -350,7 +343,7 @@ tasks.register<Test>("testSubprocessConcurrent") {
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
-        excludeTags("LEAKY", "ORDERED_IN_ISOLATION")
+        excludeTags("XTS")
     }
 
     // Choose a different initial port for each test task if running as PR check

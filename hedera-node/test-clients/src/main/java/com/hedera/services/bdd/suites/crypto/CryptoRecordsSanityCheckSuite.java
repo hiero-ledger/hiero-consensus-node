@@ -54,7 +54,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 @HapiTestLifecycle
-@OrderedInIsolation
 public class CryptoRecordsSanityCheckSuite {
     private static final String PAYER = "payer";
     private static final String RECEIVER = "receiver";

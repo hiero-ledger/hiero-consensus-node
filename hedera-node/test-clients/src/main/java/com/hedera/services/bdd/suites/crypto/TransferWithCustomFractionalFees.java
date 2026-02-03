@@ -310,7 +310,6 @@ public class TransferWithCustomFractionalFees {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferWithFractionalCustomFeeAllowanceNetOfTransfers() {
         return hapiTest(
                 cryptoCreate(htsCollector).balance(ONE_HUNDRED_HBARS),
@@ -410,7 +409,6 @@ public class TransferWithCustomFractionalFees {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferWithFractionalCustomFeesThreeCollectors() {
         return hapiTest(
                 cryptoCreate(alice),
@@ -483,7 +481,6 @@ public class TransferWithCustomFractionalFees {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferWithFractionalCustomFeesDenominatorMax() {
         return hapiTest(
                 cryptoCreate(alice),

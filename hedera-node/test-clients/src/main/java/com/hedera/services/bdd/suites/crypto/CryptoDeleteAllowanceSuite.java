@@ -98,7 +98,6 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> canDeleteAllowanceForDeletedSpender() {
         final String owner = "owner";
         final String spender = "spender";
@@ -277,7 +276,6 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> feesAsExpected() {
         final String owner = "owner";
         final String spender = "spender";
@@ -357,7 +355,6 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> succeedsWhenTokenPausedFrozenKycRevoked() {
         final String owner = "owner";
         final String spender = "spender";

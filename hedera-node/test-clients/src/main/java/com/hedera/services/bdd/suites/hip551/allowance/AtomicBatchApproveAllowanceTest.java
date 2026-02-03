@@ -144,7 +144,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferErc20TokenFromContractWithApproval() {
         final var transferFromOtherContractWithSignaturesTxn = "transferFromOtherContractWithSignaturesTxn";
         final var nestedContract = "NestedERC20Contract";
@@ -262,7 +261,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> cannotPayForAnyTransactionWithContractAccount() {
         final var cryptoAdminKey = "cryptoAdminKey";
         final var contract = "PayableConstructor";
@@ -1478,7 +1476,6 @@ class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> cannotHaveMultipleAllowedSpendersForTheSameNftSerial() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),

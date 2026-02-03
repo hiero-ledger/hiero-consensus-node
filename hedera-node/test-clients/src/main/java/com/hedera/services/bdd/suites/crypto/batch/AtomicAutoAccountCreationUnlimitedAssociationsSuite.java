@@ -439,7 +439,6 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferNftToEVMAddressAliasUnlimitedAssociations() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<byte[]> partyAlias = new AtomicReference<>();

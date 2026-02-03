@@ -111,7 +111,6 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
     */
     @Order(2)
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForAutoAndHollow() {
         final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>((Comparator.comparing(Enum::ordinal)));
         accountsToCreate.put(
@@ -183,7 +182,6 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
      */
     @Order(3)
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForExplicitAlias() {
         final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>((Comparator.comparing(Enum::ordinal)));
         accountsToCreate.put(UtilStateChange.ECKind.EXPLICIT_ALIAS, UtilStateChange.ECKind.EXPLICIT_ALIAS.name());

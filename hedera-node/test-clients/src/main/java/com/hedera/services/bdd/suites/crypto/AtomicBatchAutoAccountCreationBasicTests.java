@@ -138,7 +138,6 @@ class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create ECDSA Account with FT Transfer success in Atomic Batch")
-    // @Tag(MATS)
     Stream<DynamicTest> autoCreateECDSA_AccountWithFT_TransferSuccessInBatch() {
 
         // create transfer to alias inner transaction
@@ -600,7 +599,6 @@ class AtomicBatchAutoAccountCreationBasicTests {
 
     @HapiTest
     @DisplayName("Auto Create Hollow Account with NFT Transfer success in Atomic Batch")
-    // @Tag(MATS)
     Stream<DynamicTest> autoCreateHollowAccountWithNFT_TransferSuccessInBatch() {
 
         final AtomicReference<ByteString> evmAlias = new AtomicReference<>();

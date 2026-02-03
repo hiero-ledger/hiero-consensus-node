@@ -42,7 +42,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(CRYPTO)
 public class TxnRecordRegression {
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> recordsStillQueryableWithDeletedPayerId() {
         return hapiTest(
                 cryptoCreate("toBeDeletedPayer"),
@@ -115,7 +114,6 @@ public class TxnRecordRegression {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> receiptAvailableWithinCacheTtl() {
         return hapiTest(
                 cryptoCreate("misc").via("success").balance(1_000L),

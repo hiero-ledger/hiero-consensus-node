@@ -17,5 +17,5 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @ExtendWith(TestLifecycleExtension.class)
-@Tag(TestTags.HAPI_TEST_LIFECYCLE)
+@Tag(TestTags.XTS)
 public @interface HapiTestLifecycle {}

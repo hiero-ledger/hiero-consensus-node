@@ -87,7 +87,6 @@ public class AutoAccountUpdateSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> updateKeyOnAutoCreatedAccount() {
         final var complexKey = "complexKey";
 

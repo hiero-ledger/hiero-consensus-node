@@ -66,7 +66,6 @@ public class QueryPaymentSuite {
      * 3. Transaction payer is not involved in transfers for query payment to node and all payers have enough balance
      */
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> queryPaymentsMultiBeneficiarySucceeds() {
         return hapiTest(
                 cryptoCreate("a").balance(1_234L),

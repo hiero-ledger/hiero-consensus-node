@@ -558,7 +558,6 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferNonFungibleWithRoyaltyHtsFee2TokenFees() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),
@@ -910,7 +909,6 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferNonFungibleWithRoyaltyAllCollectorsExempt() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),
@@ -1271,7 +1269,6 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferNonFungibleWithHollowAccountAndRoyaltyFallbackHbarFee() {
         return hapiTest(flattened(
                 newKeyNamed(NFT_KEY),
@@ -1445,7 +1442,6 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferRoyaltyFeeLongZeroAddressFungibleSenderIds() {
         final var bufferAccount = "account2";
         final var fungibleToken = "fungibleToken";
@@ -1597,7 +1593,6 @@ public class TransferWithCustomRoyaltyFees {
      * fees.
      */
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> biDirectionalAirdropsCannotTriggerRoyaltyPayments() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),

@@ -36,7 +36,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -49,7 +48,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 @HapiTestLifecycle
-@OrderedInIsolation
 @DisplayName("Token cancel airdrop")
 public class TokenCancelAirdropTest extends TokenAirdropBase {
 
@@ -272,7 +270,6 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("with multiple NFTs")
-    // @Tag(MATS)
     final Stream<DynamicTest> multipleNFTs() {
         final var account = "account";
         final var receiver = "receiver";
@@ -481,7 +478,6 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("when treasury is changed")
-    // @Tag(MATS)
     final Stream<DynamicTest> treasuryIsChanged() {
         final var account = "account";
         final var receiver = "receiver";

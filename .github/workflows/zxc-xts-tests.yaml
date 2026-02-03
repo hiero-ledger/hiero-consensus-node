@@ -209,7 +209,7 @@ jobs:
       enable-hapi-tests-misc: "true"
       enable-hapi-tests-misc-records: "true"
       enable-hapi-tests-crypto: "false"
-      enable-hapi-tests-crypto-leaky: "true"
+      enable-hapi-tests-crypto-xts: "true"
       enable-hapi-tests-simplefees: "true"
       enable-hapi-tests-token: "true"
       enable-hapi-tests-smart-contract: "true"

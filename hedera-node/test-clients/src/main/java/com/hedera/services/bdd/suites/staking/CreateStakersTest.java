@@ -35,7 +35,6 @@ public class CreateStakersTest {
     static SpecAccount NODE2_STAKER;
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> createStakers() {
         return hapiTest(
                 ensureStakingActivated(),

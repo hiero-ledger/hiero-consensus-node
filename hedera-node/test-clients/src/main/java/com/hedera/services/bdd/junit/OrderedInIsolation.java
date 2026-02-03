@@ -20,7 +20,7 @@ import org.junit.jupiter.api.parallel.Isolated;
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Isolated
-@Tag(TestTags.ORDERED_IN_ISOLATION)
+@Tag(TestTags.XTS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestClassOrder(ClassOrderer.OrderAnnotation.class)
 public @interface OrderedInIsolation {}

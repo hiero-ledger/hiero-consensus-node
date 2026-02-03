@@ -35,7 +35,6 @@ public class CryptoGetRecordsRegression {
     private static final String PAYER = "payer";
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> succeedsNormally() {
         String memo = "Dim galleries, dusky corridors got past...";
 
@@ -107,7 +106,6 @@ public class CryptoGetRecordsRegression {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> getAccountRecords_testForDuplicates() {
         return hapiTest(
                 cryptoCreate(ACCOUNT_1).balance(5000000000000L).sendThreshold(1L),

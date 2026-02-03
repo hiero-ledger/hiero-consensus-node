@@ -98,7 +98,6 @@ public class HollowAccountFinalizationSuite {
     private static final String VANILLA_TOKEN = "TokenD";
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> hollowAccountCompletionWithEthereumTransaction() {
         final String CONTRACT = "Fuse";
         return hapiTest(
@@ -146,7 +145,6 @@ public class HollowAccountFinalizationSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> hollowAccountCompletionWithTokenTransfer() {
         final var fungibleToken = "fungibleToken";
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
@@ -261,7 +259,6 @@ public class HollowAccountFinalizationSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> hollowAccountCompletionWithTokenAssociation() {
         return hapiTest(flattened(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -290,7 +287,6 @@ public class HollowAccountFinalizationSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> hollowAccountFinalizationWhenAccountNotPresentInPreHandle() {
         final var ECDSA_2 = "ECDSA_2";
         return hapiTest(
@@ -505,7 +501,6 @@ public class HollowAccountFinalizationSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> hollowAccountCompletionWithEthereumContractCreate() {
         final var CONTRACT = "CreateTrivial";
         return hapiTest(flattened(
@@ -835,7 +830,6 @@ public class HollowAccountFinalizationSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> hollowPayerAndOtherReqSignerBothGetCompletedInASingleTransaction() {
         final var ecdsaKey2 = "ecdsaKey2";
         final var recipientKey = "recipient";
@@ -904,7 +898,6 @@ public class HollowAccountFinalizationSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> hollowAccountCompletionIsPersistedEvenIfTxnFails() {
         return hapiTest(flattened(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),

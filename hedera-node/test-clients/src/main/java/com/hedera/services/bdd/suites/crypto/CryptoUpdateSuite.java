@@ -158,7 +158,6 @@ public class CryptoUpdateSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> updateStakingFieldsWorks() {
         final var stakedAccountId = 20;
         return hapiTest(
@@ -365,7 +364,6 @@ public class CryptoUpdateSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> updateWithOverlappingSigs() {
         return hapiTest(
                 newKeyNamed(TARGET_KEY).shape(twoLevelThresh).labels(overlappingKeys),
@@ -377,7 +375,6 @@ public class CryptoUpdateSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> updateFailsWithContractKey() {
         final var id = new AtomicReference<ContractID>();
         final var CONTRACT = "Multipurpose";

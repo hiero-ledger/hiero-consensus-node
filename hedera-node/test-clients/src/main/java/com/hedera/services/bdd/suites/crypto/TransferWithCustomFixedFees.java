@@ -432,7 +432,6 @@ public class TransferWithCustomFixedFees {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferApprovedFungibleWithFixedHtsCustomFeeAsOwner() {
         return hapiTest(
                 cryptoCreate(htsCollector),
@@ -668,7 +667,6 @@ public class TransferWithCustomFixedFees {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferApprovedNonFungibleWithFixedHtsCustomFeeAsSpender() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),
@@ -820,7 +818,6 @@ public class TransferWithCustomFixedFees {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFees2Layers() {
         return hapiTest(
                 cryptoCreate(htsCollector),
@@ -1380,7 +1377,6 @@ public class TransferWithCustomFixedFees {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferWithFractionalCustomFee() {
         return hapiTest(
                 cryptoCreate(htsCollector).balance(ONE_HUNDRED_HBARS),

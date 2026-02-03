@@ -89,7 +89,6 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     private static final String NFT_CREATE = "nftCreateTxn";
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationHappyPath() {
         final var creationTime = new AtomicLong();
         final long transferFee = 188608L;
@@ -315,7 +314,6 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     }
 
     @HapiTest
-    // @Tag(MATS)
     final Stream<DynamicTest> transferTokensToEVMAddressAliasUnlimitedAssociations() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<byte[]> partyAlias = new AtomicReference<>();

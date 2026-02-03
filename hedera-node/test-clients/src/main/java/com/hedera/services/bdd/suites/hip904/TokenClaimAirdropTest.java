@@ -76,7 +76,6 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountBalance;
@@ -100,7 +99,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
 @HapiTestLifecycle
-@OrderedInIsolation
 @DisplayName("Claim token airdrop")
 public class TokenClaimAirdropTest extends TokenAirdropBase {
     private static final String OWNER_2 = "owner2";
@@ -233,7 +231,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("not enough Hbar to claim and than enough")
-    // @Tag(MATS)
     final Stream<DynamicTest> notEnoughHbarToClaimAndThanEnough() {
         final String ALICE = "ALICE";
         final String BOB = "BOB";
@@ -655,7 +652,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("Claim token airdrop - 2nd account pays")
-    // @Tag(MATS)
     final Stream<DynamicTest> claimTokenAirdropOtherAccountPays() {
         return hapiTest(flattened(
                 setUpTokensAndAllReceivers(),
@@ -683,7 +679,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("Claim token airdrop - sender account pays")
-    // @Tag(MATS)
     final Stream<DynamicTest> claimTokenAirdropSenderAccountPays() {
         return hapiTest(flattened(
                 setUpTokensAndAllReceivers(),
@@ -1269,7 +1264,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
 
     @HapiTest
     @DisplayName("Hollow account should be created before implementation of HIP-904")
-    // @Tag(MATS)
     final Stream<DynamicTest> hollowAccountBehavior() {
         final String ALICE = "ALICE";
         final String BOB = "BOB";

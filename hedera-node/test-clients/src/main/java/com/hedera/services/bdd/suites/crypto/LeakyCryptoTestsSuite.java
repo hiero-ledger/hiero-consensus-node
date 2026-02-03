@@ -408,7 +408,6 @@ public class LeakyCryptoTestsSuite {
      * <p>
      * (FUTURE) Revisit this with superuser payer.
      */
-    // @Tag(MATS)
     @HapiTest
     final Stream<DynamicTest> internalTxsCannotBeSubmittedByUserAccounts() {
         return hapiTest(
@@ -472,7 +471,6 @@ public class LeakyCryptoTestsSuite {
     }
 
     @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
-    // @Tag(MATS)
     final Stream<DynamicTest> hollowAccountCreationChargesExpectedFees() {
         final long REDUCED_NODE_FEE = 2L;
         final long REDUCED_NETWORK_FEE = 3L;
@@ -549,7 +547,6 @@ public class LeakyCryptoTestsSuite {
 
     @Order(14)
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
-    // @Tag(MATS)
     final Stream<DynamicTest> contractDeployAfterEthereumTransferLazyCreate() {
         final var RECIPIENT_KEY = LAZY_ACCOUNT_RECIPIENT;
         final var lazyCreateTxn = PAY_TXN;
@@ -592,7 +589,6 @@ public class LeakyCryptoTestsSuite {
     }
 
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
-    // @Tag(MATS)
     final Stream<DynamicTest> contractCallAfterEthereumTransferLazyCreate() {
         final var RECIPIENT_KEY = LAZY_ACCOUNT_RECIPIENT;
         final var lazyCreateTxn = PAY_TXN;
@@ -640,7 +636,6 @@ public class LeakyCryptoTestsSuite {
 
     @HapiTest
     @Order(17)
-    // @Tag(MATS)
     final Stream<DynamicTest> autoAssociationWorksForContracts() {
         final var theContract = "CreateDonor";
         final String tokenA = "tokenA";
