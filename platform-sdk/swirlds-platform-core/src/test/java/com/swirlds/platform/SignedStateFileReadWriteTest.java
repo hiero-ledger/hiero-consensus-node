@@ -187,22 +187,20 @@ class SignedStateFileReadWriteTest {
                 .withConfiguration(configuration)
                 .build();
 
-        // Async snapshot requires all references to the state being written to disk to be released
-        stateLifecycleManager.getLatestImmutableState().release();
+        stateLifecycleManager.getMutableState().release();
+        hashState(signedState);
 
         writeSignedStateToDisk(
                 platformContext,
                 NodeId.of(0),
                 directory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
-                signedState.reserve("test"),
+                signedState,
                 stateLifecycleManager);
 
         assertTrue(exists(hashInfoFile), "hash info file should exist");
         assertTrue(exists(settingsUsedFile), "settings used file should exist");
         assertTrue(exists(addressBookFile), "address book file should exist");
-
-        stateLifecycleManager.getMutableState().release();
     }
 
     private Configuration changeConfigAndConfigHolder(String directory) {
