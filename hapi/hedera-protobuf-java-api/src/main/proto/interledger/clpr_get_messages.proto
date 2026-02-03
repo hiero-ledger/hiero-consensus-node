@@ -55,7 +55,7 @@ message ClprGetMessagesQuery {
   /**
    * The maximum bundle length in bytes allowed in the response.
    */
-  uint64 max_bundle_length = 4;
+  uint64 max_bundle_bytes = 4;
 }
 
 /**

@@ -358,7 +358,7 @@ public class ClprClientImpl implements ClprClient {
         final var queryBody = ClprGetMessagesQuery.newBuilder()
                 .header(QueryHeader.newBuilder().build())
                 .ledgerId(ledgerId)
-                .maxBundleLength(maxNumBytes)
+                .maxBundleBytes(maxNumBytes)
                 .maxNumberOfMessages(maxNumMsg)
                 .build();
 
