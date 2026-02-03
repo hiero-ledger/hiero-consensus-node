@@ -6,13 +6,10 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.consensus.SyntheticSnapshot;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gui.BranchedEventMetadata;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.source.BranchingEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.FlowLayout;
@@ -27,6 +24,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
+import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
+import org.hiero.consensus.hashgraph.impl.consensus.SyntheticSnapshot;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
@@ -208,12 +207,12 @@ public class TestGuiSource {
                         instanceof BranchingEventSource branchingEventSource) {
                     branchingEventSources.add(branchingEventSource);
 
-                    final List<LinkedList<EventImpl>> branches = branchingEventSource.getBranches();
+                    final List<LinkedList<PlatformEvent>> branches = branchingEventSource.getBranches();
 
                     for (int i = 0; i < branches.size(); i++) {
-                        final List<EventImpl> branch = branches.get(i);
-                        for (final EventImpl event : branch) {
-                            eventToBranchIndex.put(event.getBaseEvent(), i);
+                        final List<PlatformEvent> branch = branches.get(i);
+                        for (final PlatformEvent event : branch) {
+                            eventToBranchIndex.put(event, i);
                         }
                     }
                 }

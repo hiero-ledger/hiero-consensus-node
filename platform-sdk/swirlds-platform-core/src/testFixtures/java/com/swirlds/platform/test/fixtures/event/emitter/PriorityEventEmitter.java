@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.emitter;
 
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -42,7 +42,7 @@ public class PriorityEventEmitter extends BufferingEventEmitter {
     }
 
     @Override
-    public EventImpl emitEvent() {
+    public PlatformEvent emitEvent() {
         // Emit the next event from the highest priority node, if possible. If not possible, try the next priority node.
         // Repeat in priority order until an event can be emitted.
         for (final int nodeIndex : nodePriorities) {

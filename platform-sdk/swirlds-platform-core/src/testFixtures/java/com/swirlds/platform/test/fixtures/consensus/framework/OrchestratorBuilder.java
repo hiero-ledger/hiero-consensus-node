@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
-import static com.swirlds.common.test.fixtures.WeightGenerators.BALANCED;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.BALANCED;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterGenerator;
@@ -23,6 +22,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.base.utility.test.fixtures.ResettableRandom;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
 
 /** A builder for {@link ConsensusTestOrchestrator} instances */
 public class OrchestratorBuilder {
@@ -107,8 +107,10 @@ public class OrchestratorBuilder {
         for (final EventSource eventSource : eventSources) {
             eventSourceConfigurator.accept(eventSource);
         }
+        // randomise the number of other parents to increase test coverage
+        final int numOtherParents = random.nextInt(1, numberOfNodes);
         final StandardGraphGenerator graphGenerator =
-                new StandardGraphGenerator(platformContext, graphSeed, eventSources, roster);
+                new StandardGraphGenerator(platformContext, graphSeed, numOtherParents, eventSources, roster);
 
         // Make the graph generators create a fresh set of events.
         // Use the same seed so that they create identical graphs.

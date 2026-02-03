@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.crypto;
 
-import static com.swirlds.platform.crypto.KeyCertPurpose.AGREEMENT;
-import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
+import static org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT;
+import static org.hiero.consensus.crypto.KeyCertPurpose.SIGNING;
 
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -11,7 +11,9 @@ import java.security.cert.X509Certificate;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.CryptographyException;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -24,7 +26,7 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
     public PublicStores() throws KeyStoreException {
-        this(CryptoStatic.createEmptyTrustStore(), CryptoStatic.createEmptyTrustStore());
+        this(ConsensusCryptoUtils.createEmptyTrustStore(), ConsensusCryptoUtils.createEmptyTrustStore());
     }
 
     /**
@@ -42,8 +44,8 @@ public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
      */
     public static PublicStores fromAllPublic(final KeyStore allPublic, final Iterable<NodeId> nodeIds)
             throws KeyStoreException, KeyLoadingException {
-        final KeyStore sigTrustStore = CryptoStatic.createEmptyTrustStore();
-        final KeyStore agrTrustStore = CryptoStatic.createEmptyTrustStore();
+        final KeyStore sigTrustStore = ConsensusCryptoUtils.createEmptyTrustStore();
+        final KeyStore agrTrustStore = ConsensusCryptoUtils.createEmptyTrustStore();
 
         for (NodeId nodeId : nodeIds) {
             Certificate sigCert = allPublic.getCertificate(SIGNING.storeName(nodeId));

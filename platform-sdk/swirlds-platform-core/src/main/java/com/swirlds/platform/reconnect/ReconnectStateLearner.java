@@ -3,19 +3,19 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
@@ -29,13 +29,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.SocketException;
 import java.time.Duration;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * This class encapsulates logic for receiving the up-to-date state from a peer when the local node's state is out-of-date.
@@ -55,9 +56,10 @@ public class ReconnectStateLearner {
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics statistics;
     private final StateLifecycleManager stateLifecycleManager;
+    private final Configuration configuration;
+    private final Metrics metrics;
 
     private SigSet sigSet;
-    private final PlatformContext platformContext;
     /**
      * After reconnect is finished, restore the socket timeout to the original value.
      */
@@ -66,37 +68,37 @@ public class ReconnectStateLearner {
     private final ThreadManager threadManager;
 
     /**
-     * @param threadManager
-     * 		responsible for managing thread lifecycles
-     * @param connection
-     * 		the connection to use for the reconnect
-     * @param currentState
-     * 		the most recent state from the learner; must be a VirtualMapState
-     * @param reconnectSocketTimeout
-     * 		the amount of time that should be used for the socket timeout
-     * @param statistics
-     * 		reconnect metrics
+     *
+     * @param configuration the platform configuration
+     * @param metrics the metrics system
+     * @param threadManager responsible for managing thread lifecycles
+     * @param connection the connection to use for the reconnect
+     * @param currentState the most recent state from the learner; must be a VirtualMapState
+     * @param reconnectSocketTimeout the amount of time that should be used for the socket timeout
+     * @param statistics reconnect metrics
      * @param stateLifecycleManager the state lifecycle manager
      */
     public ReconnectStateLearner(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
             @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
             @NonNull final MerkleNodeState currentState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
             @NonNull final StateLifecycleManager stateLifecycleManager) {
-        this.stateLifecycleManager = Objects.requireNonNull(stateLifecycleManager);
+        this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
 
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");
         currentState.throwIfDestroyed("Can not perform reconnect with destroyed state");
 
-        this.platformContext = Objects.requireNonNull(platformContext);
-        this.threadManager = Objects.requireNonNull(threadManager);
-        this.connection = Objects.requireNonNull(connection);
-        this.currentState = Objects.requireNonNull(currentState);
-        this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
-        this.statistics = Objects.requireNonNull(statistics);
+        this.configuration = requireNonNull(configuration);
+        this.metrics = requireNonNull(metrics);
+        this.threadManager = requireNonNull(threadManager);
+        this.connection = requireNonNull(connection);
+        this.currentState = requireNonNull(currentState);
+        this.reconnectSocketTimeout = requireNonNull(reconnectSocketTimeout);
+        this.statistics = requireNonNull(statistics);
 
         // Save some of the current state data for validation
     }
@@ -203,11 +205,10 @@ public class ReconnectStateLearner {
         connection.getDis().getSyncByteCounter().resetCount();
         connection.getDos().getSyncByteCounter().resetCount();
 
-        final ReconnectConfig reconnectConfig =
-                platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
+        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
         final VirtualMap reconnectRoot = virtualMapState.getRoot().newReconnectRoot();
-        final ReconnectMapStats mapStats = new ReconnectMapMetrics(platformContext.getMetrics(), null, null);
+        final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
         // The learner view will be closed by LearningSynchronizer
         final LearnerTreeView<?> learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
@@ -227,7 +228,7 @@ public class ReconnectStateLearner {
 
         final MerkleNodeState receivedState = stateLifecycleManager.createStateFrom(reconnectRoot);
         final SignedState newSignedState = new SignedState(
-                platformContext.getConfiguration(),
+                configuration,
                 ConsensusCryptoUtils::verifySignature,
                 receivedState,
                 "ReconnectLearner.reconnect()",

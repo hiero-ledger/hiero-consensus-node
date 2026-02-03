@@ -11,8 +11,9 @@ import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
 import com.hedera.hapi.node.token.NftAllowance;
 import com.hedera.hapi.node.token.TokenAllowance;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.*;
@@ -61,7 +62,7 @@ class CryptoApproveAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoApproveAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
             // Then: Base fee (500000000) with 1 allowance included (includedCount=1)
             assertThat(result.getServiceTotalTinycents()).isEqualTo(500000000L);
@@ -93,7 +94,7 @@ class CryptoApproveAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoApproveAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
             // Then: Base fee (500000000) + 2 extra allowances (2 * 500000000 = 1000000000)
             assertThat(result.getServiceTotalTinycents()).isEqualTo(1500000000L);
@@ -126,7 +127,7 @@ class CryptoApproveAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoApproveAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
 
             // Then: Base fee (500000000) + 2 extra allowances (2 * 500000000 = 1000000000)
             // Total allowances = 1 crypto + 1 token + 1 NFT = 3, so 2 extras

@@ -7,7 +7,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -21,14 +21,14 @@ public class ResourcePriceCalculatorImpl implements ResourcePriceCalculator {
     private final Instant consensusNow;
     private final TransactionInfo txnInfo;
     private final FeeManager feeManager;
-    private final ReadableStoreFactory readableStoreFactory;
+    private final ReadableStoreFactoryImpl readableStoreFactory;
 
     @Inject
     public ResourcePriceCalculatorImpl(
             @NonNull final Instant consensusNow,
             @NonNull final TransactionInfo txnInfo,
             @NonNull final FeeManager feeManager,
-            @NonNull final ReadableStoreFactory readableStoreFactory) {
+            @NonNull final ReadableStoreFactoryImpl readableStoreFactory) {
         this.consensusNow = requireNonNull(consensusNow);
         this.txnInfo = requireNonNull(txnInfo);
         this.feeManager = requireNonNull(feeManager);
