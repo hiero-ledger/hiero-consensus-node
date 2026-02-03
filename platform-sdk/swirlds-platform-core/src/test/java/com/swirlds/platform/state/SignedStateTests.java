@@ -15,7 +15,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
@@ -23,6 +22,7 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,9 +65,9 @@ class SignedStateTests {
         TestingAppStateInitializer.initConsensusModuleStates(real, CONFIGURATION);
         RosterStateUtils.setActiveRoster(
                 real, RandomRosterBuilder.create(random).build(), 0L);
-        final MerkleNodeState state = spy(real);
-        final MerkleNode realRoot = state.getRoot();
-        final MerkleNode rootSpy = spy(realRoot);
+        final MerkleNodeState<VirtualMap> state = spy(real);
+        final VirtualMap realRoot = state.getRoot();
+        final VirtualMap rootSpy = spy(realRoot);
         when(state.getRoot()).thenReturn(rootSpy);
 
         if (reserveCallback != null) {

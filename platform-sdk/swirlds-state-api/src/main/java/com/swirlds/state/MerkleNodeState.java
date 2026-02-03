@@ -3,7 +3,7 @@ package com.swirlds.state;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.Reservable;
 import com.swirlds.state.lifecycle.StateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -18,24 +18,23 @@ import org.hiero.base.crypto.Hash;
  *     <li> codec-based State API, as used by execution </li>
  *     <li> protobuf binary states API supporting notions of singletons, queues, and key-value pairs</li>
  * </ul>
+ *
+ * @param <T> The type of the root node of the Merkle tree.
  */
-public interface MerkleNodeState extends State {
+public interface MerkleNodeState<T extends Reservable> extends State {
 
     /**
      * @return an instance representing a root of the Merkle tree. For most of the implementations
-     * this default implementation will be sufficient. But some implementations of the state may be "logical" - they
-     * are not `MerkleNode` themselves but are backed by the Merkle tree implementation (e.g. a Virtual Map).
+     * this default implementation will be sufficient.
      */
-    default MerkleNode getRoot() {
-        return (MerkleNode) this;
-    }
+    T getRoot();
 
     /**
      * {@inheritDoc}
      */
     @NonNull
     @Override
-    MerkleNodeState copy();
+    MerkleNodeState<T> copy();
 
     //
     // The following block of methods is for the high-level codec-based State API operating named service states.

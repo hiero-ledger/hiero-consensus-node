@@ -33,6 +33,16 @@ testing {
     suites.register<JvmTestSuite>("testChaos") {
         targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
     }
+
+    suites.register<JvmTestSuite>("testPerformance") {
+        // Runs performance benchmarks against the container environment
+        targets.configureEach {
+            testTask {
+                systemProperty("otter.env", "container")
+                dependsOn(":consensus-otter-docker-app:assemble")
+            }
+        }
+    }
 }
 
 testModuleInfo {
@@ -60,6 +70,10 @@ extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {
 }
 
 extensions.getByName<GradleOnlyDirectives>("testChaosModuleInfo").apply {
+    runtimeOnly("io.grpc.netty.shaded")
+}
+
+extensions.getByName<GradleOnlyDirectives>("testPerformanceModuleInfo").apply {
     runtimeOnly("io.grpc.netty.shaded")
 }
 

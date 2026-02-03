@@ -129,7 +129,7 @@ public final class MerkleTestUtils {
 
             final VirtualMap newRoot = startingMap.newReconnectRoot();
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final LearnerTreeView<?> learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
+            final LearnerTreeView learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
 
             if (latencyMilliseconds == 0) {
                 learner =
@@ -186,8 +186,7 @@ public final class MerkleTestUtils {
                                 learnerView,
                                 latencyMilliseconds,
                                 streams::disconnect,
-                                reconnectConfig,
-                                metrics) {
+                                reconnectConfig) {
                             @Override
                             protected StandardWorkGroup createStandardWorkGroup(
                                     ThreadManager threadManager,
