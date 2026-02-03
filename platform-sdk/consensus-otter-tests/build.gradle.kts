@@ -46,6 +46,7 @@ testModuleInfo {
     requires("org.hiero.consensus.utility")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.roster")
+    requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requiresStatic("com.github.spotbugs.annotations")
