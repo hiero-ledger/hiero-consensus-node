@@ -26,11 +26,11 @@ import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -129,7 +129,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
         requireNonNull(shortCircuitCallback);
 
         // We always need at least an account store to look for a payer account
-        final var accountStore = readableStoreFactory.getStore(ReadableAccountStore.class);
+        final var accountStore = readableStoreFactory.readableStore(ReadableAccountStore.class);
         // In parallel, we will pre-handle each transaction.
         transactions.parallel().forEach(tx -> {
             try {

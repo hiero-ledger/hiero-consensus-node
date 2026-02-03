@@ -9,8 +9,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
@@ -28,6 +26,8 @@ import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.Test;
 
 /**
