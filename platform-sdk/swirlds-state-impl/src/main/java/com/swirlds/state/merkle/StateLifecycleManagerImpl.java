@@ -8,7 +8,6 @@ import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -19,6 +18,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -38,7 +38,7 @@ import org.apache.logging.log4j.Logger;
  * <b>Important:</b> {@link #initState(MerkleNodeState)} and {@link #copyMutableState()} are NOT supposed to be called from multiple threads.
  * They only provide the happens-before guarantees that are described above.
  */
-public class StateLifecycleManagerImpl implements StateLifecycleManager {
+public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualMap> {
 
     private static final Logger log = LogManager.getLogger(StateLifecycleManagerImpl.class);
 
@@ -104,8 +104,8 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      * {@inheritDoc}
      */
     @Override
-    public MerkleNodeState createStateFrom(@NonNull MerkleNode rootNode) {
-        return stateSupplier.apply((VirtualMap) rootNode);
+    public MerkleNodeState<VirtualMap> createStateFrom(@NonNull VirtualMap rootNode) {
+        return stateSupplier.apply(rootNode);
     }
 
     /**
@@ -230,10 +230,46 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
                     state);
         } catch (final Throwable e) {
             log.error(
-                    EXCEPTION.getMarker(), "Unable to write a snapshot on demand for {} to {}.", state, targetPath, e);
+                    EXCEPTION.getMarker(),
+                    "Unable to write a snapshot on demand for {} to {}: {}",
+                    state,
+                    targetPath,
+                    e);
         }
 
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Future<Void> createSnapshotAsync(final @NonNull MerkleNodeState state, final @NonNull Path targetPath) {
+        state.throwIfMutable();
+        state.throwIfDestroyed();
+
+        // includes pipeline queue wait, not just snapshot I/O
+        final long startTime = time.currentTimeMillis();
+        log.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand (async) in {} for {}", targetPath, state);
+
+        final VirtualMap virtualMap = (VirtualMap) state.getRoot();
+        return virtualMap.createSnapshotAsync(targetPath).whenComplete((result, error) -> {
+            if (error != null) {
+                log.error(
+                        EXCEPTION.getMarker(),
+                        "Unable to write a snapshot on demand (async) for {} to {}: {}",
+                        state,
+                        targetPath,
+                        error);
+            } else {
+                log.info(
+                        STATE_TO_DISK.getMarker(),
+                        "Successfully created a snapshot on demand (async) in {} for {}",
+                        targetPath,
+                        state);
+            }
+            snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
+        });
     }
 
     /**

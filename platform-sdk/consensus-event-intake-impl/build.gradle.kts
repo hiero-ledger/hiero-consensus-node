@@ -7,11 +7,8 @@ plugins {
 
 description = "Default Consensus Event Intake Implementation"
 
-mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
-
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")

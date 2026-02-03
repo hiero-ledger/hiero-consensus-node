@@ -2,6 +2,8 @@
 package com.hedera.node.app.workflows.dispatcher;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -165,13 +167,13 @@ class TransactionDispatcherTest {
             // And: Simple fee calculator returns a fee result
             final var feeResult = new FeeResult(498500000L, 100000L, 2);
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateTxFee(txBody, feeContext)).willReturn(feeResult);
+            given(simpleFeeCalculator.calculateTxFee(eq(txBody), any())).willReturn(feeResult);
 
             // When
             final var result = subject.dispatchComputeFees(feeContext);
 
             // Then: Should use simple fee calculator
-            verify(simpleFeeCalculator).calculateTxFee(txBody, feeContext);
+            verify(simpleFeeCalculator).calculateTxFee(eq(txBody), any());
 
             // Verify fees are converted from tinycents to tinybars (divide by 12)
             assertThat(result).isNotNull();

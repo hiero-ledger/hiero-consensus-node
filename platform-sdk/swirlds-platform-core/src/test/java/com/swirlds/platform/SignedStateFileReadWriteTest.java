@@ -25,8 +25,8 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
@@ -40,7 +40,6 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
-import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -107,9 +106,7 @@ class SignedStateFileReadWriteTest {
         final Path hashInfoFile = testDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
         assertTrue(exists(hashInfoFile), "file should exist");
 
-        final String hashInfoString = new MerkleTreeVisualizer(state.getRoot())
-                .setDepth(stateConfig.debugHashDepth())
-                .render();
+        final String mnemonicString = Mnemonics.generateMnemonic(state.getHash());
 
         final StringBuilder sb = new StringBuilder();
         try (final BufferedReader br = new BufferedReader(new FileReader(hashInfoFile.toFile()))) {
@@ -117,7 +114,7 @@ class SignedStateFileReadWriteTest {
         }
 
         final String fileString = sb.toString();
-        assertTrue(fileString.contains(hashInfoString), "hash info string not found");
+        assertTrue(fileString.contains(mnemonicString), "hash info string not found");
         state.release();
     }
 
@@ -147,12 +144,12 @@ class SignedStateFileReadWriteTest {
         hashState(deserializedSignedState.reservedSignedState().get());
 
         final VirtualMapMetadata originalMetadata =
-                ((VirtualMap) signedState.getState().getRoot()).getMetadata();
-        final VirtualMapMetadata loadedMetadata = ((VirtualMap) deserializedSignedState
-                        .reservedSignedState()
-                        .get()
-                        .getState()
-                        .getRoot())
+                signedState.getState().getRoot().getMetadata();
+        final VirtualMapMetadata loadedMetadata = deserializedSignedState
+                .reservedSignedState()
+                .get()
+                .getState()
+                .getRoot()
                 .getMetadata();
 
         assertEquals(originalMetadata, loadedMetadata, "metadata should be equal");
@@ -190,20 +187,22 @@ class SignedStateFileReadWriteTest {
                 .withConfiguration(configuration)
                 .build();
 
-        stateLifecycleManager.getMutableState().release();
-        hashState(signedState);
+        // Async snapshot requires all references to the state being written to disk to be released
+        stateLifecycleManager.getLatestImmutableState().release();
 
         writeSignedStateToDisk(
                 platformContext,
                 NodeId.of(0),
                 directory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
-                signedState,
+                signedState.reserve("test"),
                 stateLifecycleManager);
 
         assertTrue(exists(hashInfoFile), "hash info file should exist");
         assertTrue(exists(settingsUsedFile), "settings used file should exist");
         assertTrue(exists(addressBookFile), "address book file should exist");
+
+        stateLifecycleManager.getMutableState().release();
     }
 
     private Configuration changeConfigAndConfigHolder(String directory) {

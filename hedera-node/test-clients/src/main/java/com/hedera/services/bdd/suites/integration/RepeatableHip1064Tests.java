@@ -701,6 +701,45 @@ public class RepeatableHip1064Tests {
                                 Duration.ofSeconds(1)))));
     }
 
+    @Order(8)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    Stream<DynamicTest> nodeMissingSingleRoundStillActive() {
+        final int minActivePercent = 90;
+        return hapiTest(
+                overriding("nodes.activeRoundsPercent", Integer.toString(minActivePercent)),
+                waitUntilStartOfNextStakingPeriod(1),
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
+                        .copyBuilder()
+                        .numRoundsInStakingPeriod(10)
+                        .nodeActivities(List.of(
+                                NodeActivity.newBuilder()
+                                        .nodeId(0)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(1)
+                                        .numMissedJudgeRounds(1)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(2)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(3)
+                                        .numMissedJudgeRounds(0)
+                                        .build()))
+                        .build()),
+                EmbeddedVerbs.<NodeRewards>viewSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, nodeRewards -> {
+                    final long rounds = nodeRewards.numRoundsInStakingPeriod();
+                    final long maxMissed = (rounds * (100 - minActivePercent)) / 100;
+                    assertEquals(1L, maxMissed, "Test setup should allow one missed round");
+                    final var missedCounts = nodeRewards.nodeActivities().stream()
+                            .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
+                    assertEquals(1L, missedCounts.get(1L));
+                    assertTrue(missedCounts.get(1L) <= maxMissed, "Node1 should remain active after missing one round");
+                }));
+    }
+
     private static SpecOperation setAllNodesActive() {
         return mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                 .copyBuilder()

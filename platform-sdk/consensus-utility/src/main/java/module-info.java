@@ -11,6 +11,7 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.io;
     exports org.hiero.consensus.io.extendable;
     exports org.hiero.consensus.io.extendable.extensions;
+    exports org.hiero.consensus.node;
     exports org.hiero.consensus.orphan;
     exports org.hiero.consensus.transaction;
     exports org.hiero.consensus.round;
@@ -27,6 +28,7 @@ module org.hiero.consensus.utility {
     requires org.hiero.consensus.metrics;
     requires com.goterl.lazysodium;
     requires org.apache.logging.log4j;
+    requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
     requires static transitive com.github.spotbugs.annotations;
 

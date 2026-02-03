@@ -8,7 +8,6 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
@@ -19,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * This class encapsulates all logic for the teacher's sending task.
@@ -33,12 +33,12 @@ public class TeacherPushSendTask {
      * The lesson used to describe an up to date node is always exactly the same. No need to create a new object each
      * time.
      */
-    private static final Lesson<?> UP_TO_DATE_LESSON = new Lesson<>(NODE_IS_UP_TO_DATE, null);
+    private static final Lesson UP_TO_DATE_LESSON = new Lesson(NODE_IS_UP_TO_DATE, null);
 
     private final StandardWorkGroup workGroup;
     private final AsyncInputStream<QueryResponse> in;
-    private final AsyncOutputStream<Lesson<Long>> out;
-    private final TeacherTreeView<Long> view;
+    private final AsyncOutputStream<Lesson> out;
+    private final TeacherTreeView view;
 
     private final AtomicBoolean senderIsFinished;
 
@@ -61,8 +61,8 @@ public class TeacherPushSendTask {
             @NonNull final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
             final AsyncInputStream<QueryResponse> in,
-            final AsyncOutputStream<Lesson<Long>> out,
-            final TeacherTreeView<Long> view,
+            final AsyncOutputStream<Lesson> out,
+            final TeacherTreeView view,
             final AtomicBoolean senderIsFinished) {
         this.workGroup = workGroup;
         this.in = in;
@@ -100,16 +100,16 @@ public class TeacherPushSendTask {
     /**
      * Send a lesson that contains data for a leaf or an internal node.
      */
-    private Lesson<Long> buildDataLesson(final long node) {
-        final Lesson<Long> lesson;
+    private Lesson buildDataLesson(final long node) {
+        final Lesson lesson;
         if (view.isInternal(node, true)) {
-            lesson = new Lesson<>(INTERNAL_NODE_DATA, new InternalDataLesson<>(view, node));
+            lesson = new Lesson(INTERNAL_NODE_DATA, new InternalDataLesson(view, node));
             final int childCount = view.getNumberOfChildren(node);
             for (int childIndex = 0; childIndex < childCount; childIndex++) {
                 prepareForQueryResponse(node, childIndex);
             }
         } else {
-            lesson = new Lesson<>(LEAF_NODE_DATA, new LeafDataLesson<>(view, node));
+            lesson = new Lesson(LEAF_NODE_DATA, new LeafDataLesson(view, node));
         }
 
         return lesson;
@@ -129,12 +129,12 @@ public class TeacherPushSendTask {
      */
     @SuppressWarnings("unchecked")
     private void sendLesson(final long node) throws InterruptedException {
-        final Lesson<Long> lesson;
+        final Lesson lesson;
 
         final boolean learnerHasConfirmed = view.hasLearnerConfirmedFor(node);
 
         if (learnerHasConfirmed) {
-            lesson = (Lesson<Long>) UP_TO_DATE_LESSON;
+            lesson = UP_TO_DATE_LESSON;
         } else {
             lesson = buildDataLesson(node);
         }
