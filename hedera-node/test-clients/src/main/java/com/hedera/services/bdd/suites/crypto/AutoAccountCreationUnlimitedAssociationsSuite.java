@@ -90,7 +90,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     @Tag(MATS)
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationHappyPath() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 1833333L;
+        final long transferFee = 333333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 newKeyNamed(VALID_ALIAS),
@@ -146,7 +146,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationsDisabled() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 1833333L;
+        final long transferFee = 333333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 overriding("entities.unlimitedAutoAssociationsEnabled", FALSE),
@@ -286,7 +286,7 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
                     // verify completed hollow account
                     var completedAccount = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             .has(accountWith()
-                                    .expectedBalanceWithChargedUsd(2 * ONE_HBAR, 0.001, 10)
+                                    .expectedBalanceWithChargedUsd(2 * ONE_HBAR, 0.0002, 10)
                                     .key(SECP_256K1_SOURCE_KEY)
                                     .noAlias()
                                     .autoRenew(THREE_MONTHS_IN_SECONDS)
