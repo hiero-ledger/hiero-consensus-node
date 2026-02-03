@@ -127,7 +127,7 @@ val prCheckStartPorts =
         put("hapiTestMiscRecords", "27200")
         put("hapiTestAtomicBatch", "27400")
 
-        // Create the MATS variants (crypto uses same task name, no MATS variant)
+        // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, port: String) ->
             if (taskName !in cryptoTasks) put("$taskName$matsSuffix", port)
@@ -205,7 +205,7 @@ tasks {
             getByName(taskName).group =
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
             dependsOn(
-                if (taskName.contains("Crypto") && !taskName.contains("Leaky"))
+                if (taskName.contains("Crypto") && !taskName.contains("Xts"))
                     "testSubprocessConcurrent"
                 else "testSubprocess"
             )

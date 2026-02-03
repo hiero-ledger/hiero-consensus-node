@@ -80,7 +80,6 @@ public class CryptoDeleteSuite {
     @OrderedInIsolation
     class Leaky {
         @LeakyHapiTest(requirement = ContextRequirement.SYSTEM_ACCOUNT_BALANCES)
-        //    @Tag(MATS)
         final Stream<DynamicTest> deletedAccountCannotBePayer() {
             final var submittingNodeAccount = "3";
             final var beneficiaryAccount = "beneficiaryAccountForDeletedAccount";

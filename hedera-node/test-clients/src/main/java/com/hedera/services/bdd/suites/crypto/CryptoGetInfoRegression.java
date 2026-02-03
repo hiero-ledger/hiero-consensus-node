@@ -61,7 +61,6 @@ public class CryptoGetInfoRegression {
          * For Demo purpose : The limit on each account info and account balance queries is set to 5
          */
         @LeakyHapiTest(overrides = {"tokens.maxRelsPerInfoQuery"})
-        //    @Tag(MATS)
         final Stream<DynamicTest> fetchesOnlyALimitedTokenAssociations() {
             final var account = "test";
             final var aKey = "tokenKey";

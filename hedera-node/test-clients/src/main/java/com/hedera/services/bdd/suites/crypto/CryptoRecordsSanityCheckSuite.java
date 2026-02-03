@@ -69,7 +69,6 @@ public class CryptoRecordsSanityCheckSuite {
     @OrderedInIsolation
     class Leaky {
         @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-        //        @Tag(MATS)
         final Stream<DynamicTest> ownershipChangeShowsInRecord() {
             final var firstOwner = "A";
             final var secondOwner = "B";
@@ -111,7 +110,6 @@ public class CryptoRecordsSanityCheckSuite {
         }
 
         @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-        //        @Tag(MATS)
         final Stream<DynamicTest> cryptoDeleteRecordSanityChecks() {
             return hapiTest(flattened(
                     cryptoCreate("test"),
@@ -138,7 +136,6 @@ public class CryptoRecordsSanityCheckSuite {
         }
 
         @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-        //        @Tag(MATS)
         final Stream<DynamicTest> cryptoUpdateRecordSanityChecks() {
             return hapiTest(flattened(
                     cryptoCreate("test"),
@@ -153,7 +150,6 @@ public class CryptoRecordsSanityCheckSuite {
         }
 
         @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-        //        @Tag(MATS)
         final Stream<DynamicTest> insufficientAccountBalanceRecordSanityChecks() {
             final long BALANCE = 500_000_000L;
             return hapiTest(flattened(

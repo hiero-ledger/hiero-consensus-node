@@ -206,7 +206,6 @@ public class AutoAccountCreationUnlimitedAssociationsSuite {
     }
 
     @HapiTest
-    //    @Tag(MATS)
     final Stream<DynamicTest> transferHbarsToEVMAddressAliasUnlimitedAssociations() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
