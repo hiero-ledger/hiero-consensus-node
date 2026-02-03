@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.roster.RosterHistory;
@@ -31,8 +32,6 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
-import org.openjdk.jmh.infra.Blackhole;
-import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
 
 @State(Scope.Thread)
 @Fork(value = 1)
@@ -48,8 +47,12 @@ public class IntakeBenchmark {
     @Param({"0"})
     public long seed;
 
+    @Param({"10"})
+    public int numberOfThreads;
+
     private List<PlatformEvent> events;
     private DefaultEventIntakeModule intake;
+    private EventCounter counter;
 
     @Setup(Level.Invocation)
     public void setup() {
@@ -61,15 +64,12 @@ public class IntakeBenchmark {
                 .seed(seed)
                 .build();
         events = generator.generateEvents(numEvents);
-
+        // remove the hashes to force recalculation
+        events.forEach(e->e.setHash(null));
 
         final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
-
-        final int coreCount = Runtime.getRuntime().availableProcessors();
-        final int parallelism = (int)
-                Math.max(1, wiringConfig.defaultPoolMultiplier() * coreCount + wiringConfig.defaultPoolConstant());
         final ForkJoinPool defaultPool =
-                platformContext.getExecutorFactory().createForkJoinPool(parallelism);
+                platformContext.getExecutorFactory().createForkJoinPool(numberOfThreads);
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .enableJvmAnchor()
                 .withDefaultPool(defaultPool)
@@ -89,24 +89,22 @@ public class IntakeBenchmark {
                 new TransactionLimits(1000,1000),
                 new EventPipelineTracker(platformContext.getMetrics())
         );
+        counter = new EventCounter(numEvents);
+        intake.validatedEventsOutputWire().solderForMonitoring(counter);
 
     }
 
+    /*
+    Results on a M1 Max MacBook Pro:
+    */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    public void calculateConsensus(final Blackhole bh) {
+    public void calculateConsensus() {
         for (final PlatformEvent event : events) {
-
+            intake.unhashedEventsInputWire().put(event);
         }
-
-        /*
-            Results on a M1 Max MacBook Pro:
-            Benchmark                              (numEvents)  (numNodes)  (seed)  Mode  Cnt     Score     Error  Units
-            ConsensusBenchmark.calculateConsensus       100000           4       0  avgt    3   373.780 ± 214.697  ms/op
-            ConsensusBenchmark.calculateConsensus       100000          10       0  avgt    3   714.159 ±  50.984  ms/op
-            ConsensusBenchmark.calculateConsensus       100000          30       0  avgt    3  2358.441 ± 311.102  ms/op
-        */
+        counter.waitForAllEvents();
     }
 }
 
