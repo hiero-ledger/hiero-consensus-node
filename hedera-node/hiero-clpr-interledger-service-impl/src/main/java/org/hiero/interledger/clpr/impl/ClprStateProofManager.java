@@ -210,7 +210,6 @@ public class ClprStateProofManager {
             throw new IllegalStateException(
                     "CLPR message queue metadata state not found - service may not be properly initialized");
         }
-        // TODO: If the ledger id is blank, it's a query for the local message queue metadata. Add code to handle.
         return buildMerkleStateProof(
                 state, V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
     }
