@@ -297,7 +297,7 @@ message StateKey {
     /**
      * A state identifier for CLPR Messages.
      */
-    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_MESSAGES = 59;
+    org.hiero.hapi.interledger.state.clpr.ClprMessageKey ClprService_I_MESSAGES = 59;
 
     // Queue states
     /**
