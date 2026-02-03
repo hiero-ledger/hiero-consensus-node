@@ -9,6 +9,10 @@ public class InstantUtils {
     public static final long MICROS_IN_SECOND = 1_000_000L;
     public static final long MILLIS_IN_SECOND = 1_000L;
 
+    private InstantUtils() {
+        // Utility class
+    }
+
     /**
      * Converts an Instant to epoch microseconds.
      */
