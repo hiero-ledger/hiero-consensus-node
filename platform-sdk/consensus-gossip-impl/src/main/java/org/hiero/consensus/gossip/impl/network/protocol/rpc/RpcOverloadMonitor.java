@@ -5,21 +5,21 @@ import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Consumer;
-import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 
 /**
  * Helper class for checking if rpc communication is overloaded (ping or output queue) and informs to disable broadcast
  * if it is the case. From this class point of view it doesn't know anything about broadcast, just informs provided
- * callback about being 'overloaded' Please see {@link SyncConfig#throttleOutputQueueThreshold()},
- * {@link SyncConfig#disableBroadcastPingThreshold()} and {@link SyncConfig#pauseBroadcastOnLag()} for configuration
+ * callback about being 'overloaded' Please see {@link BroadcastConfig#throttleOutputQueueThreshold()},
+ * {@link BroadcastConfig#disablePingThreshold()} and {@link BroadcastConfig#pauseOnLag()} for configuration
  * options
  */
 public class RpcOverloadMonitor {
 
     private static final long NOT_DISABLED = -1L;
 
-    private final SyncConfig syncConfig;
+    private final BroadcastConfig broadcastConfig;
     private final SyncMetrics syncMetrics;
     private final Time time;
     private final Consumer<Boolean> communicationOverloadHandler;
@@ -28,12 +28,12 @@ public class RpcOverloadMonitor {
     private volatile long disabledBroadcastDueToLagTime = NOT_DISABLED;
 
     public RpcOverloadMonitor(
-            @NonNull final SyncConfig syncConfig,
+            @NonNull final BroadcastConfig syncConfig,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final Time time,
             @NonNull final Consumer<Boolean> communicationOverloadHandler) {
 
-        this.syncConfig = Objects.requireNonNull(syncConfig);
+        this.broadcastConfig = Objects.requireNonNull(syncConfig);
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
         this.time = Objects.requireNonNull(time);
         this.communicationOverloadHandler = Objects.requireNonNull(communicationOverloadHandler);
@@ -45,7 +45,7 @@ public class RpcOverloadMonitor {
      * @param size number of items in the queue
      */
     public void reportOutputQueueSize(final int size) {
-        if (size > syncConfig.throttleOutputQueueThreshold()) {
+        if (size > broadcastConfig.throttleOutputQueueThreshold()) {
             if (disabledBroadcastDueToQueueSizeTime == NOT_DISABLED) {
                 syncMetrics.disabledBroadcastDueToOverload(true);
                 // it is ok to call it multiple times
@@ -70,7 +70,7 @@ public class RpcOverloadMonitor {
      * @param pingMillis roundtrip of message being interpreted in milliseconds
      */
     public void reportPing(final long pingMillis) {
-        if (pingMillis > syncConfig.disableBroadcastPingThreshold().toMillis()) {
+        if (pingMillis > broadcastConfig.disablePingThreshold().toMillis()) {
             if (disabledBroadcastDueToLagTime == NOT_DISABLED) {
                 syncMetrics.disabledBroadcastDueToLag(true);
                 // it is ok to call it multiple times
@@ -98,6 +98,6 @@ public class RpcOverloadMonitor {
      */
     private boolean enoughTimePassedAfterDisable(final long disableTime) {
         return time.currentTimeMillis() - disableTime
-                > syncConfig.pauseBroadcastOnLag().toMillis();
+                > broadcastConfig.pauseOnLag().toMillis();
     }
 }

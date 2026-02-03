@@ -21,6 +21,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcReceiverHandler;
@@ -93,6 +94,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     private final RateLimiter fallBehindRateLimiter;
 
     private final SyncConfig syncConfig;
+    private final BroadcastConfig broadcastConfig;
 
     /**
      * How many events were sent out to peer node during latest sync
@@ -154,7 +156,8 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
             @NonNull final Consumer<PlatformEvent> eventHandler,
             @NonNull final SyncGuard syncGuard,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final SyncConfig syncConfig) {
+            @NonNull final SyncConfig syncConfig,
+            @NonNull final BroadcastConfig broadcastConfig) {
         this.sharedShadowgraphSynchronizer = Objects.requireNonNull(sharedShadowgraphSynchronizer);
         this.sender = Objects.requireNonNull(sender);
         this.selfId = Objects.requireNonNull(selfId);
@@ -168,6 +171,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         this.fallBehindRateLimiter = new RateLimiter(time, Duration.ofMinutes(1));
         this.lastReceiveEventFinished = time.nanoTime();
         this.syncConfig = Objects.requireNonNull(syncConfig);
+        this.broadcastConfig = Objects.requireNonNull(broadcastConfig);
     }
 
     /**
@@ -527,7 +531,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      */
     private boolean isBroadcastRunning() {
 
-        return syncConfig.enableBroadcast()
+        return broadcastConfig.enableBroadcast()
                 && !state.peerIsBehind
                 && state.lastSyncFinishedTime != Instant.MIN
                 && !communicationOverload;

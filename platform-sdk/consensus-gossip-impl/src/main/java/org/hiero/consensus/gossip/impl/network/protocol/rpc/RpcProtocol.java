@@ -19,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.GossipController;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
@@ -49,6 +50,7 @@ public class RpcProtocol implements Protocol, GossipController {
     private final Time time;
     private final SyncMetrics syncMetrics;
     private final SyncConfig syncConfig;
+    private final BroadcastConfig broadcastConfig;
     private final ShadowgraphSynchronizer synchronizer;
     private final SyncPermitProvider permitProvider;
     private final AtomicBoolean gossipHalted = new AtomicBoolean(false);
@@ -109,6 +111,7 @@ public class RpcProtocol implements Protocol, GossipController {
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         this.syncConfig = configuration.getConfigData(SyncConfig.class);
+        this.broadcastConfig = configuration.getConfigData(BroadcastConfig.class);
         final int permitCount;
         if (syncConfig.onePermitPerPeer()) {
             permitCount = rosterSize - 1;
@@ -144,6 +147,7 @@ public class RpcProtocol implements Protocol, GossipController {
                 time,
                 syncMetrics,
                 syncConfig,
+                broadcastConfig,
                 NetworkUtils::handleNetworkException);
 
         final RpcPeerHandler handler = new RpcPeerHandler(
@@ -157,7 +161,8 @@ public class RpcProtocol implements Protocol, GossipController {
                 receivedEventHandler,
                 syncGuard,
                 fallenBehindMonitor,
-                syncConfig);
+                syncConfig,
+                broadcastConfig);
 
         peerProtocol.setRpcPeerHandler(handler);
         allRpcPeers.add(handler);
@@ -180,7 +185,7 @@ public class RpcProtocol implements Protocol, GossipController {
      */
     public void addEvent(@NonNull final PlatformEvent platformEvent) {
         // broadcast event to other nodes as part of simplistic broadcast
-        if (syncConfig.enableBroadcast() && selfId.equals(platformEvent.getCreatorId())) {
+        if (broadcastConfig.enableBroadcast() && selfId.equals(platformEvent.getCreatorId())) {
             final GossipEvent gossipEvent = platformEvent.getGossipEvent();
             allRpcPeers.forEach(rpcPeer -> rpcPeer.broadcastEvent(gossipEvent));
             syncMetrics.broadcastEventSent();

@@ -31,6 +31,7 @@ import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
 import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncPermitProvider;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcReceiver;
@@ -188,6 +189,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      *                         platform
      * @param syncMetrics      metrics tracking syncing
      * @param syncConfig       sync configuration
+     * @param broadcastConfig  broadcast configuration
      * @param exceptionHandler handler for errors which happens when managing the connection/dispatch loop
      */
     public RpcPeerProtocol(
@@ -200,6 +202,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             @NonNull final Time time,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final SyncConfig syncConfig,
+            @NonNull final BroadcastConfig broadcastConfig,
             @NonNull final RpcInternalExceptionHandler exceptionHandler) {
         this.executor = Objects.requireNonNull(executor);
         this.remotePeerId = Objects.requireNonNull(peerId);
@@ -219,7 +222,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         this.outputQueue =
                 syncMetrics.createMeasuredQueue("rpc_output_%02d".formatted(peerId.id()), new LinkedBlockingQueue<>());
         this.overloadMonitor = new RpcOverloadMonitor(
-                syncConfig, syncMetrics, time, (overload) -> rpcPeerHandler.setCommunicationOverloaded(overload));
+                broadcastConfig, syncMetrics, time, (overload) -> rpcPeerHandler.setCommunicationOverloaded(overload));
     }
 
     /**

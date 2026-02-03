@@ -16,7 +16,7 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.ConfigurationBuilder;
 import java.time.Duration;
 import java.util.function.Consumer;
-import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcOverloadMonitor;
 import org.junit.jupiter.api.BeforeEach;
@@ -135,15 +135,15 @@ public class RpcOverloadMonitorTest {
         verifyNoMoreInteractions(syncMetrics, overloadHandler);
     }
 
-    private static SyncConfig testConfig(
+    private static BroadcastConfig testConfig(
             final int queueThreshold, final Duration pingThreshold, final Duration pauseBroadcastOnLag) {
 
         return ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
-                .withValue("sync.throttleOutputQueueThreshold", String.valueOf(queueThreshold))
-                .withValue("sync.disableBroadcastPingThreshold", String.valueOf(pingThreshold))
-                .withValue("sync.pauseBroadcastOnLag", String.valueOf(pauseBroadcastOnLag))
+                .withValue("broadcast.throttleOutputQueueThreshold", String.valueOf(queueThreshold))
+                .withValue("broadcast.disablePingThreshold", String.valueOf(pingThreshold))
+                .withValue("broadcast.pauseOnLag", String.valueOf(pauseBroadcastOnLag))
                 .build()
-                .getConfigData(SyncConfig.class);
+                .getConfigData(BroadcastConfig.class);
     }
 }

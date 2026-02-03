@@ -22,12 +22,12 @@ import java.time.Duration;
  *                                           not a self event and is not an ancestor of a self event, we must know about
  *                                           the event for at least this amount of time before the event is eligible to
  *                                           be sent
- * @param ancestorFilterThreshold            ignored if {@link #filterLikelyDuplicates} or {@link #enableBroadcast} is false.
+ * @param ancestorFilterThreshold            ignored if {@link #filterLikelyDuplicates} or {@link BroadcastConfig#enableBroadcast()} is false.
  *                                           For each event that is not a self event and is an ancestor of a self event,
  *                                           we must know about the event for at least this amount of time before the
  *                                           event is eligible to be sent. This is to help to reduce duplicate rate in
  *                                           when broadcast is enabled
- * @param selfFilterThreshold                ignored if {@link #filterLikelyDuplicates} or {@link #enableBroadcast} is false.
+ * @param selfFilterThreshold                ignored if {@link #filterLikelyDuplicates} or {@link BroadcastConfig#enableBroadcast()} is false.
  *                                           For each event that is a self event, we must know about the event for at
  *                                           least this amount of time before the event is eligible to be sent. This is
  *                                           to help to reduce duplicate rate in when broadcast is enabled
@@ -70,15 +70,6 @@ import java.time.Duration;
  * @param keepSendingEventsWhenUnhealthy     when enabled, instead of completely reducing number of syncs when system is
  *                                           unhealthy, we will just stop receiving and processing remote events, while
  *                                           we still continue sending our own events
- * @param enableBroadcast                          enable simplistic broadcast, where all self-events are broadcast to all
- *                                           neighbours
- * @param disableBroadcastPingThreshold      if ping against peer breaches that level, we disable the broadcast for some
- *                                           time, as sync is more efficient at that point
- * @param throttleOutputQueueThreshold       if output queue of rpc is bigger than this value, we disable the broadcast for
- *                                           some time, as we don't want to add additional load on network traffic . Therefore
- *                                           we leave sync to manage it temporarily.
- * @param pauseBroadcastOnLag                amount of time for which broadcast will be paused if communication overload
- *                                           is detected
  */
 @ConfigData("sync")
 public record SyncConfig(
@@ -103,8 +94,4 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleDispatchPollTimeout,
         @ConfigProperty(defaultValue = "-1") double fairMaxConcurrentSyncs,
         @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize,
-        @ConfigProperty(defaultValue = "true") boolean keepSendingEventsWhenUnhealthy,
-        @ConfigProperty(defaultValue = "true") boolean enableBroadcast,
-        @ConfigProperty(defaultValue = "900ms") Duration disableBroadcastPingThreshold,
-        @ConfigProperty(defaultValue = "200") int throttleOutputQueueThreshold,
-        @ConfigProperty(defaultValue = "30s") Duration pauseBroadcastOnLag) {}
+        @ConfigProperty(defaultValue = "true") boolean keepSendingEventsWhenUnhealthy) {}

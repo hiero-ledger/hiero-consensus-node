@@ -20,6 +20,7 @@ import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
@@ -113,7 +114,8 @@ class RpcPeerHandlerTest {
                 eventHandler,
                 syncGuard,
                 fallenBehindManager,
-                configuration.getConfigData(SyncConfig.class));
+                configuration.getConfigData(SyncConfig.class),
+                configuration.getConfigData(BroadcastConfig.class));
     }
 
     @Test
