@@ -90,6 +90,7 @@ public final class RecordAccessor {
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
+    @Nullable
     public Hash findHash(final long path) {
         assert path > 0;
         if ((path <= 0) || (path > state.getLastLeafPath())) {

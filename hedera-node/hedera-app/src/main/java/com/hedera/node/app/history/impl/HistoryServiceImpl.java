@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -8,12 +11,12 @@ import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
-import com.hedera.node.app.history.schemas.V059HistorySchema;
-import com.hedera.node.app.history.schemas.V069HistorySchema;
+import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
@@ -21,6 +24,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -31,9 +35,6 @@ import java.util.concurrent.Executor;
  * Default implementation of the {@link HistoryService}.
  */
 public class HistoryServiceImpl implements HistoryService {
-    @Deprecated
-    private final Configuration bootstrapConfig;
-
     private final HistoryServiceComponent component;
 
     /**
@@ -49,17 +50,13 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final Metrics metrics,
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
-            @NonNull final HistoryLibrary library,
-            @NonNull final Configuration bootstrapConfig) {
-        this.bootstrapConfig = requireNonNull(bootstrapConfig);
+            @NonNull final HistoryLibrary library) {
         this.component = DaggerHistoryServiceComponent.factory().create(library, appContext, executor, metrics, this);
     }
 
     @VisibleForTesting
-    public HistoryServiceImpl(
-            @NonNull final HistoryServiceComponent component, @NonNull final Configuration bootstrapConfig) {
+    public HistoryServiceImpl(@NonNull final HistoryServiceComponent component) {
         this.component = requireNonNull(component);
-        this.bootstrapConfig = requireNonNull(bootstrapConfig);
     }
 
     @Override
@@ -151,10 +148,21 @@ public class HistoryServiceImpl implements HistoryService {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        final var tssConfig = bootstrapConfig.getConfigData(TssConfig.class);
-        if (tssConfig.historyEnabled()) {
-            registry.register(new V059HistorySchema(this));
-            registry.register(new V069HistorySchema());
-        }
+        registry.register(new V071HistorySchema(this));
+    }
+
+    @Override
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        requireNonNull(writableStates);
+        requireNonNull(configuration);
+        writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID).put(ProtoBytes.DEFAULT);
+        writableStates
+                .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
+                .put(HistoryProofConstruction.DEFAULT);
+        writableStates
+                .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
+                .put(HistoryProofConstruction.DEFAULT);
+        return true;
     }
 }

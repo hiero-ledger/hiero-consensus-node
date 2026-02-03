@@ -6,6 +6,7 @@ import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
@@ -125,4 +126,6 @@ public interface ExecutorComponent {
     StandaloneDispatchFactory standaloneDispatchFactory();
 
     TransactionChecker transactionChecker();
+
+    FeeManager feeManager();
 }
