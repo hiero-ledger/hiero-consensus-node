@@ -409,7 +409,7 @@ public class SystemFileExportsTest {
 
     @GenesisHapiTest
     @Tag(MATS)
-    final Stream<DynamicTest> syntheticFileCreationsMatchQueriesAndNodeStakeUpdate() {
+    final Stream<DynamicTest> syntheticFileCreationsMatchQueries() {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
                 eventuallyAssertingExplicitPassWithReplay(
@@ -608,16 +608,15 @@ public class SystemFileExportsTest {
                 SysFileLookups.allSystemFileNums(spec).boxed().toList();
         assertEquals(Map.of(SUCCESS, systemFileNums.size()), histogram.get(FileCreate));
         final var postGenesisContents = SysFileLookups.getSystemFileContents(spec, fileNum -> true);
-        items.entries().stream().filter(e -> e.function() == FileCreate).forEach(entry -> {
-            final var fileId = entry.createdFileId();
+        items.entries().stream().filter(e -> e.function() == FileCreate).forEach(item -> {
+            final var fileId = item.createdFileId();
             final var preContents = requireNonNull(
-                    preGenesisContents.get(entry.createdFileId()), "No pre-genesis contents for " + fileId);
+                    preGenesisContents.get(item.createdFileId()), "No pre-genesis contents for " + fileId);
             final var postContents = requireNonNull(
-                    postGenesisContents.get(entry.createdFileId()), "No post-genesis contents for " + fileId);
+                    postGenesisContents.get(item.createdFileId()), "No post-genesis contents for " + fileId);
             final var exportedContents =
-                    fromByteString(entry.body().getFileCreate().getContents());
-            if (fileId.fileNum()
-                    != 102) { // for nodedetail, the node's weight changed between preContent and exportedContents
+                    fromByteString(item.body().getFileCreate().getContents());
+            if (fileId.fileNum() != 102) {
                 assertEquals(exportedContents, preContents, fileId + " contents don't match pre-genesis query");
             }
             assertEquals(exportedContents, postContents, fileId + " contents don't match post-genesis query");

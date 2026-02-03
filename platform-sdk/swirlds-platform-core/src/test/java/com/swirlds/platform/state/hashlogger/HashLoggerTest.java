@@ -15,7 +15,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -29,6 +28,7 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -43,7 +43,7 @@ public class HashLoggerTest {
     private Logger mockLogger;
     private HashLogger hashLogger;
     private List<String> logged;
-    private Set<MerkleNode> stateRoots = new HashSet<>();
+    private Set<VirtualMap> stateRoots = new HashSet<>();
 
     /**
      * Get a regex that will match a log message containing the given round number
@@ -139,8 +139,8 @@ public class HashLoggerTest {
 
     private ReservedSignedState createSignedState(final long round) {
         final SignedState signedState = mock(SignedState.class);
-        final MerkleNodeState state = mock(MerkleNodeState.class);
-        final MerkleNode stateRoot = VirtualMapUtils.createVirtualMap();
+        final MerkleNodeState<VirtualMap> state = mock(MerkleNodeState.class);
+        final VirtualMap stateRoot = VirtualMapUtils.createVirtualMap();
         stateRoot.getHash();
         stateRoots.add(stateRoot);
         final ReadableStates readableStates = mock(ReadableStates.class);
@@ -171,7 +171,7 @@ public class HashLoggerTest {
 
     @AfterEach
     void tearDown() {
-        for (MerkleNode stateRoot : stateRoots) {
+        for (VirtualMap stateRoot : stateRoots) {
             stateRoot.release();
         }
         stateRoots.clear();
