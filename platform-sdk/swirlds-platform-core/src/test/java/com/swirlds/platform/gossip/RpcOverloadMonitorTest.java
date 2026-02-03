@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.gossip.impl.network.protocol.rpc;
+package com.swirlds.platform.gossip;
+
+// this class should be moved to a different package, but modules are WIP as of now and it is not possible to do that
+// without breaking build
+// package org.hiero.consensus.gossip.impl.network.protocol.rpc;
 
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -14,6 +18,7 @@ import java.time.Duration;
 import java.util.function.Consumer;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
+import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcOverloadMonitor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;

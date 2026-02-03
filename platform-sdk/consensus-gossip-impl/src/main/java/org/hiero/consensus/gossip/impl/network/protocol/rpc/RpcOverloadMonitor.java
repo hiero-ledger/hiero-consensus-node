@@ -27,7 +27,7 @@ public class RpcOverloadMonitor {
     private volatile long disabledBroadcastDueToQueueSizeTime = NOT_DISABLED;
     private volatile long disabledBroadcastDueToLagTime = NOT_DISABLED;
 
-    RpcOverloadMonitor(
+    public RpcOverloadMonitor(
             @NonNull final SyncConfig syncConfig,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final Time time,
@@ -44,7 +44,7 @@ public class RpcOverloadMonitor {
      *
      * @param size number of items in the queue
      */
-    void reportOutputQueueSize(final int size) {
+    public void reportOutputQueueSize(final int size) {
         if (size > syncConfig.throttleOutputQueueThreshold()) {
             if (disabledBroadcastDueToQueueSizeTime == NOT_DISABLED) {
                 syncMetrics.disabledBroadcastDueToOverload(true);
@@ -69,7 +69,7 @@ public class RpcOverloadMonitor {
      *
      * @param pingMillis roundtrip of message being interpreted in milliseconds
      */
-    void reportPing(final long pingMillis) {
+    public void reportPing(final long pingMillis) {
         if (pingMillis > syncConfig.disableBroadcastPingThreshold().toMillis()) {
             if (disabledBroadcastDueToLagTime == NOT_DISABLED) {
                 syncMetrics.disabledBroadcastDueToLag(true);
