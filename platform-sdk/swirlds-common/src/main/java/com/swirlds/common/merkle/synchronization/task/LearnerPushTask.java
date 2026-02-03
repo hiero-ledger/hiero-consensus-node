@@ -27,9 +27,9 @@ public class LearnerPushTask {
     private static final String NAME = "learner-task";
 
     private final StandardWorkGroup workGroup;
-    private final AsyncInputStream<Lesson<Long>> in;
+    private final AsyncInputStream<Lesson> in;
     private final AsyncOutputStream<QueryResponse> out;
-    private final LearnerTreeView<Long> view;
+    private final LearnerTreeView view;
     private final ReconnectNodeCount nodeCount;
 
     private final ReconnectMapStats mapStats;
@@ -54,9 +54,9 @@ public class LearnerPushTask {
      */
     public LearnerPushTask(
             final StandardWorkGroup workGroup,
-            final AsyncInputStream<Lesson<Long>> in,
+            final AsyncInputStream<Lesson> in,
             final AsyncOutputStream<QueryResponse> out,
-            final LearnerTreeView<Long> view,
+            final LearnerTreeView view,
             final ReconnectNodeCount nodeCount,
             @NonNull final ReconnectMapStats mapStats) {
         this.workGroup = workGroup;
@@ -74,8 +74,7 @@ public class LearnerPushTask {
     /**
      * Based on the data in a lesson, get the node that should be inserted into the tree.
      */
-    private Long extractNodeFromLesson(
-            final ExpectedLesson<Long> expectedLesson, final Lesson<Long> lesson, boolean firstLesson) {
+    private Long extractNodeFromLesson(final ExpectedLesson expectedLesson, final Lesson lesson, boolean firstLesson) {
 
         if (lesson.isCurrentNodeUpToDate()) {
             // We already have the correct node in our tree.
@@ -100,8 +99,8 @@ public class LearnerPushTask {
      * Handle queries associated with a lesson.
      */
     private void handleQueries(
-            final LearnerTreeView<Long> view,
-            final AsyncInputStream<Lesson<Long>> in,
+            final LearnerTreeView view,
+            final AsyncInputStream<Lesson> in,
             final AsyncOutputStream<QueryResponse> out,
             final List<Hash> queries,
             final Long originalParent,
@@ -140,8 +139,7 @@ public class LearnerPushTask {
     /**
      * Update node counts for statistics.
      */
-    private void addToNodeCount(
-            final ExpectedLesson<Long> expectedLesson, final Lesson<Long> lesson, final Long newChild) {
+    private void addToNodeCount(final ExpectedLesson expectedLesson, final Lesson lesson, final Long newChild) {
         if (lesson.isLeafLesson()) {
             mapStats.incrementLeafData(1, expectedLesson.isNodeAlreadyPresent() ? 1 : 0);
         }
@@ -178,8 +176,8 @@ public class LearnerPushTask {
 
             while (view.hasNextExpectedLesson()) {
 
-                final ExpectedLesson<Long> expectedLesson = view.getNextExpectedLesson();
-                final Lesson<Long> lesson = in.readAnticipatedMessage();
+                final ExpectedLesson expectedLesson = view.getNextExpectedLesson();
+                final Lesson lesson = in.readAnticipatedMessage();
                 mapStats.incrementTransfersFromTeacher();
 
                 final Long parent = expectedLesson.getParent();
