@@ -22,7 +22,6 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.BlockHashAlgorithm;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
@@ -48,7 +47,9 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.StakingConfig;
+import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -424,17 +425,18 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             return;
         }
 
+        final var cfg = configProvider.getConfiguration();
+        final var cfgServicesVersion = cfg.getConfigData(VersionConfig.class).servicesVersion();
+        final var cfgConfigVersion = cfg.getConfigData(HederaConfig.class).configVersion();
+        final var hapiProtoVersion =
+                cfgServicesVersion.copyBuilder().build("" + cfgConfigVersion).build();
+
         final var firstItem = currentBlockRecordStreamItems.getFirst();
         final var firstConsensusTimestamp = requireNonNull(firstItem.record()).consensusTimestampOrThrow();
         final Bytes consensusTimestampHash =
                 BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(firstConsensusTimestamp));
 
         final var sidecarBundles = buildSidecarBundles(currentBlockSidecarRecords, maxSideCarSizeInBytes);
-
-        final var config = configProvider.getConfiguration();
-        // TODO Need to check hapiProtoVersion
-        final SemanticVersion hapiProtoVersion = config.getConfigData(com.hedera.node.config.data.VersionConfig.class)
-                .hapiVersion();
 
         final var recordFileContents = new RecordStreamFile(
                 hapiProtoVersion,
@@ -462,12 +464,15 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var recordFileBlockItem =
                 BlockItem.newBuilder().recordFile(recordFileItem).build();
 
+        final var headerLeafBytes = BlockItem.PROTOBUF.toBytes(headerItem);
+        final var recordFileLeafBytes = BlockItem.PROTOBUF.toBytes(recordFileBlockItem);
+
         final Bytes outputItemsTreeRootHash;
         try {
             final var hasher = new IncrementalStreamingHasher(
                     MessageDigest.getInstance(DigestType.SHA_384.algorithmName()), List.of(), 0);
-            hasher.addLeaf(BlockItem.PROTOBUF.toBytes(headerItem).toByteArray());
-            hasher.addLeaf(BlockItem.PROTOBUF.toBytes(recordFileBlockItem).toByteArray());
+            hasher.addLeaf(headerLeafBytes.toByteArray());
+            hasher.addLeaf(recordFileLeafBytes.toByteArray());
             outputItemsTreeRootHash = Bytes.wrap(hasher.computeRootHash());
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("Unable to create SHA-384 message digest", e);
@@ -476,9 +481,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var hashesToEnqueue = new WrappedRecordFileBlockHashes(
                 justFinishedBlockNumber, consensusTimestampHash, outputItemsTreeRootHash);
         logger.info(
-                "Enqueuing wrapped record-file block hashes for block {}: {}",
+                "Enqueuing wrapped record-file block hashes for block {}: consensusTimestampLeafHash {}, outputItemsRootHash {}",
                 justFinishedBlockNumber,
-                WrappedRecordFileBlockHashes.JSON.toJSON(hashesToEnqueue));
+                hashesToEnqueue.consensusTimestampHash().toHex(),
+                hashesToEnqueue.outputItemsTreeRootHash().toHex());
         new WritableWrappedRecordFileBlockHashesStore(state.getWritableStates(BlockRecordService.NAME))
                 .add(hashesToEnqueue);
     }
