@@ -2,15 +2,15 @@
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.isGenesisStateOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.CREATION;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RELEASE;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RESERVE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.Threshold.MAJORITY;
 import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusTimestampOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isGenesisStateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;

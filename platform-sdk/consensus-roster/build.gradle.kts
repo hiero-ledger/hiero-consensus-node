@@ -9,7 +9,6 @@ description = "Consensus Roster"
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
-    requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.api.test.fixtures")
     requires("com.swirlds.state.impl")
@@ -17,6 +16,7 @@ testModuleInfo {
     requires("com.swirlds.virtualmap")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
+    requires("org.hiero.consensus.platformstate")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

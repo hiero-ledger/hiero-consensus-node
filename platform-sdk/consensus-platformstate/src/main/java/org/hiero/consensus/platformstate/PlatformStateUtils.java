@@ -1,25 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.service;
+package org.hiero.consensus.platformstate;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.swirlds.platform.state.MerkleStateUtils.createInfoString;
-import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
-import static com.swirlds.platform.state.service.PlatformStateService.NAME;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
+import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.state.PlatformStateModifier;
+import com.swirlds.base.formatting.TextTable;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.List;
 import java.util.function.Consumer;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -30,6 +31,8 @@ import org.hiero.consensus.model.hashgraph.Round;
  * access to particular properties of the platform state.
  */
 public final class PlatformStateUtils {
+    public static final String HASH_INFO_TEMPLATE = "(root) VirtualMap    state    /    %s";
+
     /**
      * @param state the state to extract value from
      * @param round the round to check
@@ -303,6 +306,45 @@ public final class PlatformStateUtils {
 
     private static WritablePlatformStateStore writablePlatformStateStore(@NonNull final State state) {
         return new WritablePlatformStateStore(state.getWritableStates(NAME));
+    }
+
+    /**
+     * Generate a string that describes this state.
+     *
+     * @param platformState current platform state
+     *
+     */
+    @NonNull
+    public static String createInfoString(
+            @NonNull final PlatformStateAccessor platformState, @NonNull final Hash rootHash) {
+        final Hash hashEventsCons = platformState.getLegacyRunningEventHash();
+
+        final ConsensusSnapshot snapshot = platformState.getSnapshot();
+        final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot == null ? null : snapshot.minimumJudgeInfoList();
+
+        final StringBuilder sb = new StringBuilder();
+        final long round = platformState.getRound();
+        final SemanticVersion creationSoftwareVersion =
+                round == GENESIS_ROUND ? SemanticVersion.DEFAULT : platformState.getCreationSoftwareVersion();
+        new TextTable()
+                .setBordersEnabled(false)
+                .addRow("Round:", round)
+                .addRow("Timestamp:", platformState.getConsensusTimestamp())
+                .addRow("Next consensus number:", snapshot == null ? "null" : snapshot.nextConsensusNumber())
+                .addRow("Legacy running event hash:", hashEventsCons)
+                .addRow(
+                        "Legacy running event mnemonic:",
+                        hashEventsCons == null ? "null" : Mnemonics.generateMnemonic(hashEventsCons))
+                .addRow("Rounds non-ancient:", platformState.getRoundsNonAncient())
+                .addRow("Creation version:", creationSoftwareVersion)
+                .addRow("Minimum judge hash code:", minimumJudgeInfo == null ? "null" : minimumJudgeInfo.hashCode())
+                .addRow("Root hash:", rootHash)
+                .render(sb);
+
+        sb.append("\n");
+        sb.append(String.format(HASH_INFO_TEMPLATE, Mnemonics.generateMnemonic(rootHash)));
+        sb.append("\n");
+        return sb.toString();
     }
 
     /**
