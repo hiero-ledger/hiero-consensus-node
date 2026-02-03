@@ -9,6 +9,8 @@ on:
         description: "Test on given Longevity Machine (AdHoc5, AdHoc6, AdHoc7, AdHocSD8, AdHocSD9)"
         type: choice
         options:
+          - SDLT3
+          - SDLT4
           - AdHoc5
           - AdHoc6
           - AdHoc7
