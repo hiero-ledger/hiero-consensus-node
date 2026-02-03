@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network.protocol.rpc;
+package org.hiero.consensus.gossip.impl.network.protocol.rpc;
 
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -10,15 +10,15 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.metrics.SyncMetrics;
 import java.time.Duration;
 import java.util.function.Consumer;
 import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
-class RpcOverloadMonitorTest {
+public class RpcOverloadMonitorTest {
 
     private static final int QUEUE_THRESHOLD = 10;
     private static final Duration PING_THRESHOLD = Duration.ofMillis(50);

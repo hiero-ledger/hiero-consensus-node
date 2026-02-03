@@ -21,6 +21,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcReceiverHandler;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcSender;

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network.protocol.rpc;
+package org.hiero.consensus.gossip.impl.network.protocol.rpc;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.platform.metrics.SyncMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 
 /**
  * Helper class for checking if rpc communication is overloaded (ping or output queue) and informs to disable broadcast

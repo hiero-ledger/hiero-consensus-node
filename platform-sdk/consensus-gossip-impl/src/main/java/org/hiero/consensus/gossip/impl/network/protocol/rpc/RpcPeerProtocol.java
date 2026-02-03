@@ -2,6 +2,7 @@
 package org.hiero.consensus.gossip.impl.network.protocol.rpc;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcMessageId.BROADCAST_EVENT;
 import static org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcMessageId.EVENT;
 import static org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcMessageId.EVENTS_FINISHED;
 import static org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcMessageId.KNOWN_TIPS;
