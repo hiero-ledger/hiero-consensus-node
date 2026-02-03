@@ -69,7 +69,7 @@ public class ContractServiceQueriesSimpleFeesTest {
                         .payingWith(civilian.name())
                         .signedBy(civilian.name())
                         .via(record),
-                validateChargedUsdForQueries(record, CONTRACT_GET_BYTECODE_BASE_FEE, 1));
+                validateChargedUsdForQueries(record, CONTRACT_GET_BYTECODE_BASE_FEE, 0.1));
     }
 
     @HapiTest
