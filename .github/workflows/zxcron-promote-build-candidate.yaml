@@ -91,7 +91,7 @@ jobs:
 
           echo "promote-build-candidate=${PROMOTE_CANDIDATE}" | tee -a "${GITHUB_OUTPUT}"
           echo "promote-candidate-message=${PROMOTE_MSG}" | tee -a "${GITHUB_OUTPUT}"
-          
+
           DATE=$(date +"%Y-%m-%d (%Z)")
           echo "promote-date=${DATE}" >> "${GITHUB_OUTPUT}"
 
