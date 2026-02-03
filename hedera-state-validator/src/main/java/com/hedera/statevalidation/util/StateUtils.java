@@ -92,7 +92,7 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 @SuppressWarnings({"rawtypes", "resource"})
 public final class StateUtils {
 
-    private static MerkleNodeState state;
+    private static AtomicReference<MerkleNodeState> stateRef = new AtomicReference<>();
     private static DeserializedSignedState deserializedSignedState;
 
     // Static JSON codec cache
@@ -106,10 +106,22 @@ public final class StateUtils {
      * @return mutable instance of {@link MerkleNodeState}
      */
     public static MerkleNodeState getState() {
-        if (state == null) {
+        if (stateRef.get() == null) {
             initState();
         }
-        return state;
+        return stateRef.get();
+    }
+
+    /**
+     * Creates a mutable copy of the current state.
+     * @return a mutable copy of the current state
+     */
+    public static synchronized MerkleNodeState copyState() {
+        if (stateRef.get() == null) {
+            throw new IllegalStateException("State is not initialized yet");
+        }
+        stateRef.set(stateRef.get().copy());
+        return stateRef.get();
     }
 
     /**
@@ -146,8 +158,8 @@ public final class StateUtils {
             // need to create copy of the loaded state to make it mutable
             final HashedReservedSignedState hashedSignedState =
                     copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
-            state = hashedSignedState.state().get().getState();
-            initServiceMigrator(state, platformContext, serviceRegistry);
+            stateRef.set(hashedSignedState.state().get().getState());
+            initServiceMigrator(stateRef.get(), platformContext, serviceRegistry);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
