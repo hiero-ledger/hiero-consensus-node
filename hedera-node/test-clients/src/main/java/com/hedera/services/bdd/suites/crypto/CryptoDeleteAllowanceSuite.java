@@ -39,6 +39,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.OWNER;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.SPENDER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_ALLOWANCES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
@@ -327,7 +329,7 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(MISSING_OWNER, nft, List.of(1L))
                         .via("baseDeleteNft"),
-                validateChargedUsdWithin("baseDeleteNft", 0.05, 0.02),
+                validateChargedUsdWithin("baseDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE, 0.02),
                 cryptoApproveAllowance().payingWith(owner).addNftAllowance(owner, nft, "spender2", false, List.of(1L)),
                 /* with specifying owner */
                 cryptoDeleteAllowance()
@@ -335,7 +337,7 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
                         .via("baseDeleteNft"),
-                validateChargedUsdWithin("baseDeleteNft", 0.05, 0.02),
+                validateChargedUsdWithin("baseDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE, 0.02),
 
                 /* with 2 serials */
                 cryptoDeleteAllowance()
@@ -343,7 +345,7 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(owner, nft, List.of(2L, 3L))
                         .via("twoDeleteNft"),
-                validateChargedUsdWithin("twoDeleteNft", 0.05, 0.01),
+                validateChargedUsdWithin("twoDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE, 0.01),
                 /* with 2 sigs */
                 cryptoApproveAllowance().payingWith(owner).addNftAllowance(owner, nft, "spender2", false, List.of(1L)),
                 cryptoDeleteAllowance()
@@ -352,7 +354,8 @@ public class CryptoDeleteAllowanceSuite {
                         .signedBy(payer, owner)
                         .via("twoDeleteNft"),
                 // 0.05 base fee + 0.001 for signature
-                validateChargedUsdWithin("twoDeleteNft", 0.051, 1));
+                validateChargedUsdWithin(
+                        "twoDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 1));
     }
 
     @HapiTest

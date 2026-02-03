@@ -57,6 +57,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CLAIM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_PENDING_AIRDROP_ID_LIST;
@@ -474,7 +476,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .signedByPayerAnd(BOB, CAROL, YULIA, TOM, STEVE)
                         .via("claimTxn"),
                 // 0.001 base fee + 0.004 for 4 extra signatures
-                validateChargedUsd("claimTxn", 0.005, 1),
+                validateChargedUsd("claimTxn", TOKEN_CLAIM_FEE + 4 * SIGNATURE_FEE_AFTER_MULTIPLIER, 1),
                 tokenClaimAirdrop(
                                 pendingAirdrop(ALICE, BOB, FUNGIBLE_TOKEN_1),
                                 pendingAirdrop(ALICE, CAROL, FUNGIBLE_TOKEN_2),
@@ -674,8 +676,8 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPriority(recordWith()
                                 .tokenTransfers(includingFungibleMovement(
                                         moving(1, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))),
-                // 0.001 base fee + 0.001 signature
-                validateChargedUsd("claimTxn", 0.002, 1),
+                // 0.001 base fee + signature
+                validateChargedUsd("claimTxn", TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 1),
 
                 // assert token associations
                 getAccountInfo(RECEIVER).hasToken(relationshipWith(FUNGIBLE_TOKEN)),
@@ -702,8 +704,8 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPriority(recordWith()
                                 .tokenTransfers(includingFungibleMovement(
                                         moving(1, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))),
-                // 0.001 base fee + 0.001 signature
-                validateChargedUsd("claimTxn", 0.002, 1),
+                // 0.001 base fee + signature fee
+                validateChargedUsd("claimTxn", TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1),
 
                 // assert token associations
                 getAccountInfo(RECEIVER).hasToken(relationshipWith(FUNGIBLE_TOKEN)),
@@ -952,7 +954,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
                         .via("claimTxn"),
                 // 0.001 base fee + 0.001 signature
-                validateChargedUsd("claimTxn", 0.002, 1),
+                validateChargedUsd("claimTxn", TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 1),
 
                 // check if account was finalized and auto associations were not modified
                 getAliasedAccountInfo(alias).isNotHollow().hasMaxAutomaticAssociations(0)));

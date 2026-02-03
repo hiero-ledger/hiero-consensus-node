@@ -1165,8 +1165,8 @@ public class CryptoTransferSuite {
                     double pureTwoTokensFourAccountsUsd = rates.toUsdWithActiveRates(t2a4Fee);
                     double pureThreeTokensSixAccountsUsd = rates.toUsdWithActiveRates(t3a6Fee);
                     assertEquals(10.0, pureOneTokenTwoAccountsUsd / pureHbarUsd, 1.0);
-                    assertEquals(23.0, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
-                    assertEquals(36.0, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
+                    assertEquals(14.0, pureTwoTokensFourAccountsUsd / pureHbarUsd, 2.0);
+                    assertEquals(18.0, pureThreeTokensSixAccountsUsd / pureHbarUsd, 3.0);
                 }));
     }
 
