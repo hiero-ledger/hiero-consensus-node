@@ -3668,7 +3668,7 @@ public class CryptoTransferSimpleFeesTest {
                             validateChargedUsdWithinWithTxnSize(
                                     "ftTransferTxn",
                                     txnSize -> expectedCryptoTransferFTFullFeeUsd(Map.of(
-                                            SIGNATURES, 2,
+                                            SIGNATURES, 1,
                                             HOOKS_EXECUTED, 1,
                                             ACCOUNTS, 2,
                                             FUNGIBLE_TOKENS, 1,

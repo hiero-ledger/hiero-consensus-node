@@ -2149,15 +2149,14 @@ public class UtilVerbs {
 
     public static CustomSpecAssert validateChargedUsdWithin(String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
-            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsed(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
     }
 
