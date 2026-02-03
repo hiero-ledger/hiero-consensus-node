@@ -51,5 +51,5 @@ public record BlockRecordStreamConfig(
         @ConfigProperty(defaultValue = "concurrent") @NetworkProperty
         String streamFileProducer,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean storeWrappedRecordFileBlockHashesInState) {}

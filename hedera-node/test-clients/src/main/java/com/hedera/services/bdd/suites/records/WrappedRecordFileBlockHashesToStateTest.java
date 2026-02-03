@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.records;
 
-import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -34,12 +34,9 @@ public class WrappedRecordFileBlockHashesToStateTest {
     @GenesisHapiTest(
             bootstrapOverrides = {
                 @ConfigOverride(key = "hedera.recordStream.storeWrappedRecordFileBlockHashesInState", value = "true"),
-                // Keep the test fast and deterministic: close a record block with a small period.
                 @ConfigOverride(key = "hedera.recordStream.logPeriod", value = "1"),
-                // Avoid block stream activity while still producing record stream blocks.
-                @ConfigOverride(key = "blockStream.streamMode", value = "RECORDS"),
             })
-    @Tag(INTEGRATION)
+    @Tag(ONLY_EMBEDDED)
     @DisplayName("Enqueues wrapped record-file block hashes on record block boundary")
     final Stream<DynamicTest> enqueuesWrappedRecordFileBlockHashesOnBoundary() {
         return hapiTest(
