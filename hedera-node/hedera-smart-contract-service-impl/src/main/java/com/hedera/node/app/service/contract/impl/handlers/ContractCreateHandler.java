@@ -143,7 +143,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
                     .copyBuilder()
                     .firstHookId(op.hookCreationDetails().getFirst().hookId())
                     .numberHooksInUse(op.hookCreationDetails().size())
-                    .numberLambdaStorageSlots(justCreated.numberLambdaStorageSlots() + slotsDelta)
+                    .numberEvmHookStorageSlots(justCreated.numberEvmHookStorageSlots() + slotsDelta)
                     .build();
             context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(account);
         }

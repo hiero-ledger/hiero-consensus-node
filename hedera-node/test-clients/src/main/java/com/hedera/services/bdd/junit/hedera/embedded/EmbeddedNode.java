@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureD
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateUpgradeArtifactsProperty;
 
 import com.hedera.node.app.Hedera;
+import com.hedera.node.internal.network.Network;
 import com.hedera.services.bdd.junit.hedera.AbstractLocalNode;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
@@ -86,8 +87,8 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
     }
 
     @Override
-    public @NonNull EmbeddedNode initWorkingDir(@NonNull final String configTxt) {
-        super.initWorkingDir(configTxt);
+    public @NonNull EmbeddedNode initWorkingDir(@NonNull final Network network) {
+        super.initWorkingDir(network);
         updateUpgradeArtifactsProperty(getExternalPath(APPLICATION_PROPERTIES), getExternalPath(UPGRADE_ARTIFACTS_DIR));
         return this;
     }

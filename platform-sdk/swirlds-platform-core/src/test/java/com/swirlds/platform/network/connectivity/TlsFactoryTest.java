@@ -6,17 +6,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.platform.Utilities;
 import com.swirlds.platform.crypto.CryptoArgsProvider;
 import com.swirlds.platform.crypto.RosterAndCerts;
-import com.swirlds.platform.network.NetworkUtils;
-import com.swirlds.platform.network.PeerInfo;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.gossip.impl.gossip.Utilities;
+import org.hiero.consensus.gossip.impl.network.NetworkUtils;
+import org.hiero.consensus.gossip.impl.network.PeerInfo;
+import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
@@ -45,7 +46,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
     @BeforeEach
     void setUp() throws Throwable {
         // create addressBook, keysAndCerts
-        final RosterAndCerts rosterAndCerts = CryptoArgsProvider.loadAddressBookWithKeys(2);
+        final RosterAndCerts rosterAndCerts = CryptoArgsProvider.genRosterLoadKeys(2);
         final Roster roster = rosterAndCerts.roster();
         final Map<NodeId, KeysAndCerts> keysAndCerts = rosterAndCerts.nodeIdKeysAndCertsMap();
         assertTrue(roster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
@@ -71,7 +72,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
         Assertions.assertFalse(serverSocket.isClosed());
 
         // create a new address book with keys and new set of nodes
-        final RosterAndCerts updatedRosterAndCerts = CryptoArgsProvider.loadAddressBookWithKeys(6);
+        final RosterAndCerts updatedRosterAndCerts = CryptoArgsProvider.genRosterLoadKeys(6);
         final Roster updatedRoster = Roster.newBuilder()
                 .rosterEntries(updatedRosterAndCerts.roster().rosterEntries().stream()
                         .map(entry -> {

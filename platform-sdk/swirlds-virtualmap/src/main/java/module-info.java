@@ -5,11 +5,9 @@
 open module com.swirlds.virtualmap {
     exports com.swirlds.virtualmap;
     exports com.swirlds.virtualmap.datasource;
-    exports com.swirlds.virtualmap.constructable;
     // Currently, exported only for tests.
     exports com.swirlds.virtualmap.internal.merkle;
     exports com.swirlds.virtualmap.config;
-    exports com.swirlds.virtualmap.serialize;
 
     // Testing-only exports
     exports com.swirlds.virtualmap.internal to
@@ -42,6 +40,7 @@ open module com.swirlds.virtualmap {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.concurrent;
+    requires transitive org.hiero.consensus.reconnect;
     requires com.swirlds.logging;
     requires java.management; // Test dependency
     requires org.apache.logging.log4j;

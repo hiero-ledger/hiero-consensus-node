@@ -3,13 +3,12 @@ package com.swirlds.common.context;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.consensus.io.RecycleBin;
 
 /**
  * Default implementation of the platform context. Warning: this class is private API and will be changed in the future.
@@ -23,7 +22,6 @@ public final class DefaultPlatformContext implements PlatformContext {
     private final ExecutorFactory executorFactory;
     private final FileSystemManager fileSystemManager;
     private final RecycleBin recycleBin;
-    private final MerkleCryptography merkleCryptography;
 
     /**
      * Constructor.
@@ -41,15 +39,13 @@ public final class DefaultPlatformContext implements PlatformContext {
             @NonNull final Time time,
             @NonNull final ExecutorFactory executorFactory,
             @NonNull final FileSystemManager fileSystemManager,
-            @NonNull final RecycleBin recycleBin,
-            @NonNull final MerkleCryptography merkleCryptography) {
+            @NonNull final RecycleBin recycleBin) {
         this.configuration = Objects.requireNonNull(configuration, "configuration must not be null");
         this.metrics = Objects.requireNonNull(metrics, "metrics must not be null");
         this.time = Objects.requireNonNull(time, "time must not be null");
         this.executorFactory = Objects.requireNonNull(executorFactory, "executorFactory must not be null");
         this.fileSystemManager = Objects.requireNonNull(fileSystemManager, "fileSystemManager must not be null");
         this.recycleBin = Objects.requireNonNull(recycleBin, "recycleBin must not be null");
-        this.merkleCryptography = Objects.requireNonNull(merkleCryptography, "merkleCryptography must not be null");
     }
 
     /**
@@ -95,9 +91,5 @@ public final class DefaultPlatformContext implements PlatformContext {
     @Override
     public RecycleBin getRecycleBin() {
         return recycleBin;
-    }
-
-    public MerkleCryptography getMerkleCryptography() {
-        return merkleCryptography;
     }
 }

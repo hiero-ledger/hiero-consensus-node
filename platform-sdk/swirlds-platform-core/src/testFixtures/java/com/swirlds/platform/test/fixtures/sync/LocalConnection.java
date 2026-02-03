@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.sync;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.gossip.sync.SyncInputStream;
-import com.swirlds.platform.gossip.sync.SyncOutputStream;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.NetworkUtils;
 import java.io.InputStream;
 import java.io.OutputStream;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -28,9 +26,6 @@ public class LocalConnection implements Connection {
     final Configuration configuration =
             new TestConfigBuilder().withValue("socket.gzipCompression", false).getOrCreateConfig();
 
-    final PlatformContext platformContext =
-            TestPlatformContextBuilder.create().withConfiguration(configuration).build();
-
     public LocalConnection(
             final NodeId selfId,
             final NodeId otherId,
@@ -40,8 +35,8 @@ public class LocalConnection implements Connection {
             final boolean outbound) {
         this.selfId = selfId;
         this.otherId = otherId;
-        dis = SyncInputStream.createSyncInputStream(platformContext, in, bufferSize);
-        dos = SyncOutputStream.createSyncOutputStream(platformContext, out, bufferSize);
+        dis = SyncInputStream.createSyncInputStream(configuration, in, bufferSize);
+        dos = SyncOutputStream.createSyncOutputStream(configuration, out, bufferSize);
         this.outbound = outbound;
     }
 

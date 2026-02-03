@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static org.mockito.BDDMockito.given;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.output.StateChanges.Builder;
-import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
@@ -16,17 +15,11 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.CommittableWritableStates;
-import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.roster.RosterStateId;
 
 /**
@@ -36,22 +29,6 @@ import org.hiero.consensus.roster.RosterStateId;
 public final class TestingAppStateInitializer {
 
     private TestingAppStateInitializer() {}
-
-    public static void registerConstructablesForStorage(@NonNull final Configuration configuration) {
-        try {
-            ConstructableRegistry registry = ConstructableRegistry.getInstance();
-            registry.registerConstructable(
-                    new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(configuration)));
-            registry.registerConstructable(new ClassConstructorPair(
-                    VirtualNodeCache.class,
-                    () -> new VirtualNodeCache(configuration.getConfigData(VirtualMapConfig.class))));
-            ConstructableRegistry.getInstance()
-                    .registerConstructable(new ClassConstructorPair(
-                            MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
-        } catch (ConstructableRegistryException e) {
-            throw new IllegalStateException(e);
-        }
-    }
 
     /**
      * Initialize the states for the given {@link MerkleNodeState}. This method will initialize both the
@@ -77,8 +54,7 @@ public final class TestingAppStateInitializer {
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
     public static List<Builder> initPlatformState(@NonNull final MerkleNodeState state) {
-        final var schema = new V0540PlatformStateSchema(
-                config -> SemanticVersion.newBuilder().minor(1).build());
+        final var schema = new V0540PlatformStateSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
@@ -91,8 +67,10 @@ public final class TestingAppStateInitializer {
                 });
         final var mockMigrationContext = mock(MigrationContext.class);
         final var writableStates = state.getWritableStates(PlatformStateService.NAME);
-        given(mockMigrationContext.newStates()).willReturn(writableStates);
         schema.migrate(mockMigrationContext);
+        writableStates
+                .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
+                .put(V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE);
         ((CommittableWritableStates) writableStates).commit();
         return Collections.emptyList();
     }
@@ -120,7 +98,6 @@ public final class TestingAppStateInitializer {
                 });
         final var mockMigrationContext = mock(MigrationContext.class);
         final var writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
-        given(mockMigrationContext.newStates()).willReturn(writableStates);
         schema.migrate(mockMigrationContext);
         ((CommittableWritableStates) writableStates).commit();
         return Collections.emptyList();

@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.addressbook;
 
-import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
-
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
-import com.swirlds.platform.crypto.PublicStores;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.List;
@@ -17,7 +12,8 @@ import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.SerializableX509Certificate;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 /**
  * A utility for generating a random roster.
@@ -168,19 +164,6 @@ public class RandomRosterBuilder {
     }
 
     /**
-     * Convenience method to retrieve the private keys for a node using HAPI NodeId.
-     * This method internally converts the HAPI NodeId to the platform-specific NodeId format.
-     *
-     * @param nodeId the node id
-     * @return the private keys
-     * @see RandomRosterBuilder#getPrivateKeys(NodeId)
-     */
-    @NonNull
-    public KeysAndCerts getPrivateKeys(@NonNull final com.hedera.hapi.platform.state.NodeId nodeId) {
-        return getPrivateKeys(NodeId.of(nodeId.id()));
-    }
-
-    /**
      * Get the private keys for a node. Should only be called after the roster has been built and only if
      * {@link #withRealKeysEnabled(boolean)} was set to true.
      *
@@ -221,19 +204,13 @@ public class RandomRosterBuilder {
     private void generateKeys(@NonNull final NodeId nodeId, @NonNull final RandomRosterEntryBuilder addressBuilder) {
         if (realKeys) {
             try {
-                final PublicStores publicStores = new PublicStores();
-
                 final byte[] masterKey = new byte[64];
                 random.nextBytes(masterKey);
 
-                final KeysAndCerts keysAndCerts =
-                        KeysAndCertsGenerator.generate(nodeId, new byte[] {}, masterKey, new byte[] {}, publicStores);
+                final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId);
                 privateKeys.put(nodeId, keysAndCerts);
 
-                final SerializableX509Certificate sigCert =
-                        new SerializableX509Certificate(publicStores.getCertificate(SIGNING, nodeId));
-
-                addressBuilder.withSigCert(sigCert);
+                addressBuilder.withSigCert(keysAndCerts.sigCert());
 
             } catch (final Exception e) {
                 throw new RuntimeException();

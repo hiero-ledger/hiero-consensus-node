@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
+import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -90,8 +91,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                 IntStream.range(0, parallelism).parallel().forEach(idx -> {
                     long count = 0L;
                     for (int i = idx; i < map.length; i += parallelism) {
-                        final BenchmarkValue value =
-                                srcMap.get(BenchmarkKey.longToKey(i), BenchmarkValueCodec.INSTANCE);
+                        final BenchmarkValue value = srcMap.get(longToKey(i), BenchmarkValueCodec.INSTANCE);
                         if (value != null) {
                             map[i] = value.toLong();
                             ++count;
@@ -189,7 +189,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         IntStream.range(0, 64).parallel().forEach(thread -> {
             int idx;
             while ((idx = index.getAndIncrement()) < map.length) {
-                BenchmarkValue dataItem = virtualMap.get(BenchmarkKey.longToKey(idx), BenchmarkValueCodec.INSTANCE);
+                BenchmarkValue dataItem = virtualMap.get(longToKey(idx), BenchmarkValueCodec.INSTANCE);
                 if (dataItem == null) {
                     if (map[idx] != 0L) {
                         countMissing.getAndIncrement();

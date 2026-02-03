@@ -6,11 +6,14 @@ import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
+import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
@@ -70,6 +73,9 @@ public interface ExecutorComponent {
         Builder utilServiceImpl(UtilServiceImpl utilService);
 
         @BindsInstance
+        Builder networkServiceImpl(NetworkServiceImpl networkService);
+
+        @BindsInstance
         Builder scheduleServiceImpl(ScheduleServiceImpl scheduleService);
 
         @BindsInstance
@@ -77,6 +83,9 @@ public interface ExecutorComponent {
 
         @BindsInstance
         Builder historyService(HistoryService historyService);
+
+        @BindsInstance
+        Builder addressBookService(AddressBookServiceImpl addressBookService);
 
         @BindsInstance
         Builder configProviderImpl(ConfigProviderImpl configProvider);
@@ -117,4 +126,6 @@ public interface ExecutorComponent {
     StandaloneDispatchFactory standaloneDispatchFactory();
 
     TransactionChecker transactionChecker();
+
+    FeeManager feeManager();
 }

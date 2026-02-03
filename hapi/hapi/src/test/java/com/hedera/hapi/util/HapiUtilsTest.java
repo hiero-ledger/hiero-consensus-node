@@ -4,18 +4,21 @@ package com.hedera.hapi.util;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.params.provider.Arguments.of;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -26,9 +29,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 final class HapiUtilsTest {
 
     @ParameterizedTest
-    @CsvSource(
-            textBlock =
-                    """
+    @CsvSource(textBlock = """
             2007-12-03T10:15:30.00Z, 2007-12-03T10:15:30.01Z
             2007-12-31T23:59:59.99Z, 2008-01-01T00:00:00.00Z
             """)
@@ -40,9 +41,7 @@ final class HapiUtilsTest {
     }
 
     @ParameterizedTest
-    @CsvSource(
-            textBlock =
-                    """
+    @CsvSource(textBlock = """
             2007-12-03T10:15:30.01Z, 2007-12-03T10:15:30.00Z
             2008-01-01T00:00:00.00Z, 2007-12-31T23:59:59.99Z
             """)
@@ -54,9 +53,7 @@ final class HapiUtilsTest {
     }
 
     @ParameterizedTest
-    @CsvSource(
-            textBlock =
-                    """
+    @CsvSource(textBlock = """
             2007-12-03T10:15:30.00Z, 2007-12-03T10:15:30.00Z
             2007-12-31T23:59:59.99Z, 2007-12-31T23:59:59.99Z
             2008-01-01T00:00:00.00Z, 2008-01-01T00:00:00.00Z
@@ -257,5 +254,20 @@ final class HapiUtilsTest {
                 .build("1")
                 .build();
         assertThat(SEMANTIC_VERSION_COMPARATOR.compare(zeroBuild, oneBuild)).isLessThan(0);
+    }
+
+    @Test
+    void testEndpointForValidIpV4Address() {
+        final ServiceEndpoint endpoint = HapiUtils.endpointFor("192.168.1.1", 2);
+        assertEquals(endpoint.ipAddressV4(), Bytes.wrap(new byte[] {(byte) 192, (byte) 168, 1, 1}));
+    }
+
+    @Test
+    void testEndpointForInvalidIpAddressConvertsToDomainName() {
+        final String invalidIpAddress = "192.168.is.bad";
+        Assertions.assertEquals(
+                Bytes.EMPTY, HapiUtils.endpointFor(invalidIpAddress, 2).ipAddressV4());
+        Assertions.assertEquals(
+                invalidIpAddress, HapiUtils.endpointFor(invalidIpAddress, 2).domainName());
     }
 }

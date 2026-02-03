@@ -5,13 +5,13 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.ConnectionManager;
-import com.swirlds.platform.network.communication.NegotiationProtocols;
-import com.swirlds.platform.network.communication.ProtocolNegotiatorThread;
 import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.ConnectionManager;
+import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
+import org.hiero.consensus.gossip.impl.network.communication.ProtocolNegotiatorThread;
 
 /**
  * Used to run a negotiator in a separate thread and capture any exceptions it might throw

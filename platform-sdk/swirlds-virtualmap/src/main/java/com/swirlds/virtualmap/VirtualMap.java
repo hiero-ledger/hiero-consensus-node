@@ -2,12 +2,10 @@
 package com.swirlds.virtualmap;
 
 import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
-import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
-import static com.swirlds.virtualmap.VirtualMap.CLASS_ID;
 import static com.swirlds.virtualmap.internal.Path.FIRST_LEFT_PATH;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
@@ -23,27 +21,20 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.ExternalSelfSerializable;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
-import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.merkle.synchronization.views.CustomReconnectRoot;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
-import com.swirlds.virtualmap.constructable.constructors.VirtualMapConstructor;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
@@ -52,7 +43,6 @@ import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
-import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
@@ -70,12 +60,9 @@ import com.swirlds.virtualmap.internal.reconnect.TopToBottomTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.TwoPhasePessimisticTraversalOrder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.ClosedByInterruptException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -88,12 +75,11 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
-import org.hiero.base.constructable.ConstructableClass;
+import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A {@link MerkleInternal} node that virtualizes all of its children, such that the child nodes
@@ -157,10 +143,8 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * internal nodes. Indeed, you <strong>MUST NOT</strong> modify the tree structure directly, only
  * through the map-like methods.
  */
-@DebugIterationEndpoint
-@ConstructableClass(value = CLASS_ID, constructorType = VirtualMapConstructor.class)
-public final class VirtualMap extends PartialBinaryMerkleInternal
-        implements CustomReconnectRoot<Long, Long>, ExternalSelfSerializable, Labeled, MerkleInternal, VirtualRoot {
+@ConstructableIgnored
+public final class VirtualMap extends PartialBinaryMerkleInternal implements Labeled, MerkleInternal, VirtualRoot {
 
     private static final int MAX_PBJ_RECORD_SIZE = 33554432;
 
@@ -187,8 +171,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * of leaves vs. the speed of hashing.
      */
     private static final int MAX_RECONNECT_HASHING_BUFFER_SIZE = 10_000_000;
-
-    public static final String OLD_METADATA_FILENAME = "state.vmap";
 
     /** Virtual Map platform configuration */
     @NonNull
@@ -225,6 +207,22 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * going back to some first progenitor) share the exact same dataSource instance.
      */
     private VirtualDataSource dataSource;
+
+    /**
+     * The target path for an asynchronous snapshot operation. This field is {@code null} unless
+     * an async snapshot has been requested via {@link #createSnapshotAsync(Path)}.
+     * When set along with the {@link #snapshotFuture}, the snapshot will be written to this path during the flush operation.
+     * Set/read from multiple threads.
+     */
+    private final AtomicReference<Path> snapshotTargetPath = new AtomicReference<>();
+
+    /**
+     * A future that completes when an asynchronous snapshot operation finishes. This field is
+     * {@code null} unless an async snapshot has been requested via {@link #createSnapshotAsync(Path)}.
+     * The future is completed in {@link #flush()} after the snapshot is successfully written.
+     * Set/read from multiple threads.
+     */
+    private final AtomicReference<CompletableFuture<Void>> snapshotFuture = new AtomicReference<>();
 
     /**
      * A cache for virtual tree nodes. This cache is very specific for this use case. The elements
@@ -504,32 +502,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     @Override
     public <T extends MerkleNode> T getChild(final int index) {
-        if (isDestroyed()
-                || dataSource == null
-                || originalMap != null
-                || metadata == null
-                || metadata.getFirstLeafPath() == INVALID_PATH
-                || index > 1) {
-            return null;
-        }
-
-        final long path = index + 1L;
-        final T node;
-        if (path < metadata.getFirstLeafPath()) {
-            //noinspection unchecked
-            node = (T) VirtualInternalNode.getInternalNode(this, path);
-        } else if (path <= metadata.getLastLeafPath()) {
-            //noinspection unchecked
-            node = (T) VirtualInternalNode.getLeafNode(this, path);
-        } else {
-            // The index is out of bounds. Maybe we have a root node with one leaf and somebody has asked
-            // for the second leaf, in which case it would be null.
-            return null;
-        }
-
-        final MerkleRoute route = this.getRoute().extendRoute(index);
-        node.setRoute(route);
-        return node;
+        throw new UnsupportedOperationException("You cannot get the child of a VirtualMap directly with this API");
     }
 
     /**
@@ -553,8 +526,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     @Override
     public int getNumberOfChildren() {
-        // FUTURE WORK: This should return 0 once the VirtualMap is migrated
-        return 2;
+        return 0;
     }
 
     /**
@@ -614,6 +586,14 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         return rec == null ? null : rec.value(valueCodec);
     }
 
+    /**
+     * Gets the value associated with the given key as raw bytes.
+     *
+     * @param key
+     * 		The key. This must not be null.
+     * @return The value bytes. The value may be null.
+     */
+    @Nullable
     @SuppressWarnings("rawtypes")
     public Bytes getBytes(@NonNull final Bytes key) {
         requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
@@ -940,6 +920,20 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         cache.release();
         final long end = System.currentTimeMillis();
         flushed.set(true);
+
+        // If an async snapshot was requested via createSnapshotAsync(), write the snapshot
+        // to the target path and signal completion. This must happen after the cache flush
+        // completes, so the data source contains all relevant data.
+        final Path targetPath = snapshotTargetPath.get();
+        final CompletableFuture<Void> future = snapshotFuture.get();
+        if (targetPath != null && future != null) {
+            dataSourceBuilder.snapshot(targetPath, dataSource);
+            future.complete(null);
+
+            snapshotTargetPath.set(null);
+            snapshotFuture.set(null);
+        }
+
         flushLatch.countDown();
         statistics.recordFlush(end - start);
         logger.debug(
@@ -1007,9 +1001,13 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
 
     /**
      * {@inheritDoc}
+     * @deprecated this method can be safely removed once we switch to pull-based reconnect,
+     * see <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/12648">issue #12648</a>
      */
+    @Deprecated(forRemoval = true)
     @Override
     public long getClassId() {
+        // This class id is still required for the reconnect code
         return CLASS_ID;
     }
 
@@ -1042,6 +1040,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public Hash getHash() {
         if (hash.get() == null) {
@@ -1171,9 +1170,13 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      **/
 
     /**
-     * {@inheritDoc}
+     * Creates a virtual view for this map to use by reconnect teacher. The view is used
+     * to access all nodes and hashes in the virtual tree. The view must not share any
+     * data with this map, so if any changes are made to the map, they aren't reflected
+     * in the view.
+     *
+     * <p>The view will be closed by reconnect teacher, when reconnect is complete or failed.
      */
-    @Override
     public TeacherTreeView<Long> buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH ->
@@ -1188,17 +1191,15 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     /**
-     * {@inheritDoc}
+     * Initialize a new reconnect root created using {@link #newReconnectRoot()} with data
+     * from the specified virtual map.
      */
-    @Override
-    public void setupWithOriginalNode(@NonNull final MerkleNode originalNode) {
-        assert originalNode instanceof VirtualMap : "The original node was not a VirtualMap!";
-
+    private void setupWithOriginalNode(@NonNull final VirtualMap originalMap) {
         // NOTE: If we're reconnecting, then the old tree is toast. We hold onto the originalMap to
         // restart from that position again in the future if needed, but we're never going to use
         // the old map again. We need the data source builder from the old map so, we can create
         // new data sources in this new map with all the right settings.
-        originalMap = (VirtualMap) originalNode;
+        this.originalMap = originalMap;
         this.dataSourceBuilder = originalMap.dataSourceBuilder;
 
         // shutdown background compaction on original data source as it is no longer needed to be running as all data
@@ -1240,18 +1241,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     /**
-     * {@inheritDoc}
+     * Creates a new virtual map to be used by reconnect learner. The new map will contain
+     * the same data as this map, all changes to the new map will not be reflected in
+     * this map.
      */
-    @Override
-    public void setupWithNoData() {
-        // No-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public CustomReconnectRoot<Long, Long> createNewRoot() {
+    public VirtualMap newReconnectRoot() {
         final VirtualMap newRoot = new VirtualMap(configuration);
         // Ensure the original map is hashed here. Once hashed, all its internal nodes are also hashed,
         // which is required for the reconnect process. A teacher needs these hashes to determine
@@ -1262,9 +1256,12 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     /**
-     * {@inheritDoc}
+     * Creates a virtual tree view for a new reconnect root created using {@link #newReconnectRoot()}.
+     * The view will be used to access all nodes and hashes in the virtual tree by reconnect
+     * learner.
+     *
+     * <p>The view will be closed by reconnect learner, when reconnect is complete or failed.
      */
-    @Override
     public LearnerTreeView<Long> buildLearnerView(
             @NonNull final ReconnectConfig reconnectConfig, @NonNull final ReconnectMapStats mapStats) {
         assert originalMap != null;
@@ -1423,7 +1420,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         records.findLeafRecord(key);
     }
 
-    ////////////////////////
+    // ----------------------
 
     /**
      * Adds a new leaf with the given key and value. The precondition to calling this
@@ -1559,80 +1556,36 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     /**
-     * {@inheritDoc}
-     * @deprecated use {@link #createSnapshot(Path)} instead
+     * Initiates an asynchronous snapshot creation for this virtual map. Unlike {@link #createSnapshot(Path)},
+     * this method does not block and instead returns a future that completes when the snapshot is written.
+     *
+     * <p>The snapshot will be created during the next flush operation. This method enables flushing
+     * via {@link #enableFlush()} to ensure the snapshot is written.
+     *
+     * @param outputDirectory the target directory where the snapshot will be written
+     * @return a {@link CompletableFuture} that completes when the snapshot has been successfully written
+     *         to the specified directory
      */
-    @Deprecated(forRemoval = true)
-    @Override
-    public void serialize(@NonNull final SerializableDataOutputStream out, @NonNull final Path outputDirectory)
-            throws IOException {
-        throw new UnsupportedOperationException("Use createSnapshot instead");
+    public CompletableFuture<Void> createSnapshotAsync(final @NonNull Path outputDirectory) {
+        snapshotTargetPath.set(outputDirectory);
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+        snapshotFuture.set(future);
+        enableFlush();
+        return future;
     }
 
     /**
-     * {@inheritDoc}
-     * @deprecated use {@link #loadFromDirectory(Path, Configuration, Supplier)} instead
+     * Creates a new virtual map from a snapshot
+     * @param snapshotPath path to the snapshot directory
+     * @param configuration virtual map configuration
+     * @param dataSourceBuilderSupplier data source builder supplier
+     * @return new virtual map instance
      */
-    @Deprecated(forRemoval = true)
-    @Override
-    public void deserialize(
-            @NonNull final SerializableDataInputStream in, @NonNull final Path inputDirectory, final int version)
-            throws IOException {
-
-        if (version < ClassVersion.NO_VIRTUAL_ROOT_NODE) {
-            throw new UnsupportedOperationException("Version must be at least ClassVersion.NO_VIRTUAL_ROOT_NODE");
-        }
-
-        final int fileNameLengthInBytes = in.readInt();
-        final String inputFileName = in.readNormalisedString(fileNameLengthInBytes);
-        final Path inputFile = inputDirectory.resolve(inputFileName);
-        loadFromFile(inputFile);
-    }
-
-    /**
-     * @param snapshotDirectory directory of the snapshot
-     * @return true if the snapshot format is pre-0.70 version
-     */
-    public static boolean isOldFormat(@NonNull final Path snapshotDirectory) {
-        return Files.exists(snapshotDirectory.resolve(OLD_METADATA_FILENAME));
-    }
-
     public static VirtualMap loadFromDirectory(
             @NonNull final Path snapshotPath,
             @NonNull final Configuration configuration,
             @NonNull Supplier<VirtualDataSourceBuilder> dataSourceBuilderSupplier) {
         return new VirtualMap(dataSourceBuilderSupplier.get(), configuration, snapshotPath);
-    }
-
-    /**
-     * Deserializes the given serialized VirtualMap file into this map instance. This is not intended for
-     * public use, it is for testing and tools only.
-     *
-     * @param inputFile              The input .vmap file. Cannot be null.
-     * @throws IOException For problems.
-     * @deprecated use {@link #loadFromDirectory} instead
-     */
-    @Deprecated(forRemoval = true)
-    public void loadFromFile(@NonNull final Path inputFile) throws IOException {
-        deserializeAndDebugOnFailure(
-                () -> new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
-                (final MerkleDataInputStream stream) -> {
-                    // skipping label as it's hardcoded
-                    stream.readNormalisedString(MAX_LABEL_CHARS);
-                    final long stateSize = stream.readLong();
-                    loadFromFileV4(inputFile, stream, new VirtualMapMetadata(stateSize));
-                    return null;
-                });
-
-        postInit();
-    }
-
-    private void loadFromFileV4(Path inputFile, MerkleDataInputStream stream, VirtualMapMetadata virtualMapMetadata)
-            throws IOException {
-        dataSourceBuilder = stream.readSerializable();
-        dataSource = dataSourceBuilder.build(LABEL, inputFile.getParent(), true, false);
-        cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
-        metadata = virtualMapMetadata;
     }
 
     /*

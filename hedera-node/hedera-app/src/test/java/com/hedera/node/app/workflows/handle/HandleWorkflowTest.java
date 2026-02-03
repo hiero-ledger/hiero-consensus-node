@@ -28,6 +28,7 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -58,7 +59,7 @@ import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.State;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -130,6 +131,9 @@ class HandleWorkflowTest {
     private ImmediateStateChangeListener immediateStateChangeListener;
 
     @Mock
+    private BoundaryStateChangeListener boundaryStateChangeListener;
+
+    @Mock
     private OpWorkflowMetrics opWorkflowMetrics;
 
     @Mock
@@ -151,7 +155,7 @@ class HandleWorkflowTest {
     private ExchangeRateManager exchangeRateManager;
 
     @Mock
-    private State state;
+    private MerkleNodeState state;
 
     @Mock
     private Round round;
@@ -505,6 +509,7 @@ class HandleWorkflowTest {
                 stakePeriodManager,
                 migrationStateChanges,
                 parentTxnFactory,
+                boundaryStateChangeListener,
                 immediateStateChangeListener,
                 scheduleService,
                 hintsService,

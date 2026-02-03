@@ -18,7 +18,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.Reservable;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -52,6 +51,7 @@ import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 /**
  * A utility for generating random signed states.
@@ -447,13 +447,6 @@ public class RandomSignedStateGenerator {
         builtSignedStates.get().forEach(signedState -> {
             try {
                 releaseReservable(signedState.getState().getRoot());
-                signedState.getState().getRoot().treeIterator().forEachRemaining(node -> {
-                    if (node instanceof VirtualMap) {
-                        while (node.getReservationCount() >= 0) {
-                            node.release();
-                        }
-                    }
-                });
             } catch (Exception e) {
                 logger.error("Exception while releasing state", e);
             }

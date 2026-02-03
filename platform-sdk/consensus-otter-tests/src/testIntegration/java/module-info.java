@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 open module org.hiero.otter.fixtures.test {
-    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.logging;
     requires org.hiero.otter.fixtures;
     requires awaitility;

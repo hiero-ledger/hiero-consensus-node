@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.views;
 
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -24,7 +19,7 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * @param <T>
  * 		the type of an object which signifies a merkle node (T may or may not actually be a MerkleNode type)
  */
-public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, LearnerInitializer<T>, TreeView<T> {
+public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, TreeView<T> {
 
     /**
      * For this tree view, start all required reconnect tasks in the given work group. Learning synchronizer
@@ -36,36 +31,18 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, Learn
      * @param workGroup the work group to run teaching task(s) in
      * @param inputStream the input stream to read data from teacher
      * @param outputStream the output stream to write data to teacher
-     * @param rootsToReceive if custom tree views are encountered, they must be added to this queue
-     * @param reconstructedRoot the root node of the reconnected tree must be set here
      */
     void startLearnerTasks(
             final LearningSynchronizer learningSynchronizer,
             final StandardWorkGroup workGroup,
-            final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream,
-            final Queue<MerkleNode> rootsToReceive,
-            final AtomicReference<T> reconstructedRoot);
+            final SerializableDataInputStream inputStream,
+            final SerializableDataOutputStream outputStream);
 
     /**
      * Aborts the reconnect process on the learner side. It may be used to release resources, when
      * reconnect failed with an exception.
      */
     default void abort() {}
-
-    /**
-     * Check if this view represents the root of the state.
-     *
-     * @return true if this view represents the root of the state
-     */
-    boolean isRootOfState();
-
-    /**
-     * Get the root of the tree (or subtree).
-     *
-     * @return the root
-     */
-    T getOriginalRoot();
 
     /**
      * Set the child of an internal node.
@@ -107,16 +84,6 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, Learn
     Hash getNodeHash(T node);
 
     /**
-     * Convert a merkle node that is the root of a subtree with a custom merkle view
-     * to the type used by this view.
-     *
-     * @param node
-     * 		the root of the tree or the root of a custom view subtree
-     * @return the same nude but with the type used by this view
-     */
-    T convertMerkleRootToViewType(MerkleNode node);
-
-    /**
      * Read a merkle leaf from the stream (as written by
      * {@link TeacherTreeView#serializeLeaf(SerializableDataOutputStream, Object)}).
      *
@@ -139,14 +106,6 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, Learn
      * 		if a problem is encountered with the stream
      */
     T deserializeInternal(SerializableDataInputStream in) throws IOException;
-
-    /**
-     * Release a leaf node.
-     *
-     * @param node
-     * 		the node to release
-     */
-    void releaseNode(T node);
 
     /**
      * Record metrics related to queries about children of a given parent during reconnect.

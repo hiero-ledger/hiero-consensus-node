@@ -4,7 +4,6 @@ plugins {
     id("org.hiero.gradle.feature.publish-artifactregistry")
     id("org.hiero.gradle.feature.benchmark")
     id("org.hiero.gradle.feature.test-fixtures")
-    id("org.hiero.gradle.feature.test-time-consuming")
     id("org.hiero.gradle.feature.test-timing-sensitive")
 }
 
@@ -13,8 +12,6 @@ plugins {
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add("-Xlint:-deprecation,-exports,-removal,-varargs")
 }
-
-mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
 
 testModuleInfo {
     requires("org.apache.logging.log4j.core")

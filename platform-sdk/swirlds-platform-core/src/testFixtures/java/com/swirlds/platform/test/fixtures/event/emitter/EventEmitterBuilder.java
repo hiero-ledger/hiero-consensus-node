@@ -3,13 +3,13 @@ package com.swirlds.platform.test.fixtures.event.emitter;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 /**
  * Builder class for creating instances of {@link EventEmitter}.
@@ -17,6 +17,7 @@ import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
 public class EventEmitterBuilder {
     private long randomSeed = 0;
     private int numNodes = 4;
+    private int maxOtherParents = 1;
     private WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
     private PlatformContext platformContext = null;
 
@@ -45,6 +46,17 @@ public class EventEmitterBuilder {
      */
     public EventEmitterBuilder setNumNodes(final int numNodes) {
         this.numNodes = numNodes;
+        return this;
+    }
+
+    /**
+     * Sets the maximum number of other-parents for the event emitter.
+     *
+     * @param maxOtherParents the maximum number of other-parents
+     * @return the builder instance
+     */
+    public EventEmitterBuilder setMaxOtherParents(final int maxOtherParents) {
+        this.maxOtherParents = maxOtherParents;
         return this;
     }
 
@@ -88,8 +100,8 @@ public class EventEmitterBuilder {
 
         final EventSourceFactory eventSourceFactory = new EventSourceFactory(numNodes);
 
-        final StandardGraphGenerator generator =
-                new StandardGraphGenerator(platformContext, randomSeed, eventSourceFactory.generateSources(), roster);
+        final StandardGraphGenerator generator = new StandardGraphGenerator(
+                platformContext, randomSeed, maxOtherParents, eventSourceFactory.generateSources(), roster);
         return new StandardEventEmitter(generator);
     }
 }

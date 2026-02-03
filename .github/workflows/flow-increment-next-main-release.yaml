@@ -7,6 +7,11 @@ on:
         description: "Ref to run the workflow on:"
         required: true
         default: "main" # Default branch
+      dry-run-enabled:
+        description: "Perform Dry Run"
+        type: boolean
+        required: false
+        default: false
 
 defaults:
   run:
@@ -18,7 +23,7 @@ permissions:
 jobs:
   next-main-release:
     name: Increment Version File
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -96,6 +101,7 @@ jobs:
           ./gradlew versionAsSpecified -PnewVersion="${{ steps.increment_version.outputs.new-version }}"
 
       - name: Add & Commit
+        if: ${{ inputs.dry-run-enabled == false }}
         uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
         with:
           cwd: "."
