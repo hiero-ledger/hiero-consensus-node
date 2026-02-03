@@ -1,13 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records;
 
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.records.schemas.V0560BlockRecordSchema;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.hedera.node.app.records.schemas.V0720BlockRecordSchema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Singleton;
 
@@ -17,6 +26,9 @@ import javax.inject.Singleton;
  */
 @Singleton
 public final class BlockRecordService implements Service {
+    /** The original hash, only used at genesis */
+    private static final Bytes GENESIS_HASH = Bytes.wrap(new byte[48]);
+
     /** The name of this service */
     public static final String NAME = "BlockRecordService";
 
@@ -24,6 +36,16 @@ public final class BlockRecordService implements Service {
      * The epoch timestamp, a placeholder for time of an event that has never happened.
      */
     public static final Timestamp EPOCH = new Timestamp(0, 0);
+    /**
+     * The block info at genesis.
+     */
+    public static final BlockInfo GENESIS_BLOCK_INFO =
+            new BlockInfo(-1, EPOCH, Bytes.EMPTY, EPOCH, true, EPOCH, EPOCH, EPOCH);
+    /**
+     * The running hashes at genesis.
+     */
+    public static final RunningHashes GENESIS_RUNNING_HASHES =
+            RunningHashes.newBuilder().runningHash(GENESIS_HASH).build();
 
     @NonNull
     @Override
@@ -36,5 +58,15 @@ public final class BlockRecordService implements Service {
         registry.register(new V0490BlockRecordSchema());
         registry.register(new V0560BlockRecordSchema());
         registry.register(new V0720BlockRecordSchema());
+    }
+
+    @Override
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        requireNonNull(writableStates);
+        requireNonNull(configuration);
+        writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID).put(GENESIS_BLOCK_INFO);
+        writableStates.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID).put(GENESIS_RUNNING_HASHES);
+        return true;
     }
 }

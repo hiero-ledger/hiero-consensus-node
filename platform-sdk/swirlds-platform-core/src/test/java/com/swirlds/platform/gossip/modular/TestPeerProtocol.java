@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.modular;
 
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.NetworkProtocolException;
-import com.swirlds.platform.network.protocol.PeerProtocol;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
+import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.hiero.consensus.model.node.NodeId;
 
 public class TestPeerProtocol implements PeerProtocol {

@@ -2,11 +2,11 @@
 package com.swirlds.virtualmap;
 
 import static com.swirlds.common.io.utility.FileUtils.deleteDirectory;
-import static com.swirlds.common.merkle.iterators.MerkleIterationOrder.BREADTH_FIRST;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,8 +24,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
@@ -37,7 +35,6 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
@@ -51,18 +48,12 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.consensus.metrics.config.MetricsConfig;
@@ -102,17 +93,6 @@ class VirtualMapTests extends VirtualTestBase {
         final VirtualMap vm = createMap();
         vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
         assertEquals(1, vm.size(), "VirtualMap size is wrong");
-        vm.release();
-    }
-
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("Fresh")})
-    @DisplayName("A fresh map has both children")
-    void freshMapHasBothChildren() {
-        final VirtualMap vm = createMap();
-        assertEquals(2, vm.getNumberOfChildren(), "VirtualMap size is wrong");
-        assertNull(vm.getChild(0), "Unexpected null at index 0");
-        assertNull(vm.getChild(1), "Unexpected non-null at index 1");
         vm.release();
     }
 
@@ -512,13 +492,16 @@ class VirtualMapTests extends VirtualTestBase {
         fcm = fcm.copy();
         completed.getHash(); // calculate hash
 
-        final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
-        while (breadthItr.hasNext()) {
-            assertNotNull(breadthItr.next().getHash(), "Expected a value");
-        }
+        assertMapIsFullyHashed(completed);
 
         completed.release();
         fcm.release();
+    }
+
+    private static void assertMapIsFullyHashed(VirtualMap completed) {
+        for (int i = 0; i <= completed.getMetadata().getLastLeafPath(); i++) {
+            assertNotNull(completed.getRecords().findHash(i));
+        }
     }
 
     @Test
@@ -534,10 +517,7 @@ class VirtualMapTests extends VirtualTestBase {
 
         try {
             final Hash firstHash = completed.getHash();
-            final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
-            while (breadthItr.hasNext()) {
-                assertNotNull(breadthItr.next().getHash(), "Expected a value");
-            }
+            assertMapIsFullyHashed(completed);
 
             final Random rand = new Random(1234);
             for (int i = 0; i < 10_000; i++) {
@@ -851,12 +831,12 @@ class VirtualMapTests extends VirtualTestBase {
         final VirtualMap map1 = map0.copy(); // this should make map0 immutable
         assertNotNull(map0.getHash(), "Hash should have been produced for map0");
         assertTrue(map0.isImmutable(), "Copied VirtualMap should have been immutable");
-        assertVirtualMapsEqual(map0, map1);
+        assertVmsAreEqual(map0, map1);
         // serialize the existing maps
         map0.createSnapshot(testDirectory);
 
         final VirtualMap map2 = VirtualMap.loadFromDirectory(testDirectory, CONFIGURATION, InMemoryBuilder::new);
-        assertVirtualMapsEqual(map0, map2);
+        assertVmsAreEqual(map0, map2);
 
         // release the maps and clean up the temporary directory
         map0.release();
@@ -1250,9 +1230,6 @@ class VirtualMapTests extends VirtualTestBase {
     @DisplayName("Flush threshold is inherited by copies")
     void flushThresholdInheritedTest() {
         final long threshold = 12345678L;
-        final VirtualMapConfig config =
-                new TestConfigBuilder().getOrCreateConfig().getConfigData(VirtualMapConfig.class);
-
         VirtualMap root = createMap();
         root.setFlushCandidateThreshold(threshold);
         for (int i = 0; i < 50; i++) {
@@ -1276,85 +1253,5 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     void getVersion() {
         assertEquals(4, createMap().getVersion());
-    }
-
-    // based heavily on VirtualMapGroup::validateCopy(), but modified to just compare two VirtualMaps, instead of
-    // also taking in a "ref" Math of values to compare each map to.
-    private void assertVirtualMapsEqual(final VirtualMap mapA, final VirtualMap mapB) {
-        final boolean immutable = mapA.isImmutable();
-
-        if (mapA.size() != mapB.size()) {
-            throw new RuntimeException("size does not match"); // Add a breakpoint here
-        }
-
-        final Map<MerkleRoute, Hash> hashes = new HashMap<>();
-
-        mapA.forEachNode((final MerkleNode node) -> {
-            if (immutable) {
-                hashes.put(node.getRoute(), node.getHash());
-            }
-
-            if (node instanceof VirtualLeafNode) {
-                final VirtualLeafNode leaf = node.cast();
-
-                final Bytes key = leaf.getKey();
-
-                final TestValue value = leaf.getValue(TestValueCodec.INSTANCE);
-                if (!Objects.equals(mapB.get(key, TestValueCodec.INSTANCE), value)) {
-                    throw new RuntimeException("values do not match for key " + key + ": mapA = " + value + ", mapB ="
-                            + mapB.get(key, TestValueCodec.INSTANCE) + "."); // Add a breakpoint here
-                }
-
-                final Bytes valueBytes = leaf.getValue();
-                if (!Objects.equals(mapB.getBytes(key), valueBytes)) {
-                    throw new RuntimeException("value bytes do not match for key " + key + ": mapA = " + value
-                            + ", mapB =" + mapB.getBytes(key) + "."); // Add a breakpoint here
-                }
-            }
-        });
-
-        mapB.forEachNode((final MerkleNode node) -> {
-            if (immutable) {
-                if (!hashes.containsKey(node.getRoute())) {
-                    throw new RuntimeException("topology differs between trees"); // Add a breakpoint here
-                }
-                if (!Objects.equals(hashes.get(node.getRoute()), node.getHash())) {
-                    throw new RuntimeException("hashes differ between trees"); // Add a breakpoint here
-                }
-            }
-
-            if (node instanceof VirtualLeafNode) {
-                final VirtualLeafNode leaf = node.cast();
-
-                final Bytes key = leaf.getKey();
-
-                final TestValue value = leaf.getValue(TestValueCodec.INSTANCE);
-                if (!Objects.equals(mapA.get(key, TestValueCodec.INSTANCE), value)) {
-                    throw new RuntimeException("values do not match for key " + key + ": mapB = " + value + ", mapA ="
-                            + mapA.get(key, TestValueCodec.INSTANCE) + "."); // Add a breakpoint here
-                }
-            }
-        });
-    }
-
-    private boolean containsRegex(final String regex, final String haystack) {
-        final Pattern exp = Pattern.compile(regex, Pattern.MULTILINE);
-        final Matcher m = exp.matcher(haystack);
-
-        return m.find();
-    }
-
-    private int countRegex(final String regex, final String haystack) {
-        final Pattern exp = Pattern.compile(regex, Pattern.MULTILINE);
-        final Matcher m = exp.matcher(haystack);
-
-        int hits = 0;
-        while (!m.hitEnd()) {
-            if (m.find()) {
-                hits++;
-            }
-        }
-
-        return hits;
     }
 }

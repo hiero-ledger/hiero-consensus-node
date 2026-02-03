@@ -5,6 +5,8 @@ import static com.hedera.hapi.streams.schema.SidecarFileSchema.SIDECAR_RECORDS;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
+import static com.hedera.node.app.records.BlockRecordService.GENESIS_BLOCK_INFO;
+import static com.hedera.node.app.records.BlockRecordService.GENESIS_RUNNING_HASHES;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.TAG_TYPE_BITS;
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.WIRE_TYPE_DELIMITED;
@@ -53,6 +55,7 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -141,15 +144,16 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * @param configProvider The configuration provider
      * @param state The current hedera state
      * @param streamFileProducer The stream file producer
+     * @param initTrigger The init trigger
      */
-    @Inject
     public BlockRecordManagerImpl(
             @NonNull final ConfigProvider configProvider,
             @NonNull final State state,
             @NonNull final BlockRecordStreamProducer streamFileProducer,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
-            @NonNull final Platform platform) {
+            @NonNull final Platform platform,
+            @NonNull final InitTrigger initTrigger) {
         this.platform = platform;
         requireNonNull(state);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -170,20 +174,22 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         this.storeWrappedRecordFileBlockHashesInState = recordStreamConfig.storeWrappedRecordFileBlockHashesInState();
         this.maxSideCarSizeInBytes = recordStreamConfig.sidecarMaxSizeMb() * 1024 * 1024;
 
-        // Initialize the last block info and provisional block info.
-        // NOTE: State migration happens BEFORE dagger initialization, and this object is managed by dagger. So we are
-        // guaranteed that the state exists PRIOR to this call.
-        final var states = state.getReadableStates(BlockRecordService.NAME);
-        final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
-        this.lastBlockInfo = blockInfoState.get();
-        assert this.lastBlockInfo != null : "Cannot be null, because this state is created at genesis";
-
+        final RunningHashes lastRunningHashes;
+        if (initTrigger == InitTrigger.GENESIS) {
+            this.lastBlockInfo = GENESIS_BLOCK_INFO;
+            lastRunningHashes = GENESIS_RUNNING_HASHES;
+        } else {
+            final var states = state.getReadableStates(BlockRecordService.NAME);
+            final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+            this.lastBlockInfo = blockInfoState.get();
+            assert this.lastBlockInfo != null : "Cannot be null, because this state is created at genesis";
+            final var runningHashState = states.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID);
+            lastRunningHashes = runningHashState.get();
+            assert lastRunningHashes != null : "Cannot be null, because this state is created at genesis";
+        }
         // Initialize the stream file producer. NOTE, if the producer cannot be initialized, and a random exception is
         // thrown here, then startup of the node will fail. This is the intended behavior. We MUST be able to produce
         // record streams, or there really is no point to running the node!
-        final var runningHashState = states.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID);
-        final var lastRunningHashes = runningHashState.get();
-        assert lastRunningHashes != null : "Cannot be null, because this state is created at genesis";
         this.streamFileProducer.initRunningHash(lastRunningHashes);
     }
 
