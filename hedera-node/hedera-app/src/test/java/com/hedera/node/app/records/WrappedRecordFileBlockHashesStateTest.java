@@ -13,7 +13,7 @@ class WrappedRecordFileBlockHashesStateTest extends AppTestBase {
     void schemaCreatesQueueState() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
-                .withService(PlatformStateService.PLATFORM_STATE_SERVICE)
+                .withService(new PlatformStateService())
                 .build();
 
         final var state = app.workingStateAccessor().getState();

@@ -23,6 +23,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockrecords.WrappedRecordFileBlockHashes;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.HashAlgorithm;
 import com.hedera.hapi.streams.HashObject;
@@ -39,11 +40,14 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import java.io.BufferedOutputStream;
@@ -65,7 +69,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     void doesNotEnqueueWhenFeatureFlagDisabled() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
-                .withService(PlatformStateService.PLATFORM_STATE_SERVICE)
+                .withService(new PlatformStateService())
                 .withConfigValue("hedera.recordStream.storeWrappedRecordFileBlockHashesInState", false)
                 .build();
 
@@ -80,13 +84,18 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .build())
                 .commit();
 
+        // Seed platform state singleton needed by BlockRecordManagerImpl.startUserTransaction()
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();
         final var controller = new QuiescenceController(
                 new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
         final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
         try (final var mgr = new BlockRecordManagerImpl(
-                app.configProvider(), state, producer, controller, heartbeat, app.platform())) {
+                app.configProvider(), state, producer, controller, heartbeat, app.platform(), InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -104,7 +113,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     void enqueuesExpectedHashesWhenFeatureFlagEnabled() throws Exception {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
-                .withService(PlatformStateService.PLATFORM_STATE_SERVICE)
+                .withService(new PlatformStateService())
                 .withConfigValue("hedera.recordStream.storeWrappedRecordFileBlockHashesInState", true)
                 .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 1)
                 .build();
@@ -120,6 +129,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .build())
                 .commit();
 
+        // Seed platform state singleton needed by BlockRecordManagerImpl.startUserTransaction()
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
         final var state = requireNonNullState(app.workingStateAccessor().getState());
 
         final var producer = new FakeStreamProducer();
@@ -127,7 +141,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
         final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
         try (final var mgr = new BlockRecordManagerImpl(
-                app.configProvider(), state, producer, controller, heartbeat, app.platform())) {
+                app.configProvider(), state, producer, controller, heartbeat, app.platform(), InitTrigger.RECONNECT)) {
 
             final var creationTime = new Timestamp(10, 1);
             final var t0 = InstantUtils.instant(creationTime.seconds(), creationTime.nanos());
@@ -177,10 +191,14 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                     entry.consensusTimestampHash().toByteArray());
 
             // Compute expected output_items_tree_root_hash
-            final SemanticVersion hapiProtoVersion = app.configProvider()
-                    .getConfiguration()
-                    .getConfigData(VersionConfig.class)
-                    .hapiVersion();
+            final var cfg = app.configProvider().getConfiguration();
+            // Match BlockRecordManagerImpl: use the same semantic version the record-stream writer uses, i.e.
+            // servicesVersion with build=configVersion (not VersionConfig.hapiVersion()).
+            final SemanticVersion hapiProtoVersion = cfg.getConfigData(VersionConfig.class)
+                    .servicesVersion()
+                    .copyBuilder()
+                    .build("" + cfg.getConfigData(HederaConfig.class).configVersion())
+                    .build();
 
             final var expectedSidecarFiles =
                     List.of(new SidecarFile(List.of(sidecar1)), new SidecarFile(List.of(sidecar2)));
