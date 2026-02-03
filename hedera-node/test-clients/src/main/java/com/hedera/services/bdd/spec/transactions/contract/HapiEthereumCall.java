@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.transactions.contract;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
@@ -18,10 +19,13 @@ import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.WEIBARS_IN_A_TINYBAR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
+import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.meta.ActionableContractCall;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -45,12 +49,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.bouncycastle.util.encoders.Hex;
 
 public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
@@ -83,6 +89,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private boolean isJumboTxn = false;
     private byte[] authorizationList = null;
     private byte[] signedBytes = null;
+    private Map<String, Address> delegationTargets = Map.of();
 
     public HapiEthereumCall withExplicitParams(final Supplier<String> supplier) {
         explicitHexedParams = Optional.of(supplier);
@@ -349,6 +356,19 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         if (useSpecNonce) {
             nonce = spec.getNonce(privateKeyRef);
         }
+
+        Object[] authorizationListRlp = null;
+        if (type == EthTransactionType.EIP7702 && authorizationList == null && delegationTargets != null) {
+            authorizationListRlp = delegationTargets.entrySet().stream()
+                    .map(target -> Signing.signCodeDelegation(
+                            Integers.toBytes(chainId),
+                            target.getValue(),
+                            nonce,
+                            getEcdsaPrivateKeyFromSpec(spec, target.getKey()),
+                            false))
+                    .toArray();
+            this.authorizationList = RLPEncoder.list(authorizationListRlp);
+        }
         final var ethTxData = new EthTxData(
                 null,
                 type,
@@ -363,8 +383,8 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 callData,
                 new byte[] {},
                 null,
-                authorizationList,
-                new Object[] {},
+                type.equals(EthTransactionType.EIP7702) ? authorizationList : null,
+                type.equals(EthTransactionType.EIP7702) ? authorizationListRlp : new Object[] {},
                 0,
                 null,
                 null,
@@ -481,8 +501,29 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         return this;
     }
 
-    public HapiEthereumCall withAuthorizationList(final byte[] authorizationList) {
+    public HapiEthereumCall withRawAuthorizationList(final byte[] authorizationList) {
         this.authorizationList = authorizationList;
+        return this;
+    }
+
+    public HapiEthereumCall setDelegationTarget(Address address) {
+        this.delegationTargets = Map.of(privateKeyRef, address);
+        return this;
+    }
+
+    public HapiEthereumCall setDelegationTargets(Map<String, Address> targets) {
+        this.delegationTargets = targets;
+        return this;
+    }
+
+    public HapiEthereumCall clearDelegation() {
+        this.delegationTargets = Map.of(privateKeyRef, ZERO_ADDRESS);
+        return this;
+    }
+
+    public HapiEthereumCall clearSpecificDelegations(String... targets) {
+        this.delegationTargets =
+                Arrays.stream(targets).collect(Collectors.toMap(target -> target, target -> ZERO_ADDRESS));
         return this;
     }
 }

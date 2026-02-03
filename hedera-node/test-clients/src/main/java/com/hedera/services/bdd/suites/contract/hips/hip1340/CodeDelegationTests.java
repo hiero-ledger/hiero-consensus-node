@@ -14,16 +14,20 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.useAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWithPreHook;
@@ -39,6 +43,7 @@ import com.google.common.hash.Hashing;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HookCall;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -583,6 +588,61 @@ public class CodeDelegationTests {
                                 assertEquals(HTS_HOOKS_CONTRACT_ADDRESS, thisAddressInHookEvent);
                             }));
         }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> testCrossAPIDelegationNativeToType4() {
+        return hapiTest(withOpContext((spec, opLog) -> {
+            // Create delegation target and account
+            final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
+            final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+
+            nativeSetCodeDelegation(spec, delegatingEoa, delegationTargetContract);
+            allRunFor(
+                    spec,
+                    cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
+                    // verify delegation was set
+                    getAccountInfo(delegatingEoa.name()).hasDelegationAddress(delegationTargetContract.address()),
+
+                    // Now proceed to clear delegation with type 4 eth transaction
+                    sourcing(() -> ethereumCryptoTransfer(RELAYER, 1L)
+                            .signingWith(delegatingEoa.keyName)
+                            .payingWith(RELAYER)
+                            .gasLimit(50_000L)
+                            .clearDelegation()),
+                    // Verify that the delegation was cleared
+                    getAccountInfo(delegatingEoa.name()).hasNoDelegationAddress());
+        }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> testCrossAPIDelegationType4ToNative() {
+        return hapiTest(withOpContext(((spec, assertLog) -> {
+            // Create delegation target and account
+            final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
+            final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+
+            allRunFor(
+                    spec,
+                    cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
+                    // ethereum transaction with code delegation
+                    sourcing(() -> ethereumCryptoTransfer(RELAYER, 1L)
+                            .signingWith(delegatingEoa.keyName())
+                            .payingWith(RELAYER)
+                            .type(EthTransactionType.EIP7702)
+                            .setDelegationTarget(delegationTargetContract.address())
+                            .gasLimit(2_000_000L)
+                            .nonce(0)),
+
+                    // Verify account has delegation set
+                    getAccountInfo(delegatingEoa.name()).hasDelegationAddress(delegationTargetContract.address()),
+
+                    // Clear delegation natively
+                    cryptoUpdate(delegatingEoa.name()).delegationAddress(ByteString.empty()),
+
+                    // Verify that the delegation was cleared from the account
+                    getAccountInfo(delegatingEoa.name()).hasNoDelegationAddress());
+        })));
     }
 
     private record EvmAccount(

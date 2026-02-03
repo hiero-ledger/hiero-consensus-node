@@ -11,6 +11,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.KeyList;
@@ -38,6 +39,7 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.tuweni.bytes.Bytes;
 import org.hiero.base.utility.CommonUtils;
 
 /**
@@ -72,6 +74,7 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
     Optional<Integer> alreadyUsedAutomaticAssociations = Optional.empty();
     private Optional<Consumer<AccountID>> idObserver = Optional.empty();
     private Optional<Consumer<Long>> ethereumNonceObserver = Optional.empty();
+    private Optional<Address> delegationAddress = Optional.empty();
 
     @Nullable
     private Consumer<Key> keyObserver = null;
@@ -207,6 +210,16 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
         return this;
     }
 
+    public HapiGetAccountInfo hasDelegationAddress(Address address) {
+        this.delegationAddress = Optional.of(address);
+        return this;
+    }
+
+    public HapiGetAccountInfo hasNoDelegationAddress() {
+        this.delegationAddress = Optional.empty();
+        return this;
+    }
+
     @Override
     protected HapiGetAccountInfo self() {
         return this;
@@ -286,6 +299,10 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
         if (registryEntry.isPresent()) {
             spec.registry().saveAccountInfo(registryEntry.get(), actualInfo);
         }
+        var actualDelegationAddress = actualInfo.getDelegationAddress();
+        delegationAddress.ifPresent(address -> assertEquals(
+                address.value(),
+                Bytes.wrap(actualDelegationAddress.toByteArray()).toBigInteger()));
     }
 
     @Override

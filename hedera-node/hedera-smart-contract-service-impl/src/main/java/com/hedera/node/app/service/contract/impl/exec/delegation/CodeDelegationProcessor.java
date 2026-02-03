@@ -111,7 +111,8 @@ public record CodeDelegationProcessor(long chainId) {
 
         result.addAccessedDelegatorAddress(authorizerAddress);
 
-        final var delegatedContractAddress = Address.wrap(Bytes.wrap(codeDelegation.address()));
+        final var delegatedContractAddress =
+                Address.fromHexString(Bytes.wrap(codeDelegation.address()).toString());
 
         MutableAccount authority;
         if (maybeAuthorityAccount.isEmpty()) {
