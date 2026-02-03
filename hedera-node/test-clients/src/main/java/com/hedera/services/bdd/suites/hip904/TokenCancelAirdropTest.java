@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip904;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.XTS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
@@ -35,8 +37,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PENDING_AIRDRO
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -47,8 +50,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(XTS)
+@Tag(ONLY_EMBEDDED)
 @Tag(CRYPTO)
+@TargetEmbeddedMode(CONCURRENT)
 @HapiTestLifecycle
 @DisplayName("Token cancel airdrop")
 public class TokenCancelAirdropTest extends TokenAirdropBase {
@@ -67,7 +71,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
         lifecycle.doAdhoc(setUpTokensAndAllReceivers());
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("fails gracefully with null parameters")
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         final var account = "account";
@@ -82,7 +86,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .payingWith(account)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("not created NFT pending airdrop")
     final Stream<DynamicTest> cancelNotCreatedNFTPendingAirdrop() {
         return hapiTest(
@@ -91,7 +95,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("not created FT pending airdrop")
     final Stream<DynamicTest> cancelNotCreatedFTPendingAirdrop() {
         final var receiver = "receiver";
@@ -102,13 +106,13 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("with an empty airdrop list")
     final Stream<DynamicTest> cancelWithAnEmptyAirdropList() {
         return hapiTest(tokenCancelAirdrop().payingWith(OWNER).hasPrecheck(EMPTY_PENDING_AIRDROP_ID_LIST));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("with exceeding airdrops")
     final Stream<DynamicTest> cancelWithExceedingAirdrops() {
         return hapiTest(tokenCancelAirdrop(
@@ -127,7 +131,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                 .hasKnownStatus(PENDING_AIRDROP_ID_LIST_TOO_LONG));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("with duplicated FT")
     final Stream<DynamicTest> cancelWithDuplicatedFT() {
         return hapiTest(tokenCancelAirdrop(
@@ -137,7 +141,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                 .hasPrecheck(PENDING_AIRDROP_ID_REPEATED));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("with duplicated NFT")
     final Stream<DynamicTest> cancelWithDuplicatedNFT() {
         return hapiTest(tokenCancelAirdrop(
@@ -147,7 +151,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                 .hasPrecheck(PENDING_AIRDROP_ID_REPEATED));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("FT not signed by the owner")
     final Stream<DynamicTest> cancelFTNotSingedByTheOwner() {
         var account = "account";
@@ -165,7 +169,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(INVALID_SIGNATURE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("NFT not signed by the owner")
     final Stream<DynamicTest> cancelNFTNotSingedByTheOwner() {
         var account = "account";
@@ -184,7 +188,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(INVALID_SIGNATURE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("cannot delete account when pending airdrop present")
     final Stream<DynamicTest> cannotDeleteAccountWhenPendingAirdropPresent() {
         final var account = "account";
@@ -201,7 +205,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                 cryptoDelete(account));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("cannot delete account when pending airdrop present with two airdrops")
     final Stream<DynamicTest> cannotDeleteAccountWhenPendingAirdropPresentTwoAirdrops() {
         final var account = "account";
@@ -230,7 +234,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                 cryptoDelete(account));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("and then claim should fail for FT")
     final Stream<DynamicTest> claimCanceledFTAirdrop() {
         final var account = "account";
@@ -250,7 +254,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("and then claim should fail for NFT")
     final Stream<DynamicTest> claimCanceledNFTAirdrop() {
         final var account = "account";
@@ -270,7 +274,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("with multiple NFTs")
     final Stream<DynamicTest> multipleNFTs() {
         final var account = "account";
@@ -292,7 +296,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .payingWith(account));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("when receiver with 0 HBARs pays for FT")
     final Stream<DynamicTest> receiverWith0HBARsPaysFT() {
         final var account = "account";
@@ -311,7 +315,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("when receiver with 0 HBARs pays for NFT")
     final Stream<DynamicTest> receiverWith0HBARsPaysNFT() {
         final var account = "account";
@@ -330,7 +334,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("when receiver with enough HBARs pays for FT")
     final Stream<DynamicTest> receiverWithEnoughHBARsPaysFT() {
         final var account = "account";
@@ -348,7 +352,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .payingWith(receiver));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("when receiver with enough HBARs pays for NFT")
     final Stream<DynamicTest> receiverWithEnoughHBARsPaysNFT() {
         final var account = "account";
@@ -366,7 +370,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .payingWith(receiver));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("with two separate FT airdrops")
     final Stream<DynamicTest> twoSeparateFTAirdrops() {
         final var account = "account";
@@ -391,7 +395,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("with multiple NFTs cancel one")
     final Stream<DynamicTest> multipleNFTsCancelOne() {
         final var account = "account";
@@ -418,7 +422,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .payingWith(receiver));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("with FT and NFT to the same receiver")
     final Stream<DynamicTest> FTAndNFTToSameReceiver() {
         final var account = "account";
@@ -447,7 +451,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("with FT and NFT to different receivers")
     final Stream<DynamicTest> FTAndNFTToDifferentReceivers() {
         final var account = "account";
@@ -478,7 +482,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("when treasury is changed")
     final Stream<DynamicTest> treasuryIsChanged() {
         final var account = "account";
