@@ -16,7 +16,12 @@ public class GossipConfigurationExtension implements ConfigurationExtension {
     @Override
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(GossipConfig.class, ProtocolConfig.class, SocketConfig.class, SyncConfig.class);
+        return Set.of(
+                GossipConfig.class,
+                GossipWiringConfig.class,
+                ProtocolConfig.class,
+                SocketConfig.class,
+                SyncConfig.class);
     }
 
     /**

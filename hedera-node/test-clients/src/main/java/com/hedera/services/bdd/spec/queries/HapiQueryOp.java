@@ -288,7 +288,7 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
             }
             query = maybeModified(queryFor(spec, payment, ResponseType.COST_ANSWER), spec);
             response = spec.targetNetworkOrThrow().send(query, type(), targetNodeFor(spec), asNodeOperator);
-            final var realNodePayment = costFrom(response);
+            var realNodePayment = costFrom(response);
             Optional.ofNullable(nodePaymentObserver).ifPresent(observer -> observer.accept(realNodePayment));
             if (expectedCostAnswerPrecheck() != OK) {
                 return Transaction.getDefaultInstance();

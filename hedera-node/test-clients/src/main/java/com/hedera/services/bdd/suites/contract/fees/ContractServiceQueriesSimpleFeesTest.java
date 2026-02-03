@@ -17,6 +17,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -27,8 +28,8 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class ContractServiceQueriesSimpleFeesTest {
-    private static final double CONTRACT_CALL_LOCAL_BASE_FEE = 0.0001;
-    private static final double CONTRACT_GET_BYTECODE_BASE_FEE = 0.0001;
+    private static final double CONTRACT_CALL_LOCAL_BASE_FEE = 0.001;
+    private static final double CONTRACT_GET_BYTECODE_BASE_FEE = 0.05;
     private static final double CONTRACT_GET_INFO_BASE_FEE = 0.0001;
 
     @Contract(contract = "SmartContractsFees")
@@ -42,6 +43,7 @@ public class ContractServiceQueriesSimpleFeesTest {
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
+        lifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
         lifecycle.doAdhoc(contract.getInfo(), civilian.getInfo(), relayer.getInfo());
     }
 
@@ -55,7 +57,6 @@ public class ContractServiceQueriesSimpleFeesTest {
                         .payingWith(civilian.name())
                         .signedBy(civilian.name())
                         .via(contractLocalCall),
-                // Expected base fee for ContractCallLocal is 0.0001 USD
                 validateChargedUsdForQueries(contractLocalCall, CONTRACT_CALL_LOCAL_BASE_FEE, 1));
     }
 
@@ -68,7 +69,7 @@ public class ContractServiceQueriesSimpleFeesTest {
                         .payingWith(civilian.name())
                         .signedBy(civilian.name())
                         .via(record),
-                validateChargedUsdForQueries(record, CONTRACT_GET_BYTECODE_BASE_FEE, 1));
+                validateChargedUsdForQueries(record, CONTRACT_GET_BYTECODE_BASE_FEE, 0.1));
     }
 
     @HapiTest

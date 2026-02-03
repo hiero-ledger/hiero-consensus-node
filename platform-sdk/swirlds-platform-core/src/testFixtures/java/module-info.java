@@ -12,10 +12,12 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.gossip.impl;
     requires transitive org.hiero.consensus.hashgraph.impl;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.model.test.fixtures;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility.test.fixtures;
     requires transitive org.hiero.consensus.utility;
     requires transitive org.assertj.core;
     requires com.swirlds.base.test.fixtures;
@@ -30,8 +32,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.metrics;
-    requires org.hiero.consensus.pces.impl;
-    requires org.hiero.consensus.utility.test.fixtures;
+    requires org.hiero.consensus.reconnect;
     requires com.github.spotbugs.annotations;
     requires java.desktop;
     requires org.junit.jupiter.api;
