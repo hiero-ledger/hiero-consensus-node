@@ -215,6 +215,13 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Set Date Field
+        id: set-date
+        run: |
+          TAG=${{ needs.promote-build-candidate.outputs.build-candidate-tag }}
+          DATE=$(git show ${TAG} | HEAD -3 | tail -1)g
+          echo "tag-date=${DATE}" >> "${GITHUB_OUTPUT}"
+
       - name: Report Promoted Build
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
@@ -262,6 +269,14 @@ jobs:
                           "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.promote-build-candidate.outputs.build-candidate-tag }}>"
                         },
                         {
+                          "type": "plain_text",
+                          "text": "Tag Date"
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": "*${{ steps.set-date.outputs.tag-date }}*"
+                        },
+                        {
                           "type": "mrkdwn",
                           "text": "Workflow Run"
                         },
@@ -287,6 +302,12 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
+
+      - name: Set Date Field
+        id: set-date
+        run: |
+          DATE=$(date +"%Y-%m-%d (%Z)")
+          echo "tag-date=${DATE}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Slack Payload Message
         id: payload
@@ -336,6 +357,14 @@ jobs:
                     },
                     "fields":[
                       {
+                        "type": "plain_text",
+                        "text": "Date"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*${{ steps.set-date.outputs.tag-date }}*"
+                      },
+                      {
                         "type": "mrkdwn",
                         "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
                       },
@@ -376,6 +405,12 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
+
+      - name: Set Date Field
+        id: set-date
+        run: |
+          DATE=$(date +"%Y-%m-%d (%Z)")
+          echo "tag-date=${DATE}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
@@ -448,6 +483,14 @@ jobs:
                       "text": "*Build Candidate Promotion Job Resulted in failure. See status below.*"
                     },
                     "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Date"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*${{ steps.set-date.outputs.tag-date }}*"
+                      },
                       {
                         "type": "plain_text",
                         "text": "Fetch Latest Build Candidate"
