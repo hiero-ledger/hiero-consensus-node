@@ -219,7 +219,7 @@ jobs:
         id: set-date
         run: |
           TAG=${{ needs.promote-build-candidate.outputs.build-candidate-tag }}
-          DATE=$(git show ${TAG} | HEAD -3 | tail -1)g
+          DATE=$(git show ${TAG} | HEAD -3 | tail -1)
           echo "tag-date=${DATE}" >> "${GITHUB_OUTPUT}"
 
       - name: Report Promoted Build
