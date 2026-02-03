@@ -34,15 +34,9 @@ public class Rehash {
 
     private static final Logger logger = LogManager.getLogger(Rehash.class);
 
-    /**
-     * This parameter defines how deep the hash tree should be traversed.
-     * Note that it doesn't go below the top level of VirtualMap even if the depth is set to a higher value.
-     */
-    public static final int HASH_DEPTH = 5;
-
     @Test
     void reHash(DeserializedSignedState deserializedSignedState) throws Exception {
-        final VirtualMap vm = (VirtualMap)
+        final VirtualMap vm =
                 deserializedSignedState.reservedSignedState().get().getState().getRoot();
         records = vm.getRecords();
 

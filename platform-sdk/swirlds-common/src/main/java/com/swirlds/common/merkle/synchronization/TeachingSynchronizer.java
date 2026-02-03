@@ -41,7 +41,7 @@ public class TeachingSynchronizer {
      */
     private final SerializableDataOutputStream outputStream;
 
-    private final TeacherTreeView<?> view;
+    private final TeacherTreeView view;
 
     private final Runnable breakConnection;
 
@@ -71,7 +71,7 @@ public class TeachingSynchronizer {
             @NonNull final ThreadManager threadManager,
             @NonNull final SerializableDataInputStream in,
             @NonNull final SerializableDataOutputStream out,
-            @NonNull final TeacherTreeView<?> view,
+            @NonNull final TeacherTreeView view,
             @Nullable final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
 

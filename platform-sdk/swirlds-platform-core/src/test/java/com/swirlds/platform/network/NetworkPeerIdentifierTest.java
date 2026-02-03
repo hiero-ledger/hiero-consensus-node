@@ -5,8 +5,6 @@ import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeyLoadingException;
 import com.swirlds.platform.crypto.PublicStores;
 import java.net.URISyntaxException;
@@ -29,8 +27,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.hiero.base.crypto.internal.DetRandomProvider;
+import org.hiero.base.crypto.DetRandomProvider;
+import org.hiero.consensus.crypto.CertificateUtils;
 import org.hiero.consensus.crypto.KeyCertPurpose;
+import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.gossip.impl.network.NetworkPeerIdentifier;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
@@ -142,7 +142,7 @@ class NetworkPeerIdentifierTest {
         final KeyPair rsaKeyPair1 = rsaKeyGen.generateKeyPair();
 
         final String name = "CN=Bob";
-        final X509Certificate rsaCert = CryptoStatic.generateCertificate(
+        final X509Certificate rsaCert = CertificateUtils.generateCertificate(
                 name, rsaKeyPair1, name, rsaKeyPair1, secureRandom, SigningSchema.RSA.getSigningAlgorithm());
         final Certificate[] certificates = new Certificate[] {rsaCert};
 

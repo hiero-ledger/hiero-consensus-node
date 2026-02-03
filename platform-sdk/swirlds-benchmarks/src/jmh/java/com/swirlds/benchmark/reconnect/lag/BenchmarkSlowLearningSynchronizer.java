@@ -31,7 +31,7 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
             final SerializableDataInputStream in,
             final SerializableDataOutputStream out,
             final VirtualMap newRoot,
-            final LearnerTreeView<?> view,
+            final LearnerTreeView view,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
