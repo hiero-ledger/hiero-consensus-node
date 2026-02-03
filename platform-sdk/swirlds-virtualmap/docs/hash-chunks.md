@@ -5,7 +5,7 @@
 Virtual maps are balanced binary trees, where all data is stored in leaves. Every node has two
 child nodes, except a tree that stores only one element - in this case the tree contains a
 root node with a single leaf, left child node. Every node in a virtual map can be uniquely
-identified using a path (long). Root node has path 0. For every node at path `N`, its left
+identified using a path (long). The root node has path 0. For every node at path `N`, its left
 child path is `2N+1`, and the right child path is `2N+2`.
 
 ## Virtual hashes
@@ -15,7 +15,7 @@ nodes, both leaves and internal. For leaves, leaf data is serialized to protobuf
 hashed as a byte array. For internal nodes, hashes are produced from their left and right
 child node hashes.
 
-Historically hashes are stored on disk by path. MerkleDb has a data collection for hashes,
+Historically, hashes are stored on disk by path. MerkleDb has a data collection for hashes,
 its index is mapping paths to hash record locations on disk (file + offset). Hash records
 contain a path and a hash. This approach has pros
 
