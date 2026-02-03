@@ -37,8 +37,8 @@ import org.hiero.base.crypto.Signer;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.node.NodeUtilities;
 import org.hiero.consensus.pcli.graph.PcesGraphSlicer;
-import org.hiero.consensus.roster.RosterUtils;
 import picocli.CommandLine;
 
 /**
@@ -408,7 +408,7 @@ public class PcesSliceCommand extends AbstractCommand {
         for (final Map.Entry<NodeId, KeysAndCerts> entry : keysAndCertsMap.entrySet()) {
             final NodeId nodeId = entry.getKey();
             final KeysAndCerts keysAndCerts = entry.getValue();
-            final String nodeName = RosterUtils.formatNodeName(nodeId);
+            final String nodeName = NodeUtilities.formatNodeName(nodeId);
 
             // Write private key PEM file
             final Path privateKeyPath = keysDirectory.resolve(String.format("s-private-%s.pem", nodeName));

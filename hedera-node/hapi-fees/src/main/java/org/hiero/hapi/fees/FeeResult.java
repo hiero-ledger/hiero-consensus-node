@@ -14,10 +14,10 @@ import java.util.List;
  */
 public class FeeResult {
     private long serviceBase = 0;
-    private List<FeeDetail> serviceExtrasDetails = new ArrayList<>();
+    private final List<FeeDetail> serviceExtrasDetails = new ArrayList<>();
     private long serviceTotal = 0;
     private long nodeBase = 0;
-    private List<FeeDetail> nodeExtrasDetails = new ArrayList<>();
+    private final List<FeeDetail> nodeExtrasDetails = new ArrayList<>();
     private long nodeTotal = 0;
     private int networkMultiplier = 0;
     private int congestionMultiplier = 0;
