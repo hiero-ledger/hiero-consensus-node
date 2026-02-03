@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test.performance.benchmark;
 
+import static com.swirlds.common.utility.InstantUtils.instantToMicros;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
@@ -27,8 +28,8 @@ import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.network.transactions.BenchmarkTransaction;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.specs.OtterSpecs;
+import org.hiero.otter.test.performance.benchmark.fixtures.BenchmarkServiceLogParser;
 import org.hiero.otter.test.performance.benchmark.fixtures.MeasurementsCollector;
-import org.hiero.otter.test.performance.benchmark.fixtures.MeasurementsCollector.Measurement;
 
 /**
  * Performance benchmark test that measures consensus layer latency.
@@ -104,7 +105,7 @@ public class BenchmarkTest {
 
         // Collect measurements from all nodes' logs and print the benchmark report
         final MeasurementsCollector collector = new MeasurementsCollector();
-        parseFromLogs(network.newLogResults(), Measurement::parse, collector::addEntry);
+        parseFromLogs(network.newLogResults(), BenchmarkServiceLogParser::parseMeasurement, collector::addEntry);
         // Make sure the benchmark run is valid
         assertEquals(
                 TRANSACTION_COUNT * NUMBER_OF_NODES,
@@ -130,12 +131,5 @@ public class BenchmarkTest {
                 .setNonce(nonce)
                 .setBenchmarkTransaction(benchmarkTransaction)
                 .build();
-    }
-
-    /**
-     * Converts an Instant to epoch microseconds.
-     */
-    private static long instantToMicros(@NonNull final Instant instant) {
-        return instant.getEpochSecond() * 1_000_000L + instant.getNano() / 1_000L;
     }
 }

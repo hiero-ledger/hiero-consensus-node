@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.app.services.benchmark;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.common.utility.InstantUtils;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -34,8 +35,7 @@ public class BenchmarkService implements OtterService {
     private static final BenchmarkStateSpecification STATE_SPECIFICATION = new BenchmarkStateSpecification();
 
     /**
-     * Log prefix used for benchmark measurements. This prefix is used by {@link BenchmarkServiceLogParser}
-     * to identify and parse benchmark log entries.
+     * Log prefix used for benchmark measurements.
      */
     private static final String BENCHMARK_LOG_PREFIX = "BENCHMARK:";
 
@@ -76,7 +76,7 @@ public class BenchmarkService implements OtterService {
         final Instant handleTime = Instant.now();
 
         final BenchmarkTransaction benchmarkTx = transaction.getBenchmarkTransaction();
-        final Instant submissionTime = microsToInstant(benchmarkTx.getSubmissionTimeMicros());
+        final Instant submissionTime = InstantUtils.microsToInstant(benchmarkTx.getSubmissionTimeMicros());
         final long latencyMicros = ChronoUnit.MICROS.between(submissionTime, handleTime);
 
         // Log the measurement data in a parseable format
@@ -87,24 +87,7 @@ public class BenchmarkService implements OtterService {
                 BENCHMARK_LOG_PREFIX,
                 transaction.getNonce(),
                 latencyMicros,
-                instantToMicros(submissionTime),
-                instantToMicros(handleTime));
-    }
-
-    /**
-     * Converts an Instant to epoch microseconds.
-     */
-    private static long instantToMicros(@NonNull final Instant instant) {
-        return instant.getEpochSecond() * 1_000_000L + instant.getNano() / 1_000L;
-    }
-
-    /**
-     * Converts epoch microseconds to an Instant.
-     */
-    @NonNull
-    private static Instant microsToInstant(final long micros) {
-        final long seconds = micros / 1_000_000L;
-        final int nanos = (int) ((micros % 1_000_000L) * 1_000L);
-        return Instant.ofEpochSecond(seconds, nanos);
+                InstantUtils.instantToMicros(submissionTime),
+                InstantUtils.instantToMicros(handleTime));
     }
 }

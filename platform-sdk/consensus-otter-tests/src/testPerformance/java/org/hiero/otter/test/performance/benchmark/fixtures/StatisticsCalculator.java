@@ -2,8 +2,8 @@
 package org.hiero.otter.test.performance.benchmark.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Calculates statistical metrics for benchmark measurements.
@@ -36,6 +36,7 @@ public final class StatisticsCalculator {
 
     /**
      * Immutable statistics snapshot.
+     * For all values, units should remain consistent across values.
      *
      * @param sampleCount number of valid samples
      * @param totalMeasurements total measurements taken
@@ -49,7 +50,7 @@ public final class StatisticsCalculator {
      * @param p95 95th percentile
      * @param p99 99th percentile
      * @param duration total duration from first submission to last handle
-     * @param throughput transactions per time unit
+     * @param throughput measurements per unit of time
      */
     public record Statistics(
             int sampleCount,
@@ -73,11 +74,11 @@ public final class StatisticsCalculator {
     /**
      * Computes comprehensive statistics from the given samples and metadata.
      *
-     * @param samples list of samples (will be sorted in place)
+     * @param samples list of samples
      * @param total total number of attempted measurements
      * @param invalid number of invalid measurements
-     * @param firstSubmissionTime timestamp of the first transaction submission (nullable)
-     * @param lastHandleTime timestamp of the last transaction handle (nullable)
+     * @param firstSubmissionTime timestamp in microseconds of the first transaction submission (nullable)
+     * @param lastHandleTime timestamp in microseconds of the last transaction handle (nullable)
      * @return computed statistics
      */
     @NonNull
@@ -93,10 +94,10 @@ public final class StatisticsCalculator {
         }
 
         final int sampleCount = samples.size();
-        Collections.sort(samples);
+        final List<Long> sortedSamples = samples.stream().sorted().toList();
 
-        final double average = computeAverage(samples);
-        final double stdDev = computeStdDev(samples, average);
+        final double average = computeAverage(sortedSamples);
+        final double stdDev = computeStdDev(sortedSamples, average);
 
         // Calculate 99.9% confidence interval: error = z-value × (stdDev / sqrt(n))
         // Only computed with 100+ samples where z-approximation is accurate.
@@ -110,18 +111,19 @@ public final class StatisticsCalculator {
             error = 0.0;
         }
 
-        final long min = samples.getFirst();
-        final long max = samples.getLast();
-        final long p50 = percentile(samples, 50);
-        final long p95 = percentile(samples, 95);
-        final long p99 = percentile(samples, 99);
+        final long min = sortedSamples.getFirst();
+        final long max = sortedSamples.getLast();
+        final long p50 = percentile(sortedSamples, 50);
+        final long p95 = percentile(sortedSamples, 95);
+        final long p99 = percentile(sortedSamples, 99);
 
-        final long duration =
+        final long durationInUs =
                 (firstSubmissionTime != null && lastHandleTime != null) ? lastHandleTime - firstSubmissionTime : 0;
-        final double throughput = (duration > 0) ? ((double) total / duration) : 0;
+        final double throughput =
+                (durationInUs > 0) ? ((double) total / TimeUnit.MICROSECONDS.toSeconds(durationInUs)) : 0;
 
         return new Statistics(
-                sampleCount, total, invalid, average, stdDev, error, min, max, p50, p95, p99, duration, throughput);
+                sampleCount, total, invalid, average, stdDev, error, min, max, p50, p95, p99, durationInUs, throughput);
     }
 
     /**
@@ -134,11 +136,11 @@ public final class StatisticsCalculator {
         if (samples.isEmpty()) {
             return 0.0;
         }
-        long sum = 0;
+        double sum = 0;
         for (final long sample : samples) {
             sum += sample;
         }
-        return (double) sum / samples.size();
+        return sum / samples.size();
     }
 
     /**

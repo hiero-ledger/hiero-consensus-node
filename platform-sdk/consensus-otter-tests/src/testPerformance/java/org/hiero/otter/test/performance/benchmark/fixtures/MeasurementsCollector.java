@@ -4,18 +4,15 @@ package org.hiero.otter.test.performance.benchmark.fixtures;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.test.performance.benchmark.fixtures.StatisticsCalculator.Statistics;
 
 /**
@@ -28,74 +25,36 @@ import org.hiero.otter.test.performance.benchmark.fixtures.StatisticsCalculator.
  * <pre>{@code
  * // After running benchmark transactions:
  * MeasurementsCollector collector = new MeasurementsCollector();
- * BenchmarkServiceLogParser.parseFromLogs(network.newLogResults(), Measurement::parse, collector::addEntry);
+ *  // ...
+ *      collector.addEntry( new Measurement(...));
+ *  // ...
  * log.info(collector.generateReport());
  * }</pre>
  */
 public class MeasurementsCollector {
 
     private static final Logger log = LogManager.getLogger(MeasurementsCollector.class);
+    private static final String UNIT = "μs";
 
     // Per-node data
     private final Map<NodeId, List<Long>> latencySamplesByNode = new HashMap<>();
-    private final Map<NodeId, Long> firstSubmissionTimeByNode = new HashMap<>();
-    private final Map<NodeId, Long> lastHandleTimeByNode = new HashMap<>();
+    private final Map<NodeId, Long> firstSubmissionTimeByNodeInUs = new HashMap<>();
+    private final Map<NodeId, Long> lastHandleTimeByNodeInUs = new HashMap<>();
     private final Map<NodeId, Long> totalTransactionsByNode = new HashMap<>();
     private final Map<NodeId, Long> negativeLatencyByNode = new HashMap<>();
-
-    // Unit tracking (set from first measurement)
-    private String unit = null;
 
     /**
      * A single parsed benchmark measurement.
      *
      * @param nonce the transaction nonce
      * @param latency the measured latency value
-     * @param unit the time unit (e.g., "ms", "μs", "ns")
+     * @param unit the time unit.
      * @param submissionTime when the transaction was submitted
      * @param handleTime when the transaction was handled
      * @param nodeId the node that logged this measurement (may be null)
      */
     public record Measurement(
-            long nonce, long latency, String unit, long submissionTime, long handleTime, NodeId nodeId) {
-
-        /**
-         * Pattern to parse benchmark log messages.
-         * Expected format: "BENCHMARK: nonce=123, latency=45μs, submissionTime=1234567890, handleTime=1234567935"
-         * Supports units: ms, μs, us, ns
-         */
-        private static final Pattern BENCHMARK_PATTERN = Pattern.compile(
-                "nonce=(\\d+),\\s*latency=(-?\\d+)(ms|μs|us|ns),\\s*submissionTime=(\\d+),\\s*handleTime=(\\d+)");
-
-        /**
-         * Parses a single log entry into a measurement.
-         *
-         * @param nodeId the node ID to associate with the entry
-         * @param logEntry the structured log entry
-         * @return the parsed measurement, or null if the log entry is not a benchmark log
-         */
-        @Nullable
-        public static Measurement parse(@Nullable final NodeId nodeId, @NonNull final StructuredLog logEntry) {
-            final String message = logEntry.message();
-            final Matcher matcher = BENCHMARK_PATTERN.matcher(message);
-            if (!matcher.find()) {
-                return null;
-            }
-
-            try {
-                final long nonce = Long.parseLong(matcher.group(1));
-                final long latency = Long.parseLong(matcher.group(2));
-                final String unit = matcher.group(3);
-                final long submissionTime = Long.parseLong(matcher.group(4));
-                final long handleTime = Long.parseLong(matcher.group(5));
-
-                return new Measurement(nonce, latency, unit, submissionTime, handleTime, nodeId);
-            } catch (NumberFormatException e) {
-                log.warn("Failed to parse benchmark log entry: {}", message);
-                return null;
-            }
-        }
-    }
+            long nonce, long latency, TimeUnit unit, long submissionTime, long handleTime, NodeId nodeId) {}
 
     /**
      * Adds a measurement to the collection.
@@ -104,11 +63,6 @@ public class MeasurementsCollector {
      */
     public void addEntry(@NonNull final Measurement entry) {
         final NodeId nodeId = entry.nodeId();
-
-        // Track unit from first measurement
-        if (unit == null) {
-            unit = entry.unit();
-        }
 
         totalTransactionsByNode.merge(nodeId, 1L, Long::sum);
 
@@ -125,11 +79,15 @@ public class MeasurementsCollector {
             return;
         }
 
-        latencySamplesByNode.computeIfAbsent(nodeId, k -> new ArrayList<>()).add(entry.latency());
+        final var timeUnit = entry.unit();
+        latencySamplesByNode.computeIfAbsent(nodeId, k -> new ArrayList<>()).add((timeUnit.toMicros(entry.latency())));
 
-        firstSubmissionTimeByNode.compute(
-                nodeId, (k, v) -> (v == null || entry.submissionTime() < v) ? entry.submissionTime() : v);
-        lastHandleTimeByNode.compute(nodeId, (k, v) -> (v == null || entry.handleTime() > v) ? entry.handleTime() : v);
+        final long submissionTimeMicros = timeUnit.toMicros(entry.submissionTime());
+        final long handleTimeMicros = timeUnit.toMicros(entry.handleTime());
+
+        firstSubmissionTimeByNodeInUs.compute(
+                nodeId, (k, v) -> (v == null || submissionTimeMicros < v) ? submissionTimeMicros : v);
+        lastHandleTimeByNodeInUs.compute(nodeId, (k, v) -> (v == null || handleTimeMicros > v) ? handleTimeMicros : v);
     }
 
     /**
@@ -140,29 +98,6 @@ public class MeasurementsCollector {
     @NonNull
     public Set<NodeId> getNodeIds() {
         return latencySamplesByNode.keySet();
-    }
-
-    /**
-     * Returns the time unit used for measurements (e.g., "ms", "μs", "ns").
-     *
-     * @return the time unit, or "μs" if no measurements have been recorded
-     */
-    @NonNull
-    public String getUnit() {
-        return unit != null ? unit : "μs";
-    }
-
-    /**
-     * Returns the number of time units per second based on the current measurement unit.
-     *
-     * @return conversion factor to convert from the measurement unit to seconds
-     */
-    private double getUnitsPerSecond() {
-        return switch (getUnit()) {
-            case "ms" -> 1_000.0;
-            case "ns" -> 1_000_000_000.0;
-            default -> 1_000_000.0;
-        };
     }
 
     /**
@@ -180,8 +115,8 @@ public class MeasurementsCollector {
 
         final long total = totalTransactionsByNode.getOrDefault(nodeId, 0L);
         final long invalid = negativeLatencyByNode.getOrDefault(nodeId, 0L);
-        final Long firstSubmissionTime = firstSubmissionTimeByNode.get(nodeId);
-        final Long lastHandleTime = lastHandleTimeByNode.get(nodeId);
+        final Long firstSubmissionTime = firstSubmissionTimeByNodeInUs.get(nodeId);
+        final Long lastHandleTime = lastHandleTimeByNodeInUs.get(nodeId);
 
         return StatisticsCalculator.compute(samples, total, invalid, firstSubmissionTime, lastHandleTime);
     }
@@ -194,18 +129,18 @@ public class MeasurementsCollector {
     @NonNull
     public Statistics computeStatistics() {
         final List<Long> allSamples = new ArrayList<>();
-        long totalTx = 0;
-        long negativeTx = 0;
+        long totalSamples = 0;
+        long invalidSamples = 0;
         Long firstTime = null;
         Long lastTime = null;
 
         for (final NodeId nodeId : latencySamplesByNode.keySet()) {
             allSamples.addAll(latencySamplesByNode.get(nodeId));
-            totalTx += totalTransactionsByNode.getOrDefault(nodeId, 0L);
-            negativeTx += negativeLatencyByNode.getOrDefault(nodeId, 0L);
+            totalSamples += totalTransactionsByNode.getOrDefault(nodeId, 0L);
+            invalidSamples += negativeLatencyByNode.getOrDefault(nodeId, 0L);
 
-            final Long nodeFirstSubmission = firstSubmissionTimeByNode.get(nodeId);
-            final Long nodeLastHandle = lastHandleTimeByNode.get(nodeId);
+            final Long nodeFirstSubmission = firstSubmissionTimeByNodeInUs.get(nodeId);
+            final Long nodeLastHandle = lastHandleTimeByNodeInUs.get(nodeId);
 
             if (nodeFirstSubmission != null && (firstTime == null || nodeFirstSubmission < firstTime)) {
                 firstTime = nodeFirstSubmission;
@@ -219,7 +154,7 @@ public class MeasurementsCollector {
             return Statistics.EMPTY;
         }
 
-        return StatisticsCalculator.compute(allSamples, totalTx, negativeTx, firstTime, lastTime);
+        return StatisticsCalculator.compute(allSamples, totalSamples, invalidSamples, firstTime, lastTime);
     }
 
     /**
@@ -230,58 +165,55 @@ public class MeasurementsCollector {
      */
     @NonNull
     public String generateReport() {
-        final StringBuilder sb = new StringBuilder();
+        final StringBuilder jmhStyleReport = new StringBuilder();
+        final StringBuilder tsvStyleReport = new StringBuilder();
         final Statistics totalStats = computeStatistics();
-        final String u = getUnit();
 
         if (totalStats.sampleCount() == 0) {
-            sb.append("No benchmark data recorded.\n");
-            return sb.toString();
+            jmhStyleReport.append("No benchmark data recorded.\n");
+            return jmhStyleReport.toString();
         }
 
         // JMH-style header
-        sb.append("\n");
-        sb.append(String.format(
+        jmhStyleReport.append("\n");
+        jmhStyleReport.append(String.format(
                 "%-12s %6s %10s %10s %10s %8s %8s %8s %8s  %s%n",
                 "Benchmark", "Cnt", "Score", "Error", "StdDev", "p50", "p95", "p99", "Max", "Units"));
+
+        // TSV for spreadsheet
+        tsvStyleReport
+                .append("# Copy below for spreadsheet (unit: ")
+                .append(UNIT)
+                .append("):\n");
+        tsvStyleReport.append("Node\tCnt\tAvg\tError(99.9%)\tStdDev\tp50\tp95\tp99\tMin\tMax\n");
 
         // Per-node results
         for (final NodeId nodeId : getNodeIds()) {
             final Statistics stats = computeStatistics(nodeId);
-            appendJmhRow(sb, "Node " + nodeId, stats, u);
+            appendJmhRow(jmhStyleReport, "Node " + nodeId, stats);
+            appendTsvRow(tsvStyleReport, nodeId.toString(), stats);
         }
 
         // Total
-        appendJmhRow(sb, "TOTAL", totalStats, u);
+        appendJmhRow(jmhStyleReport, "TOTAL", totalStats);
+        appendTsvRow(tsvStyleReport, "TOTAL", totalStats);
 
         // Throughput summary
-        sb.append("\n");
-        sb.append(String.format(
+        jmhStyleReport.append("\n");
+        jmhStyleReport.append(String.format(
                 "Throughput: %.2f tx/s (over %d %s, %d total transactions)%n",
-                totalStats.throughput() * getUnitsPerSecond(),
-                totalStats.duration(),
-                u,
-                totalStats.totalMeasurements()));
+                totalStats.throughput(), totalStats.duration(), UNIT, totalStats.totalMeasurements()));
 
         if (totalStats.invalidMeasurements() > 0) {
-            sb.append(String.format(
+            jmhStyleReport.append(String.format(
                     "Warning: %d measurements with negative latency%n", totalStats.invalidMeasurements()));
         }
+        jmhStyleReport.append("\n");
 
-        // TSV for spreadsheet
-        sb.append("\n");
-        sb.append("# Copy below for spreadsheet (unit: ").append(u).append("):\n");
-        sb.append("Node\tCnt\tAvg\tError(99.9%)\tStdDev\tp50\tp95\tp99\tMin\tMax\n");
-        for (final NodeId nodeId : getNodeIds()) {
-            final Statistics stats = computeStatistics(nodeId);
-            appendTsvRow(sb, nodeId.toString(), stats);
-        }
-        appendTsvRow(sb, "TOTAL", totalStats);
-
-        return sb.toString();
+        return jmhStyleReport + "\n" + tsvStyleReport;
     }
 
-    private void appendJmhRow(final StringBuilder sb, final String label, final Statistics stats, final String unit) {
+    private void appendJmhRow(final StringBuilder sb, final String label, final Statistics stats) {
         sb.append(String.format(
                 "%-12s %6d %10.3f ±%9.3f %10.3f %8d %8d %8d %8d  %s/op%n",
                 label,
@@ -293,7 +225,7 @@ public class MeasurementsCollector {
                 stats.p95(),
                 stats.p99(),
                 stats.max(),
-                unit));
+                MeasurementsCollector.UNIT));
     }
 
     private void appendTsvRow(final StringBuilder sb, final String label, final Statistics stats) {

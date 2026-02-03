@@ -35,7 +35,7 @@ testing {
     }
 
     suites.register<JvmTestSuite>("testPerformance") {
-        // Runs performance benchmarks against the Turtle environment
+        // Runs performance benchmarks against the container environment
         targets.configureEach {
             testTask {
                 systemProperty("otter.env", "container")
