@@ -7,7 +7,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.test.fixtures.event.signer.EventSigner;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,6 +22,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.test.fixtures.Randotron;
 
 /**
  * A utility class for generating a graph of events.

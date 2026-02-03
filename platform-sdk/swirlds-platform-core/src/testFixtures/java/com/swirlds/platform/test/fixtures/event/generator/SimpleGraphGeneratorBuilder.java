@@ -3,7 +3,6 @@ package com.swirlds.platform.test.fixtures.event.generator;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
@@ -13,6 +12,7 @@ import com.swirlds.platform.test.fixtures.event.signer.RandomEventSigner;
 import com.swirlds.platform.test.fixtures.event.signer.RealEventSigner;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
+import org.hiero.consensus.test.fixtures.Randotron;
 
 /**
  * Builder for creating {@link SimpleGraphGenerator} instances with optional parameters.

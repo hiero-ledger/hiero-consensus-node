@@ -5,14 +5,10 @@ package org.hiero.consensus.event.intake.impl;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
-import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGeneratorBuilder;
 import java.util.List;
@@ -36,6 +32,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
+import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
 
 @State(Scope.Thread)
 @Fork(value = 1)

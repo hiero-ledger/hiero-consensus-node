@@ -2,6 +2,7 @@ package com.swirlds.platform.test.fixtures.addressbook;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import java.security.PrivateKey;
+import java.util.Collections;
 import java.util.Map;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -15,7 +16,7 @@ public class RosterWithKeys {
 
     public RosterWithKeys(final Roster roster, final Map<NodeId, KeysAndCerts> privateKeys) {
         this.roster = roster;
-        this.privateKeys = privateKeys;
+        this.privateKeys = Collections.unmodifiableMap(privateKeys);
     }
 
     public Roster getRoster() {
@@ -30,5 +31,7 @@ public class RosterWithKeys {
         return kac;
     }
 
-
+    public Map<NodeId, KeysAndCerts> getAllKeysAndCerts() {
+        return privateKeys;
+    }
 }
