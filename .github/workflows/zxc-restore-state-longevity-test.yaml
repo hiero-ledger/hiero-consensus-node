@@ -837,10 +837,7 @@ jobs:
           sh copyKeys.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
           adminkey=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" \
                       exec -it network-node1-0 -c root-container -- bash -c "grep 'bootstrap.genesisPublicKey' ${{ env.APP_ROOT }}/settingsUsed.txt | awk '{print \$NF}'")
-          echo "DEBUG adminkey=${adminkey}"
-          echo "DEBUG inventory/latitude.yml"
-          cat inventory/latitude.yml
-          echo "ENDDEBUG"
+
           ansible-playbook -i inventory/latitude.yml --extra-vars=@./vars/latitude.yml generate.yml --tags generate-override-network -e node_admin_key_override_pubkey=${adminkey}
 
       - name: Reset CNs
@@ -908,8 +905,7 @@ jobs:
             echo "Status code: $?"
           done
 
-
-      - name: Clean empty restart state
+      - name: Clean restarted state
         if: ${{ !cancelled() }}
         run: |
           set +x
@@ -933,7 +929,7 @@ jobs:
             echo "Status code: $?"
           done
 
-      - name: Unarchive CN states in pods
+      - name: Unarchive CN states in all pods
         if: ${{ !cancelled() }}
         run: |
           set +x
@@ -1387,7 +1383,7 @@ jobs:
           VALIDATOR="${{ needs.longevity-tests-finish-final.outputs.ValidatorStatus }}"
 
           # Check if any variable is empty. If it is, we set the result to failure.
-          if [[ -z "${NFT}" ]] || [[ -z "${HELI}" ]] || [[ -z "${CRYPTO}" ]] || [[ -z "${HCS}" ]] || [[ -z "${SMART}" ]] || [[ -z "${VALIDATOR}" ]]; then
+          if [[ -z "${NFT}" ]] || [[ -z "${HELI}" ]] || [[ -z "${CRYPTO}" ]] || [[ -z "${HCS}" ]] || [[ -z "${SMART}" ]] || [[ "${VALIDATOR}" != "0" ]]; then
             RESULT="failure"
           else
             RESULT="success"
