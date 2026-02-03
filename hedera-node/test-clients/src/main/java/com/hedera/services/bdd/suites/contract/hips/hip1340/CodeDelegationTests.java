@@ -638,9 +638,15 @@ public class CodeDelegationTests {
             final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
+            final AtomicReference<Long> preEthereumNonce = new AtomicReference<>();
+
             allRunFor(
                     spec,
                     cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
+
+                    getAccountInfo(delegatingEoa.name())
+                        .exposingEthereumNonceTo(preEthereumNonce::set),
+
                     // ethereum transaction with code delegation
                     sourcing(() -> ethereumCryptoTransfer(RELAYER, 1L)
                             .signingWith(delegatingEoa.keyName())
@@ -651,7 +657,13 @@ public class CodeDelegationTests {
                             .nonce(0)),
 
                     // Verify account has delegation set
-                    getAccountInfo(delegatingEoa.name()).hasDelegationAddress(delegationTargetContract.address()),
+                    getAccountInfo(delegatingEoa.name())
+                            .hasDelegationAddress(delegationTargetContract.address())
+                            .exposingEthereumNonceTo(newNonce -> {
+                                // We're expecting the nonce to increase by 2.
+                                // Once for sending the transaction and once for the signed authorization.
+                                assertEquals(preEthereumNonce.get() + 2, newNonce);
+                            }),
 
                     // Clear delegation natively
                     cryptoUpdate(delegatingEoa.name()).delegationAddress(ByteString.empty()),
