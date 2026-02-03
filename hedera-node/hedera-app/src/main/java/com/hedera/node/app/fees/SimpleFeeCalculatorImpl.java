@@ -188,7 +188,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      */
     private void applyHighVolumeMultiplier(
             @NonNull final TransactionBody txnBody,
-            @NonNull final FeeContext feeContext,
+            @NonNull final SimpleFeeContext feeContext,
             @NonNull final FeeResult result) {
         // Get the HederaFunctionality for this transaction
         final HederaFunctionality functionality = mapToFunctionality(txnBody);

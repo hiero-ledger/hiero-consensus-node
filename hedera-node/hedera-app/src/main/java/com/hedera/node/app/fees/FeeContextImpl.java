@@ -187,12 +187,4 @@ public class FeeContextImpl implements FeeContext {
     public long getGasPriceInTinycents() {
         return feeManager.getGasPriceInTinyCents(consensusTime);
     }
-
-    @Override
-    public int getHighVolumeThrottleUtilization(@NonNull final HederaFunctionality functionality) {
-        if (throttleAccumulator == null) {
-            return 0;
-        }
-        return throttleAccumulator.getHighVolumeThrottleUtilization(functionality);
-    }
 }
