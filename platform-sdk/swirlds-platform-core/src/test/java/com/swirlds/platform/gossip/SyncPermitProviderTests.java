@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.gossip.config.SyncConfig_;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncPermitProvider;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
 class SyncPermitProviderTests {
