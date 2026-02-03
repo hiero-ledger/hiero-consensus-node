@@ -11,7 +11,6 @@ testModuleInfo {
     requires("com.hedera.node.config.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
-    requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.api.test.fixtures")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("org.assertj.core")

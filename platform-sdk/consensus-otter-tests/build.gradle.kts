@@ -40,7 +40,6 @@ testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
-    requires("com.swirlds.platform.core.test.fixtures")
     requires("org.apache.logging.log4j")
     requires("org.assertj.core")
     requires("org.hiero.consensus.utility")
