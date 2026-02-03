@@ -91,6 +91,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -410,7 +411,17 @@ public class TransactionExecutorsTest {
                 config,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                InitTrigger.GENESIS);
+        for (final var r : servicesRegistry.registrations()) {
+            final var service = r.service();
+            // Maybe EmptyWritableStates if the service's schemas register no state definitions at all
+            final var writableStates = state.getWritableStates(service.getServiceName());
+            service.doGenesisSetup(writableStates, config);
+            if (writableStates instanceof CommittableWritableStates committable) {
+                committable.commit();
+            }
+        }
         // Create a node
         final var nodeWritableStates = state.getWritableStates(AddressBookService.NAME);
         final var nodes = nodeWritableStates.<EntityNumber, Node>get(NODES_STATE_ID);
@@ -480,7 +491,7 @@ public class TransactionExecutorsTest {
                 filesConfig.nodeDetails(), ignore -> genesisSchema.nodeStoreNodeDetails(nodeStore),
                 filesConfig.feeSchedules(), genesisSchema::genesisFeeSchedules,
                 filesConfig.simpleFeesSchedules(), genesisSchema::genesisSimpleFeesSchedules,
-                filesConfig.exchangeRates(), genesisSchema::genesisExchangeRates,
+                filesConfig.exchangeRates(), genesisSchema::genesisExchangeRatesBytes,
                 filesConfig.networkProperties(), genesisSchema::genesisNetworkProperties,
                 filesConfig.hapiPermissions(), genesisSchema::genesisHapiPermissions,
                 filesConfig.throttleDefinitions(), genesisSchema::genesisThrottleDefinitions);

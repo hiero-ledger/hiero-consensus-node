@@ -2,7 +2,7 @@
 package com.swirlds.platform.network.protocol;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.heartbeats.HeartbeatPeerProtocol;
 import com.swirlds.platform.network.NetworkMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -44,15 +44,17 @@ public class HeartbeatProtocol implements Protocol {
 
     /**
      * Utility method for creating HeartbeatProtocol from shared state, while staying compatible with pre-refactor code
-     * @param platformContext   the platform context
-     * @param networkMetrics  Network metrics, for recording roundtrip heartbeat time
+     * @param configuration Platform configuration
+     * @param time Source of time
+     * @param networkMetrics Network metrics, for recording roundtrip heartbeat time
      * @return constructed HeartbeatProtocol
      */
     public static HeartbeatProtocol create(
-            @NonNull final PlatformContext platformContext, @NonNull final NetworkMetrics networkMetrics) {
-        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
-        return new HeartbeatProtocol(
-                Duration.ofMillis(syncConfig.syncProtocolHeartbeatPeriod()), networkMetrics, platformContext.getTime());
+            @NonNull final Configuration configuration,
+            @NonNull final Time time,
+            @NonNull final NetworkMetrics networkMetrics) {
+        final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
+        return new HeartbeatProtocol(Duration.ofMillis(syncConfig.syncProtocolHeartbeatPeriod()), networkMetrics, time);
     }
 
     /**

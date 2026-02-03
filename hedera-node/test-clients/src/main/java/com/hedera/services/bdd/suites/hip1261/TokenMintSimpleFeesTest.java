@@ -26,8 +26,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintFungibleFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNetworkFeeOnlyUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_NFT_FEE_USD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -190,9 +191,7 @@ public class TokenMintSimpleFeesTest {
                             .fee(ONE_HUNDRED_HBARS)
                             .via("tokenMintTxn"),
                     validateChargedUsdWithin(
-                            "tokenMintTxn",
-                            expectedTokenMintNftFullFeeUsd(2L, 1L), // 2 sigs, 1 serial
-                            0.001));
+                            "tokenMintTxn", TOKEN_MINT_NFT_FEE_USD + SIGNATURE_FEE_AFTER_MULTIPLIER, 0.001));
         }
 
         @HapiTest
@@ -220,9 +219,7 @@ public class TokenMintSimpleFeesTest {
                             .fee(ONE_HUNDRED_HBARS)
                             .via("tokenMintTxn"),
                     validateChargedUsdWithin(
-                            "tokenMintTxn",
-                            expectedTokenMintNftFullFeeUsd(2L, 3L), // 2 sigs, 3 serials
-                            0.001));
+                            "tokenMintTxn", 3 * TOKEN_MINT_NFT_FEE_USD + SIGNATURE_FEE_AFTER_MULTIPLIER, 0.001));
         }
 
         @HapiTest
@@ -252,9 +249,7 @@ public class TokenMintSimpleFeesTest {
                             .fee(ONE_HUNDRED_HBARS)
                             .via("tokenMintTxn"),
                     validateChargedUsdWithin(
-                            "tokenMintTxn",
-                            expectedTokenMintNftFullFeeUsd(2L, 5L), // 2 sigs, 5 serials
-                            0.001));
+                            "tokenMintTxn", 5 * TOKEN_MINT_NFT_FEE_USD + SIGNATURE_FEE_AFTER_MULTIPLIER, 0.001));
         }
 
         @HapiTest
@@ -285,9 +280,7 @@ public class TokenMintSimpleFeesTest {
                             .fee(ONE_HUNDRED_HBARS)
                             .via("tokenMintTxn"),
                     validateChargedUsdWithin(
-                            "tokenMintTxn",
-                            expectedTokenMintNftFullFeeUsd(3L, 2L), // 3 sigs, 2 serials
-                            0.001));
+                            "tokenMintTxn", 2 * TOKEN_MINT_NFT_FEE_USD + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER, 0.001));
         }
     }
 

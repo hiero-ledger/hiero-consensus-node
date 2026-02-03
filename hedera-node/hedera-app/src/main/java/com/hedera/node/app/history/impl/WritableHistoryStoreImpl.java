@@ -3,12 +3,12 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V069HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;

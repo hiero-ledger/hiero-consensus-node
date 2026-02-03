@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.transaction;
 
+import static java.util.Objects.requireNonNull;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -17,4 +19,9 @@ import org.hiero.consensus.model.node.NodeId;
 public record ScopedSystemTransaction<T>(
         @NonNull NodeId submitterId,
         long eventBirthRound,
-        @NonNull T transaction) {}
+        @NonNull T transaction) {
+    public ScopedSystemTransaction {
+        requireNonNull(submitterId);
+        requireNonNull(transaction);
+    }
+}

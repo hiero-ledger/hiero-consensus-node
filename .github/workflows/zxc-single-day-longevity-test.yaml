@@ -72,7 +72,7 @@ env:
 jobs:
   longevity-tests-start:
     name: Start
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdlt-lin-lg
     outputs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
@@ -477,7 +477,7 @@ jobs:
 
   longevity-tests-wait:
     name: Wait for Longevity test
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
@@ -625,7 +625,7 @@ jobs:
 
   longevity-tests-finish:
     name: Read results of Longevity test
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
@@ -796,7 +796,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
     name: Calculate Result
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-finish
@@ -840,7 +840,7 @@ jobs:
 
   longevity-report-failures:
     name: Report Failures
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - longevity-tests-start
       - longevity-tests-wait
@@ -881,8 +881,8 @@ jobs:
           echo "### Title: ${{ steps.summary.outputs.title }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "${{ steps.summary.outputs.summary }}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
-  longevity-report-to-Slack:
-    runs-on: hl-cn-citr-lin-sm
+  longevity-report-to-slack:
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - longevity-tests-finish
       - single-day-longevity-test-result

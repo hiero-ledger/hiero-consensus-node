@@ -4,7 +4,6 @@ package com.swirlds.platform.test.fixtures.event;
 import static java.lang.Integer.max;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -18,7 +17,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -82,11 +83,11 @@ public final class EventUtils {
      * Check to see if all events have increasing birth round numbers for each node.
      */
     public static boolean areBirthRoundNumbersValid(
-            @NonNull final Iterable<EventImpl> events, final int numberOfNodes) {
+            @NonNull final Iterable<PlatformEvent> events, final int numberOfNodes) {
         Objects.requireNonNull(events, "events must not be null");
         final Map<NodeId, Long> previousBirthRound = new HashMap<>(numberOfNodes);
 
-        for (final EventImpl event : events) {
+        for (final PlatformEvent event : events) {
             final NodeId nodeId = event.getCreatorId();
             if (previousBirthRound.containsKey(nodeId)) {
                 if (previousBirthRound.get(nodeId) > event.getBirthRound()) {
@@ -99,26 +100,14 @@ public final class EventUtils {
     }
 
     /** Given a list of events, check if each event comes after all of its ancestors. */
-    public static boolean isEventOrderValid(final List<EventImpl> events) {
-        final Set<EventImpl> eventsEncountered = new HashSet<>();
+    public static boolean isEventOrderValid(final List<PlatformEvent> events) {
+        final Set<EventDescriptorWrapper> eventsEncountered = new HashSet<>();
 
-        for (final EventImpl event : events) {
-            final EventImpl selfParent = event.getSelfParent();
-            final EventImpl otherParent = event.getOtherParent();
-
-            if (selfParent != null) {
-                if (!eventsEncountered.contains(selfParent)) {
-                    return false;
-                }
+        for (final PlatformEvent event : events) {
+            if (event.getAllParents().stream().anyMatch(Predicate.not(eventsEncountered::contains))) {
+                return false;
             }
-
-            if (otherParent != null) {
-                if (!eventsEncountered.contains(otherParent)) {
-                    return false;
-                }
-            }
-
-            eventsEncountered.add(event);
+            eventsEncountered.add(event.getDescriptor());
         }
         return true;
     }
@@ -129,14 +118,14 @@ public final class EventUtils {
      * @param events An unsorted list of events.
      * @return A sorted list of events.
      */
-    public static List<EventImpl> sortEventList(final List<EventImpl> events) {
-        final List<EventImpl> sortedEvents = new ArrayList<>(events);
-        sortedEvents.sort(Comparator.comparing(EventImpl::getBaseHash));
+    public static List<PlatformEvent> sortEventList(final List<PlatformEvent> events) {
+        final List<PlatformEvent> sortedEvents = new ArrayList<>(events);
+        sortedEvents.sort(Comparator.comparing(PlatformEvent::getHash));
         return sortedEvents;
     }
 
     /** Check if two event lists contain the same values (but in a possibly different order). */
-    public static boolean areEventListsEquivalent(List<EventImpl> events1, List<EventImpl> events2) {
+    public static boolean areEventListsEquivalent(List<PlatformEvent> events1, List<PlatformEvent> events2) {
         events1 = sortEventList(events1);
         events2 = sortEventList(events2);
         return events1.equals(events2);
@@ -182,25 +171,29 @@ public final class EventUtils {
     }
 
     /**
-     * Calculate the age of an event's other parent. Helper method for gatherOtherParentAges.
+     * Calculate the age of an event's other parent. Helper method for gatherOtherParentAges. This method expects that
+     * an event will not have more than a single other parent.
      *
      * @param events a list of events
      * @param eventIndex the index of the event to be considered. The age of the event's other
      *     parent is returned.
      */
-    private static int calculateOtherParentAge(final List<EventImpl> events, final int eventIndex) {
+    private static int calculateOtherParentAge(final List<PlatformEvent> events, final int eventIndex) {
 
-        final EventImpl event = events.get(eventIndex);
-        final EventImpl otherParent = event.getOtherParent();
-        if (otherParent == null) {
+        final PlatformEvent event = events.get(eventIndex);
+        if (event.getOtherParents().isEmpty()) {
             return 0;
         }
-        final NodeId otherParentNode = otherParent.getCreatorId();
+        if (event.getOtherParents().size() > 1) {
+            throw new IllegalArgumentException("Event has more than one other parent.");
+        }
+        final EventDescriptorWrapper otherParent = event.getOtherParents().getFirst();
+        final NodeId otherParentNode = otherParent.creator();
 
         int age = 0;
         for (int index = eventIndex - 1; index >= 0; index--) {
-            final EventImpl nextEvent = events.get(index);
-            if (nextEvent == otherParent) {
+            final PlatformEvent nextEvent = events.get(index);
+            if (nextEvent.getDescriptor() == otherParent) {
                 break;
             }
             if (Objects.equals(nextEvent.getCreatorId(), otherParentNode)) {
@@ -227,7 +220,7 @@ public final class EventUtils {
      * @return A map: {age : number of events with that age}
      */
     public static Map<Integer, Integer> gatherOtherParentAges(
-            final List<EventImpl> events, final Set<NodeId> excludedNodes) {
+            final List<PlatformEvent> events, final Set<NodeId> excludedNodes) {
         final Map<Integer, Integer> map = new HashMap<>();
         for (int eventIndex = 0; eventIndex < events.size(); eventIndex++) {
 

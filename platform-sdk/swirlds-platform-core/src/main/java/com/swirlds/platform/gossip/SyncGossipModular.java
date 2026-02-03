@@ -6,24 +6,21 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
-import com.swirlds.platform.gossip.shadowgraph.AbstractShadowgraphSynchronizer;
-import com.swirlds.platform.gossip.shadowgraph.RpcShadowgraphSynchronizer;
-import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.PeerCommunication;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
-import com.swirlds.platform.network.protocol.AbstractSyncProtocol;
 import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
-import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -58,9 +55,9 @@ public class SyncGossipModular implements Gossip {
 
     private final PeerCommunication network;
     private final List<Protocol> protocols;
-    private final AbstractSyncProtocol<?> syncProtocol;
+    private final RpcProtocol rpcProtocol;
     private final FallenBehindMonitor fallenBehindMonitor;
-    private final AbstractShadowgraphSynchronizer synchronizer;
+    private final ShadowgraphSynchronizer synchronizer;
 
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
@@ -69,7 +66,9 @@ public class SyncGossipModular implements Gossip {
     /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
      *
-     * @param platformContext the platform context
+     * @param configuration the configuration
+     * @param metrics the metrics registry
+     * @param time the time source
      * @param threadManager the thread manager
      * @param ownKeysAndCerts private keys and public certificates for this node
      * @param roster the current roster
@@ -80,7 +79,9 @@ public class SyncGossipModular implements Gossip {
      * @param reconnectProtocol the reconnect protocol to use
      */
     public SyncGossipModular(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final KeysAndCerts ownKeysAndCerts,
             @NonNull final Roster roster,
@@ -107,67 +108,45 @@ public class SyncGossipModular implements Gossip {
         }
         final PeerInfo selfPeer = Utilities.toPeerInfo(selfEntry);
 
-        this.network = new PeerCommunication(platformContext, peers, selfPeer, ownKeysAndCerts);
+        this.network = new PeerCommunication(configuration, metrics, time, peers, selfPeer, ownKeysAndCerts);
 
         this.fallenBehindMonitor = fallenBehindMonitor;
 
-        final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
+        final ProtocolConfig protocolConfig = configuration.getConfigData(ProtocolConfig.class);
 
         final int rosterSize = peers.size() + 1;
-        final SyncMetrics syncMetrics = new SyncMetrics(platformContext.getMetrics(), platformContext.getTime(), peers);
+        final SyncMetrics syncMetrics = new SyncMetrics(metrics, time, peers);
 
-        if (protocolConfig.rpcGossip()) {
+        final ShadowgraphSynchronizer rpcSynchronizer = new ShadowgraphSynchronizer(
+                configuration,
+                metrics,
+                time,
+                rosterSize,
+                syncMetrics,
+                fallenBehindMonitor,
+                intakeEventCounter,
+                lag -> syncProgressHandler.accept(lag));
 
-            final RpcShadowgraphSynchronizer rpcSynchronizer = new RpcShadowgraphSynchronizer(
-                    platformContext,
-                    rosterSize,
-                    syncMetrics,
-                    event -> receivedEventHandler.accept(event),
-                    fallenBehindMonitor,
-                    intakeEventCounter,
-                    selfId,
-                    lag -> syncProgressHandler.accept(lag));
+        this.synchronizer = rpcSynchronizer;
 
-            this.synchronizer = rpcSynchronizer;
-
-            this.syncProtocol = RpcProtocol.create(
-                    platformContext,
-                    rpcSynchronizer,
-                    intakeEventCounter,
-                    threadManager,
-                    rosterSize,
-                    this.network.getNetworkMetrics(),
-                    syncMetrics);
-
-        } else {
-            final Shadowgraph shadowgraph = new Shadowgraph(platformContext, rosterSize, intakeEventCounter);
-
-            final ShadowgraphSynchronizer shadowgraphSynchronizer = new ShadowgraphSynchronizer(
-                    platformContext,
-                    shadowgraph,
-                    rosterSize,
-                    syncMetrics,
-                    event -> receivedEventHandler.accept(event),
-                    this.fallenBehindMonitor,
-                    intakeEventCounter,
-                    new CachedPoolParallelExecutor(threadManager, "node-sync"),
-                    lag -> syncProgressHandler.accept(lag));
-
-            this.synchronizer = shadowgraphSynchronizer;
-
-            this.syncProtocol = SyncProtocol.create(
-                    platformContext,
-                    shadowgraphSynchronizer,
-                    this.fallenBehindMonitor,
-                    intakeEventCounter,
-                    rosterSize,
-                    syncMetrics);
-        }
+        this.rpcProtocol = new RpcProtocol(
+                configuration,
+                metrics,
+                time,
+                rpcSynchronizer,
+                new CachedPoolParallelExecutor(threadManager, "node-rpc-sync"),
+                intakeEventCounter,
+                rosterSize,
+                this.network.getNetworkMetrics(),
+                syncMetrics,
+                selfId,
+                fallenBehindMonitor,
+                event -> receivedEventHandler.accept(event));
 
         this.protocols = List.of(
-                HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
+                HeartbeatProtocol.create(configuration, time, this.network.getNetworkMetrics()),
                 reconnectProtocol,
-                syncProtocol);
+                rpcProtocol);
 
         final VersionCompareHandshake versionCompareHandshake =
                 new VersionCompareHandshake(appVersion, !protocolConfig.tolerateMismatchedVersion());
@@ -189,7 +168,7 @@ public class SyncGossipModular implements Gossip {
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
         synchronized (this) {
             // if this is needed we should update fallenBehindMonitor
-            syncProtocol.adjustTotalPermits(
+            rpcProtocol.adjustTotalPermits(
                     added.size() - removed.size()); // Review, needs to make sure that the removed are part of the AB?
             network.addRemovePeers(added, removed);
         }
@@ -214,28 +193,28 @@ public class SyncGossipModular implements Gossip {
             @NonNull final StandardOutputWire<SyncProgress> syncLagOutput) {
 
         startInput.bindConsumer(ignored -> {
-            syncProtocol.start();
+            rpcProtocol.start();
             network.start();
         });
         stopInput.bindConsumer(ignored -> {
-            syncProtocol.stop();
+            rpcProtocol.stop();
             network.stop();
         });
 
-        clearInput.bindConsumer(ignored -> syncProtocol.clear());
+        clearInput.bindConsumer(ignored -> rpcProtocol.clear());
         eventInput.bindConsumer(synchronizer::addEvent);
         eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
 
-        systemHealthInput.bindConsumer(syncProtocol::reportUnhealthyDuration);
+        systemHealthInput.bindConsumer(rpcProtocol::reportUnhealthyDuration);
         platformStatusInput.bindConsumer(status -> {
             protocols.forEach(protocol -> protocol.updatePlatformStatus(status));
         });
         pauseGossip.bindConsumer(ignored -> {
-            syncProtocol.pause();
+            rpcProtocol.pause();
             fallenBehindMonitor.notifySyncProtocolPaused();
         });
         resumeGossip.bindConsumer(ignored -> {
-            syncProtocol.resume();
+            rpcProtocol.resume();
         });
         this.receivedEventHandler = eventOutput::forward;
         this.syncProgressHandler = syncLagOutput::forward;
