@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 environment_name: latitude
 
 # the folder in roles/hedera-docker/files/keys-signing/ to use for signing keys

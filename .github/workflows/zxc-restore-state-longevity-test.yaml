@@ -1355,7 +1355,6 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/longevity"
 
-
   # Send this output back to the caller workflow
   single-day-longevity-test-result-final:
     name: Calculate Result

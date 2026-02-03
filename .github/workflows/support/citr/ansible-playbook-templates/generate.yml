@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 ---
 # without connecting or gathering facts from hosts,
 # generate config files for a given inventory of hosts

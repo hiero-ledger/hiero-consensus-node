@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 # These tasks will generate a override-network.json file for the Hedera Node to use.
 # The override-network.json file is used to configure the network to connect to a specific set of nodes and proxies.
 #
@@ -61,7 +62,6 @@
   failed_when: environment_name is not defined
   tags: generate-override-network
 
-
 ## Prepare values for generating target override-network.json
 ## The admin_key_override_pubkey is set for the environment in vars file
 - name: Convert admin override public key value from hex to base64
@@ -70,7 +70,6 @@
   delegate_to: localhost
   tags: generate-override-network
   run_once: true
-
 
 ## Validate presence of node private keys in keys-tls directory
 - name: stat private keys directory for {{ environment_name }} from {{ environment_keys_tls_directory }}
@@ -105,7 +104,6 @@
   delegate_to: localhost
   run_once: true
   tags: debug-override
-
 
 ## Prepare the dict of nodes and proxies
 - name: Initialize node_proxy_list
@@ -148,7 +146,6 @@
   when: hostvars[item].target_node is defined
   run_once: true
   tags: generate-override-network
-
 
 ## Gather and prepare public keys for the target nodes
 - name: stat public key dir for {{ environment_name }} from {{ environment_keys_signing_directory }}
@@ -251,7 +248,6 @@
   run_once: true
   tags: debug-override
 
-
 ## Build the override-network.json file from template
 - name: Create output directory if it doesn't exist
   ansible.builtin.file:
@@ -264,14 +260,14 @@
   ansible.builtin.template:
     src: override-network.json.j2
     dest: "{{ playbook_dir }}/generated/override-network-{{environment_name}}.json"
-    mode: '0644'
+    mode: "0644"
   delegate_to: localhost
   register: template_result
   tags: generate-override-network
 
 - name: Register override-network.json template result path
   ansible.builtin.set_fact:
-      override_network_path: "{{ playbook_dir }}/generated/override-network-{{ environment_name }}.json"
+    override_network_path: "{{ playbook_dir }}/generated/override-network-{{ environment_name }}.json"
   when: template_result is succeeded
   delegate_to: localhost
   tags: generate-override-network
@@ -322,7 +318,6 @@
     success_msg: "Successfully generated override-network file at {{ override_network_path }}"
   delegate_to: localhost
   tags: generate-override-network
-
 
 # Move the generated override file to the correct location on the target host
 - name: Copy override-network.json to {{ hedera_software_dir }}
