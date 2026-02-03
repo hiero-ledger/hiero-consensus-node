@@ -67,7 +67,6 @@ class TlsFactoryTest extends ConnectivityTestBase {
         // test that B can talk to A - A(serverSocket) -> B(clientSocket1)
         serverSocket = socketFactoryA.createServerSocket(0);
         this.ephemeralPort = serverSocket.getLocalPort();
-        System.out.println(this.ephemeralPort);
         serverThread = createSocketThread(serverSocket, closeSeverConnection);
 
         clientSocketB = socketFactoryB.createClientSocket(STRING_IP, ephemeralPort);
