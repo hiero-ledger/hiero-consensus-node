@@ -31,17 +31,18 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 @State(Scope.Thread)
 @Fork(value = 1)
-@Warmup(iterations = 1, time = 3)
-@Measurement(iterations = 3, time = 10)
+@Warmup(iterations = 1, time = 1)
+@Measurement(iterations = 2, time = 3)
 public class IntakeBenchmark {
-    @Param({"4", "10", "30"})
+    @Param({"4"})
     public int numNodes;
 
-    @Param({"100000"})
+    @Param({"10000"})
     public int numEvents;
 
     @Param({"0"})
@@ -53,6 +54,7 @@ public class IntakeBenchmark {
     private List<PlatformEvent> events;
     private DefaultEventIntakeModule intake;
     private EventCounter counter;
+    private WiringModel model;
 
     @Setup(Level.Invocation)
     public void setup() {
@@ -62,6 +64,7 @@ public class IntakeBenchmark {
                 .numNodes(numNodes)
                 .maxOtherParents(1)
                 .seed(seed)
+                .realSignatures(true)
                 .build();
         events = generator.generateEvents(numEvents);
         // remove the hashes to force recalculation
@@ -70,7 +73,7 @@ public class IntakeBenchmark {
         final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
         final ForkJoinPool defaultPool =
                 platformContext.getExecutorFactory().createForkJoinPool(numberOfThreads);
-        final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
+        model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .enableJvmAnchor()
                 .withDefaultPool(defaultPool)
                 .withWiringConfig(wiringConfig)
@@ -91,7 +94,19 @@ public class IntakeBenchmark {
         );
         counter = new EventCounter(numEvents);
         intake.validatedEventsOutputWire().solderForMonitoring(counter);
+        // builds the input wire
+        intake.unhashedEventsInputWire();
+        model.start();
+    }
 
+    @TearDown(Level.Iteration)
+    public void aaaaa() {
+        System.out.println("Teardown after iteration");
+    }
+
+    @TearDown(Level.Invocation)
+    public void tearDown() {
+        model.stop();
     }
 
     /*
@@ -100,7 +115,7 @@ public class IntakeBenchmark {
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    public void calculateConsensus() {
+    public void intake() {
         for (final PlatformEvent event : events) {
             intake.unhashedEventsInputWire().put(event);
         }

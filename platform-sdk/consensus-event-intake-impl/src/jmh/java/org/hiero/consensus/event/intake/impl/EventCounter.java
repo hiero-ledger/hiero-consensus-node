@@ -1,5 +1,7 @@
 package org.hiero.consensus.event.intake.impl;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -22,7 +24,7 @@ public class EventCounter implements Consumer<PlatformEvent> {
 
     public void waitForAllEvents() {
         try {
-            final boolean done = countDownLatch.await(10, TimeUnit.SECONDS);
+            final boolean done = countDownLatch.await(5, TimeUnit.SECONDS);
             if (!done) {
                 throw new RuntimeException("Timed out waiting for events. Received " + currentEventCount +
                         " out of " + expectedEventCount);
