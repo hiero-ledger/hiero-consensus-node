@@ -30,6 +30,7 @@ jobs:
       build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
       promote-build-candidate: ${{ steps.find-build-candidates.outputs.promote-build-candidate }}
       promote-candidate-message: ${{ steps.find-build-candidates.outputs.promote-candidate-message }}
+      promote-date: ${{ steps.find-build-candidates.outputs.promote-date }}
     if: ${{ github.event.repository.private == false }}
     steps:
       - name: Harden Runner
@@ -90,6 +91,9 @@ jobs:
 
           echo "promote-build-candidate=${PROMOTE_CANDIDATE}" | tee -a "${GITHUB_OUTPUT}"
           echo "promote-candidate-message=${PROMOTE_MSG}" | tee -a "${GITHUB_OUTPUT}"
+          
+          DATE=$(date +"%Y-%m-%d (%Z)")
+          echo "promote-date=${DATE}" >> "${GITHUB_OUTPUT}"
 
           echo "### Promotion Decision" >> "${GITHUB_STEP_SUMMARY}"
           echo "${PROMOTE_MSG}" >> "${GITHUB_STEP_SUMMARY}"
@@ -215,13 +219,6 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Set Date Field
-        id: set-date
-        run: |
-          TAG=${{ needs.promote-build-candidate.outputs.build-candidate-tag }}
-          DATE=$(git show ${TAG} | HEAD -3 | tail -1)
-          echo "tag-date=${DATE}" >> "${GITHUB_OUTPUT}"
-
       - name: Report Promoted Build
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
@@ -274,7 +271,7 @@ jobs:
                         },
                         {
                             "type": "mrkdwn",
-                            "text": "*${{ steps.set-date.outputs.tag-date }}*"
+                            "text": "*${{ needs.determine-build-candidate.outputs.promote-date }}*"
                         },
                         {
                           "type": "mrkdwn",
@@ -302,12 +299,6 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
-
-      - name: Set Date Field
-        id: set-date
-        run: |
-          DATE=$(date +"%Y-%m-%d (%Z)")
-          echo "tag-date=${DATE}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Slack Payload Message
         id: payload
@@ -362,7 +353,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "*${{ steps.set-date.outputs.tag-date }}*"
+                        "text": "*${{ needs.determine-build-candidate.outputs.promote-date }}*"
                       },
                       {
                         "type": "mrkdwn",
@@ -405,12 +396,6 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
-
-      - name: Set Date Field
-        id: set-date
-        run: |
-          DATE=$(date +"%Y-%m-%d (%Z)")
-          echo "tag-date=${DATE}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
@@ -489,7 +474,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "*${{ steps.set-date.outputs.tag-date }}*"
+                        "text": "*${{ needs.determine-build-candidate.outputs.promote-date }}*"
                       },
                       {
                         "type": "plain_text",
