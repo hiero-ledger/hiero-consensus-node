@@ -7,7 +7,7 @@ mkdir -p roles/hedera-docker/files/keys-signing/latitude
 mkdir -p roles/hedera-docker/files/keys-tls/latitude
 mkdir inventory
 
-NofNodes=$(sh ${TOOLDIR}/kubectlt -n ${namespace} get pods | grep 'network-node' | wc -l)
+NofNodes=$(sh ${TOOLDIR}/../kubectlt -n ${namespace} get pods | grep 'network-node' | wc -l)
 
 cat << EOF > inventory/latitude.yml
 network:
@@ -23,10 +23,10 @@ do
   node_id=$(expr $i - 1)
   acc=$(expr $node_id + 3)
 
-  sh ${TOOLDIR}/kubectlt -n ${namespace} cp network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/keys/ roles/hedera-docker/files/keys-signing/latitude/
-  sh ${TOOLDIR}/kubectlt -n ${namespace} cp network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt roles/hedera-docker/files/keys-tls/latitude/node${node_id}.crt
+  sh ${TOOLDIR}/../kubectlt -n ${namespace} cp network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/keys/ roles/hedera-docker/files/keys-signing/latitude/
+  sh ${TOOLDIR}/../kubectlt -n ${namespace} cp network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/hedera.crt roles/hedera-docker/files/keys-tls/latitude/node${node_id}.crt
 
-  ip=$(sh ${TOOLDIR}/kubectlt -n ${namespace} get svc | grep NodePort | grep "network-node${i}" | awk '{print $3}')
+  ip=$(sh ${TOOLDIR}/../kubectlt -n ${namespace} get svc | grep NodePort | grep "network-node${i}" | awk '{print $3}')
 cat << EOF >> inventory/latitude.yml
     node0$node_id:
       ansible_host: $ip
@@ -48,7 +48,7 @@ for i in $(seq 1 1 ${NofNodes})
 do
   node_id=$(expr $i - 1)
   acc=$(expr $node_id + 3)
-  ip=$(sh ${TOOLDIR}/kubectlt -n ${namespace} get svc | grep NodePort | grep "network-node${i}" | awk '{print $3}')
+  ip=$(sh ${TOOLDIR}/../kubectlt -n ${namespace} get svc | grep NodePort | grep "network-node${i}" | awk '{print $3}')
 
 cat << EOF >> inventory/latitude.yml
         proxy0${node_id}_gcp:
