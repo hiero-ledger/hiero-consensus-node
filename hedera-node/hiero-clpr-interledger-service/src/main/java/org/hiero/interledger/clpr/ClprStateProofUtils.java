@@ -14,7 +14,6 @@ import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
-import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 
 /**
@@ -128,11 +127,13 @@ public final class ClprStateProofUtils {
      * @return a state proof for the message queue metadata
      */
     public static StateProof buildLocalClprStateProofWrapper(
-            @NonNull final ClprLedgerId ledgerId, @NonNull final ClprMessageQueueMetadata messageQueueMetadata) {
+            @NonNull final ClprMessageQueueMetadata messageQueueMetadata) {
         requireNonNull(messageQueueMetadata, "message queue metadata must not be null");
 
-        final var stateKey =
-                StateKey.newBuilder().clprServiceIMessageQueueMetadata(ledgerId).build();
+        final var remoteLedgerId = messageQueueMetadata.ledgerId();
+        final var stateKey = StateKey.newBuilder()
+                .clprServiceIMessageQueueMetadata(remoteLedgerId)
+                .build();
         final var stateValue = StateValue.newBuilder()
                 .clprServiceIMessageQueues(messageQueueMetadata)
                 .build();

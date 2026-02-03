@@ -307,8 +307,10 @@ public class ClprSuite implements LifecycleTest {
         AtomicReference<HederaNode> targetNode = new AtomicReference<>();
         AtomicReference<ClprMessageBundle> fetchResult = new AtomicReference<>();
         Bytes msgData = Bytes.wrap("Hello CLPR".getBytes());
+        Bytes ledgerIdBytes = Bytes.wrap("Mock ledger ID".getBytes());
         ClprMessage msg = ClprMessage.newBuilder().messageData(msgData).build();
         ClprMessageBundle bundleToProcess = ClprMessageBundle.newBuilder()
+                .ledgerId(ClprLedgerId.newBuilder().ledgerId(ledgerIdBytes))
                 .messages(List.of(ClprMessagePayload.newBuilder().message(msg).build()))
                 .build();
         return hapiTest(
@@ -428,7 +430,7 @@ public class ClprSuite implements LifecycleTest {
         }
     }
 
-    private static ClprClient createClient(final HederaNode node) {
+    static ClprClient createClient(final HederaNode node) {
         try {
             final var pbjEndpoint = ServiceEndpoint.newBuilder()
                     .ipAddressV4(
@@ -449,8 +451,7 @@ public class ClprSuite implements LifecycleTest {
                 final var config = tryFetchLedgerConfiguration(node.get());
                 final var payer = asAccount(spec, 2);
                 final var ledgerId = config.ledgerId();
-                final var proof =
-                        ClprStateProofUtils.buildLocalClprStateProofWrapper(ledgerId, clprMessageQueueMetadata);
+                final var proof = ClprStateProofUtils.buildLocalClprStateProofWrapper(clprMessageQueueMetadata);
                 client.updateMessageQueueMetadata(toPbj(payer), node.get().getAccountId(), ledgerId, proof);
             }
         });
@@ -486,7 +487,9 @@ public class ClprSuite implements LifecycleTest {
         return doingContextual(spec -> {
             try (final var client = createClient(node.get())) {
                 final var config = tryFetchLedgerConfiguration(node.get());
-                final var messageQueueMetadata = client.getMessageQueueMetadata(config.ledgerId());
+                final var messageQueueMetadataProof = client.getMessageQueueMetadata(config.ledgerId());
+                final var messageQueueMetadata =
+                        ClprStateProofUtils.extractMessageQueueMetadata(messageQueueMetadataProof);
                 exposingMessageQueueMetadata.set(messageQueueMetadata);
             }
         });
