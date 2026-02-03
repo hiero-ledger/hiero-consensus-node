@@ -218,7 +218,7 @@ jobs:
       - name: Report Promoted Build
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload: |
@@ -351,10 +351,10 @@ jobs:
           }
           EOF
 
-      - name: Report No Promotion (slack citr-operations)
+      - name: Report No Promotion (slack citr-build-promotion-reports)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
@@ -492,10 +492,10 @@ jobs:
           }
           EOF
 
-      - name: Report failure (slack citr-operations)
+      - name: Report failure (slack citr-build-promotion-reports)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_BUILD_PROMOTION_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
