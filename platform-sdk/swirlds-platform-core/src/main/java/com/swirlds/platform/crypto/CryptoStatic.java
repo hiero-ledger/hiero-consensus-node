@@ -9,7 +9,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
@@ -55,6 +54,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -350,8 +350,8 @@ public final class CryptoStatic {
                 | KeyGeneratingException
                 | NoSuchProviderException e) {
             logger.error(EXCEPTION.getMarker(), "Exception while loading/generating keys", e);
-            if (Utilities.isRootCauseSuppliedType(e, NoSuchAlgorithmException.class)
-                    || Utilities.isRootCauseSuppliedType(e, NoSuchProviderException.class)) {
+            if (ThrowableUtilities.isRootCauseSuppliedType(e, NoSuchAlgorithmException.class)
+                    || ThrowableUtilities.isRootCauseSuppliedType(e, NoSuchProviderException.class)) {
                 CommonUtils.tellUserConsolePopup(
                         "ERROR",
                         "ERROR: This Java installation does not have the needed cryptography " + "providers installed");
