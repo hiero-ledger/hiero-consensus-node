@@ -75,7 +75,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.time.InstantSource;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -101,8 +100,8 @@ public final class StateUtils {
      */
     private static final String DEFAULT = "DEFAULT";
 
-    private static final Map<String, MerkleNodeState> states = new HashMap<>();
-    private static final Map<String, DeserializedSignedState> deserializedSignedStates = new HashMap<>();
+    private static final Map<String, MerkleNodeState> states = new ConcurrentHashMap<>();
+    private static final Map<String, DeserializedSignedState> deserializedSignedStates = new ConcurrentHashMap<>();
 
     // Static JSON codec cache
     private static final Map<Integer, JsonCodec> keyCodecsById = new ConcurrentHashMap<>();
@@ -114,8 +113,8 @@ public final class StateUtils {
      * Returns <b>mutable</b> instance of {@link MerkleNodeState} loaded from disk.
      * @return mutable instance of {@link MerkleNodeState}
      */
-    public static MerkleNodeState getState() {
-        return getState(DEFAULT);
+    public static MerkleNodeState getDefaultState() {
+        return getDefaultState(DEFAULT);
     }
 
     /**
@@ -123,11 +122,23 @@ public final class StateUtils {
      * @param key the key identifying the state
      * @return mutable instance of {@link MerkleNodeState}
      */
-    public static MerkleNodeState getState(String key) {
+    public static MerkleNodeState getDefaultState(String key) {
         if (!states.containsKey(key)) {
             initState(key);
         }
         return states.get(key);
+    }
+
+    /**
+     * Creates a mutable copy of the current state.
+     * @return a mutable copy of the current state
+     */
+    public static synchronized MerkleNodeState copyDefaultState() {
+        if (states.get(DEFAULT) == null) {
+            throw new IllegalStateException("State is not initialized yet");
+        }
+        states.put(DEFAULT, states.get(DEFAULT).copy());
+        return getDefaultState();
     }
 
     /**
@@ -164,9 +175,10 @@ public final class StateUtils {
                     virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
                     platformContext.getConfiguration());
 
-            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
-                throw new UnsupportedOperationException("No startup networks available");
-            }));
+            serviceRegistry.register(
+                    new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getDefaultState, () -> {
+                        throw new UnsupportedOperationException("No startup networks available");
+                    }));
 
             final DeserializedSignedState dss =
                     readState(Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(), platformContext, stateLifecycleManager);
@@ -253,7 +265,7 @@ public final class StateUtils {
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
                                         .blockPeriod()),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getDefaultState, () -> {
                             throw new UnsupportedOperationException("No startup networks available");
                         }),
                         new PlatformStateService())

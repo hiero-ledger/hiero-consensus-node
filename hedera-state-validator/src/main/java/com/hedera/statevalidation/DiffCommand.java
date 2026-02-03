@@ -55,14 +55,14 @@ public class DiffCommand implements Runnable {
         parent.initializeStateDir();
         System.setProperty("tmp.dir", getTmpDir(parent.getStateDir()));
         long start = System.currentTimeMillis();
-        final MerkleNodeState state1 = StateUtils.getState(STATE_1);
+        final MerkleNodeState state1 = StateUtils.getDefaultState(STATE_1);
         log.debug("First state has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
         log.debug("Initializing the second state...");
         System.setProperty("state.dir", stateDir2.getAbsolutePath());
         System.setProperty("tmp.dir", getTmpDir(stateDir2));
         start = System.currentTimeMillis();
-        final MerkleNodeState state2 = StateUtils.getState(STATE_2);
+        final MerkleNodeState state2 = StateUtils.getDefaultState(STATE_2);
         log.debug("Second state has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
         final DiffExporter exporter = new DiffExporter(outputDirectory, state1, state2, serviceName, stateKey);

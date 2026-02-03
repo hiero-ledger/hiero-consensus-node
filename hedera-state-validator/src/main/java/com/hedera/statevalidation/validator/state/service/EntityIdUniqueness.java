@@ -35,7 +35,7 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.ParallelProcessingUtils;
-import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
+import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -47,71 +47,68 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({MerkleNodeStateResolver.class, SlackReportGenerator.class})
+@ExtendWith({SlackReportGenerator.class})
 @Tag("entityIds")
 public class EntityIdUniqueness {
 
     private static final Logger log = LogManager.getLogger(EntityIdUniqueness.class);
 
     @Test
-    void validateEntityIds(final MerkleNodeState servicesState) throws InterruptedException, ExecutionException {
-        final ReadableSingletonState<EntityNumber> entityIdSingleton =
-                servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
+    void validateEntityIds() throws InterruptedException, ExecutionException {
+        final ReadableSingletonState<EntityNumber> entityIdSingleton = StateUtils.getDefaultState()
+                .getReadableStates(EntityIdService.NAME)
+                .getSingleton(ENTITY_ID_STATE_ID);
+        final AtomicLong idCounter = new AtomicLong(0);
 
         final long lastEntityIdNumber = entityIdSingleton.get().number();
         final AtomicInteger issuesFound = new AtomicInteger(0);
 
-        final ReadableKVState<TokenID, Token> tokensState =
-                servicesState.getReadableStates(TokenService.NAME).get(TOKENS_STATE_ID);
-        final ReadableKVState<AccountID, Account> accountState =
-                servicesState.getReadableStates(TokenService.NAME).get(ACCOUNTS_STATE_ID);
-        final ReadableKVState<ContractID, Bytecode> smartContractState =
-                servicesState.getReadableStates(ContractService.NAME).get(BYTECODE_STATE_ID);
-        final ReadableKVState<TopicID, Topic> topicState =
-                servicesState.getReadableStates(ConsensusService.NAME).get(TOPICS_STATE_ID);
-        final ReadableKVState<FileID, File> fileState =
-                servicesState.getReadableStates(FileService.NAME).get(FILES_STATE_ID);
-        final ReadableKVState<ScheduleID, Schedule> scheduleState =
-                servicesState.getReadableStates(ScheduleService.NAME).get(SCHEDULES_BY_ID_STATE_ID);
-
         ParallelProcessingUtils.processRange(0, lastEntityIdNumber, number -> {
+                    if (idCounter.incrementAndGet() % 100_000 == 0) {
+                        // from time to time we need to create copies to limit cache growth and prevent OOM errors
+                        StateUtils.copyDefaultState();
+                    }
+
+                    final MerkleNodeState state = StateUtils.getDefaultState();
+
                     int counter = 0;
-                    final Token token = tokensState.get(new TokenID(0, 0, number));
+                    final Token token = getTokensState(state).get(new TokenID(0, 0, number));
                     if (token != null) {
                         counter++;
                     }
 
-                    final Account account = accountState.get(
-                            AccountID.newBuilder().accountNum(number).build());
+                    final Account account = getAccountState(state)
+                            .get(AccountID.newBuilder().accountNum(number).build());
                     if (account != null) {
                         counter++;
                     }
 
-                    final Bytecode contract = smartContractState.get(
-                            ContractID.newBuilder().contractNum(number).build());
+                    final Bytecode contract = getSmartContractState(state)
+                            .get(ContractID.newBuilder().contractNum(number).build());
 
                     if (contract != null) {
                         counter++;
                     }
 
-                    final Topic topic =
-                            topicState.get(TopicID.newBuilder().topicNum(number).build());
+                    final Topic topic = getTopicState(state)
+                            .get(TopicID.newBuilder().topicNum(number).build());
 
                     if (topic != null) {
                         counter++;
                     }
 
-                    final File file =
-                            fileState.get(FileID.newBuilder().fileNum(number).build());
+                    final File file = getFileState(state)
+                            .get(FileID.newBuilder().fileNum(number).build());
                     if (file != null) {
                         counter++;
                     }
 
-                    final Schedule schedule = scheduleState.get(new ScheduleID(0, 0, number));
+                    final Schedule schedule = getScheduleState(state).get(new ScheduleID(0, 0, number));
                     if (schedule != null) {
                         counter++;
                     }
@@ -143,16 +140,41 @@ public class EntityIdUniqueness {
         assertEquals(0, issuesFound.get());
     }
 
-    @Test
-    void validateIdCounts(MerkleNodeState servicesState) throws InterruptedException, ExecutionException {
+    private static @NonNull ReadableKVState<ScheduleID, Schedule> getScheduleState(MerkleNodeState state) {
+        return state.getReadableStates(ScheduleService.NAME).get(SCHEDULES_BY_ID_STATE_ID);
+    }
 
-        final VirtualMap vm = (VirtualMap) servicesState.getRoot();
+    private static @NonNull ReadableKVState<FileID, File> getFileState(MerkleNodeState state) {
+        return state.getReadableStates(FileService.NAME).get(FILES_STATE_ID);
+    }
+
+    private static @NonNull ReadableKVState<TopicID, Topic> getTopicState(MerkleNodeState state) {
+        return state.getReadableStates(ConsensusService.NAME).get(TOPICS_STATE_ID);
+    }
+
+    private static @NonNull ReadableKVState<ContractID, Bytecode> getSmartContractState(MerkleNodeState state) {
+        return state.getReadableStates(ContractService.NAME).get(BYTECODE_STATE_ID);
+    }
+
+    private static @NonNull ReadableKVState<AccountID, Account> getAccountState(MerkleNodeState state) {
+        return state.getReadableStates(TokenService.NAME).get(ACCOUNTS_STATE_ID);
+    }
+
+    private static @NonNull ReadableKVState<TokenID, Token> getTokensState(MerkleNodeState state) {
+        return state.getReadableStates(TokenService.NAME).get(TOKENS_STATE_ID);
+    }
+
+    @Test
+    void validateIdCounts() throws InterruptedException, ExecutionException {
+
+        final MerkleNodeState servicesState = StateUtils.getDefaultState();
+        final AtomicLong pathCounter = new AtomicLong(0);
 
         final ReadableSingletonState<EntityCounts> entityIdSingleton =
                 servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
 
         final EntityCounts entityCounts = entityIdSingleton.get();
-        final VirtualMapMetadata metadata = vm.getMetadata();
+        final VirtualMapMetadata metadata = ((VirtualMap) servicesState.getRoot()).getMetadata();
 
         final AtomicLong accountCount = new AtomicLong(0);
         final AtomicLong aliasesCount = new AtomicLong(0);
@@ -168,9 +190,18 @@ public class EntityIdUniqueness {
         final AtomicLong contractStorageCount = new AtomicLong(0);
         final AtomicLong contractBytecodeCount = new AtomicLong(0);
         final AtomicLong hookCount = new AtomicLong(0);
+        final AtomicLong labmbdaStorageCount = new AtomicLong(0);
         final AtomicLong evmHookStorageCount = new AtomicLong(0);
 
         ParallelProcessingUtils.processRange(metadata.getFirstLeafPath(), metadata.getLastLeafPath(), number -> {
+                    // from time to time we need to create copies to limit cache growth and prevent OOM errors
+                    if (pathCounter.incrementAndGet() % 100_000 == 0) {
+                        StateUtils.copyDefaultState();
+                    }
+
+                    final VirtualMap vm =
+                            (VirtualMap) StateUtils.getDefaultState().getRoot();
+
                     VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(number);
                     try {
                         StateKey key = StateKey.PROTOBUF.parse(leafRecord.keyBytes());
