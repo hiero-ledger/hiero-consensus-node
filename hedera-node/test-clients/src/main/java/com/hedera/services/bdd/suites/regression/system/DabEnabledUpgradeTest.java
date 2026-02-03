@@ -195,7 +195,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 .build())),
                 upgradeToNextConfigVersion(),
                 assertGetVersionInfoMatches(startVersion::get),
-                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
+                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
                 getFileContents(NODE_DETAILS).andValidate(bytes -> {
                     final var node0CertHash = AddressBookPojo.nodeDetailsFrom(bytes).getEntries().stream()
                             .filter(entry -> entry.getNodeId() == 0L)
