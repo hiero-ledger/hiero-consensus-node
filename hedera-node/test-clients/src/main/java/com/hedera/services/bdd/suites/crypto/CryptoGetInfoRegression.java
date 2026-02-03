@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -31,7 +32,7 @@ import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -55,7 +56,9 @@ public class CryptoGetInfoRegression {
     /**
      * For Demo purpose : The limit on each account info and account balance queries is set to 5
      */
-    @LeakyHapiTest(overrides = {"tokens.maxRelsPerInfoQuery"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"tokens.maxRelsPerInfoQuery"})
     final Stream<DynamicTest> fetchesOnlyALimitedTokenAssociations() {
         final var account = "test";
         final var aKey = "tokenKey";
@@ -156,7 +159,8 @@ public class CryptoGetInfoRegression {
                 getAccountInfo(account).hasTokenRelationShipCount(3));
     }
 
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
             overrides = {"tokens.countingGetBalanceThrottleEnabled"},
             throttles = "testSystemFiles/tiny-get-balance-throttle.json")

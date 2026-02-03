@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.queries;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -29,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -211,7 +212,8 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
                         .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_SIGNATURE)));
     }
 
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             requirement = {THROTTLE_OVERRIDES},
             throttles = "testSystemFiles/node-operator-throttles.json")
     final Stream<DynamicTest> nodeOperatorCryptoGetInfoThrottled() {
@@ -222,7 +224,8 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
                 getAccountInfo(NODE_OPERATOR).payingWith(NODE_OPERATOR).hasAnswerOnlyPrecheck(BUSY)));
     }
 
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             requirement = {THROTTLE_OVERRIDES},
             throttles = "testSystemFiles/node-operator-throttles.json")
     @Tag(MATS)

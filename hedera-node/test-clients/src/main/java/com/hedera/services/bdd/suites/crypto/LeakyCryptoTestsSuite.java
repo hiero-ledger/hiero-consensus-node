@@ -4,8 +4,11 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -122,9 +125,10 @@ import com.hedera.hapi.services.auxiliary.history.legacy.HistoryProofSignatureTr
 import com.hedera.hapi.services.auxiliary.history.legacy.HistoryProofVoteTransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
@@ -152,7 +156,9 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
+@Tag(ONLY_EMBEDDED)
 @Tag(CRYPTO)
+@TargetEmbeddedMode(CONCURRENT)
 @OrderedInIsolation
 public class LeakyCryptoTestsSuite {
     private static final Logger log = LogManager.getLogger(LeakyCryptoTestsSuite.class);
@@ -164,7 +170,9 @@ public class LeakyCryptoTestsSuite {
     public static final String CREATE_TX = "createTX";
 
     @Order(16)
-    @LeakyHapiTest(overrides = {"ledger.maxAutoAssociations", "ledger.autoRenewPeriod.minDuration"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"ledger.maxAutoAssociations", "ledger.autoRenewPeriod.minDuration"})
     final Stream<DynamicTest> autoAssociationPropertiesWorkAsExpected() {
         final var shortLivedAutoAssocUser = "shortLivedAutoAssocUser";
         final var longLivedAutoAssocUser = "longLivedAutoAssocUser";
@@ -240,7 +248,9 @@ public class LeakyCryptoTestsSuite {
     }
 
     @Order(1)
-    @LeakyHapiTest(overrides = {"ledger.autoRenewPeriod.minDuration"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"ledger.autoRenewPeriod.minDuration"})
     final Stream<DynamicTest> cannotDissociateFromExpiredTokenWithNonZeroBalance() {
         final var civilian = "civilian";
         final long initialSupply = 100L;
@@ -273,7 +283,9 @@ public class LeakyCryptoTestsSuite {
     }
 
     @Order(2)
-    @LeakyHapiTest(overrides = {"hedera.allowances.maxTransactionLimit", "hedera.allowances.maxAccountLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"hedera.allowances.maxTransactionLimit", "hedera.allowances.maxAccountLimit"})
     final Stream<DynamicTest> cannotExceedAccountAllowanceLimit() {
         return hapiTest(
                 overridingTwo(
@@ -332,7 +344,9 @@ public class LeakyCryptoTestsSuite {
     }
 
     @Order(3)
-    @LeakyHapiTest(overrides = {"hedera.allowances.maxTransactionLimit", "hedera.allowances.maxAccountLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"hedera.allowances.maxTransactionLimit", "hedera.allowances.maxAccountLimit"})
     final Stream<DynamicTest> cannotExceedAllowancesTransactionLimit() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -470,7 +484,7 @@ public class LeakyCryptoTestsSuite {
                         .hasPrecheck(BUSY));
     }
 
-    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = FEE_SCHEDULE_OVERRIDES)
     final Stream<DynamicTest> hollowAccountCreationChargesExpectedFees() {
         final long REDUCED_NODE_FEE = 2L;
         final long REDUCED_NETWORK_FEE = 3L;
@@ -546,7 +560,9 @@ public class LeakyCryptoTestsSuite {
     }
 
     @Order(14)
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> contractDeployAfterEthereumTransferLazyCreate() {
         final var RECIPIENT_KEY = LAZY_ACCOUNT_RECIPIENT;
         final var lazyCreateTxn = PAY_TXN;
@@ -588,7 +604,9 @@ public class LeakyCryptoTestsSuite {
                 }));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> contractCallAfterEthereumTransferLazyCreate() {
         final var RECIPIENT_KEY = LAZY_ACCOUNT_RECIPIENT;
         final var lazyCreateTxn = PAY_TXN;

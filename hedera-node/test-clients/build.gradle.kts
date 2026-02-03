@@ -495,10 +495,13 @@ tasks.register<Test>("testRemote") {
     maxParallelForks = 1
 }
 
+val embeddedCryptoTasks = setOf("hapiEmbeddedCrypto")
+
 val embeddedBaseTags =
     mapOf(
         "hapiEmbeddedMisc" to "EMBEDDED&!(SIMPLE_FEES)",
         "hapiEmbeddedSimpleFees" to "EMBEDDED&SIMPLE_FEES",
+        "hapiEmbeddedCrypto" to "EMBEDDED&CRYPTO",
     )
 
 val prEmbeddedCheckTags =
@@ -507,8 +510,10 @@ val prEmbeddedCheckTags =
             // XTS embedded → all tests
             put(taskName, "($tags)")
 
-            // Embedded MATS variant → REQUIRE MATS
-            put("$taskName$matsSuffix", "($tags)&MATS")
+            // Embedded MATS variant → REQUIRE MATS (no MATS variant for crypto, same as subprocess)
+            if (taskName !in embeddedCryptoTasks) {
+                put("$taskName$matsSuffix", "($tags)&MATS")
+            }
         }
     }
 
