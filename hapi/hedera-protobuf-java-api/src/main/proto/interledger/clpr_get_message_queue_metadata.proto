@@ -24,9 +24,7 @@ import "interledger/state/clpr/clpr_ledger.proto";
 import "block/stream/state_proof.proto";
 
 /**
- * Query for the CLPR message queue metadata matching the given ledger id,
- * if it exists. If the ledger id is not provided, the message queue metadata for
- * the local ledger is provided.
+ * Query for the CLPR message queue metadata matching the given ledger id.
  */
 message ClprGetMessageQueueMetadataQuery {
   /**
@@ -37,9 +35,6 @@ message ClprGetMessageQueueMetadataQuery {
   proto.QueryHeader header = 1;
   /**
    * The ledger id of the CLPR message queue metadata desired.
-   * <p>
-   * If this field is absent, the CLPR message queue metadata for the
-   * ledger answering the query is returned.
    */
   org.hiero.hapi.interledger.state.clpr.ClprLedgerId ledger_id = 2;
 }
