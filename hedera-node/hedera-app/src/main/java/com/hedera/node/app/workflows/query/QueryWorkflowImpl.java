@@ -27,10 +27,10 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -242,7 +242,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             if (shouldUseSimpleFees(context)) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
                                         .calculateQueryFee(
-                                                context.query(), SimpleFeeContextUtil.fromQueryContext(context));
+                                                context.query(), SimpleFeeContextImpl.fromQueryContext(context));
                                 queryFees = tinycentsToTinybars(
                                         queryFeeTinyCents.totalTinycents(),
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
@@ -302,7 +302,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     long queryFees;
                     if (shouldUseSimpleFees(context)) {
                         final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                .calculateQueryFee(context.query(), SimpleFeeContextUtil.fromQueryContext(context));
+                                .calculateQueryFee(context.query(), SimpleFeeContextImpl.fromQueryContext(context));
                         queryFees = tinycentsToTinybars(
                                 queryFeeTinyCents.totalTinycents(),
                                 fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));

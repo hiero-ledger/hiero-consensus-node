@@ -21,11 +21,11 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -254,7 +254,7 @@ public class QueryChecker {
                 dispatcher);
         if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                    .calculateTxFee(transactionInfo.txBody(), SimpleFeeContextUtil.fromFeeContext(feeContext));
+                    .calculateTxFee(transactionInfo.txBody(), SimpleFeeContextImpl.fromFeeContext(feeContext));
             final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
             return fees.totalFee();
         }
