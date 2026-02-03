@@ -15,6 +15,7 @@ import com.hedera.node.config.ConfigProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 import org.hiero.interledger.clpr.WritableClprMessageStore;
@@ -61,12 +62,11 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
         //  The full semantics of the handler will be specified in later issues.
         //  For now just save messages in state
         final var messageId = new AtomicInteger(0);
-        final var ledgerShortId = new AtomicInteger(0);
         messageQBundle.ifMessageBundle(messageBundle -> {
             messageBundle.messages().forEach(msg -> {
                 final var key = ClprMessageKey.newBuilder()
                         .messageId(messageId.getAndIncrement())
-                        .ledgerShortId(ledgerShortId.get())
+                        .ledgerId(ClprLedgerId.DEFAULT)
                         .build();
                 final var value = ClprMessageValue.newBuilder().payload(msg).build();
                 writableMessagesStore.put(key, value);
