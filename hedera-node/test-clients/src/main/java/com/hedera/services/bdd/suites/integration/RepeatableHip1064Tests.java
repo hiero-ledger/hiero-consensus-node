@@ -736,9 +736,7 @@ public class RepeatableHip1064Tests {
                     final var missedCounts = nodeRewards.nodeActivities().stream()
                             .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
                     assertEquals(1L, missedCounts.get(1L));
-                    assertTrue(
-                            missedCounts.get(1L) <= maxMissed,
-                            "Node1 should remain active after missing one round");
+                    assertTrue(missedCounts.get(1L) <= maxMissed, "Node1 should remain active after missing one round");
                 }));
     }
 

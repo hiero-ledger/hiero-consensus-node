@@ -121,8 +121,7 @@ public class NodeRewardManager {
         roundsThisStakingPeriod++;
         // Track missing judges in this round
         missingJudgesInLastRoundOf(state)
-                .forEach(nodeId ->
-                        missedJudgeCounts.compute(nodeId, (k, v) -> (v == null) ? 1 : v + 1));
+                .forEach(nodeId -> missedJudgeCounts.compute(nodeId, (k, v) -> (v == null) ? 1 : v + 1));
     }
 
     /**
