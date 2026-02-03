@@ -25,5 +25,4 @@ public class InstantUtils {
         final int nanos = (int) ((micros % MICROS_IN_SECOND) * MILLIS_IN_SECOND);
         return Instant.ofEpochSecond(seconds, nanos);
     }
-
 }
