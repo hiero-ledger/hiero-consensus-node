@@ -73,23 +73,19 @@ public class CodeDelegationTests {
 
     private static final String CODE_DELEGATION_CONTRACT = "CodeDelegationContract";
 
-    private static final AtomicInteger accountIdCounter = new AtomicInteger(0);
-
-    private static EvmAccount payer;
-    private static EvmAccount caller;
+    private final AtomicInteger accountIdCounter = new AtomicInteger(0);
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
-        testLifecycle.doAdhoc(withOpContext((spec, opLog) -> {
-            payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
-            caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
-        }));
     }
 
     @HapiTest
     final Stream<DynamicTest> testCodeDelegationFallbackMethod() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+            final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+
             /* Create a delegation target contract and an EOA delegating to it. */
             final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
@@ -134,6 +130,9 @@ public class CodeDelegationTests {
     @HapiTest
     final Stream<DynamicTest> testCodeDelegationStorage() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+            final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+
             /* Create a delegation target contract and an EOA delegating to it. */
             final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
@@ -196,6 +195,9 @@ public class CodeDelegationTests {
     @HapiTest
     final Stream<DynamicTest> testCodeDelegationInternalHtsTransfer() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+            final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+
             /* Create a delegation target contract and an EOA delegating to it. */
             final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
@@ -253,6 +255,9 @@ public class CodeDelegationTests {
     @HapiTest
     final Stream<DynamicTest> testCodeDelegationInnerCall() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+            final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+
             /* Create a delegation target contract and an EOA delegating to it. */
             final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
@@ -307,6 +312,9 @@ public class CodeDelegationTests {
     /// due to trying to execute an invalid op code.
     final Stream<DynamicTest> testDelegationToHtsTokenReverts() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+            final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
             final var token = "TOKEN_2";
@@ -388,6 +396,9 @@ public class CodeDelegationTests {
 
         return testCases.stream()
                 .flatMap(testCase -> hapiTest(withOpContext((spec, opLog) -> {
+                    final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+                    final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+
                     final var targetAddressBytes = ByteString.fromHex(testCase.targetAddress);
                     final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
                     nativeSetCodeDelegation(spec, delegatingEoa, targetAddressBytes);
@@ -441,6 +452,9 @@ public class CodeDelegationTests {
     @HapiTest
     final Stream<DynamicTest> testCodeDelegationDuringHookExecution() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+            final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+
             final var delegationTargetContract = createEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             nativeSetCodeDelegation(spec, delegatingEoa, delegationTargetContract);
@@ -507,8 +521,7 @@ public class CodeDelegationTests {
                                 final var valueInEvent = (BigInteger) eoaFallbackLogArgs.get(2);
                                 final var callDataInEvent = (byte[]) eoaFallbackLogArgs.get(3);
 
-                                // TODO: this should be alias address, not long-zero!
-                                assertEquals(owner.longZeroEvmAddress(), senderInEvent);
+                                assertEquals(owner.evmAddress(), senderInEvent);
                                 assertEquals(delegatingEoa.evmAddress(), thisAddressInEvent);
                                 assertEquals(BigInteger.ZERO, valueInEvent);
                                 assertArrayEquals(Hex.decode("cafebabe"), callDataInEvent);
@@ -523,6 +536,9 @@ public class CodeDelegationTests {
     @HapiTest
     final Stream<DynamicTest> testCodeDelegationToHookAddressDuringHookExecution() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+            final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
+
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var htsAddr =
                     ByteString.fromHex(HTS_HOOKS_CONTRACT_ADDRESS.toString().replace("0x", ""));
@@ -610,7 +626,7 @@ public class CodeDelegationTests {
         }
     }
 
-    private static EvmAccount createEvmAccountWithKey(HapiSpec spec) {
+    private EvmAccount createEvmAccountWithKey(HapiSpec spec) {
         final var id = accountIdCounter.getAndIncrement();
         final var name = "ACCOUNT_" + id;
         final var keyName = "ACCOUNT_KEY_" + id;
@@ -632,13 +648,13 @@ public class CodeDelegationTests {
         return new EvmAccount(keyName, name, accountId.get(), keyAliasEvmAddress.get(), longZeroEvmAddress.get());
     }
 
-    private static EvmAccount createFundedEvmAccountWithKey(HapiSpec spec, long hbarAmount) {
+    private EvmAccount createFundedEvmAccountWithKey(HapiSpec spec, long hbarAmount) {
         final var account = createEvmAccountWithKey(spec);
         allRunFor(spec, cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, account.name, hbarAmount)));
         return account;
     }
 
-    private static EvmContract createEvmContract(HapiSpec spec, String name) {
+    private EvmContract createEvmContract(HapiSpec spec, String name) {
         final AtomicReference<Address> evmAddress = new AtomicReference<>();
         allRunFor(
                 spec,
@@ -649,11 +665,11 @@ public class CodeDelegationTests {
         return new EvmContract(name, evmAddress.get());
     }
 
-    private static void nativeSetCodeDelegation(HapiSpec spec, EvmAccount account, EvmContract target) {
+    private void nativeSetCodeDelegation(HapiSpec spec, EvmAccount account, EvmContract target) {
         nativeSetCodeDelegation(spec, account, target.evmAddressPbjBytes());
     }
 
-    private static void nativeSetCodeDelegation(HapiSpec spec, EvmAccount account, ByteString targetAddress) {
+    private void nativeSetCodeDelegation(HapiSpec spec, EvmAccount account, ByteString targetAddress) {
         allRunFor(
                 spec,
                 cryptoUpdate(account.name()).delegationAddress(targetAddress),
