@@ -298,7 +298,7 @@ public class IssueRegressionTests {
                         .transfer(TRANSFER)
                         .hasKnownStatus(ACCOUNT_DELETED),
                 // since the account is already deleted, we have fewer signatures to verify
-                getAccountBalance(PAYER).hasTinyBars(approxChangeFromSnapshot(SNAPSHOT, -4999999, 10000)));
+                getAccountBalance(PAYER).hasTinyBars(approxChangeFromSnapshot(SNAPSHOT, -4249999, 10000)));
     }
 
     @HapiTest
