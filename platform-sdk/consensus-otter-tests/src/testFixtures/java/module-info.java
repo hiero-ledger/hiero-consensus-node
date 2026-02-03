@@ -94,7 +94,4 @@ module org.hiero.otter.fixtures {
 
     opens org.hiero.otter.fixtures.container.network to
             com.fasterxml.jackson.databind;
-
-    exports org.hiero.otter.fixtures.app.state to
-            org.hiero.otter.test.performance;
 }
