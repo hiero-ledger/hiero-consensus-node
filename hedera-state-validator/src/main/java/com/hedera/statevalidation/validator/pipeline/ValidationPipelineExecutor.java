@@ -171,13 +171,13 @@ public final class ValidationPipelineExecutor {
                     // Submit in-memory hash read tasks if memory store is available
                     if (pathToHashRam != null) {
                         final long lastLeafPath = vds.getLastLeafPath();
-                        final long memoryEndPath = Math.min(inMemoryHashThreshold, lastLeafPath);
-                        if (memoryEndPath > 0) {
-                            memoryReadTasks.addAll(planP2HMemoryReadTasks(memoryEndPath));
+                        final long memoryEndPathExc = Math.min(inMemoryHashThreshold, lastLeafPath + 1);
+                        if (memoryEndPathExc > 0) {
+                            memoryReadTasks.addAll(planP2HMemoryReadTasks(memoryEndPathExc));
                             log.debug(
                                     "In-memory P2H read tasks: {}, range: [0, {})",
                                     memoryReadTasks.size(),
-                                    memoryEndPath);
+                                    memoryEndPathExc);
                         }
                     }
                 }
