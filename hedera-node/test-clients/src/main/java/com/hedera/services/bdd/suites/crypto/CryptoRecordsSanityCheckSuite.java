@@ -40,7 +40,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -50,7 +49,6 @@ import java.util.Set;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(XTS)
@@ -67,135 +65,128 @@ public class CryptoRecordsSanityCheckSuite {
         testLifecycle.overrideInClass(Map.of("nodes.feeCollectionAccountEnabled", "false"));
     }
 
-    @Nested
-    @OrderedInIsolation
-    class Leaky {
-        @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-        final Stream<DynamicTest> ownershipChangeShowsInRecord() {
-            final var firstOwner = "A";
-            final var secondOwner = "B";
-            final var uniqueToken = "DoubleVision";
-            final var metadata = ByteString.copyFromUtf8("A sphinx, a buddha, and so on.");
-            final var supplyKey = "minting";
-            final var mintRecord = "mint";
-            final var xferRecord = "xfer";
+    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    final Stream<DynamicTest> ownershipChangeShowsInRecord() {
+        final var firstOwner = "A";
+        final var secondOwner = "B";
+        final var uniqueToken = "DoubleVision";
+        final var metadata = ByteString.copyFromUtf8("A sphinx, a buddha, and so on.");
+        final var supplyKey = "minting";
+        final var mintRecord = "mint";
+        final var xferRecord = "xfer";
 
-            return hapiTest(
-                    newKeyNamed(supplyKey),
-                    cryptoCreate(firstOwner),
-                    cryptoCreate(secondOwner),
-                    tokenCreate(uniqueToken)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .treasury(firstOwner)
-                            .supplyKey(supplyKey)
-                            .initialSupply(0L),
-                    tokenAssociate(secondOwner, uniqueToken),
-                    mintToken(uniqueToken, List.of(metadata)).via(mintRecord),
-                    getAccountBalance(firstOwner).logged(),
-                    cryptoTransfer(
-                                    movingHbar(1_234_567L).between(secondOwner, firstOwner),
-                                    movingUnique(uniqueToken, 1L).between(firstOwner, secondOwner))
-                            .via(xferRecord),
-                    getTxnRecord(mintRecord).logged(),
-                    getTxnRecord(xferRecord).logged());
-        }
+        return hapiTest(
+                newKeyNamed(supplyKey),
+                cryptoCreate(firstOwner),
+                cryptoCreate(secondOwner),
+                tokenCreate(uniqueToken)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(firstOwner)
+                        .supplyKey(supplyKey)
+                        .initialSupply(0L),
+                tokenAssociate(secondOwner, uniqueToken),
+                mintToken(uniqueToken, List.of(metadata)).via(mintRecord),
+                getAccountBalance(firstOwner).logged(),
+                cryptoTransfer(
+                                movingHbar(1_234_567L).between(secondOwner, firstOwner),
+                                movingUnique(uniqueToken, 1L).between(firstOwner, secondOwner))
+                        .via(xferRecord),
+                getTxnRecord(mintRecord).logged(),
+                getTxnRecord(xferRecord).logged());
+    }
 
-        @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-        final Stream<DynamicTest> cryptoCreateRecordSanityChecks() {
-            return hapiTest(flattened(
-                    takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR),
-                    cryptoCreate("test").via("txn"),
-                    validateTransferListForBalances(
-                            "txn",
-                            List.of("test", FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR)),
-                    withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
-        }
+    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    final Stream<DynamicTest> cryptoCreateRecordSanityChecks() {
+        return hapiTest(flattened(
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR),
+                cryptoCreate("test").via("txn"),
+                validateTransferListForBalances(
+                        "txn",
+                        List.of("test", FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR)),
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
+    }
 
-        @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-        final Stream<DynamicTest> cryptoDeleteRecordSanityChecks() {
-            return hapiTest(flattened(
-                    cryptoCreate("test"),
-                    takeBalanceSnapshots(
-                            FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
-                    cryptoDelete("test").via("txn").transfer(DEFAULT_PAYER),
-                    validateTransferListForBalances(
-                            "txn",
-                            List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
-                            Set.of("test")),
-                    withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
-        }
+    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    final Stream<DynamicTest> cryptoDeleteRecordSanityChecks() {
+        return hapiTest(flattened(
+                cryptoCreate("test"),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
+                cryptoDelete("test").via("txn").transfer(DEFAULT_PAYER),
+                validateTransferListForBalances(
+                        "txn",
+                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
+                        Set.of("test")),
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
+    }
 
-        @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-        final Stream<DynamicTest> cryptoTransferRecordSanityChecks() {
-            return hapiTest(flattened(
-                    cryptoCreate("a").balance(100_000L),
-                    takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "a", FEE_COLLECTOR),
-                    cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "a", 1_234L)).via("txn"),
-                    validateTransferListForBalances(
-                            "txn",
-                            List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "a", FEE_COLLECTOR)),
-                    withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
-        }
+    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    final Stream<DynamicTest> cryptoTransferRecordSanityChecks() {
+        return hapiTest(flattened(
+                cryptoCreate("a").balance(100_000L),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "a", FEE_COLLECTOR),
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "a", 1_234L)).via("txn"),
+                validateTransferListForBalances(
+                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "a", FEE_COLLECTOR)),
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
+    }
 
-        @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-        final Stream<DynamicTest> cryptoUpdateRecordSanityChecks() {
-            return hapiTest(flattened(
-                    cryptoCreate("test"),
-                    newKeyNamed(NEW_KEY).type(KeyFactory.KeyType.SIMPLE),
-                    takeBalanceSnapshots(
-                            FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
-                    cryptoUpdate("test").key(NEW_KEY).via("txn").fee(500_000L).payingWith("test"),
-                    validateTransferListForBalances(
-                            "txn",
-                            List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR)),
-                    withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
-        }
+    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    final Stream<DynamicTest> cryptoUpdateRecordSanityChecks() {
+        return hapiTest(flattened(
+                cryptoCreate("test"),
+                newKeyNamed(NEW_KEY).type(KeyFactory.KeyType.SIMPLE),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
+                cryptoUpdate("test").key(NEW_KEY).via("txn").fee(500_000L).payingWith("test"),
+                validateTransferListForBalances(
+                        "txn",
+                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR)),
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
+    }
 
-        @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-        final Stream<DynamicTest> insufficientAccountBalanceRecordSanityChecks() {
-            final long BALANCE = 500_000_000L;
-            return hapiTest(flattened(
-                    cryptoCreate(PAYER).balance(BALANCE),
-                    cryptoCreate(RECEIVER),
-                    takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR),
-                    cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE / 2))
-                            .payingWith(PAYER)
-                            .via("txn1")
-                            .fee(ONE_HUNDRED_HBARS)
-                            .deferStatusResolution(),
-                    cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE / 2))
-                            .payingWith(PAYER)
-                            .via("txn2")
-                            .fee(ONE_HUNDRED_HBARS)
-                            .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE),
-                    sleepFor(1_000L),
-                    validateTransferListForBalances(
-                            List.of("txn1", "txn2"),
-                            List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR))));
-        }
+    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    final Stream<DynamicTest> insufficientAccountBalanceRecordSanityChecks() {
+        final long BALANCE = 500_000_000L;
+        return hapiTest(flattened(
+                cryptoCreate(PAYER).balance(BALANCE),
+                cryptoCreate(RECEIVER),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR),
+                cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE / 2))
+                        .payingWith(PAYER)
+                        .via("txn1")
+                        .fee(ONE_HUNDRED_HBARS)
+                        .deferStatusResolution(),
+                cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE / 2))
+                        .payingWith(PAYER)
+                        .via("txn2")
+                        .fee(ONE_HUNDRED_HBARS)
+                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE),
+                sleepFor(1_000L),
+                validateTransferListForBalances(
+                        List.of("txn1", "txn2"),
+                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR))));
+    }
 
-        @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
-        final Stream<DynamicTest> invalidPayerSigCryptoTransferRecordSanityChecks() {
-            final long BALANCE = 10_000_000L;
+    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    final Stream<DynamicTest> invalidPayerSigCryptoTransferRecordSanityChecks() {
+        final long BALANCE = 10_000_000L;
 
-            return hapiTest(
-                    newKeyNamed(ORIG_KEY),
-                    newKeyNamed(NEW_KEY),
-                    cryptoCreate(PAYER).key(ORIG_KEY).balance(BALANCE),
-                    cryptoCreate(RECEIVER),
-                    cryptoUpdate(PAYER)
-                            .key(NEW_KEY)
-                            .payingWith(PAYER)
-                            .fee(BALANCE / 2)
-                            .deferStatusResolution(),
-                    cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 1_000L))
-                            .payingWith(PAYER)
-                            .signedBy(ORIG_KEY, RECEIVER)
-                            // Running with embedded mode the previous transaction may already
-                            // be handled and lead to rejecting this submission at ingest; with
-                            // a live network, the transaction will be rejected at consensus
-                            .hasPrecheckFrom(OK, INVALID_SIGNATURE)
-                            .hasKnownStatus(INVALID_PAYER_SIGNATURE));
-        }
+        return hapiTest(
+                newKeyNamed(ORIG_KEY),
+                newKeyNamed(NEW_KEY),
+                cryptoCreate(PAYER).key(ORIG_KEY).balance(BALANCE),
+                cryptoCreate(RECEIVER),
+                cryptoUpdate(PAYER)
+                        .key(NEW_KEY)
+                        .payingWith(PAYER)
+                        .fee(BALANCE / 2)
+                        .deferStatusResolution(),
+                cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 1_000L))
+                        .payingWith(PAYER)
+                        .signedBy(ORIG_KEY, RECEIVER)
+                        // Running with embedded mode the previous transaction may already
+                        // be handled and lead to rejecting this submission at ingest; with
+                        // a live network, the transaction will be rejected at consensus
+                        .hasPrecheckFrom(OK, INVALID_SIGNATURE)
+                        .hasKnownStatus(INVALID_PAYER_SIGNATURE));
     }
 }

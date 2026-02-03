@@ -32,7 +32,6 @@ import static org.hiero.base.utility.CommonUtils.unhex;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -45,7 +44,6 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
@@ -54,137 +52,133 @@ public class CryptoGetInfoRegression {
     private static final String TARGET_ACC = "targetAcc";
     private static final int NUM_ASSOCIATIONS = 10;
 
-    @Nested
-    @OrderedInIsolation
-    class Leaky {
-        /**
-         * For Demo purpose : The limit on each account info and account balance queries is set to 5
-         */
-        @LeakyHapiTest(overrides = {"tokens.maxRelsPerInfoQuery"})
-        final Stream<DynamicTest> fetchesOnlyALimitedTokenAssociations() {
-            final var account = "test";
-            final var aKey = "tokenKey";
-            final var token1 = "token1";
-            final var token2 = "token2";
-            final var token3 = "token3";
-            final var token4 = "token4";
-            final var token5 = "token5";
-            final var token6 = "token6";
-            final var token7 = "token7";
-            final var token8 = "token8";
-            return hapiTest(
-                    overriding("tokens.maxRelsPerInfoQuery", "" + 1),
-                    newKeyNamed(aKey),
-                    cryptoCreate(account).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
-                    tokenCreate(token1)
-                            .supplyType(TokenSupplyType.FINITE)
-                            .tokenType(TokenType.FUNGIBLE_COMMON)
-                            .treasury(TOKEN_TREASURY)
-                            .maxSupply(500)
-                            .kycKey(aKey)
-                            .initialSupply(100),
-                    tokenCreate(token2)
-                            .supplyType(TokenSupplyType.FINITE)
-                            .tokenType(TokenType.FUNGIBLE_COMMON)
-                            .treasury(TOKEN_TREASURY)
-                            .maxSupply(500)
-                            .kycKey(aKey)
-                            .initialSupply(100),
-                    tokenCreate(token3)
-                            .supplyType(TokenSupplyType.FINITE)
-                            .tokenType(TokenType.FUNGIBLE_COMMON)
-                            .treasury(TOKEN_TREASURY)
-                            .maxSupply(500)
-                            .kycKey(aKey)
-                            .initialSupply(100),
-                    tokenCreate(token4)
-                            .supplyType(TokenSupplyType.FINITE)
-                            .tokenType(TokenType.FUNGIBLE_COMMON)
-                            .treasury(TOKEN_TREASURY)
-                            .maxSupply(500)
-                            .kycKey(aKey)
-                            .initialSupply(100),
-                    tokenCreate(token5)
-                            .supplyType(TokenSupplyType.FINITE)
-                            .tokenType(TokenType.FUNGIBLE_COMMON)
-                            .treasury(TOKEN_TREASURY)
-                            .maxSupply(500)
-                            .kycKey(aKey)
-                            .initialSupply(100),
-                    tokenCreate(token6)
-                            .supplyType(TokenSupplyType.FINITE)
-                            .tokenType(TokenType.FUNGIBLE_COMMON)
-                            .treasury(TOKEN_TREASURY)
-                            .maxSupply(500)
-                            .kycKey(aKey)
-                            .initialSupply(100),
-                    tokenCreate(token7)
-                            .supplyType(TokenSupplyType.FINITE)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .treasury(TOKEN_TREASURY)
-                            .maxSupply(10L)
-                            .initialSupply(0L)
-                            .kycKey(aKey)
-                            .supplyKey(aKey),
-                    tokenCreate(token8)
-                            .supplyType(TokenSupplyType.FINITE)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .treasury(TOKEN_TREASURY)
-                            .maxSupply(10L)
-                            .initialSupply(0L)
-                            .kycKey(aKey)
-                            .supplyKey(aKey),
-                    mintToken(token7, List.of(ByteString.copyFromUtf8("a"), ByteString.copyFromUtf8("b"))),
-                    mintToken(token8, List.of(ByteString.copyFromUtf8("a"))),
-                    tokenAssociate(account, token1, token2, token3, token4, token5, token6, token7, token8),
-                    grantTokenKyc(token1, account),
-                    grantTokenKyc(token2, account),
-                    grantTokenKyc(token3, account),
-                    grantTokenKyc(token4, account),
-                    grantTokenKyc(token5, account),
-                    grantTokenKyc(token6, account),
-                    grantTokenKyc(token7, account),
-                    grantTokenKyc(token8, account),
-                    cryptoTransfer(
-                            moving(10L, token1).between(TOKEN_TREASURY, account),
-                            moving(20L, token2).between(TOKEN_TREASURY, account),
-                            moving(30L, token3).between(TOKEN_TREASURY, account)),
-                    cryptoTransfer(
-                            moving(40L, token4).between(TOKEN_TREASURY, account),
-                            moving(50L, token5).between(TOKEN_TREASURY, account),
-                            moving(60L, token6).between(TOKEN_TREASURY, account)),
-                    cryptoTransfer(
-                            movingUnique(token7, 1, 2).between(TOKEN_TREASURY, account),
-                            movingUnique(token8, 1).between(TOKEN_TREASURY, account)),
-                    overriding("tokens.maxRelsPerInfoQuery", "3"),
-                    getAccountInfo(account).hasTokenRelationShipCount(3));
-        }
+    /**
+     * For Demo purpose : The limit on each account info and account balance queries is set to 5
+     */
+    @LeakyHapiTest(overrides = {"tokens.maxRelsPerInfoQuery"})
+    final Stream<DynamicTest> fetchesOnlyALimitedTokenAssociations() {
+        final var account = "test";
+        final var aKey = "tokenKey";
+        final var token1 = "token1";
+        final var token2 = "token2";
+        final var token3 = "token3";
+        final var token4 = "token4";
+        final var token5 = "token5";
+        final var token6 = "token6";
+        final var token7 = "token7";
+        final var token8 = "token8";
+        return hapiTest(
+                overriding("tokens.maxRelsPerInfoQuery", "" + 1),
+                newKeyNamed(aKey),
+                cryptoCreate(account).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
+                tokenCreate(token1)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .maxSupply(500)
+                        .kycKey(aKey)
+                        .initialSupply(100),
+                tokenCreate(token2)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .maxSupply(500)
+                        .kycKey(aKey)
+                        .initialSupply(100),
+                tokenCreate(token3)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .maxSupply(500)
+                        .kycKey(aKey)
+                        .initialSupply(100),
+                tokenCreate(token4)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .maxSupply(500)
+                        .kycKey(aKey)
+                        .initialSupply(100),
+                tokenCreate(token5)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .maxSupply(500)
+                        .kycKey(aKey)
+                        .initialSupply(100),
+                tokenCreate(token6)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .maxSupply(500)
+                        .kycKey(aKey)
+                        .initialSupply(100),
+                tokenCreate(token7)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .maxSupply(10L)
+                        .initialSupply(0L)
+                        .kycKey(aKey)
+                        .supplyKey(aKey),
+                tokenCreate(token8)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .maxSupply(10L)
+                        .initialSupply(0L)
+                        .kycKey(aKey)
+                        .supplyKey(aKey),
+                mintToken(token7, List.of(ByteString.copyFromUtf8("a"), ByteString.copyFromUtf8("b"))),
+                mintToken(token8, List.of(ByteString.copyFromUtf8("a"))),
+                tokenAssociate(account, token1, token2, token3, token4, token5, token6, token7, token8),
+                grantTokenKyc(token1, account),
+                grantTokenKyc(token2, account),
+                grantTokenKyc(token3, account),
+                grantTokenKyc(token4, account),
+                grantTokenKyc(token5, account),
+                grantTokenKyc(token6, account),
+                grantTokenKyc(token7, account),
+                grantTokenKyc(token8, account),
+                cryptoTransfer(
+                        moving(10L, token1).between(TOKEN_TREASURY, account),
+                        moving(20L, token2).between(TOKEN_TREASURY, account),
+                        moving(30L, token3).between(TOKEN_TREASURY, account)),
+                cryptoTransfer(
+                        moving(40L, token4).between(TOKEN_TREASURY, account),
+                        moving(50L, token5).between(TOKEN_TREASURY, account),
+                        moving(60L, token6).between(TOKEN_TREASURY, account)),
+                cryptoTransfer(
+                        movingUnique(token7, 1, 2).between(TOKEN_TREASURY, account),
+                        movingUnique(token8, 1).between(TOKEN_TREASURY, account)),
+                overriding("tokens.maxRelsPerInfoQuery", "3"),
+                getAccountInfo(account).hasTokenRelationShipCount(3));
+    }
 
-        @LeakyHapiTest(
-                requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
-                overrides = {"tokens.countingGetBalanceThrottleEnabled"},
-                throttles = "testSystemFiles/tiny-get-balance-throttle.json")
-        public Stream<DynamicTest> cryptoGetAccountBalanceQueryAssociationThrottles() {
-            final var evmHexRef = new AtomicReference<>("");
-            final List<String> tokenNames = new ArrayList<>();
-            for (int i = 0; i < NUM_ASSOCIATIONS; i++) {
-                tokenNames.add("t" + i);
-            }
-            final var ops = new ArrayList<SpecOperation>();
-            ops.add(overridingAllOf(Map.of("tokens.countingGetBalanceThrottleEnabled", "true")));
-            ops.add(cryptoCreate(TARGET_ACC).withMatchingEvmAddress());
-            tokenNames.forEach(t -> {
-                ops.add(tokenCreate(t));
-                ops.add(tokenAssociate(TARGET_ACC, t));
-            });
-            ops.add(getAccountInfo(TARGET_ACC).exposingContractAccountIdTo(evmHexRef::set));
-            ops.add(getAccountBalance(TARGET_ACC).hasAnswerOnlyPrecheck(BUSY));
-            ops.add(sourcing(() -> getAliasedAccountBalance(ByteString.copyFrom(requireNonNull(unhex(evmHexRef.get()))))
-                    .hasAnswerOnlyPrecheck(BUSY)));
-
-            return hapiTest(ops.toArray(new SpecOperation[0]));
+    @LeakyHapiTest(
+            requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
+            overrides = {"tokens.countingGetBalanceThrottleEnabled"},
+            throttles = "testSystemFiles/tiny-get-balance-throttle.json")
+    public Stream<DynamicTest> cryptoGetAccountBalanceQueryAssociationThrottles() {
+        final var evmHexRef = new AtomicReference<>("");
+        final List<String> tokenNames = new ArrayList<>();
+        for (int i = 0; i < NUM_ASSOCIATIONS; i++) {
+            tokenNames.add("t" + i);
         }
+        final var ops = new ArrayList<SpecOperation>();
+        ops.add(overridingAllOf(Map.of("tokens.countingGetBalanceThrottleEnabled", "true")));
+        ops.add(cryptoCreate(TARGET_ACC).withMatchingEvmAddress());
+        tokenNames.forEach(t -> {
+            ops.add(tokenCreate(t));
+            ops.add(tokenAssociate(TARGET_ACC, t));
+        });
+        ops.add(getAccountInfo(TARGET_ACC).exposingContractAccountIdTo(evmHexRef::set));
+        ops.add(getAccountBalance(TARGET_ACC).hasAnswerOnlyPrecheck(BUSY));
+        ops.add(sourcing(() -> getAliasedAccountBalance(ByteString.copyFrom(requireNonNull(unhex(evmHexRef.get()))))
+                .hasAnswerOnlyPrecheck(BUSY)));
+
+        return hapiTest(ops.toArray(new SpecOperation[0]));
     }
 
     @HapiTest

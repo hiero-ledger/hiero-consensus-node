@@ -49,13 +49,11 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
@@ -98,28 +96,24 @@ public class MiscCryptoSuite {
                         .hasKnownStatus(INVALID_SIGNATURE));
     }
 
-    @Nested
-    @OrderedInIsolation
-    class Leaky {
-        @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
-        final Stream<DynamicTest> reduceTransferFee() {
-            final long REDUCED_NODE_FEE = 2L;
-            final long REDUCED_NETWORK_FEE = 3L;
-            final long REDUCED_SERVICE_FEE = 3L;
-            final long REDUCED_TOTAL_FEE = REDUCED_NODE_FEE + REDUCED_NETWORK_FEE + REDUCED_SERVICE_FEE;
-            return hapiTest(
-                    cryptoCreate("sender").balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("receiver").balance(0L),
-                    cryptoTransfer(tinyBarsFromTo("sender", "receiver", ONE_HBAR))
-                            .payingWith("sender")
-                            .fee(REDUCED_TOTAL_FEE)
-                            .hasPrecheck(INSUFFICIENT_TX_FEE),
-                    reduceFeeFor(CryptoTransfer, REDUCED_NODE_FEE, REDUCED_NETWORK_FEE, REDUCED_SERVICE_FEE),
-                    cryptoTransfer(tinyBarsFromTo("sender", "receiver", ONE_HBAR))
-                            .payingWith("sender")
-                            .fee(ONE_HBAR),
-                    getAccountBalance("sender").hasTinyBars(ONE_HUNDRED_HBARS - ONE_HBAR - REDUCED_TOTAL_FEE));
-        }
+    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    final Stream<DynamicTest> reduceTransferFee() {
+        final long REDUCED_NODE_FEE = 2L;
+        final long REDUCED_NETWORK_FEE = 3L;
+        final long REDUCED_SERVICE_FEE = 3L;
+        final long REDUCED_TOTAL_FEE = REDUCED_NODE_FEE + REDUCED_NETWORK_FEE + REDUCED_SERVICE_FEE;
+        return hapiTest(
+                cryptoCreate("sender").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("receiver").balance(0L),
+                cryptoTransfer(tinyBarsFromTo("sender", "receiver", ONE_HBAR))
+                        .payingWith("sender")
+                        .fee(REDUCED_TOTAL_FEE)
+                        .hasPrecheck(INSUFFICIENT_TX_FEE),
+                reduceFeeFor(CryptoTransfer, REDUCED_NODE_FEE, REDUCED_NETWORK_FEE, REDUCED_SERVICE_FEE),
+                cryptoTransfer(tinyBarsFromTo("sender", "receiver", ONE_HBAR))
+                        .payingWith("sender")
+                        .fee(ONE_HBAR),
+                getAccountBalance("sender").hasTinyBars(ONE_HUNDRED_HBARS - ONE_HBAR - REDUCED_TOTAL_FEE));
     }
 
     @HapiTest

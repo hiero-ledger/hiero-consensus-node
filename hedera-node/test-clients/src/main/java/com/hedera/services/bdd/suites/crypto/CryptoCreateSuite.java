@@ -66,7 +66,6 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -83,7 +82,6 @@ import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
@@ -265,30 +263,26 @@ public class CryptoCreateSuite {
                 sourcing(() -> getTxnRecord(creation).logged()));
     }
 
-    @Nested
-    @OrderedInIsolation
-    class Leaky {
-        @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
-        final Stream<DynamicTest> createFailsIfMaxAutoAssocIsNegativeAndUnlimitedFlagDisabled() {
-            return hapiTest(
-                    overriding("entities.unlimitedAutoAssociationsEnabled", FALSE_VALUE),
-                    cryptoCreate(CIVILIAN)
-                            .balance(0L)
-                            .maxAutomaticTokenAssociations(-1)
-                            .hasKnownStatus(INVALID_MAX_AUTO_ASSOCIATIONS),
-                    cryptoCreate(CIVILIAN)
-                            .balance(0L)
-                            .maxAutomaticTokenAssociations(-2)
-                            .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS),
-                    cryptoCreate(CIVILIAN)
-                            .balance(0L)
-                            .maxAutomaticTokenAssociations(-1000)
-                            .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS),
-                    cryptoCreate(CIVILIAN)
-                            .balance(0L)
-                            .maxAutomaticTokenAssociations(Integer.MIN_VALUE)
-                            .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS));
-        }
+    @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+    final Stream<DynamicTest> createFailsIfMaxAutoAssocIsNegativeAndUnlimitedFlagDisabled() {
+        return hapiTest(
+                overriding("entities.unlimitedAutoAssociationsEnabled", FALSE_VALUE),
+                cryptoCreate(CIVILIAN)
+                        .balance(0L)
+                        .maxAutomaticTokenAssociations(-1)
+                        .hasKnownStatus(INVALID_MAX_AUTO_ASSOCIATIONS),
+                cryptoCreate(CIVILIAN)
+                        .balance(0L)
+                        .maxAutomaticTokenAssociations(-2)
+                        .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS),
+                cryptoCreate(CIVILIAN)
+                        .balance(0L)
+                        .maxAutomaticTokenAssociations(-1000)
+                        .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS),
+                cryptoCreate(CIVILIAN)
+                        .balance(0L)
+                        .maxAutomaticTokenAssociations(Integer.MIN_VALUE)
+                        .hasPrecheck(INVALID_MAX_AUTO_ASSOCIATIONS));
     }
 
     @HapiTest

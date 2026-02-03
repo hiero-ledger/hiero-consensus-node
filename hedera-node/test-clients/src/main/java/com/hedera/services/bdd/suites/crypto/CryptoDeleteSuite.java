@@ -50,14 +50,12 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.ContextRequirement;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
@@ -76,32 +74,26 @@ public class CryptoDeleteSuite {
                         .transfer(TRANSFER_ACCOUNT)));
     }
 
-    @Nested
-    @OrderedInIsolation
-    class Leaky {
-        @LeakyHapiTest(requirement = ContextRequirement.SYSTEM_ACCOUNT_BALANCES)
-        final Stream<DynamicTest> deletedAccountCannotBePayer() {
-            final var submittingNodeAccount = "3";
-            final var beneficiaryAccount = "beneficiaryAccountForDeletedAccount";
-            final var submittingNodePreTransfer = "submittingNodePreTransfer";
-            final var submittingNodeAfterBalanceLoad = "submittingNodeAfterBalanceLoad";
-            return hapiTest(
-                    cryptoCreate(ACCOUNT_TO_BE_DELETED),
-                    cryptoCreate(beneficiaryAccount).balance(0L),
-                    balanceSnapshot(submittingNodePreTransfer, submittingNodeAccount),
-                    cryptoTransfer(tinyBarsFromTo(GENESIS, submittingNodeAccount, 1000000000)),
-                    balanceSnapshot(submittingNodeAfterBalanceLoad, submittingNodeAccount),
-                    cryptoDelete(ACCOUNT_TO_BE_DELETED)
-                            .transfer(beneficiaryAccount)
-                            .deferStatusResolution(),
-                    cryptoTransfer(tinyBarsFromTo(beneficiaryAccount, GENESIS, 1))
-                            .payingWith(ACCOUNT_TO_BE_DELETED)
-                            .hasKnownStatus(PAYER_ACCOUNT_DELETED),
-                    // since the account is already deleted, we have less signatures to verify
-                    getAccountBalance(submittingNodeAccount)
-                            .hasTinyBars(approxChangeFromSnapshot(submittingNodeAfterBalanceLoad, -30000, 15000))
-                            .logged());
-        }
+    @LeakyHapiTest(requirement = ContextRequirement.SYSTEM_ACCOUNT_BALANCES)
+    final Stream<DynamicTest> deletedAccountCannotBePayer() {
+        final var submittingNodeAccount = "3";
+        final var beneficiaryAccount = "beneficiaryAccountForDeletedAccount";
+        final var submittingNodePreTransfer = "submittingNodePreTransfer";
+        final var submittingNodeAfterBalanceLoad = "submittingNodeAfterBalanceLoad";
+        return hapiTest(
+                cryptoCreate(ACCOUNT_TO_BE_DELETED),
+                cryptoCreate(beneficiaryAccount).balance(0L),
+                balanceSnapshot(submittingNodePreTransfer, submittingNodeAccount),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, submittingNodeAccount, 1000000000)),
+                balanceSnapshot(submittingNodeAfterBalanceLoad, submittingNodeAccount),
+                cryptoDelete(ACCOUNT_TO_BE_DELETED).transfer(beneficiaryAccount).deferStatusResolution(),
+                cryptoTransfer(tinyBarsFromTo(beneficiaryAccount, GENESIS, 1))
+                        .payingWith(ACCOUNT_TO_BE_DELETED)
+                        .hasKnownStatus(PAYER_ACCOUNT_DELETED),
+                // since the account is already deleted, we have less signatures to verify
+                getAccountBalance(submittingNodeAccount)
+                        .hasTinyBars(approxChangeFromSnapshot(submittingNodeAfterBalanceLoad, -30000, 15000))
+                        .logged());
     }
 
     @HapiTest
