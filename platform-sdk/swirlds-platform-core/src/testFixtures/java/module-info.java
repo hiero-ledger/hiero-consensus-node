@@ -33,6 +33,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires org.hiero.consensus.gossip.impl;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.reconnect;
+    requires org.hiero.consensus.roster.test.fixtures;
     requires com.github.spotbugs.annotations;
     requires java.desktop;
     requires org.mockito;
@@ -54,6 +55,5 @@ open module com.swirlds.platform.core.test.fixtures {
     exports com.swirlds.platform.test.fixtures.resource;
     exports com.swirlds.platform.test.fixtures.state;
     exports com.swirlds.platform.test.fixtures.state.manager;
-    exports com.swirlds.platform.test.fixtures.addressbook;
     exports com.swirlds.platform.test.fixtures.gui;
 }

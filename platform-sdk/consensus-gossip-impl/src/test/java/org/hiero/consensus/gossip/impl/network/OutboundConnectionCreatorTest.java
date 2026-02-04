@@ -12,7 +12,6 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -30,6 +29,7 @@ import org.hiero.consensus.gossip.impl.network.connection.NotConnectedConnection
 import org.hiero.consensus.gossip.impl.network.connectivity.OutboundConnectionCreator;
 import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

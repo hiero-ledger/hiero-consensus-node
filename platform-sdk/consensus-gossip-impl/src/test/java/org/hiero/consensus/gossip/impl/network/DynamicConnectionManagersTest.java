@@ -11,7 +11,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
@@ -23,6 +22,7 @@ import org.hiero.consensus.gossip.impl.test.fixtures.network.TestConnectionManag
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;

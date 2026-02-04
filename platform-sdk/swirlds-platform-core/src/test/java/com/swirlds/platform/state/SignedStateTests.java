@@ -17,7 +17,6 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.MerkleNodeState;
@@ -33,6 +32,7 @@ import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
