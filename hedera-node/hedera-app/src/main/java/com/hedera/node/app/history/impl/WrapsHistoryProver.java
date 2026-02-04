@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
-import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.impl.WrapsMpcStateMachine.POST_MCP_PHASES;
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
@@ -239,19 +238,15 @@ public class WrapsHistoryProver implements HistoryProver {
                 wrapsMessage = historyLibrary.computeWrapsMessage(targetAddressBook, targetMetadata.toByteArray());
                 targetAddressBookHash = historyLibrary.hashAddressBook(targetAddressBook);
             }
-            final var effectivePhase = !construction.hasWrapsSigningState()
-                            && sourceProof != null
-                            && tssConfig.wrapsEnabled()
-                            && !isWrapsExtensible(sourceProof)
-                    ? POST_AGGREGATION
-                    : state.phase();
+            final var effectivePhase = construction.hasTargetProof() ? POST_AGGREGATION : state.phase();
             publishIfNeeded(
                     construction.constructionId(),
                     effectivePhase,
                     targetMetadata,
                     targetProofKeys,
                     tssConfig,
-                    ledgerId);
+                    ledgerId,
+                    construction.targetProof());
         }
         return Outcome.InProgress.INSTANCE;
     }
@@ -367,11 +362,16 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final Bytes targetMetadata,
             @NonNull final Map<Long, Bytes> targetProofKeys,
             @NonNull final TssConfig tssConfig,
-            @Nullable final Bytes ledgerId) {
+            @Nullable final Bytes ledgerId,
+            @Nullable final HistoryProof aggregatedSignatureProof) {
         if (futureOf(phase) == null
                 && (POST_MCP_PHASES.contains(phase)
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
-            log.info("Considering publication of WRAPS {} output on construction #{}", phase, constructionId);
+            if (phase == POST_AGGREGATION) {
+                log.info("Considering publication of vote for genesis WRAPS proof on construction #{}", constructionId);
+            } else {
+                log.info("Considering publication of WRAPS {} output on construction #{}", phase, constructionId);
+            }
             final var sourceBook = AddressBook.from(
                     weights.sourceNodeWeights(),
                     nodeId -> proofKeys.getOrDefault(nodeId, EMPTY_PUBLIC_KEY).toByteArray());
@@ -379,7 +379,14 @@ public class WrapsHistoryProver implements HistoryProver {
             final var targetBookHash = requireNonNull(targetAddressBookHash);
             final var proofKeyList = proofKeyListFrom(targetProofKeys);
             consumerOf(phase)
-                    .accept(outputFuture(phase, tssConfig, ledgerId, sourceBook, targetBook, targetMetadata)
+                    .accept(outputFuture(
+                                    phase,
+                                    tssConfig,
+                                    ledgerId,
+                                    sourceBook,
+                                    targetBook,
+                                    targetMetadata,
+                                    aggregatedSignatureProof)
                             .thenAcceptAsync(
                                     output -> {
                                         if (output == null) {
@@ -507,7 +514,8 @@ public class WrapsHistoryProver implements HistoryProver {
             @Nullable final Bytes ledgerId,
             @NonNull final AddressBook sourceBook,
             @NonNull final AddressBook targetBook,
-            @NonNull final Bytes targetMetadata) {
+            @NonNull final Bytes targetMetadata,
+            @Nullable final HistoryProof aggregatedSignatureProof) {
         final var message = requireNonNull(wrapsMessage);
         return CompletableFuture.supplyAsync(
                 () -> switch (phase) {
@@ -602,12 +610,12 @@ public class WrapsHistoryProver implements HistoryProver {
                         if (!historyLibrary.wrapsProverReady()) {
                             yield new NoopOutput("WRAPS library is not ready");
                         }
-                        final var signature = requireNonNull(sourceProof)
+                        final var signature = requireNonNull(aggregatedSignatureProof)
                                 .chainOfTrustProofOrThrow()
                                 .aggregatedNodeSignaturesOrThrow()
                                 .aggregatedSignature()
                                 .toByteArray();
-                        final var signers = new TreeSet<>(sourceProof
+                        final var signers = new TreeSet<>(aggregatedSignatureProof
                                 .chainOfTrustProofOrThrow()
                                 .aggregatedNodeSignaturesOrThrow()
                                 .signingNodeIds());

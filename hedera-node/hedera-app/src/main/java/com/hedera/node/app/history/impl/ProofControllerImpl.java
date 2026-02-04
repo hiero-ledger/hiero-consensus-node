@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
@@ -133,8 +134,7 @@ public class ProofControllerImpl implements ProofController {
         if (construction.hasFailureReason()) {
             return false;
         }
-        return !construction.hasTargetProof()
-                || (tssConfig.wrapsEnabled() && !isWrapsExtensible(construction.targetProofOrThrow()));
+        return !isCompleted(construction, tssConfig);
     }
 
     @Override
@@ -157,21 +157,18 @@ public class ProofControllerImpl implements ProofController {
             }
             return;
         }
-        // Have the hinTS verification key, but not yet assembling the history or computing the WRAPS proof
-        if (!construction.hasAssemblyStartTime() && !construction.hasWrapsSigningState()) {
+        // Have the hinTS verification key, but not yet assembling the history
+        // or computing the WRAPS proof (genesis or incremental)
+        if (!construction.hasTargetProof()
+                && !construction.hasAssemblyStartTime()
+                && !construction.hasWrapsSigningState()) {
             if (shouldAssemble(now)) {
                 log.info("Assembly start time for construction #{} is {}", construction.constructionId(), now);
                 construction = historyStore.setAssemblyTime(construction.constructionId(), now);
             } else if (isActive) {
                 ensureProofKeyPublished();
             }
-            // Unless we are specifically swapping in an existing target proof's aggregate signature
-            // proof with a recursive WRAPS proof when WRAPS is enabled, we can return here
-            if (!construction.hasTargetProof()
-                    || !tssConfig.wrapsEnabled()
-                    || isWrapsExtensible(construction.targetProofOrThrow())) {
-                return;
-            }
+            return;
         }
         // Cannot make progress on anything without an active network
         if (!isActive) {
