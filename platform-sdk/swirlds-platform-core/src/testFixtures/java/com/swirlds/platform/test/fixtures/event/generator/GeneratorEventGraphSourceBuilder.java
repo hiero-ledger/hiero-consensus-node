@@ -158,6 +158,7 @@ public class GeneratorEventGraphSourceBuilder {
 
     private Roster getRoster() {
         if (roster != null) {
+            signer = new RandomEventSigner(getSeed());
             return roster;
         }
         final int nodeCount = numNodes != null ? numNodes : DEFAULT_NUM_NODES;
