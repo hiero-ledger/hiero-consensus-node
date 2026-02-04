@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network;
+package org.hiero.consensus.gossip.impl.network;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,8 +23,6 @@ import java.util.stream.Stream;
 import org.hiero.base.io.exceptions.BadIOException;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
-import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
-import org.hiero.consensus.gossip.impl.network.SocketConnection;
 import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;

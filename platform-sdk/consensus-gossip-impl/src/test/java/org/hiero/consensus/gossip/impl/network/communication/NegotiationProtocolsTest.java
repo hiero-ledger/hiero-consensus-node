@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network.communication;
+package org.hiero.consensus.gossip.impl.network.communication;
 
 import java.util.List;
 import java.util.stream.Stream;
-import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
 import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.TestPeerProtocol;
 import org.junit.jupiter.api.Assertions;

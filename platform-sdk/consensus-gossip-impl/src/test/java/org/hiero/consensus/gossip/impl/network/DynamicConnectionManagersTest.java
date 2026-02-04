@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network;
+package org.hiero.consensus.gossip.impl.network;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -16,10 +16,6 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
-import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.gossip.impl.network.ConnectionManager;
-import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
-import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.gossip.impl.network.topology.DynamicConnectionManagers;
 import org.hiero.consensus.gossip.impl.network.topology.NetworkTopology;
 import org.hiero.consensus.gossip.impl.network.topology.StaticTopology;

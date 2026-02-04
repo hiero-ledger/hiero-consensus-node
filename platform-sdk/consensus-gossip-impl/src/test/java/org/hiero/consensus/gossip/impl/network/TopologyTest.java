@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network;
+package org.hiero.consensus.gossip.impl.network;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,8 +20,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
-import org.hiero.consensus.gossip.impl.network.PeerInfo;
-import org.hiero.consensus.gossip.impl.network.RandomGraph;
 import org.hiero.consensus.gossip.impl.network.topology.NetworkTopology;
 import org.hiero.consensus.gossip.impl.network.topology.StaticTopology;
 import org.hiero.consensus.model.node.NodeId;

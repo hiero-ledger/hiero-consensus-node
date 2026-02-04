@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network.communication;
+package org.hiero.consensus.gossip.impl.network.communication;
 
 import java.io.InputStream;
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network.communication.handshake;
+package org.hiero.consensus.gossip.impl.network.communication.handshake;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -16,8 +16,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.gossip.impl.network.communication.handshake.HandshakeException;
-import org.hiero.consensus.gossip.impl.network.communication.handshake.HashCompareHandshake;
 import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.ConnectionFactory;
 import org.hiero.consensus.model.node.NodeId;

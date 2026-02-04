@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network;
+package org.hiero.consensus.gossip.impl.network;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -12,7 +12,6 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.gossip.impl.network.PeerConnectionServer;
 import org.hiero.consensus.gossip.impl.network.connectivity.ConnectionServer;
 import org.hiero.consensus.gossip.impl.network.connectivity.InboundConnectionHandler;
 import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;

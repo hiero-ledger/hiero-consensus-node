@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network.connectivity;
+package org.hiero.consensus.gossip.impl.network.connectivity;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 

@@ -4,7 +4,6 @@ package com.swirlds.platform.crypto;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -35,24 +34,5 @@ public class CryptoArgsProvider {
                 .map(NodeId::of)
                 .collect(Collectors.toMap(Function.identity(), rosterBuilder::getPrivateKeys));
         return Stream.of(Arguments.of(genRoster, genKac));
-    }
-
-    /**
-     * Creates a roster.
-     *
-     * @param size the size of the required roster
-     */
-    @NonNull
-    public static RosterAndCerts genRosterLoadKeys(final int size) {
-        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create())
-                .withSize(size)
-                .withRealKeysEnabled(true)
-                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE);
-        final Roster genRoster = rosterBuilder.build();
-        final Map<NodeId, KeysAndCerts> genKac = genRoster.rosterEntries().stream()
-                .map(RosterEntry::nodeId)
-                .map(NodeId::of)
-                .collect(Collectors.toMap(Function.identity(), rosterBuilder::getPrivateKeys));
-        return new RosterAndCerts(genRoster, genKac);
     }
 }

@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network.communication;
+package org.hiero.consensus.gossip.impl.network.communication;
 
 import com.swirlds.common.io.utility.IOConsumer;
 import java.io.IOException;
 import java.util.List;
 import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
-import org.hiero.consensus.gossip.impl.network.communication.NegotiationException;
-import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
-import org.hiero.consensus.gossip.impl.network.communication.Negotiator;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.ReadWriteFakeConnection;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.TestPeerProtocol;
 import org.junit.jupiter.api.Assertions;

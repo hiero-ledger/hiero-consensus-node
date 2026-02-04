@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network;
+package org.hiero.consensus.gossip.impl.network;
 
 import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
 
@@ -32,8 +32,6 @@ import org.hiero.consensus.crypto.CertificateUtils;
 import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.SigningSchema;
-import org.hiero.consensus.gossip.impl.network.NetworkPeerIdentifier;
-import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;

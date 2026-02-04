@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.network;
+package org.hiero.consensus.gossip.impl.network;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -26,10 +26,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.gossip.config.SocketConfig_;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
-import org.hiero.consensus.gossip.impl.network.ByteConstants;
-import org.hiero.consensus.gossip.impl.network.Connection;
-import org.hiero.consensus.gossip.impl.network.ConnectionTracker;
-import org.hiero.consensus.gossip.impl.network.SocketConnection;
 import org.hiero.consensus.gossip.impl.network.connection.NotConnectedConnection;
 import org.hiero.consensus.gossip.impl.network.connectivity.OutboundConnectionCreator;
 import org.hiero.consensus.gossip.impl.network.connectivity.SocketFactory;
