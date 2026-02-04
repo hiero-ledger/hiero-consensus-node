@@ -16,7 +16,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
-import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
@@ -191,12 +190,12 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @param result the base fee result
      * @return a new FeeResult with congestion multiplier applied, or the original if no multiplier
      */
-    private FeeResult applyCongestionMultiplier(
+    private void applyCongestionMultiplier(
             @NonNull final TransactionBody txnBody,
             @Nullable final SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult result) {
         if (simpleFeeContext == null || simpleFeeContext.feeContext() == null || congestionMultipliers == null) {
-            return result;
+            return;
         }
 
         try {
@@ -205,15 +204,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             final long congestionMultiplier = congestionMultipliers.maxCurrentMultiplier(
                     txnBody, functionality, feeContext.readableStoreFactory());
             if (congestionMultiplier <= 1) {
-                return result;
+                return;
             }
-            return new FeeResult(
-                    clampedMultiply(result.getServiceTotalTinycents(), congestionMultiplier),
-                    clampedMultiply(result.getNodeTotalTinycents(), congestionMultiplier),
-                    result.getNetworkMultiplier());
+            result.applyMultiplier(congestionMultiplier, 1);
         } catch (UnknownHederaFunctionality e) {
             log.error("Unknown Hedera functionality for transaction body: {}", txnBody, e);
-            return result;
         }
     }
 
@@ -243,17 +238,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final long rawMultiplier = HighVolumePricingCalculator.calculateMultiplier(
                 serviceFeeDefinition.highVolumeRates(), utilizationPercentage);
 
-        // Apply the multiplier to the total fee
-        // The raw multiplier is scaled by MULTIPLIER_SCALE (1,000) and represents the effective multiplier
-        // So effective multiplier = rawMultiplier / MULTIPLIER_SCALE
-        final long multipliedFee = (result.totalTinycents() * rawMultiplier) / HighVolumePricingCalculator.MULTIPLIER_SCALE;
-
-        // Replace the service fee with the multiplied amount
-        // We subtract the original fee and add the new multiplied fee
-        final long additionalFee = multipliedFee - result.totalTinycents();
-        if (additionalFee > 0) {
-            result.addHighVolumeFeeTinycents(additionalFee);
-        }
+        result.applyMultiplier(rawMultiplier, HighVolumePricingCalculator.MULTIPLIER_SCALE);
     }
 
     @Override

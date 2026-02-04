@@ -1155,6 +1155,7 @@ public class ThrottleAccumulator {
      * @return the utilization percentage in thousandths of one percent (0 to 100,000),
      *         or 0 if no high-volume throttle exists for the functionality
      */
+    // FUTURE: Will use this function in future PRs
     public int getHighVolumeThrottleUtilization(
             @NonNull final HederaFunctionality function, @NonNull final Instant now) {
         requireNonNull(function);
@@ -1175,34 +1176,6 @@ public class ThrottleAccumulator {
         // Convert from percentage (0-100) to hundredths of one percent (basis points, 0-10,000)
         // percentUsed returns a value from 0.0 to 100.0
         return (int) Math.min(10_000, Math.round(maxUtilization * 100));
-    }
-
-    /**
-     * Returns the current instantaneous utilization percentage of the high-volume throttle
-     * for the given functionality, without accounting for time-based capacity leakage.
-     * The utilization is expressed in thousandths of one percent (0 to 100,000), where 100,000 = 100%.
-     *
-     * @param function the functionality to get the utilization for
-     * @return the utilization percentage in thousandths of one percent (0 to 100,000),
-     *         or 0 if no high-volume throttle exists for the functionality
-     */
-    public int getHighVolumeThrottleInstantaneousUtilization(@NonNull final HederaFunctionality function) {
-        requireNonNull(function);
-
-        final var manager = highVolumeFunctionReqs.get(function);
-        if (manager == null) {
-            return 0;
-        }
-
-        // Get the maximum utilization across all throttles for this functionality
-        double maxUtilization = 0.0;
-        for (final var throttle : manager.managedThrottles()) {
-            final double utilization = throttle.instantaneousPercentUsed();
-            maxUtilization = Math.max(maxUtilization, utilization);
-        }
-
-        // Convert from percentage (0-100) to thousandths of one percent (0-100,000)
-        return (int) Math.min(100_000, Math.round(maxUtilization * 1000));
     }
 
     public enum ThrottleType {

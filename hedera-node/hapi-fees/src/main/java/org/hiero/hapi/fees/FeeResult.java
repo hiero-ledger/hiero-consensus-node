@@ -20,7 +20,6 @@ public class FeeResult {
     private final List<FeeDetail> nodeExtrasDetails = new ArrayList<>();
     private long nodeTotal = 0;
     private int networkMultiplier = 0;
-    private long highVolumeFee = 0;
 
     public FeeResult() {}
 
@@ -37,15 +36,6 @@ public class FeeResult {
      */
     public long getServiceTotalTinycents() {
         return serviceTotal;
-    }
-
-    /**
-     * Get the high volume component in tiny cents.
-     *
-     * @return the total high volume fee in tiny cents
-     */
-    public long getHighVolumeTinycents() {
-        return highVolumeFee;
     }
 
     /**
@@ -85,12 +75,24 @@ public class FeeResult {
         }
     }
     /**
-     * Add a Service fee in tiny cents.
+     * Applies a multiplier to the service and node totals using a fixed-point scale.
      *
-     * @param cost the cost of this fee in tinycents.
+     * @param rawMultiplier the multiplier value in fixed-point form
+     * @param scale the fixed-point scale (e.g. 1000 for 3 decimal places)
      */
-    public void addHighVolumeFeeTinycents(long cost) {
-        highVolumeFee = clampedAdd(highVolumeFee, cost);
+    public void applyMultiplier(final long rawMultiplier, final long scale) {
+        if (rawMultiplier <= 0 || scale <= 0) {
+            throw new IllegalArgumentException(
+                    "Multiplier and scale must be positive (multiplier=" + rawMultiplier + ", scale=" + scale + ")");
+        }
+        if (rawMultiplier == scale) {
+            return;
+        }
+        serviceBase = scaleAmount(serviceBase, rawMultiplier, scale);
+        nodeBase = scaleAmount(nodeBase, rawMultiplier, scale);
+        scaleFeeDetails(serviceExtrasDetails, rawMultiplier, scale);
+        scaleFeeDetails(nodeExtrasDetails, rawMultiplier, scale);
+        recomputeTotals();
     }
 
     /**
@@ -202,10 +204,44 @@ public class FeeResult {
      */
     public long totalTinycents() {
         return clampedAdd(
-                clampedAdd(
                 clampedAdd(this.getNodeTotalTinycents(), this.getNetworkTotalTinycents()),
-                this.getServiceTotalTinycents()),
-                this.getHighVolumeTinycents());
+                this.getServiceTotalTinycents());
+    }
+
+    private static long scaleAmount(final long amount, final long rawMultiplier, final long scale) {
+        return clampedMultiply(amount, rawMultiplier) / scale;
+    }
+
+    private static void scaleFeeDetails(
+            final List<FeeDetail> details, final long rawMultiplier, final long scale) {
+        if (details.isEmpty()) {
+            return;
+        }
+        final var scaled = new ArrayList<FeeDetail>(details.size());
+        for (final var detail : details) {
+            scaled.add(new FeeDetail(
+                    detail.name(),
+                    scaleAmount(detail.perUnit(), rawMultiplier, scale),
+                    detail.used(),
+                    detail.included(),
+                    detail.charged()));
+        }
+        details.clear();
+        details.addAll(scaled);
+    }
+
+    private void recomputeTotals() {
+        long serviceSum = serviceBase;
+        for (final var detail : serviceExtrasDetails) {
+            serviceSum = clampedAdd(serviceSum, clampedMultiply(detail.perUnit(), detail.charged()));
+        }
+        serviceTotal = serviceSum;
+
+        long nodeSum = nodeBase;
+        for (final var detail : nodeExtrasDetails) {
+            nodeSum = clampedAdd(nodeSum, clampedMultiply(detail.perUnit(), detail.charged()));
+        }
+        nodeTotal = nodeSum;
     }
 
     public record FeeDetail(String name, long perUnit, long used, long included, long charged) {}

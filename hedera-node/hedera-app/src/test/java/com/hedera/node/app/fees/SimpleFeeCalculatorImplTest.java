@@ -293,8 +293,71 @@ class SimpleFeeCalculatorImplTest {
 
         var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
 
-        assertThat(result.getServiceTotalTinycents()).isEqualTo(1000L);
-        assertThat(result.getHighVolumeTinycents()).isEqualTo(3000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(4000L);
+        assertThat(result.totalTinycents()).isEqualTo(4000L);
+    }
+
+    @Test
+    @DisplayName("High-volume CryptoCreate uses 4x multiplier below first point (1 bps)")
+    void highVolumeCryptoCreateUsesFloorMultiplierBelowFirstPoint() {
+        final var curve = PiecewiseLinearCurve.newBuilder()
+                .points(List.of(
+                        PiecewiseLinearPoint.newBuilder()
+                                .utilizationBasisPoints(2)
+                                .multiplier(4000)
+                                .build(),
+                        PiecewiseLinearPoint.newBuilder()
+                                .utilizationBasisPoints(10000)
+                                .multiplier(5000)
+                                .build()))
+                .build();
+        final var highVolumeRates = VariableRateDefinition.newBuilder()
+                .maxMultiplier(200000)
+                .pricingCurve(PricingCurve.newBuilder().piecewiseLinear(curve).build())
+                .build();
+        final var cryptoCreateFee = ServiceFeeDefinition.newBuilder()
+                .name(HederaFunctionality.CRYPTO_CREATE)
+                .baseFee(1000)
+                .highVolumeRates(highVolumeRates)
+                .build();
+        final var schedule = FeeSchedule.DEFAULT.copyBuilder()
+                .node(NodeFee.newBuilder().baseFee(0).build())
+                .network(NetworkFee.newBuilder().multiplier(1).build())
+                .services(makeService("CryptoService", cryptoCreateFee))
+                .build();
+
+        ServiceFeeCalculator cryptoCreateCalculator = new ServiceFeeCalculator() {
+            @Override
+            public void accumulateServiceFee(
+                    @NonNull TransactionBody txnBody,
+                    @NonNull SimpleFeeContext simpleFeeContext,
+                    @NonNull FeeResult feeResult,
+                    @NonNull org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
+                feeResult.setServiceBaseFeeTinycents(1000L);
+            }
+
+            @Override
+            public TransactionBody.DataOneOfType getTransactionType() {
+                return TransactionBody.DataOneOfType.CRYPTO_CREATE_ACCOUNT;
+            }
+        };
+
+        var calculator = new SimpleFeeCalculatorImpl(schedule, Set.of(cryptoCreateCalculator), Set.of());
+        var simpleFeeContext = mock(SimpleFeeContext.class);
+        lenient().when(simpleFeeContext.numTxnSignatures()).thenReturn(0);
+        lenient().when(simpleFeeContext.numTxnBytes()).thenReturn(0);
+        lenient()
+                .when(simpleFeeContext.getHighVolumeThrottleUtilization(HederaFunctionality.CRYPTO_CREATE))
+                .thenReturn(1);
+
+        var txnBody = TransactionBody.newBuilder()
+                .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder().build())
+                .highVolume(true)
+                .build();
+
+        var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
+
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(4000L);
         assertThat(result.totalTinycents()).isEqualTo(4000L);
     }
 

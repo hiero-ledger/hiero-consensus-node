@@ -157,6 +157,24 @@ class HighVolumePricingCalculatorTest {
         }
 
         @Test
+        @DisplayName("Returns 4x below first point (1 bps) when first point is 2 bps")
+        void returnsCryptoCreateFloorBelowFirstPoint() {
+            final var curve = createPiecewiseLinearCurve(point(2, 4000), point(10000, 5000));
+            final var variableRate = createVariableRateWithCurve(200000, curve);
+
+            assertEquals(4000, HighVolumePricingCalculator.calculateMultiplier(variableRate, 1));
+        }
+
+        @Test
+        @DisplayName("Returns 4x at first point (2 bps) when first point is 2 bps")
+        void returnsCryptoCreateFloorAtFirstPoint() {
+            final var curve = createPiecewiseLinearCurve(point(2, 4000), point(10000, 5000));
+            final var variableRate = createVariableRateWithCurve(200000, curve);
+
+            assertEquals(4000, HighVolumePricingCalculator.calculateMultiplier(variableRate, 2));
+        }
+
+        @Test
         @DisplayName("Returns last point multiplier when utilization is above last point")
         void returnsLastPointWhenAboveLastPoint() {
             // Curve ends at 80% utilization
