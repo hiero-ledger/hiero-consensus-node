@@ -32,7 +32,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * <p>This implementation is supposed to work with {@link LearnerPullVirtualTreeView} on the
  * learner side.
  */
-public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView<Long> {
+public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView {
 
     private static final Logger logger = LogManager.getLogger(TeacherPullVirtualTreeView.class);
 

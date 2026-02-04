@@ -71,6 +71,7 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -129,7 +130,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
-    private MerkleNodeState state;
+    private MerkleNodeState<VirtualMap> state;
 
     @Nullable
     private Bytes ledgerIdFromState;
