@@ -303,8 +303,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 configuration,
                 null,
                 -1,
-                transactionDispatcher,
-                null);
+                transactionDispatcher);
 
         final var calculateFees = subject.calculateFees(feeContext);
         assertEquals(calculateFees, Fees.FREE);
@@ -347,8 +346,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
                 configuration,
                 null,
                 -1,
-                transactionDispatcher,
-                null);
+                transactionDispatcher);
 
         Assertions.assertThatNoException().isThrownBy(() -> subject.calculateFees(feeContext));
     }
