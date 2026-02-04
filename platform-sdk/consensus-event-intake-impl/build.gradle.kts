@@ -18,9 +18,10 @@ testModuleInfo {
 }
 
 jmhModuleInfo {
-    requires("com.hedera.node.hapi")
     requires("jmh.core")
-    requires("com.swirlds.base.test.fixtures")
+    requires("com.hedera.node.hapi")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
+    requires("org.hiero.base.concurrent")
+    requires("org.hiero.consensus.gossip.impl")
 }
