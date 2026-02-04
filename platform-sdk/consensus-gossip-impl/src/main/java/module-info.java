@@ -7,10 +7,12 @@ module org.hiero.consensus.gossip.impl {
     exports org.hiero.consensus.gossip.impl.gossip to
             org.hiero.otter.fixtures,
             org.hiero.consensus.pcli,
-            com.swirlds.platform.core;
+            com.swirlds.platform.core,
+            com.swirlds.platform.core.test.fixtures;
     exports org.hiero.consensus.gossip.impl.gossip.shadowgraph to
             org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.gossip.sync to
+            com.swirlds.platform.core,
             org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.network to
             com.swirlds.platform.core,

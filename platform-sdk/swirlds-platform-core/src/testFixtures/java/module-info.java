@@ -36,6 +36,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires org.hiero.consensus.roster.test.fixtures;
     requires com.github.spotbugs.annotations;
     requires java.desktop;
+    requires org.junit.jupiter.api;
     requires org.mockito;
 
     exports com.swirlds.platform.test.fixtures;
