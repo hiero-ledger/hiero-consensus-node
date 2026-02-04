@@ -4,7 +4,6 @@ package com.swirlds.platform.sync;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.test.fixtures.sync.EventFactory;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
@@ -12,6 +11,7 @@ import java.util.function.Predicate;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ShadowEvent;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils;
+import org.hiero.consensus.gossip.impl.test.fixtures.sync.EventFactory;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.Test;

@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-open module com.swirlds.platform.core.test.fixtures {
+open module org.hiero.consensus.gossip.impl.test.fixtures {
+    exports org.hiero.consensus.gossip.impl.test.fixtures.communication;
+    exports org.hiero.consensus.gossip.impl.test.fixtures.communication.multithreaded;
+    exports org.hiero.consensus.gossip.impl.test.fixtures.network;
+    exports org.hiero.consensus.gossip.impl.test.fixtures.sync;
+
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
@@ -37,24 +42,4 @@ open module com.swirlds.platform.core.test.fixtures {
     requires java.desktop;
     requires org.junit.jupiter.api;
     requires org.mockito;
-
-    exports com.swirlds.platform.test.fixtures;
-    exports com.swirlds.platform.test.fixtures.config;
-    exports com.swirlds.platform.test.fixtures.consensus;
-    exports com.swirlds.platform.test.fixtures.consensus.framework;
-    exports com.swirlds.platform.test.fixtures.consensus.framework.validation;
-    exports com.swirlds.platform.test.fixtures.graph;
-    exports com.swirlds.platform.test.fixtures.roster;
-    exports com.swirlds.platform.test.fixtures.simulated;
-    exports com.swirlds.platform.test.fixtures.stream;
-    exports com.swirlds.platform.test.fixtures.utils;
-    exports com.swirlds.platform.test.fixtures.event;
-    exports com.swirlds.platform.test.fixtures.event.emitter;
-    exports com.swirlds.platform.test.fixtures.event.generator;
-    exports com.swirlds.platform.test.fixtures.event.source;
-    exports com.swirlds.platform.test.fixtures.resource;
-    exports com.swirlds.platform.test.fixtures.state;
-    exports com.swirlds.platform.test.fixtures.state.manager;
-    exports com.swirlds.platform.test.fixtures.addressbook;
-    exports com.swirlds.platform.test.fixtures.gui;
 }

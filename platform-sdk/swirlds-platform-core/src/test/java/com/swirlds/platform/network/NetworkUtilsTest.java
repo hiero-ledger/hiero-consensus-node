@@ -2,12 +2,12 @@
 package com.swirlds.platform.network;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.time.Duration;
 import javax.net.ssl.SSLException;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.NetworkUtils;
+import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.communication.multithreaded;
+package org.hiero.consensus.gossip.impl.test.fixtures.communication.multithreaded;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.test.fixtures.communication.TestPeerProtocol;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.ConnectionManager;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
 import org.hiero.consensus.gossip.impl.network.communication.ProtocolNegotiatorThread;
+import org.hiero.consensus.gossip.impl.test.fixtures.communication.TestPeerProtocol;
 
 /**
  * Used to run a negotiator in a separate thread and capture any exceptions it might throw

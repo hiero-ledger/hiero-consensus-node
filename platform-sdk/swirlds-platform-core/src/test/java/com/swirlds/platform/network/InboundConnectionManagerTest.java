@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
@@ -16,6 +15,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.InboundConnectionManager;
+import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;
 import org.junit.jupiter.api.Test;
 
 class InboundConnectionManagerTest {

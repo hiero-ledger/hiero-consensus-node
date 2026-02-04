@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.communication;
+package org.hiero.consensus.gossip.impl.test.fixtures.communication;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;

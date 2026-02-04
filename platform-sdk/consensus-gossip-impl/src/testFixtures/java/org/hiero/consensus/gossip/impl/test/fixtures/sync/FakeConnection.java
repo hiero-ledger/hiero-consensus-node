@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.sync;
+package org.hiero.consensus.gossip.impl.test.fixtures.sync;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;

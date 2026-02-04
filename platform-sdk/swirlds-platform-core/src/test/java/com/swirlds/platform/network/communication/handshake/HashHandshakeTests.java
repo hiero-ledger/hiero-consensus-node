@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.merkle.utility.SerializableLong;
-import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -20,6 +19,7 @@ import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.communication.handshake.HandshakeException;
 import org.hiero.consensus.gossip.impl.network.communication.handshake.HashCompareHandshake;
 import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
+import org.hiero.consensus.gossip.impl.test.fixtures.sync.ConnectionFactory;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
