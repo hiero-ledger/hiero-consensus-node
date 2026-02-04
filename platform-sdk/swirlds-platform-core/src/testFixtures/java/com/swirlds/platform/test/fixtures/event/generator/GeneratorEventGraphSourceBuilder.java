@@ -5,13 +5,13 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RosterWithKeys;
 import com.swirlds.platform.test.fixtures.event.signer.EventSigner;
 import com.swirlds.platform.test.fixtures.event.signer.RandomEventSigner;
 import com.swirlds.platform.test.fixtures.event.signer.RealEventSigner;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;
 
 /**

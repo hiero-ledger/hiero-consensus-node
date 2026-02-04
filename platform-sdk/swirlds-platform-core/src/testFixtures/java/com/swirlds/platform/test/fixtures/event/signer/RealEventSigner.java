@@ -3,7 +3,6 @@ package com.swirlds.platform.test.fixtures.event.signer;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.test.fixtures.addressbook.RosterWithKeys;
 import java.security.KeyPair;
 import java.util.HashMap;
 import java.util.Map;
@@ -11,6 +10,7 @@ import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 
 /**
  * An {@link EventSigner} that produces real cryptographic signatures using the private keys from a
