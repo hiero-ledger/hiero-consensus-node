@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -26,7 +27,7 @@ public interface SimpleFeeContext {
      * @return the utilization percentage in thousandths of one percent (0 to 100,000),
      * or 0 if no high-volume throttle exists for the functionality or if not available
      */
-    default int getHighVolumeThrottleUtilization(@NonNull com.hedera.hapi.node.base.HederaFunctionality functionality) {
+    default int getHighVolumeThrottleUtilization(@NonNull HederaFunctionality functionality) {
         return 0;
     }
 }

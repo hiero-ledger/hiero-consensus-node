@@ -1,15 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
-
-import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.Key;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.NONE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
+import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HederaFunctionality.*;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
@@ -48,6 +62,21 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
     private final Map<Query.QueryOneOfType, QueryFeeCalculator> queryFeeCalculators;
     private final CongestionMultipliers congestionMultipliers;
+
+    private static final Set<HederaFunctionality> HIGH_VOLUME_FUNCTIONS = Set.of(
+            CRYPTO_CREATE,
+            CONSENSUS_CREATE_TOPIC,
+            SCHEDULE_CREATE,
+            CRYPTO_APPROVE_ALLOWANCE,
+            FILE_CREATE,
+            FILE_APPEND,
+            CONTRACT_CREATE,
+            HOOK_STORE,
+            TOKEN_ASSOCIATE_TO_ACCOUNT,
+            TOKEN_AIRDROP,
+            TOKEN_CLAIM_AIRDROP,
+            TOKEN_MINT,
+            TOKEN_CREATE);
 
     public SimpleFeeCalculatorImpl(
             @NonNull FeeSchedule feeSchedule,
@@ -123,19 +152,30 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final long bytes = simpleFeeContext.numTxnBytes();
         final var result = new FeeResult();
         // Add node base and extras (bytes and payer signatures)
-        result.setNodeBaseFeeTinycents(feeSchedule.node().baseFee());
+        result.setNodeBaseFeeTinycents(requireNonNull(feeSchedule.node()).baseFee());
         addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
         // Add network fee
-        final int multiplier = feeSchedule.network().multiplier();
+        final int multiplier = requireNonNull(feeSchedule.network()).multiplier();
         result.setNetworkMultiplier(multiplier);
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
+
+        // Get the HederaFunctionality for this transaction
+        HederaFunctionality functionality;
+        try {
+            functionality = functionOf(txnBody);
+        } catch (UnknownHederaFunctionality e) {
+            log.error("Unknown Hedera functionality for transaction body: {}", txnBody, e);
+            functionality = NONE;
+        }
+        final var isHighVolumeFunction = HIGH_VOLUME_FUNCTIONS.contains(functionality);
+
         // Apply high-volume pricing multiplier if applicable (HIP-1313)
-        if (txnBody.highVolume() && simpleFeeContext != null) {
-            applyHighVolumeMultiplier(txnBody, simpleFeeContext, result);
-        } else{
+        if (txnBody.highVolume() && isHighVolumeFunction) {
+            applyHighVolumeMultiplier(functionality, simpleFeeContext, result);
+        } else {
             // Apply congestion multiplier if available
             applyCongestionMultiplier(txnBody, simpleFeeContext, result);
         }
@@ -182,23 +222,18 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Applies the high-volume pricing multiplier to the service fee based on throttle utilization.
      * Per HIP-1313, the multiplier is calculated from the pricing curve defined in the fee schedule.
      *
-     * @param txnBody the transaction body
+     * @param functionality the transaction body functionality
      * @param feeContext the fee context
      * @param result the fee result to modify
      */
     private void applyHighVolumeMultiplier(
-            @NonNull final TransactionBody txnBody,
+            @NonNull final HederaFunctionality functionality,
             @NonNull final SimpleFeeContext feeContext,
             @NonNull final FeeResult result) {
-        // Get the HederaFunctionality for this transaction
-        final HederaFunctionality functionality = mapToFunctionality(txnBody);
-        if (functionality == null) {
-            return;
-        }
-
         // Look up the service fee definition to get the high volume rates
         final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(feeSchedule, functionality);
         if (serviceFeeDefinition == null || serviceFeeDefinition.highVolumeRates() == null) {
+            log.error(" {} - No high volume rates defined for {}", ALERT_MESSAGE, functionality);
             return;
         }
 
@@ -214,38 +249,15 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         // So effective multiplier = rawMultiplier / MULTIPLIER_SCALE
         // We apply this to the service fee: newServiceFee = serviceFee * (rawMultiplier / MULTIPLIER_SCALE)
         // Since rawMultiplier is at least MULTIPLIER_SCALE (1000) for 1.0x, we need to replace the service fee
-        final long multipliedServiceFee = (result.service * rawMultiplier) / HighVolumePricingCalculator.MULTIPLIER_SCALE;
+        final long multipliedServiceFee =
+                (result.getServiceTotalTinycents() * rawMultiplier) / HighVolumePricingCalculator.MULTIPLIER_SCALE;
 
         // Replace the service fee with the multiplied amount
         // We subtract the original service fee and add the new multiplied fee
-        final long additionalFee = multipliedServiceFee - result.service;
+        final long additionalFee = multipliedServiceFee - result.getServiceTotalTinycents();
         if (additionalFee > 0) {
-            result.addServiceFee(1, additionalFee);
+            result.addServiceFeeTinycents(additionalFee);
         }
-    }
-
-    /**
-     * Maps a TransactionBody to its corresponding HederaFunctionality.
-     *
-     * @param txnBody the transaction body
-     * @return the HederaFunctionality, or null if unknown
-     */
-    @Nullable
-    private HederaFunctionality mapToFunctionality(@NonNull final TransactionBody txnBody) {
-        return switch (txnBody.data().kind()) {
-            case CRYPTO_CREATE_ACCOUNT -> HederaFunctionality.CRYPTO_CREATE;
-            case CRYPTO_APPROVE_ALLOWANCE -> HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
-            case CONSENSUS_CREATE_TOPIC -> HederaFunctionality.CONSENSUS_CREATE_TOPIC;
-            case FILE_CREATE -> HederaFunctionality.FILE_CREATE;
-            case TOKEN_CREATION -> HederaFunctionality.TOKEN_CREATE;
-            case TOKEN_MINT -> HederaFunctionality.TOKEN_MINT;
-            case TOKEN_ASSOCIATE -> HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
-            case TOKEN_AIRDROP -> HederaFunctionality.TOKEN_AIRDROP;
-            case TOKEN_CLAIM_AIRDROP -> HederaFunctionality.TOKEN_CLAIM_AIRDROP;
-            case SCHEDULE_CREATE -> HederaFunctionality.SCHEDULE_CREATE;
-            case CONTRACT_CREATE_INSTANCE -> HederaFunctionality.CONTRACT_CREATE;
-            default -> null;
-        };
     }
 
     @Override

@@ -71,6 +71,10 @@ public class FeeResult {
         }
     }
 
+    public void addServiceFeeTinycents(long cost) {
+        serviceTotal = clampedAdd(serviceTotal, cost);
+    }
+
     /**
      * Details about the service fee extras, broken down by label.
      */
