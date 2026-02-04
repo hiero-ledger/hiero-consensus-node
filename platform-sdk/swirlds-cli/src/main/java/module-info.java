@@ -24,6 +24,8 @@ module org.hiero.consensus.pcli {
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.crypto;
+    requires org.hiero.base.utility;
+    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.intake;
     requires org.hiero.consensus.gossip.impl;

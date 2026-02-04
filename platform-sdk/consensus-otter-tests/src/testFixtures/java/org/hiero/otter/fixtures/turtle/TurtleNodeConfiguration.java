@@ -5,7 +5,6 @@ import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.platform.config.PathsConfig_;
-import com.swirlds.platform.config.StateConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.function.Supplier;
@@ -51,6 +50,5 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
         this.overrideProperties.withConfigValue(PathsConfig_.APPS_DIR_PATH, outputDirectory.resolve("data/apps"));
         this.overrideProperties.withConfigValue(
                 PathsConfig_.MARKER_FILES_DIR, outputDirectory.resolve("data/saved/marker_files"));
-        this.overrideProperties.withConfigValue(StateConfig_.SAVE_STATE_ASYNC, false);
     }
 }

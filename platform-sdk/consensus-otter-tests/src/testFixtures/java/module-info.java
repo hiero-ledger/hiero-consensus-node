@@ -66,6 +66,7 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.specs;
     exports org.hiero.otter.fixtures.util;
     exports org.hiero.otter.fixtures.app to
+            org.hiero.otter.test.performance,
             com.swirlds.config.extensions,
             com.swirlds.config.impl,
             org.hiero.otter.test,

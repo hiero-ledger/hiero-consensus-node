@@ -46,7 +46,7 @@ public class ReconnectStateTeacher {
     private final Connection connection;
     private final Duration reconnectSocketTimeout;
 
-    private final TeacherTreeView<Long> teacherView;
+    private final TeacherTreeView teacherView;
     private final SigSet signatures;
     private final long signingWeight;
     private final Roster roster;

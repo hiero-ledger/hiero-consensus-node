@@ -69,23 +69,26 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final DeserializedSignedState deserializedSignedState =
                 SignedStateFileReader.readState(statePath, platformContext, stateLifecycleManager);
-        final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState();
-        bulkUpdateOf(reservedSignedState.get().getState(), v -> {
-            System.out.printf("Replacing platform data %n");
-            v.setRound(PlatformStateAccessor.GENESIS_ROUND);
-            v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot());
-        });
-        System.out.printf("Resetting the RosterService state %n");
-        final State state = reservedSignedState.get().getState();
-        final WritableStates writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
-        final WritableRosterStore writableRosterStore = new WritableRosterStore(writableStates);
-        writableRosterStore.resetRosters();
-        ((CommittableWritableStates) writableStates).commit();
-        System.out.printf("Hashing state %n");
-        reservedSignedState.get().getState().getHash(); // calculate hash
-        System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
-        writeSignedStateFilesToDirectory(
-                platformContext, NO_NODE_ID, outputDir, reservedSignedState, stateLifecycleManager);
+        try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
+            bulkUpdateOf(reservedSignedState.get().getState(), v -> {
+                System.out.printf("Replacing platform data %n");
+                v.setRound(PlatformStateAccessor.GENESIS_ROUND);
+                v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot());
+            });
+            {
+                System.out.printf("Resetting the RosterService state %n");
+                final State state = reservedSignedState.get().getState();
+                final WritableStates writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
+                final WritableRosterStore writableRosterStore = new WritableRosterStore(writableStates);
+                writableRosterStore.resetRosters();
+                ((CommittableWritableStates) writableStates).commit();
+            }
+            System.out.printf("Hashing state %n");
+            reservedSignedState.get().getState().getHash(); // calculate hash
+            System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
+            writeSignedStateFilesToDirectory(
+                    platformContext, NO_NODE_ID, outputDir, reservedSignedState.get(), stateLifecycleManager);
+        }
 
         return 0;
     }
