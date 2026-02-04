@@ -168,10 +168,24 @@ public final class Randotron extends Random {
         return bytes;
     }
 
+    /**
+     * Generates random {@link Bytes} of the given size.
+     *
+     * @param size the number of random bytes to generate
+     * @return random bytes
+     */
     public Bytes randomBytes(final int size) {
         return Bytes.wrap(nextByteArray(size));
     }
 
+    /**
+     * Generates random {@link Bytes} with a length chosen uniformly at random between {@code originSize} (inclusive)
+     * and {@code boundSize} (exclusive).
+     *
+     * @param originSize the minimum length (inclusive)
+     * @param boundSize  the maximum length (exclusive)
+     * @return random bytes of random length
+     */
     public Bytes randomBytes(final int originSize, final int boundSize) {
         return Bytes.wrap(nextByteArray(this.nextInt(originSize, boundSize)));
     }

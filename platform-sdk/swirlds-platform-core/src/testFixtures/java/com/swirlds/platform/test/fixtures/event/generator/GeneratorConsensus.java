@@ -18,6 +18,10 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 
+/**
+ * Wraps the consensus implementation, orphan buffer, and linker to track consensus state during event generation. Used
+ * internally by {@link SimpleGraphGenerator} to determine correct birth rounds for newly generated events.
+ */
 public class GeneratorConsensus {
     /**
      * The consensus implementation for determining birth rounds of events.
@@ -32,6 +36,13 @@ public class GeneratorConsensus {
      */
     private final ConsensusLinker linker;
 
+    /**
+     * Creates a new {@code GeneratorConsensus} with the given configuration, time source, and roster.
+     *
+     * @param configuration the platform configuration
+     * @param time          the time source
+     * @param roster        the roster of network nodes
+     */
     public GeneratorConsensus(
             @NonNull final Configuration configuration, @NonNull final Time time, @NonNull final Roster roster) {
         consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), roster);
@@ -39,6 +50,12 @@ public class GeneratorConsensus {
         orphanBuffer = new DefaultOrphanBuffer(new NoOpMetrics(), new NoOpIntakeEventCounter());
     }
 
+    /**
+     * Feeds an event into the internal consensus, updating the consensus state. The event is copied so that internal
+     * metadata does not interfere with the original event.
+     *
+     * @param e the platform event to process
+     */
     public void updateConsensus(@NonNull final PlatformEvent e) {
         /* The event given to the internal consensus needs its own EventImpl & PlatformEvent for
         metadata to be kept separate from the event that is returned to the caller.  The orphan
@@ -60,6 +77,12 @@ public class GeneratorConsensus {
         }
     }
 
+    /**
+     * Returns the birth round that should be assigned to the next event, which is one greater than the last decided
+     * round.
+     *
+     * @return the current birth round
+     */
     public long getCurrentBirthRound() {
         return consensus.getLastRoundDecided() + 1;
     }

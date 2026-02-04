@@ -115,6 +115,13 @@ public class SimpleGraphGeneratorBuilder {
         return this;
     }
 
+    /**
+     * Enables or disables real cryptographic signatures for generated events. When enabled, a roster with real keys
+     * will be generated and a {@link RealEventSigner} will be used. Cannot be combined with a user-supplied roster.
+     *
+     * @param realSignatures {@code true} to use real signatures, {@code false} for random signatures
+     * @return this builder
+     */
     public SimpleGraphGeneratorBuilder realSignatures(final boolean realSignatures) {
         if (realSignatures && roster != null) {
             throw new IllegalStateException("Cannot use realSignatures with a supplied roster");

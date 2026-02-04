@@ -33,20 +33,29 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
+/**
+ * A JMH benchmark that measures the throughput of the event intake pipeline. Events are generated using a
+ * {@link SimpleGraphGenerator} with real cryptographic signatures, submitted to the intake module, and the benchmark
+ * waits until all events have been validated and emitted.
+ */
 @State(Scope.Thread)
 @Fork(value = 1)
 @Warmup(iterations = 1, time = 1)
 @Measurement(iterations = 2, time = 3)
 public class IntakeBenchmark {
+    /** The number of nodes in the simulated network. */
     @Param({"4"})
     public int numNodes;
 
+    /** The number of events to generate and process per benchmark invocation. */
     @Param({"10000"})
     public int numEvents;
 
+    /** The random seed used for deterministic event generation. */
     @Param({"0"})
     public long seed;
 
+    /** The number of threads in the {@link java.util.concurrent.ForkJoinPool} used by the wiring model. */
     @Param({"10"})
     public int numberOfThreads;
 
@@ -55,6 +64,11 @@ public class IntakeBenchmark {
     private EventCounter counter;
     private WiringModel model;
 
+    /**
+     * Sets up the benchmark state before each invocation. Creates a graph generator with real signatures, generates
+     * events, initializes the wiring model and intake module, and wires the {@link EventCounter} to the validated
+     * events output.
+     */
     @Setup(Level.Invocation)
     public void setup() {
         final PlatformContext platformContext =
@@ -101,6 +115,9 @@ public class IntakeBenchmark {
         System.out.println("Teardown after iteration");
     }
 
+    /**
+     * Stops the wiring model after each benchmark invocation.
+     */
     @TearDown(Level.Invocation)
     public void tearDown() {
         model.stop();

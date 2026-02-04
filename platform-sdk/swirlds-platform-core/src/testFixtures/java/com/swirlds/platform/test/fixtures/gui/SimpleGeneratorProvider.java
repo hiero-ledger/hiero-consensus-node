@@ -6,9 +6,18 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 
+/**
+ * A {@link GuiEventProvider} backed by a {@link SimpleGraphGenerator}. Delegates event generation to the underlying
+ * graph generator.
+ */
 public class SimpleGeneratorProvider implements GuiEventProvider {
     private final SimpleGraphGenerator generator;
 
+    /**
+     * Creates a new provider backed by the given generator.
+     *
+     * @param generator the graph generator used to produce events
+     */
     public SimpleGeneratorProvider(final SimpleGraphGenerator generator) {
         this.generator = generator;
     }

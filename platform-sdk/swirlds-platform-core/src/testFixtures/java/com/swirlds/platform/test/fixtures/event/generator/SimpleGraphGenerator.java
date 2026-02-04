@@ -53,8 +53,14 @@ public class SimpleGraphGenerator {
     private final EventSigner eventSigner;
 
     /**
+     * Creates a new graph generator.
      *
-     * @param roster The roster to use.
+     * @param configuration   the platform configuration
+     * @param time            the time source
+     * @param seed            the random seed for deterministic event generation
+     * @param maxOtherParents the maximum number of other-parents an event can have
+     * @param roster          the roster of network nodes
+     * @param eventSigner     the signer used to produce event signatures
      */
     public SimpleGraphGenerator(
             @NonNull final Configuration configuration,
@@ -72,6 +78,11 @@ public class SimpleGraphGenerator {
         this.eventSigner = eventSigner;
     }
 
+    /**
+     * Returns the roster used by this generator.
+     *
+     * @return the roster
+     */
     public @NonNull Roster getRoster() {
         return roster;
     }
@@ -89,6 +100,12 @@ public class SimpleGraphGenerator {
         return latestEventTime;
     }
 
+    /**
+     * Generates the specified number of events, each linked to the evolving graph state.
+     *
+     * @param count the number of events to generate
+     * @return a list of generated events
+     */
     public List<PlatformEvent> generateEvents(final int count) {
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < count; i++) {
@@ -98,7 +115,11 @@ public class SimpleGraphGenerator {
     }
 
     /**
-     * Build the event
+     * Generates a single event with a randomly selected creator, random parents from the current graph state, random
+     * transactions, and a valid signature. The event is hashed, signed, and fed through the internal consensus before
+     * being returned.
+     *
+     * @return the generated event
      */
     public PlatformEvent generateEvent() {
         final List<Integer> nodeIndices = IntStream.range(

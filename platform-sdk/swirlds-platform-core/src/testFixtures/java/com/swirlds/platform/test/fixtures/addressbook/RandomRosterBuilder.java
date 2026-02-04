@@ -106,6 +106,13 @@ public class RandomRosterBuilder {
         return builder.build();
     }
 
+    /**
+     * Builds the roster and returns it together with the cryptographic keys for each node. Requires
+     * {@link #withRealKeysEnabled(boolean)} to have been set to {@code true}.
+     *
+     * @return the roster bundled with its cryptographic keys
+     * @throws IllegalStateException if real keys are not enabled
+     */
     public RosterWithKeys buildWithKeys() {
         if (!realKeys) {
             throw new IllegalStateException("Cannot build roster with keys when real keys are not enabled");
