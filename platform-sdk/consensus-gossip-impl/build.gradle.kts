@@ -18,6 +18,7 @@ testModuleInfo {
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.gossip.impl.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
+    requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("awaitility")
     requires("org.junit.jupiter.api")

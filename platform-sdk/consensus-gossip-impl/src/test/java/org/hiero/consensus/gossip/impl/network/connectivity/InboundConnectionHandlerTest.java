@@ -32,7 +32,7 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
      * asserts that when an inbound connection successfully identifies a peer, connection is created
      */
     @ParameterizedTest
-    @MethodSource({"com.swirlds.platform.crypto.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
     void handleInboundOnePeerTest(final Roster roster, final Map<NodeId, KeysAndCerts> keysAndCerts) throws Throwable {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
         // choose 2 random nodes to test
@@ -80,7 +80,7 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
      * asserts that when an inbound connection unsuccessfully identifies a peer, connection is dropped
      */
     @ParameterizedTest
-    @MethodSource({"com.swirlds.platform.crypto.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
     void handleInboundNoPeerTest(final Roster roster, final Map<NodeId, KeysAndCerts> keysAndCerts) throws Throwable {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
         final Random random = new Random();

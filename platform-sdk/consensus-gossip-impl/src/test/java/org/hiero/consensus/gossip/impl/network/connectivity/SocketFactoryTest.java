@@ -106,7 +106,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
      * 		if anything goes wrong
      */
     @ParameterizedTest
-    @MethodSource({"com.swirlds.platform.crypto.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
     void tlsFactoryTest(@NonNull final Roster roster, @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts)
             throws Throwable {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
@@ -142,7 +142,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
      * @throws IOException if the server socket cannot be created
      */
     @ParameterizedTest
-    @MethodSource({"com.swirlds.platform.crypto.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
     void bindInterfaceTest(@NonNull final Roster roster, @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts)
             throws IOException {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
@@ -164,7 +164,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
      * @throws IOException if the server socket cannot be created
      */
     @ParameterizedTest
-    @MethodSource({"com.swirlds.platform.crypto.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
     void bindInterfaceTestWithDefaultConfig(
             @NonNull final Roster roster, @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts) throws IOException {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
@@ -184,7 +184,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
      * @throws IOException if the server socket cannot be created
      */
     @ParameterizedTest
-    @MethodSource({"com.swirlds.platform.crypto.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
     void bindInterfaceTestWithFailingClaimingIp(
             @NonNull final Roster roster, @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts) throws IOException {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
