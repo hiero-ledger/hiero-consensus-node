@@ -2270,11 +2270,6 @@ class BEVM {
 
         // If has a contract account, get code from it
         if( contractAccount!=null ) {
-            // ||
-            //// Pre-compiled or custom system contracts have no code
-            //!(_bevm._call instanceof CustomMessageCallProcessor ||
-            //  // Built-in system account, so no code
-            //  _adrChk.isSystemAccount(contract))  ) {
             code = _bevm.getCode(contractAccount.getCodeHash(), contractAccount.getCode());
             if( !code.isValid() )
                 throw new TODO();
@@ -2283,8 +2278,6 @@ class BEVM {
         // gasAvailableForChildCall; this is the "all but 1/64th" computation
         long childGasStipend = Math.min(_gas - (_gas>>6),stipend);
         if( hasValue ) childGasStipend += _gasCalc.getAdditionalCallStipend();
-        _gas += gas;             // Do not charge yet
-        _gas -= childGasStipend; // But remove gas given to child
         _frame.setGasRemaining(_gas);
 
         // ----------------------------
@@ -2329,10 +2322,9 @@ class BEVM {
         case MessageFrame.State.EXCEPTIONAL_HALT:  {
             FrameUtils.exceptionalHalt(child);
             var haltReason = child.getExceptionalHaltReason().get();
-            // SOme Custom halt reasons from the child halts the parent also.
+            // Some Custom halt reasons from the child halts the parent also.
             // TODO: This check should happen before we even attempt to make a child
-            if( haltReason.equals(CustomExceptionalHaltReason.INVALID_CONTRACT_ID) ||
-                haltReason.equals(CustomExceptionalHaltReason.INVALID_SIGNATURE) )
+            if( haltReason.equals(CustomExceptionalHaltReason.INVALID_CONTRACT_ID) )
                 halt = haltReason;
             break;
         }
@@ -2352,8 +2344,6 @@ class BEVM {
         _frame.incrementGasRefund(child.getGasRefund());
 
         _gas += child.getRemainingGas(); // Recover leftover gas from child
-
-        _gas -= gas;            // Charge for the attempt
 
         if( trace != null )
             System.out.println(trace.clear().p("RETURN ").p(str).nl());
