@@ -146,6 +146,17 @@ class HighVolumePricingCalculatorTest {
         }
 
         @Test
+        @DisplayName("Returns 4x at 0% utilization when first point is 2 bps (CryptoCreate floor)")
+        void returnsCryptoCreateFloorAtZeroUtilization() {
+            // Curve starts at 2 basis points with a 4x multiplier
+            final var curve = createPiecewiseLinearCurve(point(2, 4000), point(10000, 5000));
+            final var variableRate = createVariableRateWithCurve(200000, curve);
+
+            // At 0% utilization, should return the first point's multiplier (4x)
+            assertEquals(4000, HighVolumePricingCalculator.calculateMultiplier(variableRate, 0));
+        }
+
+        @Test
         @DisplayName("Returns last point multiplier when utilization is above last point")
         void returnsLastPointWhenAboveLastPoint() {
             // Curve ends at 80% utilization
