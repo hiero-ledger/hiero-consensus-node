@@ -1,4 +1,4 @@
-# BlockNodeConnection.md
+# BlockNodeStreamingConnection.md
 
 ## Table of Contents
 
@@ -16,13 +16,13 @@
 
 ## Abstract
 
-`BlockNodeConnection` represents a single connection between a consensus node and a block node.
+`BlockNodeStreamingConnection` represents a single connection between a consensus node and a block node.
 It manages connection state, handles communication, and reports errors to the `BlockNodeConnectionManager`.
 
 ## Definitions
 
 <dl>
-<dt>BlockNodeConnection</dt>
+<dt>BlockNodeStreamingConnection</dt>
 <dd>A connection instance managing communication and state with a block node.</dd>
 
 <dt>ConnectionState</dt>
@@ -139,7 +139,7 @@ A caveat to this is if the connection manager is being shutdown, then the connec
 ### Connection States
 
 - **UNINITIALIZED**: Initial state when a connection object is created. The bidi RequestObserver needs to be created.
-- **PENDING**: The bidi RequestObserver is established, but this connection has not been chosen as the active one (priority-based selection).
+- **READY**: The bidi RequestObserver is established, but this connection has not been chosen as the active one (priority-based selection).
 - **ACTIVE**: Connection is active and the Block Stream Worker Thread is sending `PublishStreamRequest`s to the block node through the async bidirectional stream. Only one connection can be ACTIVE at a time.
 - **CLOSING**: The connection is being closed. This is a terminal state where only cleanup operations are permitted. No more requests can be sent.
 - **CLOSED**: Connection has been fully closed and the pipeline terminated. This is a terminal state. No more requests can be sent and no more responses will be received.
@@ -149,9 +149,9 @@ A caveat to this is if the connection manager is being shutdown, then the connec
 ```mermaid
 stateDiagram-v2
     [*] --> UNINITIALIZED : New Connection Created
-    UNINITIALIZED --> PENDING : Request pipeline established<br/>gRPC stream opened
-    PENDING --> ACTIVE : Manager promotes to active<br/>based on priority
-    PENDING --> CLOSING : Higher priority connection selected<br/>or connection error
+    UNINITIALIZED --> READY : Request pipeline established<br/>gRPC stream opened
+    READY --> ACTIVE : Manager promotes to active<br/>based on priority
+    READY --> CLOSING : Higher priority connection selected<br/>or connection error
     ACTIVE --> CLOSING : Too many EndOfStream responses<br/>(rate limit exceeded)
     ACTIVE --> CLOSING : EndOfStream ERROR
     ACTIVE --> CLOSING : EndOfStream PERSISTENCE_FAILED
@@ -191,7 +191,7 @@ stateDiagram-v2
     note right of CLOSED
         When a connection reaches CLOSED,
         the manager may create a new
-        BlockNodeConnection instance that
+        BlockNodeStreamingConnection instance that
         starts at UNINITIALIZED
     end note
 ```
@@ -200,7 +200,7 @@ stateDiagram-v2
 
 ```mermaid
 sequenceDiagram
-    participant Connection as BlockNodeConnection
+    participant Connection as BlockNodeStreamingConnection
     participant Manager as BlockNodeConnectionManager
 
     Connection->>Connection: initialize transport
@@ -214,7 +214,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Connection as BlockNodeConnection
+    participant Connection as BlockNodeStreamingConnection
     participant Manager as BlockNodeConnectionManager
 
     Connection-->>Manager: reportError(error)

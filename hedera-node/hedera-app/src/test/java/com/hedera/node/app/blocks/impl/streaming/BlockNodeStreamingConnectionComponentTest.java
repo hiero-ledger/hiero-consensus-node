@@ -67,7 +67,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * These tests spawn actual worker threads and test end-to-end behavior with timing dependencies.
  */
 @ExtendWith(MockitoExtension.class)
-class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
+class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle streamingBlockNumberHandle;
     private static final VarHandle workerThreadRefHandle;
     private static final MethodHandle sendRequestHandle;
@@ -75,13 +75,13 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
-            streamingBlockNumberHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
-                    .findVarHandle(BlockNodeConnection.class, "streamingBlockNumber", AtomicLong.class);
-            workerThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
-                    .findVarHandle(BlockNodeConnection.class, "workerThreadRef", AtomicReference.class);
+            streamingBlockNumberHandle = MethodHandles.privateLookupIn(BlockNodeStreamingConnection.class, lookup)
+                    .findVarHandle(BlockNodeStreamingConnection.class, "streamingBlockNumber", AtomicLong.class);
+            workerThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeStreamingConnection.class, lookup)
+                    .findVarHandle(BlockNodeStreamingConnection.class, "workerThreadRef", AtomicReference.class);
 
-            final Method sendRequest =
-                    BlockNodeConnection.class.getDeclaredMethod("sendRequest", BlockNodeConnection.StreamRequest.class);
+            final Method sendRequest = BlockNodeStreamingConnection.class.getDeclaredMethod(
+                    "sendRequest", BlockNodeStreamingConnection.StreamRequest.class);
             sendRequest.setAccessible(true);
             sendRequestHandle = lookup.unreflect(sendRequest);
         } catch (final Exception e) {
@@ -89,7 +89,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         }
     }
 
-    private BlockNodeConnection connection;
+    private BlockNodeStreamingConnection connection;
     private ConfigProvider configProvider;
     private BlockNodeConfiguration nodeConfig;
     private BlockNodeConnectionManager connectionManager;
@@ -148,7 +148,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
                 .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
-        connection = new BlockNodeConnection(
+        connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
                 connectionManager,
@@ -229,7 +229,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
                 .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
                 .build();
 
-        connection = new BlockNodeConnection(
+        connection = new BlockNodeStreamingConnection(
                 configProvider,
                 cfgWithMax,
                 connectionManager,
@@ -290,7 +290,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockNode.streamingRequestPaddingBytes", "0")
                 .withValue("blockNode.streamingRequestItemPaddingBytes", "0");
         configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeConnection(
+        connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
                 connectionManager,
@@ -393,7 +393,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockNode.streamingRequestPaddingBytes", "0")
                 .withValue("blockNode.streamingRequestItemPaddingBytes", "0");
         configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeConnection(
+        connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
                 connectionManager,
@@ -686,7 +686,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         final long blockNumber = 10;
         // indicate we want to start with block 10, but don't add the block to the buffer
 
-        connection = new BlockNodeConnection(
+        connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
                 connectionManager,
@@ -750,7 +750,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         final BlockState block = new BlockState(blockNumber);
         lenient().when(bufferService.getBlockState(blockNumber)).thenReturn(block);
 
-        connection = new BlockNodeConnection(
+        connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
                 connectionManager,
@@ -899,7 +899,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         // Send request in a separate thread
         final Thread testThread = Thread.ofVirtual().start(() -> {
             try {
-                sendRequest(new BlockNodeConnection.BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
+                sendRequest(new BlockNodeStreamingConnection.BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
             } catch (RuntimeException e) {
                 exceptionRef.set(e);
             }
@@ -1099,11 +1099,12 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         return (AtomicReference<Thread>) workerThreadRefHandle.get(connection);
     }
 
-    private void sendRequest(final BlockNodeConnection.StreamRequest request) {
+    private void sendRequest(final BlockNodeStreamingConnection.StreamRequest request) {
         sendRequest(connection, request);
     }
 
-    private void sendRequest(final BlockNodeConnection connection, final BlockNodeConnection.StreamRequest request) {
+    private void sendRequest(
+            final BlockNodeStreamingConnection connection, final BlockNodeStreamingConnection.StreamRequest request) {
         try {
             sendRequestHandle.invoke(connection, request);
         } catch (final Throwable e) {
