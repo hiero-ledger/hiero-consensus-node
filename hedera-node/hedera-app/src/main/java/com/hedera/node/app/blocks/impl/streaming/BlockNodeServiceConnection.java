@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
+import com.hedera.pbj.runtime.grpc.GrpcException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -45,9 +46,9 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
      */
     private final AtomicReference<ServiceClientHolder> clientRef = new AtomicReference<>();
     /**
-     * Executor used to perform async tasks such as retrieving the block node status.
+     * Executor used to perform blocking I/O async tasks such as retrieving the block node status.
      */
-    private final ExecutorService executorService;
+    private final ExecutorService blockingIoExecutor;
     /**
      * Factory to create Block Node clients.
      */
@@ -58,16 +59,16 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
      *
      * @param configProvider the configuration provider to use
      * @param nodeConfig the block node configuration to use for this connection
-     * @param executorService the executor service to use for executing tasks
+     * @param blockingIoExecutor the executor service to use for executing blocking I/O tasks
      * @param clientFactory the factory to use for creating clients to the block node
      */
     public BlockNodeServiceConnection(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockNodeConfiguration nodeConfig,
-            @NonNull final ExecutorService executorService,
+            @NonNull final ExecutorService blockingIoExecutor,
             @NonNull final BlockNodeClientFactory clientFactory) {
         super(ConnectionType.SERVER_STATUS, nodeConfig, configProvider);
-        this.executorService = requireNonNull(executorService, "pipeline executor is required");
+        this.blockingIoExecutor = requireNonNull(blockingIoExecutor, "Blocking I/O executor is required");
         this.clientFactory = requireNonNull(clientFactory, "client factory is required");
     }
 
@@ -91,7 +92,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         Future<?> future = null;
 
         try {
-            future = executorService.submit(new CreateClientTask());
+            future = blockingIoExecutor.submit(new CreateClientTask());
             future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
             logger.warn("{} Error initializing connection", this, e);
@@ -153,7 +154,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         private void closeSilently(@NonNull final ServiceClientHolder holder) {
             logger.debug("{} Silently closing client (clientId: {})", BlockNodeServiceConnection.this, holder.clientId);
             try {
-                final Future<?> future = executorService.submit(new CloseClientTask(holder));
+                final Future<?> future = blockingIoExecutor.submit(new CloseClientTask(holder));
                 future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
             } catch (final Exception e) {
                 logger.debug(
@@ -186,7 +187,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
     }
 
     @Override
-    void close() {
+    public void close() {
         final ServiceClientHolder clientHolder = clientRef.get();
 
         if (clientHolder == null || currentState().isTerminal()) {
@@ -205,7 +206,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         Future<?> future = null;
 
         try {
-            future = executorService.submit(new CloseClientTask(clientHolder));
+            future = blockingIoExecutor.submit(new CloseClientTask(clientHolder));
             future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
             // the connection is being closed... don't propagate the exception
@@ -245,11 +246,16 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         final long durationMillis;
 
         try {
-            future = executorService.submit(new GetBlockNodeStatusTask(clientHolder.client));
+            future = blockingIoExecutor.submit(new GetBlockNodeStatusTask(clientHolder.client));
             response = future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
             durationMillis = System.currentTimeMillis() - startMillis;
         } catch (final Exception e) {
-            logger.warn("{} Error retrieving block node status", this, e);
+            final GrpcException grpcException = findGrpcException(e);
+            if (grpcException != null) {
+                logger.warn("{} Error retrieving block node status (grpcStatus={})", this, grpcException.status(), e);
+            } else {
+                logger.warn("{} Error retrieving block node status", this, e);
+            }
 
             if (future != null) {
                 future.cancel(true);
