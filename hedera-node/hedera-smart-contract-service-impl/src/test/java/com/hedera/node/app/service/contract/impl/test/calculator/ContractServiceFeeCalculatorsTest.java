@@ -25,6 +25,7 @@ import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCallLocalFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
@@ -35,7 +36,6 @@ import com.hedera.node.app.service.contract.impl.calculator.ContractUpdateFeeCal
 import com.hedera.node.app.service.contract.impl.calculator.EthereumFeeCalculator;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -85,7 +85,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(1);
 
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(499000000L);
@@ -103,7 +103,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(1);
 
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(509000000L);
@@ -119,7 +119,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(1);
 
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(519000000L);
@@ -134,7 +134,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(3);
 
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(2100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(499000000L);
@@ -152,7 +152,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(3);
 
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(2100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(509000000L);
@@ -169,7 +169,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(3);
 
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(2100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(539000000L);
@@ -184,7 +184,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(2);
 
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(1100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(69000000L);
@@ -198,7 +198,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(1);
 
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(0L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
@@ -212,7 +212,7 @@ public class ContractServiceFeeCalculatorsTest {
                 .build();
         when(feeContext.numTxnSignatures()).thenReturn(1);
 
-        final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
@@ -224,7 +224,7 @@ public class ContractServiceFeeCalculatorsTest {
         final var query = Query.newBuilder()
                 .contractCallLocal(ContractCallLocalQuery.newBuilder())
                 .build();
-        final var result = feeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromQueryContext(queryContext));
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
 
         assertThat(result.totalTinycents()).isEqualTo(555);
     }
@@ -240,7 +240,7 @@ public class ContractServiceFeeCalculatorsTest {
         final var query = Query.newBuilder()
                 .contractGetBytecode(ContractGetBytecodeQuery.newBuilder().contractID(contractId))
                 .build();
-        final var result = feeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromQueryContext(queryContext));
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
 
         assertThat(result.totalTinycents()).isEqualTo(666);
     }
@@ -250,7 +250,7 @@ public class ContractServiceFeeCalculatorsTest {
         final var query = Query.newBuilder()
                 .contractGetInfo(ContractGetInfoQuery.newBuilder())
                 .build();
-        final var result = feeCalculator.calculateQueryFee(query, SimpleFeeContextUtil.fromQueryContext(queryContext));
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
 
         assertThat(result.totalTinycents()).isEqualTo(777);
     }

@@ -33,6 +33,16 @@ testing {
     suites.register<JvmTestSuite>("testChaos") {
         targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
     }
+
+    suites.register<JvmTestSuite>("testPerformance") {
+        // Runs performance benchmarks against the container environment
+        targets.configureEach {
+            testTask {
+                systemProperty("otter.env", "container")
+                dependsOn(":consensus-otter-docker-app:assemble")
+            }
+        }
+    }
 }
 
 testModuleInfo {
@@ -40,12 +50,12 @@ testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
-    requires("com.swirlds.platform.core.test.fixtures")
     requires("org.apache.logging.log4j")
     requires("org.assertj.core")
     requires("org.hiero.consensus.utility")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.roster")
+    requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requiresStatic("com.github.spotbugs.annotations")
@@ -60,6 +70,10 @@ extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {
 }
 
 extensions.getByName<GradleOnlyDirectives>("testChaosModuleInfo").apply {
+    runtimeOnly("io.grpc.netty.shaded")
+}
+
+extensions.getByName<GradleOnlyDirectives>("testPerformanceModuleInfo").apply {
     runtimeOnly("io.grpc.netty.shaded")
 }
 

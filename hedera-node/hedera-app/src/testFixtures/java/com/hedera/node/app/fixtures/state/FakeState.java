@@ -7,7 +7,6 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.MerkleProof;
 import com.swirlds.state.QueueState;
@@ -33,6 +32,7 @@ import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -48,7 +48,7 @@ import org.hiero.base.crypto.Hash;
  * A useful test double for {@link State}. Works together with {@link MapReadableStates} and other fixtures.
  */
 @ConstructableIgnored
-public class FakeState implements MerkleNodeState {
+public class FakeState implements MerkleNodeState<VirtualMap> {
 
     // Key is Service, value is Map of state name to HashMap or List or Object (depending on state type)
     private final Map<String, Map<Integer, Object>> states = new ConcurrentHashMap<>();
@@ -74,7 +74,7 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public MerkleNode getRoot() {
+    public VirtualMap getRoot() {
         return VirtualMapStateTestUtils.createTestState().getRoot();
     }
 

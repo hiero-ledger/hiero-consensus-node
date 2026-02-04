@@ -23,7 +23,7 @@ public class TeacherPushReceiveTask {
 
     private final StandardWorkGroup workGroup;
     private final AsyncInputStream<QueryResponse> in;
-    private final TeacherTreeView<Long> view;
+    private final TeacherTreeView view;
     private final AtomicBoolean senderIsFinished;
 
     /**
@@ -41,7 +41,7 @@ public class TeacherPushReceiveTask {
     public TeacherPushReceiveTask(
             final StandardWorkGroup workGroup,
             final AsyncInputStream<QueryResponse> in,
-            final TeacherTreeView<Long> view,
+            final TeacherTreeView view,
             final AtomicBoolean senderIsFinished) {
         this.workGroup = workGroup;
         this.in = in;

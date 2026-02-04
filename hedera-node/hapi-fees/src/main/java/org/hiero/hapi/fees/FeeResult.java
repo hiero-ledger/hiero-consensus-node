@@ -20,7 +20,6 @@ public class FeeResult {
     private final List<FeeDetail> nodeExtrasDetails = new ArrayList<>();
     private long nodeTotal = 0;
     private int networkMultiplier = 0;
-    private int congestionMultiplier = 0;
 
     public FeeResult() {}
 
@@ -152,7 +151,6 @@ public class FeeResult {
         this.nodeBase = 0;
         this.nodeTotal = 0;
         this.networkMultiplier = 0;
-        this.congestionMultiplier = 0;
     }
 
     /**
