@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.sync;
+package org.hiero.consensus.gossip.impl.sync;
 
 import static org.hiero.consensus.gossip.impl.test.fixtures.sync.EventEquality.identicalHashes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
