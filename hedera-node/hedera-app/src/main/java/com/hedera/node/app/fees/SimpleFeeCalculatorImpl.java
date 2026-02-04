@@ -23,7 +23,6 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.HederaFunctionality.*;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
@@ -244,19 +243,16 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final long rawMultiplier = HighVolumePricingCalculator.calculateMultiplier(
                 serviceFeeDefinition.highVolumeRates(), utilizationPercentage);
 
-        // Apply the multiplier to the service fee
+        // Apply the multiplier to the total fee
         // The raw multiplier is scaled by MULTIPLIER_SCALE (1,000) and represents the effective multiplier
         // So effective multiplier = rawMultiplier / MULTIPLIER_SCALE
-        // We apply this to the service fee: newServiceFee = serviceFee * (rawMultiplier / MULTIPLIER_SCALE)
-        // Since rawMultiplier is at least MULTIPLIER_SCALE (1000) for 1.0x, we need to replace the service fee
-        final long multipliedServiceFee =
-                (result.getServiceTotalTinycents() * rawMultiplier) / HighVolumePricingCalculator.MULTIPLIER_SCALE;
+        final long multipliedFee = (result.totalTinycents() * rawMultiplier) / HighVolumePricingCalculator.MULTIPLIER_SCALE;
 
         // Replace the service fee with the multiplied amount
-        // We subtract the original service fee and add the new multiplied fee
-        final long additionalFee = multipliedServiceFee - result.getServiceTotalTinycents();
+        // We subtract the original fee and add the new multiplied fee
+        final long additionalFee = multipliedFee - result.totalTinycents();
         if (additionalFee > 0) {
-            result.addServiceFeeTinycents(additionalFee);
+            result.addHighVolumeFeeTinycents(additionalFee);
         }
     }
 

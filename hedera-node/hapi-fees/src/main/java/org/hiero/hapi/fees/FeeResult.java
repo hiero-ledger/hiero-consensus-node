@@ -20,6 +20,7 @@ public class FeeResult {
     private final List<FeeDetail> nodeExtrasDetails = new ArrayList<>();
     private long nodeTotal = 0;
     private int networkMultiplier = 0;
+    private long highVolumeFee = 0;
 
     public FeeResult() {}
 
@@ -36,6 +37,15 @@ public class FeeResult {
      */
     public long getServiceTotalTinycents() {
         return serviceTotal;
+    }
+
+    /**
+     * Get the high volume component in tiny cents.
+     *
+     * @return the total high volume fee in tiny cents
+     */
+    public long getHighVolumeTinycents() {
+        return highVolumeFee;
     }
 
     /**
@@ -79,8 +89,8 @@ public class FeeResult {
      *
      * @param cost the cost of this fee in tinycents.
      */
-    public void addServiceFeeTinycents(long cost) {
-        serviceTotal = clampedAdd(serviceTotal, cost);
+    public void addHighVolumeFeeTinycents(long cost) {
+        highVolumeFee = clampedAdd(highVolumeFee, cost);
     }
 
     /**
@@ -192,12 +202,13 @@ public class FeeResult {
      */
     public long totalTinycents() {
         return clampedAdd(
+                clampedAdd(
                 clampedAdd(this.getNodeTotalTinycents(), this.getNetworkTotalTinycents()),
-                this.getServiceTotalTinycents());
+                this.getServiceTotalTinycents()),
+                this.getHighVolumeTinycents());
     }
 
-    public record FeeDetail(String name, long perUnit, long used, long included, long charged) {
-    }
+    public record FeeDetail(String name, long perUnit, long used, long included, long charged) {}
 
     @Override
     public String toString() {
