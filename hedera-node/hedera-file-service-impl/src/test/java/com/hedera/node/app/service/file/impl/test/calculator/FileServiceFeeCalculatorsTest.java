@@ -259,7 +259,8 @@ class FileServiceFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.STATE_BYTES, 1000)),
                         makeServiceFee(HederaFunctionality.FILE_DELETE, 69000000),
                         makeServiceFee(HederaFunctionality.FILE_GET_INFO, 6),
-                        makeServiceFee(HederaFunctionality.FILE_GET_CONTENTS, 7, makeExtraIncluded(Extra.STATE_BYTES, 1000)),
+                        makeServiceFee(
+                                HederaFunctionality.FILE_GET_CONTENTS, 7, makeExtraIncluded(Extra.STATE_BYTES, 1000)),
                         makeServiceFee(HederaFunctionality.SYSTEM_DELETE, 50000000),
                         makeServiceFee(HederaFunctionality.SYSTEM_UNDELETE, 50000000)))
                 .build();

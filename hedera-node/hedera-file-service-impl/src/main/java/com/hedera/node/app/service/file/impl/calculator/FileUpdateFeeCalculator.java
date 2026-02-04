@@ -32,7 +32,8 @@ public class FileUpdateFeeCalculator implements ServiceFeeCalculator {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_UPDATE);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keyCount);
-        addExtraFee(feeResult, serviceDef, STATE_BYTES, feeSchedule, op.contents().length());
+        addExtraFee(
+                feeResult, serviceDef, STATE_BYTES, feeSchedule, op.contents().length());
     }
 
     @Override

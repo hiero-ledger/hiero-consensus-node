@@ -33,7 +33,10 @@ public class FeeScheduleTest {
     private FeeSchedule createMinimalValidSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
-                .extras(makeExtraDef(Extra.KEYS, 1), makeExtraDef(Extra.STATE_BYTES, 1), makeExtraDef(Extra.SIGNATURES, 1))
+                .extras(
+                        makeExtraDef(Extra.KEYS, 1),
+                        makeExtraDef(Extra.STATE_BYTES, 1),
+                        makeExtraDef(Extra.SIGNATURES, 1))
                 .node(NodeFee.DEFAULT
                         .copyBuilder()
                         .baseFee(100)
