@@ -10,17 +10,19 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import java.time.Duration;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.parallel.Isolated;
 
 /**
  * Validation test for concurrent subprocess tests that runs log validation followed by stream validation.
- * Uses @Isolated to ensure it runs after all other concurrent tests complete.
+ * Uses @Isolated to ensure it runs in isolation and @Order(Integer.MAX_VALUE) to run last.
  *
  * <p>Log validation must run first because stream validation freezes the network.
  */
 @Tag("CONCURRENT_SUBPROCESS_VALIDATION")
 @Isolated
+@Order(Integer.MAX_VALUE)
 public class ConcurrentSubprocessValidationTest {
     private static final Duration VALIDATION_DELAY = Duration.ofSeconds(1);
 
