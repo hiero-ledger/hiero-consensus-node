@@ -2,14 +2,13 @@
 package com.hedera.node.app.spi.fees;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
-import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.swirlds.config.api.Configuration;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -21,15 +20,35 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * will throw {@link UnsupportedOperationException}.
  */
 public interface SimpleFeeContext extends FeeContext {
-    int numTxnSignatures(); // number of signatures in the transaction
+    /**
+     * Returns the number of signatures in the transaction.
+     *
+     * @return the number of signatures in the transaction
+     */
+    int numTxnSignatures();
 
+    /**
+     * Returns the number of bytes in the transaction.
+     *
+     * @return the number of bytes in the transaction
+     */
     int numTxnBytes();
 
+    /**
+     * Returns the wrapped {@link FeeContext} or null if none is available while handling a query.
+     *
+     * @return the wrapped fee context, or null if none is available
+     */
     @Nullable
     FeeContext feeContext();
 
+    /**
+     * Returns the wrapped {@link QueryContext} or null if none is available while handling a transaction.
+     *
+     * @return the wrapped query context, or null if none is available
+     */
     @Nullable
-    QueryContext queryContext(); // may be null
+    QueryContext queryContext();
 
     /**
      * Returns the wrapped {@link FeeContext} or throws if none is available.
@@ -100,7 +119,6 @@ public interface SimpleFeeContext extends FeeContext {
     default long getGasPriceInTinycents() {
         return requireFeeContext().getGasPriceInTinycents();
     }
-    QueryContext queryContext();
 
     /**
      * Returns the current utilization percentage of the high-volume throttle for the given functionality.
