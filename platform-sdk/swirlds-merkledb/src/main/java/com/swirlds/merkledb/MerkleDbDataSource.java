@@ -319,11 +319,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final long hashIndexCapacity = VirtualHashChunk.lastChunkIdForPaths(maxPath, hashChunkHeight);
 
         // Hash chunk disk location index (chunk ID to disk location)
-        final Path pathToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
-        if (Files.exists(pathToHashChunksFile) && !forceIndexRebuilding) {
+        final Path idToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
+        if (Files.exists(idToHashChunksFile) && !forceIndexRebuilding) {
             idToDiskLocationHashChunks = preferDiskBasedIndices
-                    ? new LongListDisk(pathToHashChunksFile, hashIndexCapacity, config)
-                    : new LongListOffHeap(pathToHashChunksFile, hashIndexCapacity, config);
+                    ? new LongListDisk(idToHashChunksFile, hashIndexCapacity, config)
+                    : new LongListOffHeap(idToHashChunksFile, hashIndexCapacity, config);
         } else {
             idToDiskLocationHashChunks = preferDiskBasedIndices
                     ? new LongListDisk(hashIndexCapacity, config)
@@ -338,7 +338,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             hashChunkStore = new MemoryIndexDiskKeyValueStore(
                     merkleDbConfig,
                     dbPaths.hashChunkDirectory,
-                    tableName + "_pathtohashchunk",
+                    tableName + "_idtohashchunk",
                     null,
                     null,
                     idToDiskLocationHashChunks);
@@ -371,7 +371,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             hashChunkStore = new MemoryIndexDiskKeyValueStore(
                     merkleDbConfig,
                     dbPaths.hashChunkDirectory,
-                    tableName + "_pathtohashchunk",
+                    tableName + "_idtohashchunk",
                     null,
                     hashChunkLoadedCallback,
                     idToDiskLocationHashChunks);
@@ -651,7 +651,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 storeHashesExecutor.execute(() -> {
                     try {
                         writeHashes(lastLeafPath, hashChunksToUpdate, true);
-                        runHashStoreCompaction();
+                        runHashChunkStoreCompaction();
                     } catch (final IOException e) {
                         logger.error(EXCEPTION.getMarker(), "[{}] Failed to store hashes", tableName, e);
                         throw new UncheckedIOException(e);
@@ -675,7 +675,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             storeLeavesExecutor.execute(() -> {
                 try {
                     writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, sortedDirtyLeaves);
-                    runPathToKeyStoreCompaction();
+                    runPathToKeyValueStoreCompaction();
                 } catch (final IOException e) {
                     logger.error(EXCEPTION.getMarker(), "[{}] Failed to store leaves", tableName, e);
                     throw new UncheckedIOException(e);
@@ -1400,11 +1400,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
     }
 
-    public void runHashStoreCompaction() {
+    public void runHashChunkStoreCompaction() {
         compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.ID_TO_HASH_CHUNK, newHashChunkStoreCompactor());
     }
 
-    public void runPathToKeyStoreCompaction() {
+    public void runPathToKeyValueStoreCompaction() {
         compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.PATH_TO_KEY_VALUE, newKeyValueStoreCompactor());
     }
 
