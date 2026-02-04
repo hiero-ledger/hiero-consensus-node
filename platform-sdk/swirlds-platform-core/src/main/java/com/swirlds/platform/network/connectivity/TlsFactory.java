@@ -6,6 +6,7 @@ import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.KeystorePasswordPolicy;
 import com.swirlds.platform.network.PeerInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.crypto.KeystorePasswordPolicy;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;

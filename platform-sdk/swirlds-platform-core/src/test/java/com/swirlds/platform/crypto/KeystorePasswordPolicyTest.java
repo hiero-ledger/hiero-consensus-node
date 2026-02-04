@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.KeystorePasswordPolicy;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
