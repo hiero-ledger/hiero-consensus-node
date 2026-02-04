@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
+import static com.hedera.services.bdd.junit.TestTags.XTS;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -31,6 +32,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -293,7 +295,8 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
         }));
     }
 
-    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    @Tag(XTS)
+    @HapiTest
     @DisplayName("Node Operator gets failure trying to submit any transaction to the Node Operator port")
     final Stream<DynamicTest> submitCryptoTransferLocalHostNodeOperatorPort() {
         // Create the transaction
