@@ -27,8 +27,7 @@ public class HashgraphGui {
                 .seed(0)
                 .build();
 
-        final TestGuiSource guiSource =
-                new TestGuiSource(platformContext, generator.getRoster(), generator);
+        final TestGuiSource guiSource = new TestGuiSource(platformContext, generator.getRoster(), generator);
         guiSource.generateEvents(initialEvents);
         guiSource.runGui();
     }

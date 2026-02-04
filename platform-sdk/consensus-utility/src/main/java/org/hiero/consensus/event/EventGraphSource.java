@@ -32,7 +32,7 @@ public interface EventGraphSource {
     default List<PlatformEvent> nextEvents(final int count) {
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            if(!hasNext()) {
+            if (!hasNext()) {
                 throw new NoSuchElementException("Requested " + count + " events, but only " + i + " are available.");
             }
             events.add(next());
