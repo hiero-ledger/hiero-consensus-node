@@ -139,8 +139,6 @@ public final class StateUtils {
         if (states.get(DEFAULT) == null) {
             throw new IllegalStateException("State is not initialized yet");
         }
-        // enabling VirtualNodeCache cleanup
-        states.put(DEFAULT, states.get(DEFAULT).copy());
         VirtualMapState defaultState = (VirtualMapState) getDefaultState();
         Set<Map.Entry<String, Map<Integer, StateMetadata<?, ?>>>> serviceEntries =
                 defaultState.getServices().entrySet();
