@@ -40,8 +40,8 @@ import org.openjdk.jmh.annotations.Warmup;
  */
 @State(Scope.Thread)
 @Fork(value = 1)
-@Warmup(iterations = 1, time = 1)
-@Measurement(iterations = 2, time = 3)
+@Warmup(iterations = 1, time = 5)
+@Measurement(iterations = 2, time = 10)
 public class IntakeBenchmark {
     /** The number of nodes in the simulated network. */
     @Param({"4"})
@@ -110,11 +110,6 @@ public class IntakeBenchmark {
         model.start();
     }
 
-    @TearDown(Level.Iteration)
-    public void aaaaa() {
-        System.out.println("Teardown after iteration");
-    }
-
     /**
      * Stops the wiring model after each benchmark invocation.
      */
@@ -125,6 +120,9 @@ public class IntakeBenchmark {
 
     /*
     Results on a M1 Max MacBook Pro:
+
+    Benchmark               (numEvents)  (numNodes)  (numberOfThreads)  (seed)  Mode  Cnt    Score   Error  Units
+    IntakeBenchmark.intake        10000           4                 10       0  avgt    2  140.982          ms/op
     */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
