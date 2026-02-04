@@ -135,7 +135,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
      */
     @NonNull
     private static RosterWithKeys genRosterLoadKeys(final int size) {
-       return RandomRosterBuilder.create(Randotron.create())
+        return RandomRosterBuilder.create(Randotron.create())
                 .withSize(size)
                 .withRealKeysEnabled(true)
                 .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
