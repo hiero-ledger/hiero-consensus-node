@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.spi.HttpServerProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -40,6 +41,7 @@ class OpenMetricsHttpServer implements MetricsExporter {
     private final ExecutorService executorService;
 
     private final HttpServer server;
+    private final int bufferSize;
 
     // This flag is used to prohibit concurrent GET requests to scrape metrics.
     // Additionally, OpenMetricsWriter is not thread safe due to DecimalFormat usage.
@@ -50,6 +52,7 @@ class OpenMetricsHttpServer implements MetricsExporter {
     public OpenMetricsHttpServer(@NonNull OpenMetricsHttpServerConfig config) throws IOException {
         Objects.requireNonNull(config, "OpenMetrics HTTP endpoint config must not be null");
 
+        bufferSize = config.bufferSize();
         writer = new OpenMetricsWriter(config.decimalFormat());
         // Use virtual threads to handle each request, but reject concurrent GET requests using the boolean flag
         executorService = Executors.newVirtualThreadPerTaskExecutor();
@@ -61,7 +64,7 @@ class OpenMetricsHttpServer implements MetricsExporter {
             address = new InetSocketAddress(config.port());
         }
 
-        server = HttpServerProvider.provider().createHttpServer(address, config.backlog());
+        server = HttpServerProvider.provider().createHttpServer(address, 2);
         server.setExecutor(executorService);
         server.createContext(config.path(), this::handleSnapshots); // main metrics endpoint
         server.start();
@@ -80,11 +83,13 @@ class OpenMetricsHttpServer implements MetricsExporter {
     }
 
     private void handleSnapshots(HttpExchange exchange) throws IOException {
+        boolean handlingRequest = false;
         try {
             // allow only GET and HEAD methods
             final String method = exchange.getRequestMethod().toUpperCase(Locale.ROOT);
             if (!"GET".equals(method) && !"HEAD".equals(method)) {
                 exchange.getResponseHeaders().set("Allow", "GET, HEAD");
+                exchange.getResponseHeaders().set("Cache-Control", "no-store");
                 exchange.sendResponseHeaders(405, -1);
                 return;
             }
@@ -93,13 +98,15 @@ class OpenMetricsHttpServer implements MetricsExporter {
             final Supplier<MetricRegistrySnapshot> supplier = this.snapshotSupplier;
             if (supplier == null) {
                 logger.log(System.Logger.Level.INFO, "No snapshot supplier configured yet, while handling request");
+                exchange.getResponseHeaders().set("Cache-Control", "no-store");
                 exchange.sendResponseHeaders(204, -1); // No Content
                 return;
             }
 
             // allow only one GET request at a time
             if ("GET".equals(method)) {
-                if (!isHandlingRequest.compareAndSet(false, true)) {
+                handlingRequest = isHandlingRequest.compareAndSet(false, true);
+                if (!handlingRequest) {
                     logger.log(System.Logger.Level.WARNING, "Another request is being processed, rejecting this one");
                     exchange.getResponseHeaders().set("Retry-After", "3"); // Suggest retry after 3 seconds
                     exchange.getResponseHeaders().set("Cache-Control", "no-store");
@@ -123,12 +130,17 @@ class OpenMetricsHttpServer implements MetricsExporter {
                 return;
             }
 
+            MetricRegistrySnapshot registrySnapshot = supplier.get();
             exchange.sendResponseHeaders(200, 0);
 
             // Choose output stream based on compression and send body
             final OutputStream rawOutput = exchange.getResponseBody();
             try (OutputStream outputStream = gzip ? new GZIPOutputStream(rawOutput) : rawOutput) {
-                writer.write(supplier.get(), outputStream);
+                if (bufferSize == 0) {
+                    writer.write(registrySnapshot, outputStream);
+                } else {
+                    writer.write(registrySnapshot, new BufferedOutputStream(outputStream, bufferSize));
+                }
             }
         } catch (RuntimeException e) {
             logger.log(System.Logger.Level.WARNING, "Unexpected error during exporting metrics snapshots", e);
@@ -140,7 +152,10 @@ class OpenMetricsHttpServer implements MetricsExporter {
             } catch (IOException ignored) {
             }
         } finally {
-            isHandlingRequest.set(false); // reset the flag which could be set only by GET requests
+            // reset the flag which could be set only by GET requests
+            if (handlingRequest) {
+                isHandlingRequest.set(false);
+            }
             exchange.close();
         }
     }
