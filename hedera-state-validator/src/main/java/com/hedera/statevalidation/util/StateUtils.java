@@ -117,7 +117,7 @@ public final class StateUtils {
      * @return mutable instance of {@link MerkleNodeState}
      */
     public static MerkleNodeState getDefaultState() {
-        return getDefaultState(DEFAULT);
+        return getState(DEFAULT);
     }
 
     /**
@@ -125,7 +125,7 @@ public final class StateUtils {
      * @param key the key identifying the state
      * @return mutable instance of {@link MerkleNodeState}
      */
-    public static MerkleNodeState getDefaultState(String key) {
+    public static MerkleNodeState getState(String key) {
         if (!states.containsKey(key)) {
             initState(key);
         }

@@ -67,14 +67,13 @@ public class EntityIdUniqueness {
 
         final long lastEntityIdNumber = entityIdSingleton.get().number();
         final AtomicInteger issuesFound = new AtomicInteger(0);
+        final MerkleNodeState<?> state = StateUtils.getDefaultState();
 
         ParallelProcessingUtils.processRange(0, lastEntityIdNumber, number -> {
                     if (idCounter.incrementAndGet() % 100_000 == 0) {
                         // from time to time we need to create copies to limit cache growth and prevent OOM errors
                         StateUtils.resetStateCache();
                     }
-
-                    final MerkleNodeState state = StateUtils.getDefaultState();
 
                     int counter = 0;
                     final Token token = getTokensState(state).get(new TokenID(0, 0, number));
@@ -175,6 +174,7 @@ public class EntityIdUniqueness {
 
         final EntityCounts entityCounts = entityIdSingleton.get();
         final VirtualMapMetadata metadata = ((VirtualMap) servicesState.getRoot()).getMetadata();
+        final VirtualMap vm = (VirtualMap) StateUtils.getDefaultState().getRoot();
 
         final AtomicLong accountCount = new AtomicLong(0);
         final AtomicLong aliasesCount = new AtomicLong(0);
@@ -190,7 +190,6 @@ public class EntityIdUniqueness {
         final AtomicLong contractStorageCount = new AtomicLong(0);
         final AtomicLong contractBytecodeCount = new AtomicLong(0);
         final AtomicLong hookCount = new AtomicLong(0);
-        final AtomicLong labmbdaStorageCount = new AtomicLong(0);
         final AtomicLong evmHookStorageCount = new AtomicLong(0);
 
         ParallelProcessingUtils.processRange(metadata.getFirstLeafPath(), metadata.getLastLeafPath(), number -> {
@@ -198,10 +197,6 @@ public class EntityIdUniqueness {
                     if (pathCounter.incrementAndGet() % 100_000 == 0) {
                         StateUtils.resetStateCache();
                     }
-
-                    final VirtualMap vm =
-                            (VirtualMap) StateUtils.getDefaultState().getRoot();
-
                     VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(number);
                     try {
                         StateKey key = StateKey.PROTOBUF.parse(leafRecord.keyBytes());
