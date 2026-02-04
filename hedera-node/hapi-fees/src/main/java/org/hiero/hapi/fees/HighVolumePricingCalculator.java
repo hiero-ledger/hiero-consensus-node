@@ -23,9 +23,9 @@ import org.hiero.hapi.support.fees.VariableRateDefinition;
  * <p>For example:
  * <ul>
  *   <li>utilizationBasisPoints = 5,000 means 50% utilization</li>
- *   <li>multiplier = 1,000 means a multiplier of 1.0x (1,000/1,000)</li>
- *   <li>multiplier = 2,000 means a multiplier of 2.0x (2,000/1,000)</li>
- *   <li>multiplier = 5,000 means a multiplier of 5.0x (5,000/1,000)</li>
+ *   <li>multiplier = 1,000 means a multiplier of 1x (1,000/1,000)</li>
+ *   <li>multiplier = 2,000 means a multiplier of 2x (2,000/1,000)</li>
+ *   <li>multiplier = 5,000 means a multiplier of 5x (5,000/1,000)</li>
  * </ul>
  */
 public final class HighVolumePricingCalculator {
@@ -33,7 +33,7 @@ public final class HighVolumePricingCalculator {
     /** The scale factor for utilization percentage (10,000 = 100%). */
     public static final int UTILIZATION_SCALE = 10_000;
 
-    /** The scale factor for multiplier values (1,000 = 1.0x). */
+    /** The scale factor for multiplier values (1,000 = 1x). */
     public static final long MULTIPLIER_SCALE = 1_000L;
 
     private HighVolumePricingCalculator() {
@@ -153,20 +153,9 @@ public final class HighVolumePricingCalculator {
     }
 
     /**
-     * Enforces the minimum multiplier of 1.0x (1,000 scaled).
+     * Enforces the minimum multiplier of 1x (1,000 scaled).
      */
     private static long normalizeMultiplier(final long multiplier) {
         return Math.max(multiplier, MULTIPLIER_SCALE);
-    }
-
-    /**
-     * Calculates the effective multiplier as a double value (for display/logging purposes).
-     * The effective multiplier is the raw multiplier divided by MULTIPLIER_SCALE.
-     *
-     * @param rawMultiplier the raw multiplier value (scaled by MULTIPLIER_SCALE)
-     * @return the effective multiplier as a double (e.g., 2.0 for 2x)
-     */
-    public static double toEffectiveMultiplier(final long rawMultiplier) {
-        return (double) rawMultiplier / MULTIPLIER_SCALE;
     }
 }
