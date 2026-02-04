@@ -890,9 +890,9 @@ public class FeesChargingUtils {
         final var txnBytes = spec.registry().getBytes(txnName);
         final var txnSize = txnBytes.length;
 
-        // Node fee BYTES extra: (txnBytes - 1024) * STATE_BYTES_FEE_USD * networkMultiplier
+        // Node fee BYTES extra: (txnBytes - 1024) * PROCESSING_BYTES_FEE_USD * networkMultiplier
         final var nodeBytesOverage = Math.max(0, txnSize - 1024);
-        double expectedFee = nodeBytesOverage * STATE_BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
+        double expectedFee = nodeBytesOverage * PROCESSING_BYTES_FEE_USD * (1 + NETWORK_MULTIPLIER);
 
         opLog.info(
                 "Transaction size: {} bytes, node bytes overage: {}, expected fee: {}",
