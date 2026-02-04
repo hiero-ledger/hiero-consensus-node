@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.addressbook;
+package org.hiero.consensus.roster.test.fixtures;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomIp;
 
