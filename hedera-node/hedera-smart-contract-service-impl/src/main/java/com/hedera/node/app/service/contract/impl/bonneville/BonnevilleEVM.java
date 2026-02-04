@@ -1121,7 +1121,7 @@ class BEVM {
             val0 = val1;  val1 = val2;  val2 = val3;  val3 = 0;
             off -= 8;
         }
-        return push((val0 >> ((8-off)<<3)) & 0xff);
+        return push((val0 >> (off<<3)) & 0xff);
     }
 
 
@@ -1239,10 +1239,13 @@ class BEVM {
     private ExceptionalHaltReason balance() {
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         var address = popAddress();
+        boolean isSystem = _adrChk.isSystemAccount(address);
         long gas = _gasCalc.getBalanceOperationGasCost() +
-            (isWarm(address) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+            ((!isSystem && isWarm(address)) ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);
         if( halt!=null ) return halt;
+
+        if( isSystem ) return push0();
 
         Account account = _frame.getWorldUpdater().get(address);
         if( account == null ) return push0();
@@ -1301,12 +1304,12 @@ class BEVM {
 
     // Push call data
     private ExceptionalHaltReason callDataCopy() {
-        int dst = popInt();
-        int src = popInt();
-        int len = popInt();
-        var halt = useGas(copyCost(dst,len,3));
+        int dstOff = popInt();
+        int srcOff = popInt();
+        int len    = popInt();
+        var halt = useGas(copyCost(dstOff,len,3/*VERY_LOW_TIER_GAS_COST*/));
         if( halt!=null ) return halt;
-        _mem.write(dst, _frame.getInputData(), src, len );
+        _mem.write(dstOff, _frame.getInputData(), srcOff, len );
         return null;
     }
 
@@ -1672,9 +1675,8 @@ class BEVM {
         BlockHashLookup blockHashLookup = _frame.getBlockHashLookup();
         if( !(soughtBlock >= 0L && soughtBlock < currentBlockNumber && soughtBlock >= currentBlockNumber - blockHashLookup.getLookback()) )
             return push0();
-        org.hyperledger.besu.datatypes.Hash blockHash = blockHashLookup.apply(_frame, soughtBlock);
-        //return push(blockHash);
-        throw new TODO();
+        var blockHash = blockHashLookup.apply(_frame, soughtBlock);
+        return push32(blockHash.toArrayUnsafe());
     }
 
     private ExceptionalHaltReason coinBase() {
@@ -1805,7 +1807,8 @@ class BEVM {
     long memoryExpansionGasCost(int adr, int len) {
         assert adr >=0 && len >= 0;  // Caller already checked
         if( adr+len < 0 ) return Integer.MAX_VALUE; // Overflow gas cost
-        if( adr+len < _mem._len ) return 0;         // No extension, so no memory cost
+        if( adr+len <= _mem._len ) return 0;        // No extension, so no memory cost
+        if( len==0 ) return 0; // No memory accessed, so no memory cost
         long pre  = memoryCost(_mem._len );
         long post = memoryCost(adr + len );
         return post - pre;
@@ -1825,7 +1828,7 @@ class BEVM {
 
     private long copyCost(int off, int len, int base) {
         int nwords = (len+31)>>5;
-        return 3*nwords+base+ memoryExpansionGasCost(off, len);
+        return 3L/*COPY_WORD_GAS_COST*/*nwords+base+ memoryExpansionGasCost(off, len);
     }
 
     // ---------------------
@@ -2222,6 +2225,8 @@ class BEVM {
             gas += _gasCalc.callValueTransferGasCost();
         if( (contractAccount == null || contractAccount.isEmpty()) && hasValue )
             gas += _gasCalc.newAccountGasCost();
+        if( (recipient == null || recipient.isEmpty()) && hasValue )
+            throw new TODO();
         // Check the cold account cost, but do not charge
         if( _gas < gas+_gasCalc.getColdAccountAccessCost() )
             return ExceptionalHaltReason.INSUFFICIENT_GAS;
@@ -2253,37 +2258,33 @@ class BEVM {
         if( contractAccount!=null && contractAccount.hasDelegatedCode() )
             throw new TODO();
 
+        Bytes src = _mem.asBytes(srcOff, srcLen);
+
         // If the call is sending more value than the account has or the
         // message frame is to deep return a failed call
         if( value.compareTo(_recv.getBalance()) > 0 || _frame.getDepth() >= 1024 )
-            // Unwind gas costs, minus child attempt, push LEGACY_FAILURE_STACK_ITEM and null return
-            throw new TODO();
-        Bytes src = _mem.asBytes(srcOff, srcLen);
+            return push0();
 
         // Get the bytecodes to execute
         Code code = CodeV0.EMPTY_CODE;
-        // Pre-compiled system contracts have no code
-        HederaSystemContract hsys = _bevm._call instanceof CustomMessageCallProcessor cmcp ? cmcp.systemContractsRead(contract) : null;
-        // System contracts have no code
-        boolean expectCode = hsys == null && !_adrChk.isSystemAccount(contract);
-        if( expectCode ) {
-            // No account, so child frame always returns success
-            if( contractAccount==null )
-                return push(1);
 
-            // GetCode
+        // If has a contract account, get code from it
+        if( contractAccount!=null ) {
+            // ||
+            //// Pre-compiled or custom system contracts have no code
+            //!(_bevm._call instanceof CustomMessageCallProcessor ||
+            //  // Built-in system account, so no code
+            //  _adrChk.isSystemAccount(contract))  ) {
             code = _bevm.getCode(contractAccount.getCodeHash(), contractAccount.getCode());
             if( !code.isValid() )
                 throw new TODO();
-            // No code, so child frame always returns success
-            if( code.getSize() == 0 )
-                return push(1);
         }
 
         // gasAvailableForChildCall; this is the "all but 1/64th" computation
-        long childGasStipend =  Math.min(_gas - (_gas>>6),stipend);
-        _gas -= childGasStipend;
-        _gas += gas;            // Do not charge yet
+        long childGasStipend = Math.min(_gas - (_gas>>6),stipend);
+        if( hasValue ) childGasStipend += _gasCalc.getAdditionalCallStipend();
+        _gas += gas;             // Do not charge yet
+        _gas -= childGasStipend; // But remove gas given to child
         _frame.setGasRemaining(_gas);
 
         // ----------------------------
@@ -2309,16 +2310,14 @@ class BEVM {
         _tracing.traceContextEnter(child);
         PublicMessageCallProcessor msg = _bevm._call;
 
+        // More frame safety checks
         msg.start(child, _tracing);
 
-        if( expectCode ) {
-            assert child.getState() == MessageFrame.State.CODE_EXECUTING;
+        if( child.getState() == MessageFrame.State.CODE_EXECUTING ) {
             // ----------------------------
             // Recursively call
             _bevm.runToHalt(this,child,_tracing);
             // ----------------------------
-        } else {
-            //assert child.getState() == MessageFrame.State.COMPLETED_SUCCESS;
         }
 
         switch( child.getState() ) {
@@ -2330,11 +2329,14 @@ class BEVM {
         case MessageFrame.State.EXCEPTIONAL_HALT:  {
             FrameUtils.exceptionalHalt(child);
             var haltReason = child.getExceptionalHaltReason().get();
-            // Specifically, only INVALID_CONTRACT_ID from the child halts the parent also.
+            // SOme Custom halt reasons from the child halts the parent also.
             // TODO: This check should happen before we even attempt to make a child
-            if( haltReason.equals(CustomExceptionalHaltReason.INVALID_CONTRACT_ID) )
+            if( haltReason.equals(CustomExceptionalHaltReason.INVALID_CONTRACT_ID) ||
+                haltReason.equals(CustomExceptionalHaltReason.INVALID_SIGNATURE) )
                 halt = haltReason;
+            break;
         }
+        default: throw new TODO();
         };
 
         _tracing.traceContextExit(child);
@@ -2349,7 +2351,7 @@ class BEVM {
         _frame.addSelfDestructs(child.getSelfDestructs());
         _frame.incrementGasRefund(child.getGasRefund());
 
-        _gas += child.getRemainingGas();
+        _gas += child.getRemainingGas(); // Recover leftover gas from child
 
         _gas -= gas;            // Charge for the attempt
 

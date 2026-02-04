@@ -34,9 +34,9 @@ public class Memory {
     void growMem( int len ) {
         len = (len+31) & -32;   // Round up to nearest 32
         // Grow in-use bytes
-        if( len < _len ) return;
+        if( len <= _len ) return;
         _len = len;
-        if( len < _mem.length  ) return;
+        if( len <= _mem.length  ) return;
 
         // If memory is too small, grow it
         int newlen = _mem.length;
@@ -93,10 +93,11 @@ public class Memory {
         growMem(doff+len);
         int copyLen = Math.min(len,src.length-soff);
         System.arraycopy(src,soff,_mem,doff,copyLen);
-        if( copyLen < len ) Arrays.fill(_mem,doff+copyLen,len-copyLen,(byte)0);
+        if( copyLen < len ) Arrays.fill(_mem,doff+copyLen,doff+len,(byte)0);
     }
 
     void write( int doff, Bytes src, int soff, int len ) {
+        if( len==0 ) return; // Nothing to write, and do not grow backing store
         growMem(doff+len);
         int slen = src.size();
         for( int i=0; i<Math.min(slen-soff,len); i++ )

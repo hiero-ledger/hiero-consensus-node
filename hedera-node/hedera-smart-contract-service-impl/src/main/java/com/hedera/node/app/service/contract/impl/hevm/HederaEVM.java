@@ -108,7 +108,7 @@ public class HederaEVM extends HEVM {
         final long opsDurationMultiplier = opsDurationCounter==null ? 0 : opsDurationSchedule.opsGasBasedDurationMultiplier();
         final long opsDurationDenominator = opsDurationCounter==null ? 1 : opsDurationSchedule.multipliersDenominator();
 
-        SB trace = null; // new SB();
+        SB trace = new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null ) {
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
