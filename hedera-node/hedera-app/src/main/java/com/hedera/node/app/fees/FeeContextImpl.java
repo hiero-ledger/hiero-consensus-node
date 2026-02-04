@@ -2,6 +2,7 @@
 package com.hedera.node.app.fees;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SubType;
@@ -119,6 +120,14 @@ public class FeeContextImpl implements FeeContext {
     @Override
     public SimpleFeeCalculator getSimpleFeeCalculator() {
         return feeManager.getSimpleFeeCalculator();
+    }
+
+    @Override
+    public int getHighVolumeThrottleUtilization(@NonNull final HederaFunctionality functionality) {
+        if (throttleAccumulator == null) {
+            return 0;
+        }
+        return throttleAccumulator.getHighVolumeThrottleUtilization(functionality);
     }
 
     @NonNull

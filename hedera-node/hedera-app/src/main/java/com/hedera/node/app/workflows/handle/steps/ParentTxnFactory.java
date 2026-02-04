@@ -38,6 +38,7 @@ import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -379,6 +380,11 @@ public class ParentTxnFactory {
                     txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
             if (congestionMultiplier > 1) {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
+            }
+            final var highVolumeMultiplier = feeManager.highVolumePricingMultiplierFor(
+                    txnInfo.txBody(), SimpleFeeContextUtil.fromFeeContext(dispatchHandleContext));
+            if (highVolumeMultiplier > 0) {
+                baseBuilder.highVolumePricingMultiplier(highVolumeMultiplier);
             }
         }
         return new RecordDispatch(

@@ -43,6 +43,7 @@ import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -314,6 +315,11 @@ public class ChildDispatchFactory {
                 txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
         if (congestionMultiplier > 1) {
             builder.congestionMultiplier(congestionMultiplier);
+        }
+        final var highVolumeMultiplier = feeManager.highVolumePricingMultiplierFor(
+                txnInfo.txBody(), SimpleFeeContextUtil.fromFeeContext(dispatchHandleContext));
+        if (highVolumeMultiplier > 0) {
+            builder.highVolumePricingMultiplier(highVolumeMultiplier);
         }
         final var childTokenContext = new TokenContextImpl(config, childStack, consensusNow, writableEntityIdStore);
         return new RecordDispatch(

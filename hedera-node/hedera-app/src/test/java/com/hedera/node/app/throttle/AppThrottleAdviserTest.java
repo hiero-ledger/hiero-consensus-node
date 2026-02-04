@@ -30,4 +30,10 @@ class AppThrottleAdviserTest {
         subject.shouldThrottleNOfUnscaled(2, CRYPTO_TRANSFER);
         verify(networkUtilizationManager).shouldThrottleNOfUnscaled(2, CRYPTO_TRANSFER, CONSENSUS_NOW);
     }
+
+    @Test
+    void forwardsHighVolumeThrottleUtilization() {
+        subject.highVolumeThrottleUtilization(CRYPTO_TRANSFER);
+        verify(networkUtilizationManager).highVolumeThrottleUtilization(CRYPTO_TRANSFER, CONSENSUS_NOW);
+    }
 }

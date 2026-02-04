@@ -53,7 +53,7 @@ public final class HighVolumePricingCalculator {
             return MULTIPLIER_SCALE;
         }
 
-        final int maxMultiplier = variableRateDefinition.maxMultiplier();
+        final int maxMultiplier = Math.max(variableRateDefinition.maxMultiplier(), (int) MULTIPLIER_SCALE);
         final PricingCurve pricingCurve = variableRateDefinition.pricingCurve();
 
         // Clamp utilization to valid range
@@ -69,8 +69,9 @@ public final class HighVolumePricingCalculator {
             rawMultiplier = interpolatePiecewiseLinear(pricingCurve.piecewiseLinear(), clampedUtilization);
         }
 
-        // Cap at max multiplier
-        return Math.min(rawMultiplier, maxMultiplier);
+        // Enforce minimum 1x and cap at max multiplier
+        final long clamped = Math.max(rawMultiplier, MULTIPLIER_SCALE);
+        return Math.min(clamped, maxMultiplier);
     }
 
     /**

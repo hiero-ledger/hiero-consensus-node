@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 public class SimpleFeeContextUtil {
@@ -38,6 +40,11 @@ public class SimpleFeeContextUtil {
         @Override
         public @Nullable QueryContext queryContext() {
             return null;
+        }
+
+        @Override
+        public int getHighVolumeThrottleUtilization(@NonNull final HederaFunctionality functionality) {
+            return feeContext.getHighVolumeThrottleUtilization(functionality);
         }
     }
 

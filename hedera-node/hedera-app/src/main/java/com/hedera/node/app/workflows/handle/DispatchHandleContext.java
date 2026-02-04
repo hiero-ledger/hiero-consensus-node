@@ -270,6 +270,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     }
 
     @Override
+    public int getHighVolumeThrottleUtilization(@NonNull final HederaFunctionality functionality) {
+        return throttleAdviser.highVolumeThrottleUtilization(functionality);
+    }
+
+    @Override
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
         requireNonNull(childTxBody);

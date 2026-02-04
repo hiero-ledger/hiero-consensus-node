@@ -5,6 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.transaction.ExchangeRate;
@@ -139,6 +140,11 @@ public class ChildFeeContextImpl implements FeeContext {
     @Override
     public Fees dispatchComputeFees(@NonNull final TransactionBody txBody, @NonNull final AccountID syntheticPayerId) {
         return context.dispatchComputeFees(txBody, syntheticPayerId);
+    }
+
+    @Override
+    public int getHighVolumeThrottleUtilization(@NonNull final HederaFunctionality functionality) {
+        return context.getHighVolumeThrottleUtilization(functionality);
     }
 
     /**

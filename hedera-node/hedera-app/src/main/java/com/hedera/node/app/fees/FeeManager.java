@@ -10,9 +10,11 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_ACCOUNT_NF
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_NFT_INFOS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -24,11 +26,13 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TransactionFeeSchedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -46,6 +50,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.fees.HighVolumePricingCalculator;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /**
  * Creates {@link FeeCalculator} instances based on the current fee schedule. Whenever the fee schedule is updated,
@@ -248,6 +254,34 @@ public final class FeeManager {
             @NonNull final ReadableStoreFactory storeFactory) {
 
         return congestionMultipliers.maxCurrentMultiplier(body, functionality, storeFactory);
+    }
+
+    /**
+     * Computes the high-volume pricing multiplier for the given transaction body using the simple fee schedule.
+     *
+     * @param body the transaction body
+     * @param simpleFeeContext the fee context used to obtain throttle utilization
+     * @return the raw multiplier value (scaled), or 0 if high-volume pricing does not apply
+     */
+    public long highVolumePricingMultiplierFor(
+            @NonNull final TransactionBody body, @NonNull final SimpleFeeContext simpleFeeContext) {
+        if (!body.highVolume() || simpleFeesSchedule == null) {
+            return 0;
+        }
+        final HederaFunctionality functionality;
+        try {
+            functionality = functionOf(body);
+        } catch (UnknownHederaFunctionality e) {
+            logger.error("Unknown Hedera functionality for transaction body: {}", body, e);
+            return 0;
+        }
+        final ServiceFeeDefinition serviceFeeDefinition = lookupServiceFee(simpleFeesSchedule, functionality);
+        if (serviceFeeDefinition == null || serviceFeeDefinition.highVolumeRates() == null) {
+            return 0;
+        }
+        final int utilizationPercentage = simpleFeeContext.getHighVolumeThrottleUtilization(functionality);
+        return HighVolumePricingCalculator.calculateMultiplier(
+                serviceFeeDefinition.highVolumeRates(), utilizationPercentage);
     }
 
     @NonNull

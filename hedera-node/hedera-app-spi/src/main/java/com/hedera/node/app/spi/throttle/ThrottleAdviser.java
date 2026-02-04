@@ -18,6 +18,17 @@ public interface ThrottleAdviser {
     boolean shouldThrottleNOfUnscaled(int n, HederaFunctionality function);
 
     /**
+     * Returns the current utilization percentage of the high-volume throttle for the given functionality.
+     * The utilization is expressed in hundredths of one percent (0 to 10,000), where 10,000 = 100%.
+     *
+     * @param function the functionality to get the utilization for
+     * @return the utilization percentage in hundredths of one percent (0 to 10,000), or 0 if unavailable
+     */
+    default int highVolumeThrottleUtilization(HederaFunctionality function) {
+        return 0;
+    }
+
+    /**
      * Returns the available ops duration capacity for the execution.
      * Takes into account the amount leaked from the bucket up to the current consensus time.
      */
