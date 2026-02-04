@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.addressbook;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.List;
@@ -10,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.test.fixtures.WeightGenerator;

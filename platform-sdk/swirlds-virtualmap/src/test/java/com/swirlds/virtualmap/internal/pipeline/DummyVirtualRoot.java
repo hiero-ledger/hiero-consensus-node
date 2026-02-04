@@ -4,20 +4,16 @@ package com.swirlds.virtualmap.internal.pipeline;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.internal.AbstractVirtualRoot;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
-class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleLeaf {
+class DummyVirtualRoot extends AbstractVirtualRoot {
 
     private static final long CLASS_ID = 0x37cc269627e18eb6L;
 
@@ -43,8 +39,6 @@ class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleL
     private Predicate<Integer /* copy index */> shouldFlushPredicate;
 
     private final VirtualPipeline pipeline;
-
-    private boolean destroyed = false;
 
     private boolean crashOnFlush = false;
     private boolean shutdownHandlerCalled;
@@ -125,22 +119,6 @@ class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleL
      * {@inheritDoc}
      */
     @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public int getVersion() {
         return 1;
     }
@@ -178,17 +156,6 @@ class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleL
         }
         final long flushThreshold = VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold();
         return (flushThreshold > 0) && (estimatedSize() >= flushThreshold);
-    }
-
-    /**
-     * Specify the immutability status of the node.  Since AbstractMerkleNode.setImmutable is a final method,
-     * we must give this method a different name.
-     *
-     * @param immutable
-     * 		if this node should be immutable
-     */
-    public void overrideImmutable(final boolean immutable) {
-        super.setImmutable(immutable);
     }
 
     /**
