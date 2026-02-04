@@ -5,7 +5,6 @@ import com.swirlds.common.Reservable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.Future;
 
 /**
  * Implementations of this interface are responsible for managing the state lifecycle:
@@ -73,15 +72,6 @@ public interface StateLifecycleManager<T extends Reservable> {
      * @param targetPath The path to save the snapshot.
      */
     void createSnapshot(@NonNull MerkleNodeState<T> merkleNodeState, @NonNull Path targetPath);
-
-    /**
-     * Creates a snapshot asynchronously for the state provided as a parameter.
-     *
-     * @param merkleNodeState The state to save.
-     * @param targetPath The path to save the snapshot.
-     * @return a future that completes when the snapshot has been written
-     */
-    Future<Void> createSnapshotAsync(@NonNull MerkleNodeState merkleNodeState, @NonNull Path targetPath);
 
     /**
      * Loads a snapshot of a state.
