@@ -404,8 +404,7 @@ public class TokenServiceFeeCalculatorTests {
     void tokenGetInfo() {
         final var opBody = TokenGetInfoQuery.newBuilder().build();
         final var queryBody = Query.newBuilder().tokenGetInfo(opBody).build();
-        final var result =
-                feeCalculator.calculateQueryFee(queryBody, new SimpleFeeContextImpl(null, queryContext));
+        final var result = feeCalculator.calculateQueryFee(queryBody, new SimpleFeeContextImpl(null, queryContext));
         ;
         assertEquals(TOKEN_GET_INFO_BASE_FEE, result.getServiceTotalTinycents());
     }
@@ -414,8 +413,7 @@ public class TokenServiceFeeCalculatorTests {
     void tokenGetNftInfo() {
         final var opBody = TokenGetNftInfoQuery.newBuilder().build();
         final var queryBody = Query.newBuilder().tokenGetNftInfo(opBody).build();
-        final var result =
-                feeCalculator.calculateQueryFee(queryBody, new SimpleFeeContextImpl(null, queryContext));
+        final var result = feeCalculator.calculateQueryFee(queryBody, new SimpleFeeContextImpl(null, queryContext));
         ;
         assertEquals(TOKEN_GET_NFT_INFO_BASE_FEE, result.getServiceTotalTinycents());
     }

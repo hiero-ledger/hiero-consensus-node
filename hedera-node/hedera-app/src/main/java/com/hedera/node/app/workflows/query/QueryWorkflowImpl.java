@@ -241,8 +241,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             long queryFees;
                             if (shouldUseSimpleFees(context)) {
                                 final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                        .calculateQueryFee(
-                                                context.query(), new SimpleFeeContextImpl(null, context));
+                                        .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
                                 queryFees = tinycentsToTinybars(
                                         queryFeeTinyCents.totalTinycents(),
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
