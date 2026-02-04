@@ -15,12 +15,12 @@ import org.junit.jupiter.api.parallel.Isolated;
 /**
  * Convenience annotation to mark a test class that requires strictly sequential execution,
  * both with respect to other test classes and within its own methods.
- * Tests annotated with this will run in XTS rather than PR checks.
+ * Tests annotated with this will run in subprocess sequential mode rather than concurrent PR checks.
  */
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Isolated
-@Tag(TestTags.XTS)
+@Tag(TestTags.SUBPROCESS_SEQUENTIAL)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestClassOrder(ClassOrderer.OrderAnnotation.class)
 public @interface OrderedInIsolation {}

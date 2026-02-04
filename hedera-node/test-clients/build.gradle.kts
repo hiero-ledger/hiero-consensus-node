@@ -70,7 +70,7 @@ val basePrCheckTags =
     mapOf(
         "hapiTestAdhoc" to "ADHOC",
         "hapiTestCrypto" to "CRYPTO",
-        "hapiTestCryptoXts" to "(CRYPTO&XTS)",
+        "hapiTestCryptoSubprocessSequential" to "(CRYPTO&SUBPROCESS_SEQUENTIAL)",
         "hapiTestToken" to "TOKEN",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
@@ -84,7 +84,7 @@ val basePrCheckTags =
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
     )
 
-val cryptoTasks = setOf("hapiTestCrypto", "hapiTestCryptoXts")
+val cryptoTasks = setOf("hapiTestCrypto", "hapiTestCryptoSubprocessSequential")
 
 val prCheckTags =
     buildMap<String, String> {
@@ -115,7 +115,7 @@ val prCheckStartPorts =
     buildMap<String, String> {
         put("hapiTestAdhoc", "25000")
         put("hapiTestCrypto", "25200")
-        put("hapiTestCryptoXts", "25210")
+        put("hapiTestCryptoSubprocessSequential", "25210")
         put("hapiTestToken", "25400")
         put("hapiTestRestart", "25600")
         put("hapiTestSmartContract", "25800")
@@ -144,7 +144,7 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put(
-            "hapiTestCryptoXts",
+            "hapiTestCryptoSubprocessSequential",
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSmartContract", "tss.historyEnabled=false")
@@ -189,7 +189,7 @@ val prCheckNetSizeOverrides =
     buildMap<String, String> {
         put("hapiTestAdhoc", "3")
         put("hapiTestCrypto", "3")
-        put("hapiTestCryptoXts", "3")
+        put("hapiTestCryptoSubprocessSequential", "3")
         put("hapiTestToken", "3")
         put("hapiTestSmartContract", "4")
 
@@ -205,7 +205,7 @@ tasks {
             getByName(taskName).group =
                 "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
             dependsOn(
-                if (taskName.contains("Crypto") && !taskName.contains("Xts"))
+                if (taskName.contains("Crypto") && !taskName.contains("SubprocessSequential"))
                     "testSubprocessConcurrent"
                 else "testSubprocess"
             )
@@ -343,9 +343,9 @@ tasks.register<Test>("testSubprocessConcurrent") {
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
-        // Exclude XTS tests except CONCURRENT_SUBPROCESS_VALIDATION which runs validation last via
-        // @Isolated
-        excludeTags("XTS&!CONCURRENT_SUBPROCESS_VALIDATION")
+        // Exclude SUBPROCESS_SEQUENTIAL tests except CONCURRENT_SUBPROCESS_VALIDATION which runs
+        // validation last via @Isolated
+        excludeTags("SUBPROCESS_SEQUENTIAL&!CONCURRENT_SUBPROCESS_VALIDATION")
     }
 
     // Choose a different initial port for each test task if running as PR check
