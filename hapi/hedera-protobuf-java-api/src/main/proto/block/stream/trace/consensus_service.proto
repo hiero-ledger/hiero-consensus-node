@@ -19,8 +19,6 @@ option java_package = "com.hedera.hapi.block.stream.trace.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream.trace">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "services/basic_types.proto";
-
 /**
  * Trace data for ConsensusSubmitMessage transactions executed within an atomic batch.
  * <p>

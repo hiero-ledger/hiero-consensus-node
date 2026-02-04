@@ -3,8 +3,8 @@ package com.hedera.node.app.history;
 
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 
-import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.handlers.HistoryHandlers;

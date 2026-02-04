@@ -28,7 +28,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class WrapsMpcStateMachine {
-    public static final Set<WrapsPhase> POST_MCP_PHASES = Set.of(AGGREGATE, POST_AGGREGATION);
+    public static final Set<WrapsPhase> POST_MPC_PHASES = Set.of(AGGREGATE, POST_AGGREGATION);
 
     @Inject
     public WrapsMpcStateMachine() {

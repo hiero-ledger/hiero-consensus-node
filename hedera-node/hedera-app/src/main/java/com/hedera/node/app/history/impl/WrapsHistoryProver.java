@@ -9,13 +9,13 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
-import static com.hedera.node.app.history.impl.WrapsMpcStateMachine.POST_MCP_PHASES;
+import static com.hedera.node.app.history.impl.WrapsMpcStateMachine.POST_MPC_PHASES;
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-import com.hedera.hapi.block.stream.AggregatedNodeSignatures;
-import com.hedera.hapi.block.stream.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -365,7 +365,7 @@ public class WrapsHistoryProver implements HistoryProver {
             @Nullable final Bytes ledgerId,
             @Nullable final HistoryProof aggregatedSignatureProof) {
         if (futureOf(phase) == null
-                && (POST_MCP_PHASES.contains(phase)
+                && (POST_MPC_PHASES.contains(phase)
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
             if (phase == POST_AGGREGATION) {
                 log.info("Considering publication of vote for genesis WRAPS proof on construction #{}", constructionId);
@@ -390,7 +390,7 @@ public class WrapsHistoryProver implements HistoryProver {
                             .thenAcceptAsync(
                                     output -> {
                                         if (output == null) {
-                                            if (phase == R1 || POST_MCP_PHASES.contains(phase)) {
+                                            if (phase == R1 || POST_MPC_PHASES.contains(phase)) {
                                                 log.warn("Got null output for {} phase, skipping publication", phase);
                                             }
                                             return;
