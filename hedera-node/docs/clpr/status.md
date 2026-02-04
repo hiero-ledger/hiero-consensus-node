@@ -1,22 +1,27 @@
 ---
+
 scope: clpr
 audience: engineering
 status: draft
-last_updated: 2026-01-28
----
+last_updated: 2026-02-04
+------------------------
 
 # CLPR status
 
 ## Now
-- TODO
+
+- Iteration 0: middleware pass-through between applications (no connector logic).
 
 ## Next
-- TODO
+
+- Iteration 1: mocked connector that always approves.
 
 ## Later
-- TODO
+
+- MVP: connector registration + pairing, balance reports, min/max charges, and
+  out-of-funds handling.
 
 ## Notes
 
 Untriaged items and continuation notes live in todo-backlog.md.
-
+Iteration milestones and tests are defined in implementation/iteration-plan.md.

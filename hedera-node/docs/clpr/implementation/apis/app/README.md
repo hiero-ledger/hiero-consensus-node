@@ -1,9 +1,10 @@
 ---
+
 scope: clpr
 audience: engineering
 status: draft
-last_updated: 2026-01-28
----
+last_updated: 2026-02-04
+------------------------
 
 # App API
 
@@ -11,5 +12,7 @@ List the application-facing methods and message shapes here.
 
 ## Planned method files
 
-- <method-or-message>.md
-
+- send.md
+- handle-message.md
+- handle-response.md
+- send-status.md

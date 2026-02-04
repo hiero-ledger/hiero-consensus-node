@@ -1,3 +1,11 @@
+---
+
+scope: clpr
+audience: engineering
+status: draft
+last_updated: 2026-02-04
+------------------------
+
 # CLPR Ship of Theseus Suite
 
 ## Purpose and scope

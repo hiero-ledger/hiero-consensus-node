@@ -1,9 +1,10 @@
 ---
+
 scope: clpr
 audience: engineering
 status: draft
 last_updated: 2026-01-28
----
+------------------------
 
 # Current CLPR implementation (verified)
 
@@ -51,4 +52,3 @@ implemented yet.
 - clpr-overview.md
 - hapi-test-framework-changes.md
 - ship-of-theseus-suite.md
-

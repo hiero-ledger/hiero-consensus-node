@@ -1,3 +1,11 @@
+---
+
+scope: clpr
+audience: engineering
+status: draft
+last_updated: 2026-02-04
+------------------------
+
 # HAPI Test Framework Changes for CLPR Ship of Theseus
 
 ## Purpose

@@ -1,9 +1,10 @@
 ---
+
 scope: clpr
 audience: engineering
 status: draft
-last_updated: 2026-02-02
----
+last_updated: 2026-02-04
+------------------------
 
 # Messaging layer (target)
 
@@ -13,7 +14,13 @@ last_updated: 2026-02-02
 - Form bundles and transmit them with state proofs.
 - Verify inbound bundles and state proofs.
 - Provide verified messages to the middleware.
+- Provide the assigned message id with inbound message delivery so middleware
+  can populate responses.
 - Track queue metadata for send/receive progress and running hashes.
+- Expose enqueue/handle APIs for requests and responses.
+- Proof verification is handled entirely within the messaging layer; middleware
+  receives only verified messages.
+- Deliver messages and responses exactly once per connection.
 
 ## Connections and endpoints
 
@@ -52,3 +59,8 @@ last_updated: 2026-02-02
 - Message ids are inferred from the last message id in the proof,
   enabling deterministic ordering without per-message ids in the
   bundle list.
+
+## API expectations (MVP)
+
+- Middleware guarantees message validity before enqueue.
+- Queue failures return typed reasons to middleware; failure catalog is deferred.

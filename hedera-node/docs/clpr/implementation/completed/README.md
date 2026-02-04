@@ -1,9 +1,10 @@
 ---
+
 scope: clpr
 audience: engineering
 status: draft
 last_updated: 2026-01-28
----
+------------------------
 
 # Completed work logs
 
@@ -17,4 +18,3 @@ Recommended sections:
 - Requirements satisfied
 - Tests added or updated
 - Notes
-

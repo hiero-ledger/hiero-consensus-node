@@ -1,9 +1,10 @@
 ---
+
 scope: clpr
 audience: engineering
 status: draft
 last_updated: 2026-01-28
----
+------------------------
 
 # CLPR overview
 
@@ -62,14 +63,6 @@ multiple languages and environments (Java, Solidity, Rust, Go, WASM, etc.).
 Ledger-specific state proofs are encapsulated as verifiable proof types so
 additional ledgers can be supported without changing middleware semantics.
 
-## Prototype alignment (current implementation)
-
-The current prototype focuses on exchanging ledger configurations between
-networks using dev-mode state proofs. Message queue metadata/content exchange,
-connector economics, and full application message transport are not yet
-implemented in code.
-
 ## What this doc excludes
 
 Detailed message formats and evolving API specifics belong in implementation/.
-
