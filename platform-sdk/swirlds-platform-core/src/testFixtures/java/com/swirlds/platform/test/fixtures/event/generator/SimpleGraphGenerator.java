@@ -49,6 +49,7 @@ public class SimpleGraphGenerator {
     private final PbjStreamHasher hasher;
     /** The maximum number of other parents an event can have */
     private final int maxOtherParents;
+
     private final EventSigner eventSigner;
 
     /**
@@ -70,7 +71,6 @@ public class SimpleGraphGenerator {
         this.hasher = new PbjStreamHasher();
         this.eventSigner = eventSigner;
     }
-
 
     public @NonNull Roster getRoster() {
         return roster;
@@ -101,19 +101,18 @@ public class SimpleGraphGenerator {
      * Build the event
      */
     public PlatformEvent generateEvent() {
-        final List<Integer> nodeIndices = IntStream.range(0, roster.rosterEntries().size()).boxed()
+        final List<Integer> nodeIndices = IntStream.range(
+                        0, roster.rosterEntries().size())
+                .boxed()
                 .collect(ArrayList::new, List::add, List::addAll);
         Collections.shuffle(nodeIndices, random);
 
-
         final Integer eventCreator = nodeIndices.removeLast();
         final List<EventDescriptor> parents = new ArrayList<>();
-        if(latestEventPerNode[eventCreator] != null) {
+        if (latestEventPerNode[eventCreator] != null) {
             parents.add(latestEventPerNode[eventCreator]);
         }
-        nodeIndices
-                .subList(0, Math.min(maxOtherParents, nodeIndices.size()))
-                .stream()
+        nodeIndices.subList(0, Math.min(maxOtherParents, nodeIndices.size())).stream()
                 .map(i -> latestEventPerNode[i])
                 .filter(Objects::nonNull)
                 .forEach(parents::add);
@@ -129,8 +128,7 @@ public class SimpleGraphGenerator {
                 birthRound,
                 getNextTimestamp(),
                 transactions,
-                coin
-        );
+                coin);
         hasher.hashUnsignedEvent(unsignedEvent);
 
         final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, eventSigner.signEvent(unsignedEvent));

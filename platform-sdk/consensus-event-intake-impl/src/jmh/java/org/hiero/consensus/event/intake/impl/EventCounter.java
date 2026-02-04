@@ -1,7 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.impl;
 
-import java.time.Duration;
-import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -11,9 +10,11 @@ public class EventCounter implements Consumer<PlatformEvent> {
     private final int expectedEventCount;
     private int currentEventCount = 0;
     private final CountDownLatch countDownLatch = new CountDownLatch(1);
+
     public EventCounter(final int expectedEventCount) {
         this.expectedEventCount = expectedEventCount;
     }
+
     @Override
     public void accept(final PlatformEvent event) {
         currentEventCount++;
@@ -26,8 +27,8 @@ public class EventCounter implements Consumer<PlatformEvent> {
         try {
             final boolean done = countDownLatch.await(5, TimeUnit.SECONDS);
             if (!done) {
-                throw new RuntimeException("Timed out waiting for events. Received " + currentEventCount +
-                        " out of " + expectedEventCount);
+                throw new RuntimeException("Timed out waiting for events. Received " + currentEventCount + " out of "
+                        + expectedEventCount);
             }
         } catch (final InterruptedException e) {
             throw new RuntimeException(e);

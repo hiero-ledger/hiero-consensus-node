@@ -1,7 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.addressbook;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import java.security.PrivateKey;
 import java.util.Collections;
 import java.util.Map;
 import org.hiero.consensus.model.node.KeysAndCerts;

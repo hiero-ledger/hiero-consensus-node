@@ -107,7 +107,7 @@ public class RandomRosterBuilder {
     }
 
     public RosterWithKeys buildWithKeys() {
-        if(!realKeys) {
+        if (!realKeys) {
             throw new IllegalStateException("Cannot build roster with keys when real keys are not enabled");
         }
         final Roster roster = build();

@@ -20,8 +20,7 @@ public class CryptoArgsProvider {
      */
     static Stream<Arguments> basicTestArgs() {
         final RosterAndCerts rosterAndCerts = genRosterLoadKeys(NUMBER_OF_ADDRESSES);
-        return Stream.of(
-                Arguments.of(rosterAndCerts.roster(), rosterAndCerts.nodeIdKeysAndCertsMap()));
+        return Stream.of(Arguments.of(rosterAndCerts.roster(), rosterAndCerts.nodeIdKeysAndCertsMap()));
     }
 
     /**

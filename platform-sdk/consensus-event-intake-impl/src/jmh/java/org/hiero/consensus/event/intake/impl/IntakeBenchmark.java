@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.impl;
 
-
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
@@ -68,18 +67,17 @@ public class IntakeBenchmark {
                 .build();
         events = generator.generateEvents(numEvents);
         // remove the hashes to force recalculation
-        events.forEach(e->e.setHash(null));
+        events.forEach(e -> e.setHash(null));
 
         final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
-        final ForkJoinPool defaultPool =
-                platformContext.getExecutorFactory().createForkJoinPool(numberOfThreads);
+        final ForkJoinPool defaultPool = platformContext.getExecutorFactory().createForkJoinPool(numberOfThreads);
         model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .enableJvmAnchor()
                 .withDefaultPool(defaultPool)
                 .withWiringConfig(wiringConfig)
                 .build();
-        final RosterHistory rosterHistory =
-                new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, generator.getRoster()));
+        final RosterHistory rosterHistory = new RosterHistory(
+                List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, generator.getRoster()));
 
         intake = new DefaultEventIntakeModule();
         intake.initialize(
@@ -89,9 +87,8 @@ public class IntakeBenchmark {
                 platformContext.getTime(),
                 rosterHistory,
                 new NoOpIntakeEventCounter(),
-                new TransactionLimits(1000,1000),
-                new EventPipelineTracker(platformContext.getMetrics())
-        );
+                new TransactionLimits(1000, 1000),
+                new EventPipelineTracker(platformContext.getMetrics()));
         counter = new EventCounter(numEvents);
         intake.validatedEventsOutputWire().solderForMonitoring(counter);
         // builds the input wire
@@ -122,4 +119,3 @@ public class IntakeBenchmark {
         counter.waitForAllEvents();
     }
 }
-

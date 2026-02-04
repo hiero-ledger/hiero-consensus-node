@@ -130,12 +130,7 @@ public class SimpleGraphGeneratorBuilder {
      */
     public SimpleGraphGenerator build() {
         return new SimpleGraphGenerator(
-                getConfiguration(),
-                getTime(),
-                getSeed(),
-                getMaxOtherParents(),
-                getRoster(),
-                getEventSigner());
+                getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), getRoster(), getEventSigner());
     }
 
     private Configuration getConfiguration() {

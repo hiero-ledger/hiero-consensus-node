@@ -5,16 +5,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGeneratorBuilder;
-import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.BranchingEventSource;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
-import org.hiero.consensus.test.fixtures.Randotron;
 
 public class HashgraphGui {
 
@@ -37,8 +27,8 @@ public class HashgraphGui {
                 .seed(0)
                 .build();
 
-        final TestGuiSource guiSource = new TestGuiSource(
-                platformContext, generator.getRoster(), new SimpleGeneratorProvider(generator));
+        final TestGuiSource guiSource =
+                new TestGuiSource(platformContext, generator.getRoster(), new SimpleGeneratorProvider(generator));
         guiSource.generateEvents(initialEvents);
         guiSource.runGui();
     }

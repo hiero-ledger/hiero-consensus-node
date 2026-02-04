@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.generator;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -32,9 +33,7 @@ public class GeneratorConsensus {
     private final ConsensusLinker linker;
 
     public GeneratorConsensus(
-            @NonNull final Configuration configuration,
-            @NonNull final Time time,
-            @NonNull final Roster roster) {
+            @NonNull final Configuration configuration, @NonNull final Time time, @NonNull final Roster roster) {
         consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), roster);
         linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
         orphanBuffer = new DefaultOrphanBuffer(new NoOpMetrics(), new NoOpIntakeEventCounter());
@@ -61,7 +60,7 @@ public class GeneratorConsensus {
         }
     }
 
-    public long getCurrentBirthRound(){
+    public long getCurrentBirthRound() {
         return consensus.getLastRoundDecided() + 1;
     }
 }

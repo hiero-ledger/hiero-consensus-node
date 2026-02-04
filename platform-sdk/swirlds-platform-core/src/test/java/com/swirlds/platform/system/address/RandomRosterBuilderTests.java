@@ -53,13 +53,16 @@ class RandomRosterBuilderTests {
         // Only generate small address book (it's expensive to generate signatures)
         final int size = 3;
 
-        final RosterWithKeys rosterWithKeysA = RandomRosterBuilder.create(randotron).withSize(size)
-                .withRealKeysEnabled(true).buildWithKeys();
+        final RosterWithKeys rosterWithKeysA = RandomRosterBuilder.create(randotron)
+                .withSize(size)
+                .withRealKeysEnabled(true)
+                .buildWithKeys();
         final Roster rosterA = rosterWithKeysA.getRoster();
 
         final Roster rosterB = RandomRosterBuilder.create(randotron.copyAndReset())
                 .withSize(size)
-                .withRealKeysEnabled(true).build();
+                .withRealKeysEnabled(true)
+                .build();
 
         // The address book should be the same (keys should be deterministic)
         assertEquals(RosterUtils.hash(rosterA), RosterUtils.hash(rosterB));

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.gui;
 
 import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGenerator;
@@ -5,7 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 
-public class SimpleGeneratorProvider implements GuiEventProvider{
+public class SimpleGeneratorProvider implements GuiEventProvider {
     private final SimpleGraphGenerator generator;
 
     public SimpleGeneratorProvider(final SimpleGraphGenerator generator) {
@@ -20,6 +21,6 @@ public class SimpleGeneratorProvider implements GuiEventProvider{
 
     @Override
     public void reset() {
-        throw  new UnsupportedOperationException();
+        throw new UnsupportedOperationException();
     }
 }

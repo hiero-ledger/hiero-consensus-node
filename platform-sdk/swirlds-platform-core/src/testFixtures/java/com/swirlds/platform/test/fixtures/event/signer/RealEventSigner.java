@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.signer;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -28,8 +29,8 @@ public class RealEventSigner implements EventSigner {
     public Bytes signEvent(final UnsignedEvent unsignedEvent) {
         final BytesSigner signer = signers.get(unsignedEvent.getMetadata().getCreatorId());
         if (signer == null) {
-            throw new IllegalStateException(
-                    "No signer found for node ID: " + unsignedEvent.getMetadata().getCreatorId());
+            throw new IllegalStateException("No signer found for node ID: "
+                    + unsignedEvent.getMetadata().getCreatorId());
         }
         if (unsignedEvent.getHash() == null) {
             throw new IllegalStateException("The event must have a hash before it can be signed");
