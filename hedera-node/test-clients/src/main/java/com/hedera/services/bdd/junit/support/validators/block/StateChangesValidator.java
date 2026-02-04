@@ -47,7 +47,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.blocks.BlockStreamManager;
-import com.hedera.node.app.blocks.StreamingTreeHasher;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.hapi.utils.CommonUtils;
@@ -314,7 +314,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
         logger.info("Beginning validation of expected root hash {}", expectedRootHash);
-        var previousBlockHash = BlockStreamManager.ZERO_BLOCK_HASH;
+        var previousBlockHash = BlockStreamManager.HASH_OF_ZERO;
         var startOfStateHash = requireNonNull(genesisStateHash).getBytes();
 
         final int n = blocks.size();
@@ -478,7 +478,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                             .previousBlockRootHash();
                 }
 
-                incrementalBlockHashes.addLeaf(previousBlockHash.toByteArray());
+                incrementalBlockHashes.addNodeByHash(previousBlockHash.toByteArray());
             }
         }
         logger.info("Summary of changes by service:\n{}", stateChangesSummary);
@@ -593,21 +593,21 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private static Bytes hashLeaf(final Bytes leafData) {
         final var digest = sha384DigestOrThrow();
-        digest.update(StreamingTreeHasher.LEAF_PREFIX);
+        digest.update(BlockImplUtils.LEAF_PREFIX);
         digest.update(leafData.toByteArray());
         return Bytes.wrap(digest.digest());
     }
 
     private static Bytes hashInternalNodeSingleChild(final Bytes hash) {
         final var digest = sha384DigestOrThrow();
-        digest.update(StreamingTreeHasher.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
+        digest.update(BlockImplUtils.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
         digest.update(hash.toByteArray());
         return Bytes.wrap(digest.digest());
     }
 
     private static Bytes hashInternalNode(final Bytes leftChildHash, final Bytes rightChildHash) {
         final var digest = sha384DigestOrThrow();
-        digest.update(StreamingTreeHasher.INTERNAL_NODE_PREFIX);
+        digest.update(BlockImplUtils.INTERNAL_NODE_PREFIX);
         digest.update(leftChildHash.toByteArray());
         digest.update(rightChildHash.toByteArray());
         return Bytes.wrap(digest.digest());
