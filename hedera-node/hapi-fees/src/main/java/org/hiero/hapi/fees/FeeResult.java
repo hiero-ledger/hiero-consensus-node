@@ -212,8 +212,7 @@ public class FeeResult {
         return clampedMultiply(amount, rawMultiplier) / scale;
     }
 
-    private static void scaleFeeDetails(
-            final List<FeeDetail> details, final long rawMultiplier, final long scale) {
+    private static void scaleFeeDetails(final List<FeeDetail> details, final long rawMultiplier, final long scale) {
         if (details.isEmpty()) {
             return;
         }

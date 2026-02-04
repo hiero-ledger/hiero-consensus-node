@@ -256,7 +256,8 @@ class SimpleFeeCalculatorImplTest {
                 .baseFee(1000)
                 .highVolumeRates(highVolumeRates)
                 .build();
-        final var schedule = FeeSchedule.DEFAULT.copyBuilder()
+        final var schedule = FeeSchedule.DEFAULT
+                .copyBuilder()
                 .node(NodeFee.newBuilder().baseFee(0).build())
                 .network(NetworkFee.newBuilder().multiplier(1).build())
                 .services(makeService("CryptoService", cryptoCreateFee))
@@ -320,7 +321,8 @@ class SimpleFeeCalculatorImplTest {
                 .baseFee(1000)
                 .highVolumeRates(highVolumeRates)
                 .build();
-        final var schedule = FeeSchedule.DEFAULT.copyBuilder()
+        final var schedule = FeeSchedule.DEFAULT
+                .copyBuilder()
                 .node(NodeFee.newBuilder().baseFee(0).build())
                 .network(NetworkFee.newBuilder().multiplier(1).build())
                 .services(makeService("CryptoService", cryptoCreateFee))

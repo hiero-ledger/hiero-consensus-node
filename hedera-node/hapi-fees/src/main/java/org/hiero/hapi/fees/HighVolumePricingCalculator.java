@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees;
 
+import static java.util.Objects.requireNonNull;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.hiero.hapi.support.fees.PricingCurve;
 import org.hiero.hapi.support.fees.VariableRateDefinition;
-
-import static java.util.Objects.requireNonNull;
 
 /**
  * Calculates the fee multiplier for high-volume transactions based on throttle utilization
@@ -63,13 +62,19 @@ public final class HighVolumePricingCalculator {
         final int clampedUtilization = Math.max(0, Math.min(utilizationBasisPoints, UTILIZATION_SCALE));
 
         long rawMultiplier;
-        if (pricingCurve == null || !pricingCurve.hasPiecewiseLinear() || pricingCurve.piecewiseLinearOrElse(PiecewiseLinearCurve.DEFAULT).points().isEmpty()) {
+        if (pricingCurve == null
+                || !pricingCurve.hasPiecewiseLinear()
+                || pricingCurve
+                        .piecewiseLinearOrElse(PiecewiseLinearCurve.DEFAULT)
+                        .points()
+                        .isEmpty()) {
             // No pricing curve specified - use linear interpolation between 1x (1000) and max_multiplier
             rawMultiplier =
                     linearInterpolate(0, (int) MULTIPLIER_SCALE, UTILIZATION_SCALE, maxMultiplier, clampedUtilization);
         } else {
             // Use piecewise linear curve
-            rawMultiplier = interpolatePiecewiseLinear(requireNonNull(pricingCurve.piecewiseLinear()), clampedUtilization);
+            rawMultiplier =
+                    interpolatePiecewiseLinear(requireNonNull(pricingCurve.piecewiseLinear()), clampedUtilization);
         }
 
         // Cap at max multiplier, enforce minimum multiplier
@@ -131,11 +136,12 @@ public final class HighVolumePricingCalculator {
     /**
      * Performs linear interpolation between two points.
      */
-    private static long linearInterpolate(final int lowerUtilization,
-                                          final long lowerMultiplier,
-                                          final int upperUtilization,
-                                          final long upperMultiplier,
-                                          final int utilization) {
+    private static long linearInterpolate(
+            final int lowerUtilization,
+            final long lowerMultiplier,
+            final int upperUtilization,
+            final long upperMultiplier,
+            final int utilization) {
         if (upperUtilization == lowerUtilization) {
             return lowerMultiplier;
         }

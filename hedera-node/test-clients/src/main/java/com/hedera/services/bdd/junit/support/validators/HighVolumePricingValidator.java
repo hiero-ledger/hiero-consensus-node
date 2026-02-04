@@ -138,8 +138,7 @@ public class HighVolumePricingValidator {
                                 multiplier >= MULTIPLIER_SCALE,
                                 name + ": point multiplier must be at least " + MULTIPLIER_SCALE);
                         points.add(new ActualPoint(
-                                point.get("utilizationBasisPoints").asInt(),
-                                multiplier));
+                                point.get("utilizationBasisPoints").asInt(), multiplier));
                     }
                     curves.put(name, new ActualPricingCurve(maxMultiplier, points));
                 }

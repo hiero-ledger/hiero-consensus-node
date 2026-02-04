@@ -107,9 +107,7 @@ class HighVolumePricingValidatorTest {
 
         HighVolumePricingValidator validator = new HighVolumePricingValidator(invalidFile);
         assertThrows(
-                AssertionError.class,
-                validator::validate,
-                "Validation should fail when max multiplier is below 1000");
+                AssertionError.class, validator::validate, "Validation should fail when max multiplier is below 1000");
     }
 
     @Test

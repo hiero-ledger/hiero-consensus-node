@@ -4,7 +4,6 @@ package org.hiero.hapi.fees;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.List;
-
 import org.hiero.hapi.support.fees.PiecewiseLinearCurve;
 import org.hiero.hapi.support.fees.PiecewiseLinearPoint;
 import org.hiero.hapi.support.fees.PricingCurve;
@@ -215,8 +214,7 @@ class HighVolumePricingCalculatorTest {
         @DisplayName("Caps result at max multiplier")
         void capsResultAtMaxMultiplier() {
             // Create a curve that would exceed max multiplier
-            final var curve =
-                    createPiecewiseLinearCurve(point(0, 1000), point(10000, 10000)); // Would be 10x at 100%
+            final var curve = createPiecewiseLinearCurve(point(0, 1000), point(10000, 10000)); // Would be 10x at 100%
             final var variableRate = createVariableRateWithCurve(5000, curve);
 
             // Should be capped at maxmultiplier (5,000 = 5.0x)
