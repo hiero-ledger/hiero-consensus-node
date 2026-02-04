@@ -79,7 +79,7 @@ public class IntakeBenchmark {
                 .seed(seed)
                 .realSignatures(true)
                 .build();
-        events = generator.generateEvents(numEvents);
+        events = generator.nextEvents(numEvents);
         // remove the hashes to force recalculation
         events.forEach(e -> e.setHash(null));
 

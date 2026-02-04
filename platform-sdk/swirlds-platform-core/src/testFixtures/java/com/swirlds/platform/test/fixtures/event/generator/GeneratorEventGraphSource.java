@@ -102,20 +102,6 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     }
 
     /**
-     * Generates the specified number of events, each linked to the evolving graph state.
-     *
-     * @param count the number of events to generate
-     * @return a list of generated events
-     */
-    public List<PlatformEvent> generateEvents(final int count) {
-        final List<PlatformEvent> events = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            events.add(next());
-        }
-        return events;
-    }
-
-    /**
      * Generates a single event with the hash populated.
      *
      * @return the generated event

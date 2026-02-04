@@ -35,7 +35,7 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().build();
 
-        final List<PlatformEvent> events = generator.generateEvents(100);
+        final List<PlatformEvent> events = generator.nextEvents(100);
 
         boolean anyTransactions = false;
         assertEquals(100, events.size());
@@ -62,8 +62,8 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource gen2 =
                 GeneratorEventGraphSourceBuilder.builder().seed(seed).build();
 
-        final List<PlatformEvent> events1 = gen1.generateEvents(200);
-        final List<PlatformEvent> events2 = gen2.generateEvents(200);
+        final List<PlatformEvent> events1 = gen1.nextEvents(200);
+        final List<PlatformEvent> events2 = gen2.nextEvents(200);
 
         assertEquals(events1.size(), events2.size());
         for (int i = 0; i < events1.size(); i++) {
@@ -80,8 +80,8 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource gen2 =
                 GeneratorEventGraphSourceBuilder.builder().seed(2L).build();
 
-        final List<PlatformEvent> events1 = gen1.generateEvents(50);
-        final List<PlatformEvent> events2 = gen2.generateEvents(50);
+        final List<PlatformEvent> events1 = gen1.nextEvents(50);
+        final List<PlatformEvent> events2 = gen2.nextEvents(50);
 
         boolean anyDifference = false;
         for (int i = 0; i < events1.size(); i++) {
@@ -115,7 +115,7 @@ class GeneratorEventGraphSourceTest {
                 .build();
 
         // Generate enough events so every node should appear at least once
-        final List<PlatformEvent> events = generator.generateEvents(500);
+        final List<PlatformEvent> events = generator.nextEvents(500);
 
         final Set<NodeId> creators = new HashSet<>();
         for (final PlatformEvent event : events) {
@@ -156,7 +156,7 @@ class GeneratorEventGraphSourceTest {
         assertEquals(roster, generator.getRoster());
         assertEquals(3, generator.getRoster().rosterEntries().size());
 
-        final List<PlatformEvent> events = generator.generateEvents(50);
+        final List<PlatformEvent> events = generator.nextEvents(50);
         assertEquals(50, events.size());
     }
 
@@ -171,7 +171,7 @@ class GeneratorEventGraphSourceTest {
                 .seed(99L)
                 .build();
 
-        final List<PlatformEvent> events = generator.generateEvents(300);
+        final List<PlatformEvent> events = generator.nextEvents(300);
 
         for (final PlatformEvent event : events) {
             assertTrue(
@@ -191,7 +191,7 @@ class GeneratorEventGraphSourceTest {
                 .seed(7L)
                 .build();
 
-        final List<PlatformEvent> events = generator.generateEvents(100);
+        final List<PlatformEvent> events = generator.nextEvents(100);
 
         for (final PlatformEvent event : events) {
             assertTrue(event.getOtherParents().isEmpty(), "events should have no other parents");
@@ -205,7 +205,7 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().seed(0L).build();
 
-        final List<PlatformEvent> events = generator.generateEvents(500);
+        final List<PlatformEvent> events = generator.nextEvents(500);
 
         long previousBirthRound = events.getFirst().getBirthRound();
         for (final PlatformEvent event : events) {
@@ -227,7 +227,7 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().seed(0L).build();
 
-        final List<PlatformEvent> events = generator.generateEvents(200);
+        final List<PlatformEvent> events = generator.nextEvents(200);
 
         for (int i = 1; i < events.size(); i++) {
             assertFalse(
@@ -243,7 +243,7 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().seed(0L).build();
 
-        final List<PlatformEvent> events = generator.generateEvents(200);
+        final List<PlatformEvent> events = generator.nextEvents(200);
 
         for (final PlatformEvent event : events) {
             final EventDescriptorWrapper selfParent = event.getSelfParent();
@@ -263,7 +263,7 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().numNodes(4).seed(0L).build();
 
-        final List<PlatformEvent> events = generator.generateEvents(200);
+        final List<PlatformEvent> events = generator.nextEvents(200);
 
         for (final PlatformEvent event : events) {
             for (final EventDescriptorWrapper otherParent : event.getOtherParents()) {
@@ -326,7 +326,7 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().numNodes(1).seed(0L).build();
 
-        final List<PlatformEvent> events = generator.generateEvents(50);
+        final List<PlatformEvent> events = generator.nextEvents(50);
 
         assertEquals(50, events.size());
         final NodeId expectedCreator = RosterUtils.getNodeId(generator.getRoster(), 0);
@@ -344,7 +344,7 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().seed(0L).build();
 
-        final List<PlatformEvent> events = generator.generateEvents(200);
+        final List<PlatformEvent> events = generator.nextEvents(200);
 
         boolean anyTransactions = false;
         for (final PlatformEvent event : events) {

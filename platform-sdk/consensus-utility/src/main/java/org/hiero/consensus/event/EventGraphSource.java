@@ -2,6 +2,9 @@
 package org.hiero.consensus.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.PlatformEvent;
 
@@ -19,6 +22,23 @@ public interface EventGraphSource {
      */
     @NonNull
     PlatformEvent next();
+
+    /**
+     * Returns a list of the next {@code count} events from this source. If
+     *
+     * @param count the number of events to return
+     * @return a list of events
+     */
+    default List<PlatformEvent> nextEvents(final int count) {
+        final List<PlatformEvent> events = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            if(!hasNext()) {
+                throw new NoSuchElementException("Requested " + count + " events, but only " + i + " are available.");
+            }
+            events.add(next());
+        }
+        return events;
+    }
 
     /**
      * Checks if there are more events available from this source.
