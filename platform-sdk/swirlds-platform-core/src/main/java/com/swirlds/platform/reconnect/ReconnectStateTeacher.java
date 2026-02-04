@@ -18,7 +18,7 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.SocketException;
@@ -76,7 +76,7 @@ public class ReconnectStateTeacher {
      * @param selfId this node's ID
      * @param otherId the learner's ID
      * @param lastRoundReceived the round of the state
-     * @param signedState the state used for teaching; must be a signed VirtualMapState
+     * @param signedState the state used for teaching; must be a signed VirtualMapStateImpl
      * @param statistics reconnect metrics
      */
     public ReconnectStateTeacher(
@@ -106,7 +106,7 @@ public class ReconnectStateTeacher {
         signingWeight = signedState.getSigningWeight();
         roster = signedState.getRoster();
         hash = signedState.getState().getHash();
-        if (!(signedState.getState() instanceof VirtualMapState virtualMapState)) {
+        if (!(signedState.getState() instanceof VirtualMapStateImpl virtualMapState)) {
             throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
         }
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);

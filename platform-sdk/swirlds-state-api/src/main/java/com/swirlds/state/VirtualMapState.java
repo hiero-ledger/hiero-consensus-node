@@ -3,15 +3,15 @@ package com.swirlds.state;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.Reservable;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
 
 /**
- * Represent a state backed up by the Merkle tree. It's a {@link State} implementation that is backed by a Merkle tree.
+ * Represent a state backed up by the Virtual Map tree. It's a {@link State} implementation that is backed by a {@link VirtualMap}.
  * It provides methods to manage the service states in the merkle tree.
  * This interface supports two level of state abstractions:
  * <ul>
@@ -19,22 +19,21 @@ import org.hiero.base.crypto.Hash;
  *     <li> protobuf binary states API supporting notions of singletons, queues, and key-value pairs</li>
  * </ul>
  *
- * @param <T> The type of the root node of the Merkle tree.
  */
-public interface MerkleNodeState<T extends Reservable> extends State {
+public interface VirtualMapState extends State {
 
     /**
      * @return an instance representing a root of the Merkle tree. For most of the implementations
      * this default implementation will be sufficient.
      */
-    T getRoot();
+    VirtualMap getRoot();
 
     /**
      * {@inheritDoc}
      */
     @NonNull
     @Override
-    MerkleNodeState<T> copy();
+    VirtualMapState copy();
 
     //
     // The following block of methods is for the high-level codec-based State API operating named service states.

@@ -8,7 +8,7 @@ import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -50,7 +50,7 @@ public class IssService implements OtterService {
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
-            @NonNull final VirtualMapState state) {
+            @NonNull final VirtualMapStateImpl state) {
         this.selfId = selfId;
         this.scratchPad = Scratchpad.create(configuration, selfId, IssServiceScratchpad.class, NAME);
 

@@ -10,7 +10,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -31,7 +31,7 @@ public final class TestingAppStateInitializer {
     private TestingAppStateInitializer() {}
 
     /**
-     * Initialize the states for the given {@link MerkleNodeState}. This method will initialize both the
+     * Initialize the states for the given {@link VirtualMapState}. This method will initialize both the
      * platform and roster states.
      *
      * @param state the state to initialize
@@ -39,7 +39,7 @@ public final class TestingAppStateInitializer {
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
     public static List<Builder> initConsensusModuleStates(
-            @NonNull final MerkleNodeState state, @NonNull final Configuration configuration) {
+            @NonNull final VirtualMapState state, @NonNull final Configuration configuration) {
         List<Builder> list = new ArrayList<>();
         list.addAll(initPlatformState(state));
         list.addAll(initRosterState(state, configuration));
@@ -47,13 +47,13 @@ public final class TestingAppStateInitializer {
     }
 
     /**
-     * Initialize the platform state for the given {@link MerkleNodeState}. This method will initialize the
+     * Initialize the platform state for the given {@link VirtualMapState}. This method will initialize the
      * states used by the {@link PlatformStateService}.
      *
      * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public static List<Builder> initPlatformState(@NonNull final MerkleNodeState state) {
+    public static List<Builder> initPlatformState(@NonNull final VirtualMapState state) {
         final var schema = new V0540PlatformStateSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
@@ -76,14 +76,14 @@ public final class TestingAppStateInitializer {
     }
 
     /**
-     * Initialize the roster state for the given {@link MerkleNodeState}. This method will initialize the
+     * Initialize the roster state for the given {@link VirtualMapState}. This method will initialize the
      * states used by the {@code RosterService}.
      *
      * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
     public static List<Builder> initRosterState(
-            @NonNull final MerkleNodeState state, @NonNull final Configuration configuration) {
+            @NonNull final VirtualMapState state, @NonNull final Configuration configuration) {
         final var schema = new V0540RosterBaseSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))

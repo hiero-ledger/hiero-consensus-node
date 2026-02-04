@@ -63,14 +63,13 @@ import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
@@ -101,7 +100,7 @@ public final class StateUtils {
      */
     private static final String DEFAULT = "DEFAULT";
 
-    private static final Map<String, MerkleNodeState> states = new HashMap<>();
+    private static final Map<String, VirtualMapState> states = new HashMap<>();
     private static final Map<String, DeserializedSignedState> deserializedSignedStates = new HashMap<>();
 
     // Static JSON codec cache
@@ -111,19 +110,19 @@ public final class StateUtils {
     private StateUtils() {}
 
     /**
-     * Returns <b>mutable</b> instance of {@link MerkleNodeState} loaded from disk.
-     * @return mutable instance of {@link MerkleNodeState}
+     * Returns <b>mutable</b> instance of {@link VirtualMapState} loaded from disk.
+     * @return mutable instance of {@link VirtualMapState}
      */
-    public static MerkleNodeState getState() {
+    public static VirtualMapState getState() {
         return getState(DEFAULT);
     }
 
     /**
-     * Returns <b>mutable</b> instance of {@link MerkleNodeState} loaded from disk for a given key.
+     * Returns <b>mutable</b> instance of {@link VirtualMapState} loaded from disk for a given key.
      * @param key the key identifying the state
-     * @return mutable instance of {@link MerkleNodeState}
+     * @return mutable instance of {@link VirtualMapState}
      */
-    public static MerkleNodeState getState(String key) {
+    public static VirtualMapState getState(String key) {
         if (!states.containsKey(key)) {
             initState(key);
         }
@@ -161,7 +160,7 @@ public final class StateUtils {
             final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                     platformContext.getMetrics(),
                     platformContext.getTime(),
-                    virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                    virtualMap -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),
                     platformContext.getConfiguration());
 
             serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
@@ -177,10 +176,10 @@ public final class StateUtils {
             // need to create copy of the loaded state to make it mutable
             final HashedReservedSignedState hashedSignedState =
                     copyInitialSignedState(signedState, PlatformContextHelper.getPlatformContext());
-            final MerkleNodeState state = hashedSignedState.state().get().getState();
+            final VirtualMapState state = hashedSignedState.state().get().getState();
             states.put(key, state);
             initServiceMigrator(state, platformContext, serviceRegistry);
-            ((VirtualMap) state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
+            (state.getRoot()).getDataSource().stopAndDisableBackgroundCompaction();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -278,7 +277,7 @@ public final class StateUtils {
         final SemanticVersion version = creationSoftwareVersionOf(state);
         // previousVersion and currentVersion are the same!
         serviceMigrator.doMigrations(
-                (MerkleNodeState) state,
+                (VirtualMapState) state,
                 servicesRegistry,
                 version,
                 version,

@@ -44,8 +44,8 @@ import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.wiring.PlatformCoordinator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -88,14 +88,14 @@ class ReconnectControllerTest {
     private PlatformCoordinator platformCoordinator;
     private StateLifecycleManager stateLifecycleManager;
     private SavedStateController savedStateController;
-    private ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
+    private ConsensusStateEventHandler consensusStateEventHandler;
     private BlockingResourceProvider<ReservedSignedStateResult> stateProvider;
     private FallenBehindMonitor fallenBehindMonitor;
     private NodeId selfId;
 
     private SignedState testSignedState;
     private ReservedSignedState testReservedSignedState;
-    private MerkleNodeState testWorkingState;
+    private VirtualMapState testWorkingState;
     private SignedStateValidator signedStateValidator;
 
     @BeforeAll

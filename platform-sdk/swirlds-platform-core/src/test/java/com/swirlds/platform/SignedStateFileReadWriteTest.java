@@ -36,8 +36,8 @@ import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -98,7 +98,7 @@ class SignedStateFileReadWriteTest {
         final SignedState signedState = new RandomSignedStateGenerator()
                 .setSoftwareVersion(platformVersion)
                 .build();
-        final MerkleNodeState state = signedState.getState();
+        final VirtualMapState state = signedState.getState();
         writeHashInfoFile(platformContext, testDirectory, state);
         final StateConfig stateConfig =
                 new TestConfigBuilder().getOrCreateConfig().getConfigData(StateConfig.class);
@@ -129,7 +129,7 @@ class SignedStateFileReadWriteTest {
 
         assertFalse(exists(signatureSetFile), "signature set file should not yet exist");
 
-        MerkleNodeState state = signedState.getState();
+        VirtualMapState state = signedState.getState();
         state.copy().release();
         hashState(signedState);
         stateLifecycleManager.createSnapshot(signedState.getState(), testDirectory);

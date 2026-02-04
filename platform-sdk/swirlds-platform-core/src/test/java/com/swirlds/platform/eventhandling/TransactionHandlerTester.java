@@ -20,7 +20,6 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
@@ -40,7 +39,7 @@ public class TransactionHandlerTester implements AutoCloseable {
     private final DefaultTransactionHandler defaultTransactionHandler;
     private final List<PlatformStatusAction> submittedActions = new ArrayList<>();
     private final List<Round> handledRounds = new ArrayList<>();
-    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
+    private final ConsensusStateEventHandler consensusStateEventHandler;
     private final Instant freezeTime;
     private final Instant consensusTimestamp;
 
@@ -122,7 +121,7 @@ public class TransactionHandlerTester implements AutoCloseable {
     /**
      * @return the {@link ConsensusStateEventHandler} used by this tester
      */
-    public ConsensusStateEventHandler<MerkleNodeState> getStateEventHandler() {
+    public ConsensusStateEventHandler getStateEventHandler() {
         return consensusStateEventHandler;
     }
 

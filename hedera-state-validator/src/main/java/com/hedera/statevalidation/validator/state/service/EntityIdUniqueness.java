@@ -36,7 +36,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.ParallelProcessingUtils;
 import com.hedera.statevalidation.util.junit.MerkleNodeStateResolver;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -58,7 +58,7 @@ public class EntityIdUniqueness {
     private static final Logger log = LogManager.getLogger(EntityIdUniqueness.class);
 
     @Test
-    void validateEntityIds(final MerkleNodeState servicesState) throws InterruptedException, ExecutionException {
+    void validateEntityIds(final VirtualMapState servicesState) throws InterruptedException, ExecutionException {
         final ReadableSingletonState<EntityNumber> entityIdSingleton =
                 servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
 
@@ -144,9 +144,9 @@ public class EntityIdUniqueness {
     }
 
     @Test
-    void validateIdCounts(MerkleNodeState servicesState) throws InterruptedException, ExecutionException {
+    void validateIdCounts(VirtualMapState servicesState) throws InterruptedException, ExecutionException {
 
-        final VirtualMap vm = (VirtualMap) servicesState.getRoot();
+        final VirtualMap vm = servicesState.getRoot();
 
         final ReadableSingletonState<EntityCounts> entityIdSingleton =
                 servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);

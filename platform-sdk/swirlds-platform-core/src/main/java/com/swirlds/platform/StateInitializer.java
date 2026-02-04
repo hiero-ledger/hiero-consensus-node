@@ -15,14 +15,14 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * Encapsulates the logic for calling
- * {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SemanticVersion)}
+ * {@link ConsensusStateEventHandler#onStateInitialized(VirtualMapState, Platform, InitTrigger, SemanticVersion)}
  * startup time.
  */
 public final class StateInitializer {
@@ -55,7 +55,7 @@ public final class StateInitializer {
             trigger = RESTART;
         }
 
-        final MerkleNodeState initialState = signedState.getState();
+        final VirtualMapState initialState = signedState.getState();
 
         // Although the state from disk / genesis state is initially hashed, we are actually dealing with a copy
         // of that state here. That copy should have caused the hash to be cleared.

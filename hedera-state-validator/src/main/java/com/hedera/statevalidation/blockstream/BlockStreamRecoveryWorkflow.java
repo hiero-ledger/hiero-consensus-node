@@ -15,12 +15,11 @@ import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -36,13 +35,13 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class BlockStreamRecoveryWorkflow {
 
-    private final MerkleNodeState<VirtualMap> state;
+    private final VirtualMapState state;
     private final long targetRound;
     private final Path outputPath;
     private final String expectedRootHash;
 
     public BlockStreamRecoveryWorkflow(
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             long targetRound,
             @NonNull final Path outputPath,
             @NonNull final String expectedRootHash) {
@@ -59,7 +58,7 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final Path outputPath,
             @NonNull final String expectedHash)
             throws IOException {
-        final MerkleNodeState state = StateUtils.getState();
+        final VirtualMapState state = StateUtils.getState();
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
                 new BlockStreamRecoveryWorkflow(state, targetRound, outputPath, expectedHash);
@@ -146,7 +145,7 @@ public class BlockStreamRecoveryWorkflow {
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                vm -> new VirtualMapState(vm, platformContext.getMetrics()),
+                vm -> new VirtualMapStateImpl(vm, platformContext.getMetrics()),
                 platformContext.getConfiguration());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(

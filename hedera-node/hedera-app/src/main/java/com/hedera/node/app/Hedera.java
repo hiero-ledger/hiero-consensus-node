@@ -125,15 +125,14 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
@@ -199,10 +198,7 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
 public final class Hedera
-        implements SwirldMain<MerkleNodeState>,
-                AppContext.Gossip,
-                Consumer<PlatformEvent>,
-                ConsensusStateEventHandler<MerkleNodeState> {
+        implements SwirldMain, AppContext.Gossip, Consumer<PlatformEvent>, ConsensusStateEventHandler {
 
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
@@ -340,7 +336,7 @@ public final class Hedera
      * When initializing the State API, the state being initialized.
      */
     @Nullable
-    private MerkleNodeState initState;
+    private VirtualMapState initState;
 
     /**
      * The metrics object being used for reporting.
@@ -349,7 +345,7 @@ public final class Hedera
 
     /**
      * A {@link StateChangeListener} that accumulates state changes that are only reported once per block; in the
-     * current system, these are the singleton and queue updates. Every {@link MerkleNodeState} will have this
+     * current system, these are the singleton and queue updates. Every {@link VirtualMapState} will have this
      * listener registered.
      */
     private final BoundaryStateChangeListener boundaryStateChangeListener;
@@ -363,12 +359,12 @@ public final class Hedera
     /**
      * The state root supplier to use for creating a new state root.
      */
-    private final Supplier<MerkleNodeState> stateRootSupplier;
+    private final Supplier<VirtualMapState> stateRootSupplier;
 
     /**
      * The action to take, if any, when a consensus round is sealed.
      */
-    private final BiPredicate<Round, MerkleNodeState> onSealConsensusRound;
+    private final BiPredicate<Round, VirtualMapState> onSealConsensusRound;
 
     private final boolean quiescenceEnabled;
 
@@ -435,7 +431,7 @@ public final class Hedera
      * with the given {@link ConstructableRegistry}.
      *
      * <p>This registration is a critical side effect that must happen called before any Platform initialization
-     * steps that try to create or deserialize a {@link MerkleNodeState}.
+     * steps that try to create or deserialize a {@link VirtualMapState}.
      *
      * @param constructableRegistry the registry to register {@link RuntimeConstructable} factories with
      * @param registryFactory the factory to use for creating the services registry
@@ -461,7 +457,7 @@ public final class Hedera
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final Supplier<MerkleNodeState> baseSupplier) {
+            @NonNull final Supplier<VirtualMapState> baseSupplier) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
         requireNonNull(hintsServiceFactory);
@@ -568,7 +564,7 @@ public final class Hedera
         stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
         onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
         stateLifecycleManager = new StateLifecycleManagerImpl(
-                metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), configuration);
+                metrics, time, virtualMap -> new VirtualMapStateImpl(virtualMap, metrics), configuration);
     }
 
     /**
@@ -595,7 +591,7 @@ public final class Hedera
      */
     @Override
     @NonNull
-    public MerkleNodeState<VirtualMap> newStateRoot() {
+    public VirtualMapState newStateRoot() {
         return stateRootSupplier.get();
     }
 
@@ -603,7 +599,7 @@ public final class Hedera
      * {@inheritDoc}
      */
     @Override
-    public ConsensusStateEventHandler<MerkleNodeState> newConsensusStateEvenHandler() {
+    public ConsensusStateEventHandler newConsensusStateEvenHandler() {
         return this;
     }
 
@@ -697,7 +693,7 @@ public final class Hedera
      * @param platformConfig the platform configuration
      */
     public void initializeStatesApi(
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @NonNull final InitTrigger trigger,
             @NonNull final Configuration platformConfig) {
         requireNonNull(state);
@@ -747,7 +743,7 @@ public final class Hedera
     @Override
     @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
     public void onStateInitialized(
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
@@ -799,7 +795,7 @@ public final class Hedera
      * @param platformConfig platform configuration
      */
     private void migrateSchemas(
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @Nullable final SemanticVersion deserializedVersion,
             @NonNull final InitTrigger trigger,
             @NonNull final Configuration platformConfig) {
@@ -851,10 +847,10 @@ public final class Hedera
      * {@inheritDoc}
      *
      * <p>Called <b>AFTER</b> init and migrate have been called on the state (either the new state created from
-     * {@link SwirldMain#newStateRoot()} or an instance of {@link MerkleNodeState} created by the platform and
+     * {@link SwirldMain#newStateRoot()} or an instance of {@link VirtualMapState} created by the platform and
      * loaded from the saved state).
      *
-     * <p>(FUTURE) Consider moving this initialization into {@link #onStateInitialized(MerkleNodeState, Platform, InitTrigger, SemanticVersion)}
+     * <p>(FUTURE) Consider moving this initialization into {@link #onStateInitialized(VirtualMapState, Platform, InitTrigger, SemanticVersion)}
      * instead, as there is no special significance to having it here instead.
      */
     @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
@@ -976,7 +972,7 @@ public final class Hedera
 
             logger.debug("Shutting down the state");
             final var state = daggerApp.workingStateAccessor().getState();
-            if (state instanceof VirtualMapState msr) {
+            if (state instanceof VirtualMapStateImpl msr) {
                 msr.close();
             }
 
@@ -994,7 +990,7 @@ public final class Hedera
     @Override
     public void onPreHandle(
             @NonNull final Event event,
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
         // Will be null if the submitting node is no longer in the address book
@@ -1022,7 +1018,7 @@ public final class Hedera
     }
 
     @Override
-    public void onNewRecoveredState(@NonNull final MerkleNodeState recoveredStateRoot) {
+    public void onNewRecoveredState(@NonNull final VirtualMapState recoveredStateRoot) {
         // Always close the block manager so replay will end with a complete record file
         daggerApp.blockRecordManager().close();
     }
@@ -1034,7 +1030,7 @@ public final class Hedera
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         daggerApp.workingStateAccessor().setState(state);
         daggerApp.handleWorkflow().handleRound(state, round, stateSignatureTxnCallback);
@@ -1049,7 +1045,7 @@ public final class Hedera
      * of transactions in the event of an incident
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final VirtualMapState state) {
         requireNonNull(state);
         requireNonNull(round);
         return onSealConsensusRound.test(round, state);
@@ -1375,13 +1371,13 @@ public final class Hedera
         }
     }
 
-    private MerkleNodeState withListeners(@NonNull final MerkleNodeState root) {
+    private VirtualMapState withListeners(@NonNull final VirtualMapState root) {
         root.registerCommitListener(boundaryStateChangeListener);
         root.registerCommitListener(immediateStateChangeListener);
         return root;
     }
 
-    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
+    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final VirtualMapState state) {
         daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
         return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
     }

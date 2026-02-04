@@ -4,9 +4,9 @@ package com.swirlds.platform.system;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
@@ -15,7 +15,7 @@ import org.hiero.consensus.model.node.NodeId;
  * To implement a swirld, create a class that implements SwirldMain. Its constructor should have no parameters, and its
  * run() method should run until the user quits the swirld.
  */
-public interface SwirldMain<T extends MerkleNodeState> extends Runnable, ExecutionLayer {
+public interface SwirldMain extends Runnable, ExecutionLayer {
 
     /**
      * Get configuration types to be registered.
@@ -36,7 +36,7 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable, Executi
      *
      * <p>
      * Any changes necessary to initialize {@link State} should be made in
-     * {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SemanticVersion)}
+     * {@link ConsensusStateEventHandler#onStateInitialized(VirtualMapState, Platform, InitTrigger, SemanticVersion)}
      * </p>
      *
      * @param platform the Platform that instantiated this SwirldMain
@@ -67,20 +67,20 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable, Executi
      *         - an instance of {@code HederaStateRoot}.
      *     </li>
      *     <li>A wrapper around the root node
-     *         - an instance of {@code VirtualMapState}.
+     *         - an instance of {@code VirtualMapStateImpl}.
      *     </li>
      * </ul>
      *
      * @return state root object
      */
     @NonNull
-    T newStateRoot();
+    VirtualMapState newStateRoot();
 
     /**
      * Instantiate and return a new instance of the consensus state event handler for this SwirldMain object.
      * @return consensus state event handler
      */
-    ConsensusStateEventHandler<T> newConsensusStateEvenHandler();
+    ConsensusStateEventHandler newConsensusStateEvenHandler();
 
     /**
      * <p>

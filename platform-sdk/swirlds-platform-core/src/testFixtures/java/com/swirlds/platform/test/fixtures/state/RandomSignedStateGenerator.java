@@ -25,7 +25,7 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
@@ -69,7 +69,7 @@ public class RandomSignedStateGenerator {
 
     final Random random;
 
-    private MerkleNodeState state;
+    private VirtualMapState state;
     private Long round;
     private Hash legacyRunningEventHash;
     private Roster roster;
@@ -129,7 +129,7 @@ public class RandomSignedStateGenerator {
             softwareVersionInstance = softwareVersion;
         }
 
-        final MerkleNodeState<VirtualMap> stateInstance;
+        final VirtualMapState stateInstance;
         final long roundInstance;
         if (round == null) {
             roundInstance = Math.abs(random.nextLong());
@@ -288,7 +288,7 @@ public class RandomSignedStateGenerator {
      *
      * @return this object
      */
-    public RandomSignedStateGenerator setState(final MerkleNodeState state) {
+    public RandomSignedStateGenerator setState(final VirtualMapState state) {
         this.state = state;
         return this;
     }

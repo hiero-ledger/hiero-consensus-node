@@ -27,8 +27,8 @@ import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.wiring.PlatformCoordinator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -71,7 +71,7 @@ public class ReconnectController implements Runnable {
     private final PlatformCoordinator platformCoordinator;
     private final StateLifecycleManager stateLifecycleManager;
     private final SavedStateController savedStateController;
-    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
+    private final ConsensusStateEventHandler consensusStateEventHandler;
     private final BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultProvider;
     private final NodeId selfId;
     private final ReconnectConfig reconnectConfig;
@@ -88,7 +88,7 @@ public class ReconnectController implements Runnable {
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
-            @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
+            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultProvider,
             @NonNull final NodeId selfId,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
@@ -143,7 +143,7 @@ public class ReconnectController implements Runnable {
                 platformCoordinator.clear();
                 logger.info(RECONNECT.getMarker(), "Queues have been cleared");
 
-                final MerkleNodeState currentState = stateLifecycleManager.getMutableState();
+                final VirtualMapState currentState = stateLifecycleManager.getMutableState();
                 currentState.getHash(); // hash the state
                 int failedReconnectsInARow = 0;
                 do {
@@ -181,7 +181,7 @@ public class ReconnectController implements Runnable {
     }
 
     /** One reconnect attempt; returns true on success. */
-    private AttemptReconnectResult attemptReconnect(@NonNull final MerkleNodeState currentState)
+    private AttemptReconnectResult attemptReconnect(@NonNull final VirtualMapState currentState)
             throws InterruptedException {
         // This is a direct connection with the protocols at Gossip component.
         // reservedStateResource is a blocking data structure that will provide a signed state from one of the peers
@@ -222,7 +222,7 @@ public class ReconnectController implements Runnable {
         logger.info(STATE_HASH.getMarker(), "RECONNECT: loadState: reloading state");
         logger.debug(RECONNECT.getMarker(), "`loadState` : reloading state");
         final Hash reconnectHash = signedState.getState().getHash();
-        final MerkleNodeState state = signedState.getState();
+        final VirtualMapState state = signedState.getState();
         final SemanticVersion creationSoftwareVersion = creationSoftwareVersionOf(state);
         consensusStateEventHandler.onStateInitialized(state, platform, InitTrigger.RECONNECT, creationSoftwareVersion);
 

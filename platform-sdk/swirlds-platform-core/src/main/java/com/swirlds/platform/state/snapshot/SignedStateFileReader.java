@@ -18,8 +18,8 @@ import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -62,8 +62,8 @@ public final class SignedStateFileReader {
         checkSignedStateFilePath(stateDir);
 
         final DeserializedSignedState returnState;
-        final MerkleNodeState merkleNodeState;
-        merkleNodeState = stateLifecycleManager.loadSnapshot(stateDir);
+        final VirtualMapState virtualMapState;
+        virtualMapState = stateLifecycleManager.loadSnapshot(stateDir);
 
         final SigSet sigSet;
         final File pbjFile = stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
@@ -86,7 +86,7 @@ public final class SignedStateFileReader {
         final SignedState newSignedState = new SignedState(
                 conf,
                 ConsensusCryptoUtils::verifySignature,
-                merkleNodeState,
+                virtualMapState,
                 "SignedStateFileReader.readState()",
                 false,
                 false,
@@ -97,7 +97,7 @@ public final class SignedStateFileReader {
         newSignedState.setSigSet(sigSet);
 
         returnState = new DeserializedSignedState(
-                newSignedState.reserve("SignedStateFileReader.readState()"), merkleNodeState.getHash());
+                newSignedState.reserve("SignedStateFileReader.readState()"), virtualMapState.getHash());
 
         return returnState;
     }
@@ -158,13 +158,13 @@ public final class SignedStateFileReader {
      * See the doc for registerServiceStates(SignedState) above for more details.
      * @param state a State to register schemas in
      */
-    public static void registerServiceStates(@NonNull final MerkleNodeState state) {
+    public static void registerServiceStates(@NonNull final VirtualMapState state) {
         registerServiceState(state, new V0540PlatformStateSchema(), PlatformStateService.NAME);
         registerServiceState(state, new V0540RosterBaseSchema(), RosterStateId.SERVICE_NAME);
     }
 
     private static void registerServiceState(
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Schema<SemanticVersion> schema,
             @NonNull final String name) {
         schema.statesToCreate().stream()

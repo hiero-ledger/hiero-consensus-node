@@ -22,8 +22,8 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Test;
 class StateLifecycleManagerTests {
 
     private StateLifecycleManager stateLifecycleManager;
-    private MerkleNodeState initialState;
+    private VirtualMapState initialState;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -72,7 +72,7 @@ class StateLifecycleManagerTests {
         if (!initialState.isDestroyed()) {
             initialState.release();
         }
-        final MerkleNodeState latestImmutable = stateLifecycleManager.getLatestImmutableState();
+        final VirtualMapState latestImmutable = stateLifecycleManager.getLatestImmutableState();
         if (latestImmutable != null && latestImmutable != initialState && !latestImmutable.isDestroyed()) {
             latestImmutable.release();
         }
@@ -107,7 +107,7 @@ class StateLifecycleManagerTests {
                 state1.getReservationCount(),
                 "Loading from signed state should increment the reference count, because it is now referenced by the "
                         + "signed state and the previous immutable state in StateLifecycleManagerImpl.");
-        final MerkleNodeState consensusState1 = stateLifecycleManager.getMutableState();
+        final VirtualMapState consensusState1 = stateLifecycleManager.getMutableState();
         assertEquals(
                 1,
                 consensusState1.getRoot().getReservationCount(),
@@ -115,7 +115,7 @@ class StateLifecycleManagerTests {
 
         final SignedState ss2 = newSignedState();
         stateLifecycleManager.initStateOnReconnect(ss2.getState());
-        final MerkleNodeState consensusState2 = stateLifecycleManager.getMutableState();
+        final VirtualMapState consensusState2 = stateLifecycleManager.getMutableState();
 
         Reservable state2 = ss2.getState().getRoot();
         assertEquals(
@@ -141,11 +141,11 @@ class StateLifecycleManagerTests {
     @Test
     @DisplayName("copyMutableState() updates references and reservation counts")
     void copyMutableStateReferenceCounts() {
-        final MerkleNodeState beforeMutable = stateLifecycleManager.getMutableState();
-        final MerkleNodeState beforeImmutable = stateLifecycleManager.getLatestImmutableState();
+        final VirtualMapState beforeMutable = stateLifecycleManager.getMutableState();
+        final VirtualMapState beforeImmutable = stateLifecycleManager.getLatestImmutableState();
 
-        final MerkleNodeState afterMutable = stateLifecycleManager.copyMutableState();
-        final MerkleNodeState newLatestImmutable = stateLifecycleManager.getLatestImmutableState();
+        final VirtualMapState afterMutable = stateLifecycleManager.copyMutableState();
+        final VirtualMapState newLatestImmutable = stateLifecycleManager.getLatestImmutableState();
 
         assertSame(beforeMutable, newLatestImmutable, "Previous mutable should become latest immutable");
         assertNotSame(beforeMutable, afterMutable, "A new mutable state instance should be created");
@@ -158,7 +158,7 @@ class StateLifecycleManagerTests {
     @Test
     @DisplayName("initState() rejects second startup initialization")
     void initStateRejectsSecondStartup() {
-        final MerkleNodeState another = newState();
+        final VirtualMapState another = newState();
         assertThrows(IllegalStateException.class, () -> stateLifecycleManager.initState(another));
         another.release();
     }
@@ -166,7 +166,7 @@ class StateLifecycleManagerTests {
     @Test
     @DisplayName("initState() rejects immutable input state")
     void initStateRejectsImmutableInput() {
-        final MerkleNodeState immutable = stateLifecycleManager.getLatestImmutableState();
+        final VirtualMapState immutable = stateLifecycleManager.getLatestImmutableState();
         assertThrows(MutabilityException.class, () -> stateLifecycleManager.initState(immutable));
     }
 
@@ -200,8 +200,8 @@ class StateLifecycleManagerTests {
     @DisplayName("createStateFrom() creates a state without changing reservation count and the state of the manager")
     void createStateFrom() {
         // Create an independent state and get its root (VirtualMap)
-        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
-        final MerkleNodeState created = stateLifecycleManager.createStateFrom(state.getRoot());
+        final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
+        final VirtualMapState created = stateLifecycleManager.createStateFrom(state.getRoot());
 
         // The created state should be non-null and reference the same root
         assertSame(state.getRoot(), created.getRoot(), "createStateFrom should wrap the provided root");
@@ -219,8 +219,8 @@ class StateLifecycleManagerTests {
         state.release();
     }
 
-    private static MerkleNodeState newState() {
-        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
+    private static VirtualMapState newState() {
+        final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
         TestingAppStateInitializer.initPlatformState(state);
 
         setCreationSoftwareVersionTo(

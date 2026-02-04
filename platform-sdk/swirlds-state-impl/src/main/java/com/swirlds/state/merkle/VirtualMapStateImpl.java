@@ -32,13 +32,13 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.MerkleProof;
 import com.swirlds.state.QueueState;
 import com.swirlds.state.QueueState.QueueStateCodec;
 import com.swirlds.state.SiblingHash;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
@@ -85,9 +85,9 @@ import org.json.JSONObject;
 /**
  * An implementation of {@link State} backed by a single Virtual Map.
  */
-public class VirtualMapState implements MerkleNodeState<VirtualMap> {
+public class VirtualMapStateImpl implements VirtualMapState {
 
-    private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
+    private static final Logger logger = LogManager.getLogger(VirtualMapStateImpl.class);
 
     /**
      * Maintains information about all services known by this instance. Map keys are
@@ -118,12 +118,12 @@ public class VirtualMapState implements MerkleNodeState<VirtualMap> {
     protected VirtualMap virtualMap;
 
     /**
-     * Initializes a {@link VirtualMapState}.
+     * Initializes a {@link VirtualMapStateImpl}.
      *
      * @param configuration the platform configuration instance to use when creating the new instance of state
      * @param metrics       the platform metric instance to use when creating the new instance of state
      */
-    public VirtualMapState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+    public VirtualMapStateImpl(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
         requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         final MerkleDbDataSourceBuilder dsBuilder;
@@ -136,12 +136,12 @@ public class VirtualMapState implements MerkleNodeState<VirtualMap> {
     }
 
     /**
-     * Initializes a {@link VirtualMapState} with the specified {@link VirtualMap}.
+     * Initializes a {@link VirtualMapStateImpl} with the specified {@link VirtualMap}.
      *
      * @param virtualMap the virtual map with pre-registered metrics
      * @param metrics    the platform metric instance to use when creating the new instance of state
      */
-    public VirtualMapState(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
+    public VirtualMapStateImpl(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
         this.virtualMap = requireNonNull(virtualMap);
         this.metrics = requireNonNull(metrics);
         this.virtualMap.registerMetrics(metrics);
@@ -152,7 +152,7 @@ public class VirtualMapState implements MerkleNodeState<VirtualMap> {
      *
      * @param from The other state to fast-copy from. Cannot be null.
      */
-    protected VirtualMapState(@NonNull final VirtualMapState from) {
+    protected VirtualMapStateImpl(@NonNull final VirtualMapStateImpl from) {
         this.virtualMap = from.virtualMap.copy();
         this.metrics = from.metrics;
         this.listeners.addAll(from.listeners);
@@ -205,8 +205,8 @@ public class VirtualMapState implements MerkleNodeState<VirtualMap> {
      */
     @NonNull
     @Override
-    public VirtualMapState copy() {
-        return new VirtualMapState(this);
+    public VirtualMapStateImpl copy() {
+        return new VirtualMapStateImpl(this);
     }
 
     /**
@@ -273,8 +273,8 @@ public class VirtualMapState implements MerkleNodeState<VirtualMap> {
     }
 
     /**
-     * Get the virtual map behind {@link VirtualMapState}. For more detailed docs, see
-     * {@code MerkleNodeState#getRoot()}.
+     * Get the virtual map behind {@link VirtualMapStateImpl}. For more detailed docs, see
+     * {@code VirtualMapStateImpl#getRoot()}.
      */
     public VirtualMap getRoot() {
         return virtualMap;
@@ -337,7 +337,7 @@ public class VirtualMapState implements MerkleNodeState<VirtualMap> {
      * To be called ONLY at node shutdown. Attempts to gracefully close the Virtual Map.
      */
     public void close() {
-        logger.info("Closing VirtualMapState");
+        logger.info("Closing VirtualMapStateImpl");
         try {
             virtualMap.getDataSource().close();
         } catch (IOException e) {

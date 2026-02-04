@@ -20,9 +20,8 @@ import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -99,7 +98,7 @@ public final class StartupStateUtils {
         requireNonNull(platformContext.getConfiguration());
         requireNonNull(initialSignedState);
 
-        final MerkleNodeState stateCopy = initialSignedState.getState().copy();
+        final VirtualMapState stateCopy = initialSignedState.getState().copy();
         final SignedState signedStateCopy = new SignedState(
                 platformContext.getConfiguration(),
                 ConsensusCryptoUtils::verifySignature,
@@ -201,7 +200,7 @@ public final class StartupStateUtils {
             }
         }
 
-        final MerkleNodeState<VirtualMap> state =
+        final VirtualMapState state =
                 deserializedSignedState.reservedSignedState().get().getState();
 
         final Hash oldHash = deserializedSignedState.originalHash();
@@ -265,7 +264,7 @@ public final class StartupStateUtils {
     public static HashedReservedSignedState loadInitialState(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion softwareVersion,
-            @NonNull final Supplier<MerkleNodeState> stateRootSupplier,
+            @NonNull final Supplier<VirtualMapState> stateRootSupplier,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,

@@ -32,8 +32,8 @@ import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -127,7 +127,7 @@ public class StartupStateUtilsTests {
                 new RandomSignedStateGenerator(random).setRound(round).build();
 
         final StateLifecycleManager stateLifecycleManager = createLifecycleManager();
-        final MerkleNodeState state = signedState.getState();
+        final VirtualMapState state = signedState.getState();
         stateLifecycleManager.initState(state);
         stateLifecycleManager.getMutableState().release();
         // hash the state

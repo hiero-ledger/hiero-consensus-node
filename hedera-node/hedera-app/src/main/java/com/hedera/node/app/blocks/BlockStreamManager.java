@@ -6,8 +6,8 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -98,7 +98,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param state the state of the network at the beginning of the round
      * @throws IllegalStateException if the last block hash was not explicitly initialized
      */
-    void startRound(@NonNull Round round, @NonNull MerkleNodeState state);
+    void startRound(@NonNull Round round, @NonNull VirtualMapState state);
 
     /**
      * Confirms that the post-upgrade work has been completed.
@@ -155,7 +155,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param roundNum the number of the round that has just ended
      * @return returns true if the round is the last round in the block
      */
-    boolean endRound(@NonNull MerkleNodeState state, long roundNum);
+    boolean endRound(@NonNull VirtualMapState state, long roundNum);
 
     /**
      * Writes a block item to the stream.

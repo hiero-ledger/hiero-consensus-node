@@ -5,7 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,7 +33,7 @@ public class RosterService implements OtterService {
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
-            @NonNull final VirtualMapState state) {
+            @NonNull final VirtualMapStateImpl state) {
         log.info(STARTUP.getMarker(), "RosterService initialized");
     }
 

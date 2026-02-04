@@ -49,9 +49,9 @@ import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformCoordinator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -196,7 +196,7 @@ public class SwirldsPlatform implements Platform {
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
         final StateLifecycleManager stateLifecycleManager = blocks.stateLifecycleManager();
-        final MerkleNodeState state = initialState.getState();
+        final VirtualMapState state = initialState.getState();
         stateLifecycleManager.initState(state);
         // Genesis state must stay empty until changes can be externalized in the block stream
         if (!initialState.isGenesisState()) {

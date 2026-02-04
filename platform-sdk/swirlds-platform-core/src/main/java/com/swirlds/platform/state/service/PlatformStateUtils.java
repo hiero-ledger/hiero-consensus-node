@@ -14,8 +14,8 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -72,7 +72,7 @@ public final class PlatformStateUtils {
      * @param state         the state object to extract the data from
      * @return true is the {@code timestamp} is in a freeze period
      */
-    public static boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final MerkleNodeState state) {
+    public static boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final VirtualMapState state) {
         return isInFreezePeriod(consensusTime, freezeTimeOf(state), lastFrozenTimeOf(state));
     }
 
@@ -287,9 +287,9 @@ public final class PlatformStateUtils {
      */
     @NonNull
     public static String getInfoString(@NonNull final State state) {
-        final MerkleNodeState merkleNodeState = (MerkleNodeState) state;
-        return createInfoString(readablePlatformStateStore(state), merkleNodeState.getHash())
-                .concat(merkleNodeState.getInfoJson());
+        final VirtualMapState virtualMapState = (VirtualMapState) state;
+        return createInfoString(readablePlatformStateStore(state), virtualMapState.getHash())
+                .concat(virtualMapState.getInfoJson());
     }
 
     private static PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {

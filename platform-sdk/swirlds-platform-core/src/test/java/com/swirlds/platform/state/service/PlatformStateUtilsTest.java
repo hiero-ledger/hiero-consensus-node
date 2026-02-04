@@ -34,9 +34,9 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.EmptyReadableStates;
 import java.time.Instant;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
@@ -47,8 +47,8 @@ import org.mockito.Mockito;
 
 class PlatformStateUtilsTest {
 
-    private MerkleNodeState state;
-    private MerkleNodeState emptyState;
+    private VirtualMapState state;
+    private VirtualMapState emptyState;
     private PlatformStateModifier platformStateModifier;
 
     @BeforeEach
@@ -116,7 +116,7 @@ class PlatformStateUtilsTest {
     void testPlatformStateOf_noPlatformState() {
         final var virtualMapLabel =
                 "vm-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final VirtualMapState noPlatformState = createTestState();
+        final VirtualMapStateImpl noPlatformState = createTestState();
         noPlatformState.getReadableStates(PlatformStateService.NAME);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateOf(noPlatformState));
         noPlatformState.release();
@@ -187,7 +187,7 @@ class PlatformStateUtilsTest {
     void testSetSnapshotTo() {
         final String virtualMapLabel =
                 "vm-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final VirtualMapState randomState = createTestState();
+        final VirtualMapStateImpl randomState = createTestState();
         TestingAppStateInitializer.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState);
         final var newSnapshot = randomPlatformState.getSnapshot();

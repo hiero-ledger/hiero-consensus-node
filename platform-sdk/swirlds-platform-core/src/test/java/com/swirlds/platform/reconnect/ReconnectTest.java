@@ -19,8 +19,8 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import java.io.IOException;
@@ -104,7 +104,7 @@ final class ReconnectTest {
                 .withWeightGenerator((l, i) -> WeightGenerators.balancedNodeWeights(numNodes, weightPerNode * numNodes))
                 .build();
 
-        MerkleNodeState stateCopy = null;
+        VirtualMapState stateCopy = null;
         StateLifecycleManager stateLifecycleManager = null;
         try (final PairedStreams pairedStreams = new PairedStreams()) {
             final SignedState signedState = new RandomSignedStateGenerator()
@@ -172,7 +172,7 @@ final class ReconnectTest {
     }
 
     private ReconnectStateLearner buildReceiver(
-            final MerkleNodeState state,
+            final VirtualMapState state,
             final Connection connection,
             final ReconnectMetrics reconnectMetrics,
             final StateLifecycleManager stateLifecycleManager) {

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.state.notifications;
 
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.VirtualMapState;
 import java.time.Instant;
 import org.hiero.consensus.model.notification.AbstractNotification;
 import org.hiero.consensus.model.notification.Notification;
@@ -14,7 +14,7 @@ import org.hiero.consensus.model.notification.Notification;
  */
 public class NewSignedStateNotification extends AbstractNotification {
 
-    private final MerkleNodeState state;
+    private final VirtualMapState state;
     private final long round;
     private final Instant consensusTimestamp;
 
@@ -25,7 +25,7 @@ public class NewSignedStateNotification extends AbstractNotification {
      * @param round              the round that is now fully signed
      * @param consensusTimestamp the consensus timestamp of the round that is now fully signed
      */
-    public NewSignedStateNotification(final MerkleNodeState state, final long round, final Instant consensusTimestamp) {
+    public NewSignedStateNotification(final VirtualMapState state, final long round, final Instant consensusTimestamp) {
         this.state = state;
         this.round = round;
         this.consensusTimestamp = consensusTimestamp;

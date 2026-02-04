@@ -21,9 +21,9 @@ import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -52,7 +52,7 @@ public class ReconnectStateLearner {
     private static final long END_RECONNECT_MSG = 0x7747b5bd49693b61L;
 
     private final Connection connection;
-    private final MerkleNodeState currentState;
+    private final VirtualMapState currentState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics statistics;
     private final StateLifecycleManager stateLifecycleManager;
@@ -73,7 +73,7 @@ public class ReconnectStateLearner {
      * @param metrics the metrics system
      * @param threadManager responsible for managing thread lifecycles
      * @param connection the connection to use for the reconnect
-     * @param currentState the most recent state from the learner; must be a VirtualMapState
+     * @param currentState the most recent state from the learner; must be a VirtualMapStateImpl
      * @param reconnectSocketTimeout the amount of time that should be used for the socket timeout
      * @param statistics reconnect metrics
      * @param stateLifecycleManager the state lifecycle manager
@@ -83,7 +83,7 @@ public class ReconnectStateLearner {
             @NonNull final Metrics metrics,
             @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
-            @NonNull final MerkleNodeState currentState,
+            @NonNull final VirtualMapState currentState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
             @NonNull final StateLifecycleManager stateLifecycleManager) {
@@ -193,7 +193,7 @@ public class ReconnectStateLearner {
      */
     @NonNull
     private ReservedSignedState reconnect() throws InterruptedException {
-        if (!(currentState instanceof VirtualMapState virtualMapState)) {
+        if (!(currentState instanceof VirtualMapStateImpl virtualMapState)) {
             throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
         }
 
@@ -226,7 +226,7 @@ public class ReconnectStateLearner {
             throw new MerkleSynchronizationException(e);
         }
 
-        final MerkleNodeState receivedState = stateLifecycleManager.createStateFrom(reconnectRoot);
+        final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(reconnectRoot);
         final SignedState newSignedState = new SignedState(
                 configuration,
                 ConsensusCryptoUtils::verifySignature,

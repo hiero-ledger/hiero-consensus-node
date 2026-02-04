@@ -19,7 +19,7 @@ import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -187,7 +187,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
     @Nested
     @DisplayName("Migration Tests")
     class MigrationTest {
-        private MerkleNodeState merkleTree;
+        private VirtualMapState merkleTree;
         private SemanticVersion[] versions;
 
         @BeforeEach
