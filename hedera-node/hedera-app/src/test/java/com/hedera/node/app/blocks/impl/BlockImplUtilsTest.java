@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -57,13 +56,14 @@ class BlockImplUtilsTest {
     @Test
     void hashLeafByteArrayWithNullParamsThrows() {
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf((byte[]) null));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(sha384DigestOrThrow(), (byte[]) null));
     }
 
     @SuppressWarnings("DataFlowIssue")
     @Test
     void hashLeafBytesWithNullParamsThrows() {
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf((Bytes) null));
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(sha384DigestOrThrow(), null));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(sha384DigestOrThrow(), (Bytes) null));
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(null, Bytes.EMPTY));
     }
 
@@ -73,7 +73,7 @@ class BlockImplUtilsTest {
 
         final MessageDigest digest = MessageDigest.getInstance("SHA-384");
         final Bytes data = Bytes.fromHex("2a120816120c08d9d5d2c90610ffa8bba5033a00");
-        digest.update(StreamingTreeHasher.LEAF_PREFIX);
+        digest.update(BlockImplUtils.LEAF_PREFIX);
         final Bytes computed = Bytes.wrap(digest.digest(data.toByteArray()));
         // Precondition: verify expected matches computed value
         assertEquals(expected, computed);
@@ -85,6 +85,11 @@ class BlockImplUtilsTest {
         // Test the byte array overload
         final byte[] actualArray = BlockImplUtils.hashLeaf(data.toByteArray());
         assertArrayEquals(expected.toByteArray(), actualArray);
+
+        // Test byte array + digest overload
+        digest.reset(); // Not necessary, but specifies intent
+        final byte[] actualWithDigest = BlockImplUtils.hashLeaf(digest, data.toByteArray());
+        assertArrayEquals(expected.toByteArray(), actualWithDigest);
     }
 
     @SuppressWarnings("DataFlowIssue")
@@ -101,7 +106,7 @@ class BlockImplUtilsTest {
         final MessageDigest digest = sha384DigestOrThrow();
         final Bytes data = Bytes.fromHex(
                 "877a7ee7919309a359ee656d07e42504a2ab42c16089c235de87719c5ace1f00203c07a679d653d8d20458bf6c0ed143");
-        digest.update(StreamingTreeHasher.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
+        digest.update(BlockImplUtils.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
         final Bytes computed = Bytes.wrap(digest.digest(data.toByteArray()));
         // Precondition: verify expected matches computed value
         assertEquals(expected, computed);
@@ -149,7 +154,7 @@ class BlockImplUtilsTest {
         final Bytes data1 = Bytes.fromBase64("z0BYGz7pzcJU2tAAD6jliPT9RKkH/tRTrGl0FfG7WgF8brmYMvQHoIUD4Fp148MC");
         final Bytes data2 = Bytes.fromHex(
                 "877a7ee7919309a359ee656d07e42504a2ab42c16089c235de87719c5ace1f00203c07a679d653d8d20458bf6c0ed143");
-        StreamingTreeHasher.INTERNAL_NODE_PREFIX_BYTES.writeTo(digest);
+        BlockImplUtils.INTERNAL_NODE_PREFIX_BYTES.writeTo(digest);
         data1.writeTo(digest);
         data2.writeTo(digest);
         final Bytes computed = Bytes.wrap(digest.digest());
@@ -180,14 +185,14 @@ class BlockImplUtilsTest {
         // e2fd3dfb508f0f533c7ecc813acb62f09b6a7675f18649eb06f2caea9296abb0cb68c73b324cafd1fc342e6b6380c7da
         final var computedNoPrefix = Bytes.wrap(digest.digest());
 
-        digest.update(StreamingTreeHasher.LEAF_PREFIX);
+        digest.update(BlockImplUtils.LEAF_PREFIX);
         // 65832cbdef5675a6d51999ad0361dbbec33255afc88a781ea4355349465d5a8a5f1d6748b44a6fa99af518ff019a226e
         final var computedLeafPrefix = Bytes.wrap(digest.digest(data.toByteArray()));
         final var actualLeafPrefix = BlockImplUtils.hashLeaf(data);
         assertEquals(computedLeafPrefix, actualLeafPrefix);
         assertNotEquals(computedNoPrefix, actualLeafPrefix);
 
-        digest.update(StreamingTreeHasher.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
+        digest.update(BlockImplUtils.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
         // 264184f6b083b2927d15d0a36395c653b98c4ea679e9e5df3c50848728015338d0a6a2649058a8e4671194843034b51f
         data.writeTo(digest);
         final var computedSingleChildPrefix = Bytes.wrap(digest.digest());
@@ -195,7 +200,7 @@ class BlockImplUtilsTest {
         assertEquals(computedSingleChildPrefix, actualSingleChildPrefix);
         assertNotEquals(computedNoPrefix, actualSingleChildPrefix);
 
-        digest.update(StreamingTreeHasher.INTERNAL_NODE_PREFIX);
+        digest.update(BlockImplUtils.INTERNAL_NODE_PREFIX);
         // The internal node hash calculation requires two inputs, so use data twice
         data.writeTo(digest);
         data.writeTo(digest);
