@@ -563,6 +563,27 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
         final long blockNumber = nodeBehind.blockNumber();
         logger.info("{} Received BehindPublisher response for block {}.", this, blockNumber);
 
+        // Check if we've exceeded the BehindPublisher rate limit
+        // Record the BehindPublisher event and check if the rate limit has been exceeded.
+        // The connection manager maintains persistent stats for each node across connections.
+        if (connectionManager.recordBehindPublisherAndCheckLimit(configuration(), Instant.now())) {
+            if (logger.isInfoEnabled()) {
+                logger.info(
+                        "{} Block node has exceeded the allowed number of BehindPublisher responses "
+                                + "(received={}, permitted={}, timeWindow={}). Reconnection scheduled for {}.",
+                        this,
+                        connectionManager.getBehindPublisherCount(configuration()),
+                        connectionManager.getMaxBehindPublishersAllowed(),
+                        connectionManager.getBehindPublisherTimeframe(),
+                        connectionManager.getBehindPublisherScheduleDelay());
+            }
+            blockStreamMetrics.recordBehindPublisherLimitExceeded();
+
+            // Schedule delayed retry through connection manager
+            closeAndReschedule(connectionManager.getBehindPublisherScheduleDelay(), true);
+            return;
+        }
+
         final long blockToStream = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
         // The block node is behind us, check if we have the last verified block still available
         // to start streaming from there
