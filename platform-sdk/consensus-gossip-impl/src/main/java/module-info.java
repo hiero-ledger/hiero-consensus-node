@@ -7,38 +7,21 @@ module org.hiero.consensus.gossip.impl {
     exports org.hiero.consensus.gossip.impl.gossip to
             org.hiero.otter.fixtures,
             org.hiero.consensus.pcli,
-            com.swirlds.platform.core,
-            com.swirlds.platform.core.test.fixtures;
-    exports org.hiero.consensus.gossip.impl.gossip.permits to
-            com.swirlds.platform.core;
-    exports org.hiero.consensus.gossip.impl.gossip.rpc to
             com.swirlds.platform.core;
     exports org.hiero.consensus.gossip.impl.gossip.shadowgraph to
-            com.swirlds.platform.core,
-            com.swirlds.platform.core.test.fixtures;
+            org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.gossip.sync to
-            com.swirlds.platform.core,
-            com.swirlds.platform.core.test.fixtures;
+            org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.network to
             com.swirlds.platform.core,
-            com.swirlds.platform.core.test.fixtures;
+            org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.network.communication to
-            com.swirlds.platform.core,
-            com.swirlds.platform.core.test.fixtures;
-    exports org.hiero.consensus.gossip.impl.network.communication.handshake to
-            com.swirlds.platform.core;
-    exports org.hiero.consensus.gossip.impl.network.connection to
-            com.swirlds.platform.core;
-    exports org.hiero.consensus.gossip.impl.network.connectivity to
-            com.swirlds.platform.core;
+            org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.network.protocol to
             com.swirlds.platform.core,
-            com.swirlds.platform.core.test.fixtures;
-    exports org.hiero.consensus.gossip.impl.network.protocol.rpc to
-            com.swirlds.platform.core;
+            org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.network.topology to
-            com.swirlds.platform.core,
-            com.swirlds.platform.core.test.fixtures;
+            org.hiero.consensus.gossip.impl.test.fixtures;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
