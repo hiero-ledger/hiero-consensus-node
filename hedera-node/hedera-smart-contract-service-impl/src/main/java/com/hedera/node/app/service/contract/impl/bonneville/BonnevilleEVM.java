@@ -13,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSyst
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
+import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
@@ -2321,11 +2322,14 @@ class BEVM {
         case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
         case MessageFrame.State.EXCEPTIONAL_HALT:  {
             FrameUtils.exceptionalHalt(child);
-            var haltReason = child.getExceptionalHaltReason().get();
-            // Some Custom halt reasons from the child halts the parent also.
-            // TODO: This check should happen before we even attempt to make a child
-            if( haltReason.equals(CustomExceptionalHaltReason.INVALID_CONTRACT_ID) )
+            // Fairly obnoxious back-door signal to propagate a particular
+            // failure 1 call level, or not.  From CustomMessageCallProcessor:324
+            var maybeFailureToPropagate = FrameUtils.getAndClearPropagatedCallFailure(_frame);
+            if( maybeFailureToPropagate != HevmPropagatedCallFailure.NONE ) {
+                var haltReason = child.getExceptionalHaltReason().get();
+                assert maybeFailureToPropagate.exceptionalHaltReason().get() == haltReason;
                 halt = haltReason;
+            }
             break;
         }
         default: throw new TODO();
