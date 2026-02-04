@@ -31,10 +31,10 @@ public class FileServiceFeesSuite {
     private static final String MEMO = "Really quite something!";
     private static final String CIVILIAN = "civilian";
     private static final String KEY = "key";
-    private static final double BASE_FEE_FILE_CREATE = 0.05;
-    private static final double BASE_FEE_FILE_UPDATE = 0.05;
+    private static final double BASE_FEE_FILE_CREATE = 0.0726;
+    private static final double BASE_FEE_FILE_UPDATE = 0.0683;
     private static final double BASE_FEE_FILE_DELETE = 0.007;
-    private static final double BASE_FEE_FILE_APPEND = 0.05;
+    private static final double BASE_FEE_FILE_APPEND = 0.0621;
     private static final double BASE_FEE_FILE_GET_CONTENT = 0.0001;
     private static final double BASE_FEE_FILE_GET_FILE = 0.0001;
 

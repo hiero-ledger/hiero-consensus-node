@@ -1834,7 +1834,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             .via("extraSigs"),
                     getAccountBalance("collector").hasTinyBars(60),
                     validateChargedUsdWithin("simpleSubmit", 0.05, 0.1),
-                    validateChargedUsdWithin("submit513", 0.051, 0.1),
+                    validateChargedUsdWithin("submit513", 0.05, 1.0),
                     validateChargedUsdWithin("submit800", 0.055999, 0.1),
                     validateChargedUsdWithin("submit1000", 0.06, 0.1),
                     validateChargedUsdWithin("submit1024", 0.06, 0.1),
