@@ -192,7 +192,7 @@ public final class StateUtils {
                     platformContext.getConfiguration());
 
             serviceRegistry.register(
-                    new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getDefaultState, () -> {
+                    new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> StateUtils.getState(key), () -> {
                         throw new UnsupportedOperationException("No startup networks available");
                     }));
 
