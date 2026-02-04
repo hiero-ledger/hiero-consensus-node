@@ -71,7 +71,7 @@ public class EntityIdUniqueness {
         ParallelProcessingUtils.processRange(0, lastEntityIdNumber, number -> {
                     if (idCounter.incrementAndGet() % 100_000 == 0) {
                         // from time to time we need to create copies to limit cache growth and prevent OOM errors
-                        StateUtils.copyDefaultState();
+                        StateUtils.resetStateCache();
                     }
 
                     final MerkleNodeState state = StateUtils.getDefaultState();
@@ -196,7 +196,7 @@ public class EntityIdUniqueness {
         ParallelProcessingUtils.processRange(metadata.getFirstLeafPath(), metadata.getLastLeafPath(), number -> {
                     // from time to time we need to create copies to limit cache growth and prevent OOM errors
                     if (pathCounter.incrementAndGet() % 100_000 == 0) {
-                        StateUtils.copyDefaultState();
+                        StateUtils.resetStateCache();
                     }
 
                     final VirtualMap vm =

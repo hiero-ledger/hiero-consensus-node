@@ -68,8 +68,12 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableKVStateBase;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
@@ -130,15 +134,27 @@ public final class StateUtils {
     }
 
     /**
-     * Creates a mutable copy of the current state.
-     * @return a mutable copy of the current state
+     * Call to this method resets the state caches
      */
-    public static synchronized MerkleNodeState copyDefaultState() {
+    public static synchronized void resetStateCache() {
         if (states.get(DEFAULT) == null) {
             throw new IllegalStateException("State is not initialized yet");
         }
+        // enabling VirtualNodeCache cleanup
         states.put(DEFAULT, states.get(DEFAULT).copy());
-        return getDefaultState();
+        VirtualMapState defaultState = (VirtualMapState) getDefaultState();
+        Set<Map.Entry<String, Map<Integer, StateMetadata<?, ?>>>> serviceEntries = defaultState.getServices().entrySet();
+        // resetting readable state caches
+        for (Map.Entry<String, Map<Integer, StateMetadata<?, ?>>> serviceEntry : serviceEntries) {
+            ReadableStates readableStates = defaultState.getReadableStates(serviceEntry.getKey());
+            for (Map.Entry<Integer, StateMetadata<?,?>> stateEntry : serviceEntry.getValue().entrySet()) {
+                StateMetadata<?, ?> md = stateEntry.getValue();
+                if(md.stateDefinition().onDisk()) {
+                    ReadableKVStateBase<?, ?> readableState = (ReadableKVStateBase) readableStates.get(stateEntry.getKey());
+                    readableState.reset();
+                }
+            }
+        }
     }
 
     /**
