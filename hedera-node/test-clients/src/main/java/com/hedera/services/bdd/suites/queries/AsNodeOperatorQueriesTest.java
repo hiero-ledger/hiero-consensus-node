@@ -5,6 +5,8 @@ import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDE
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
@@ -28,10 +30,11 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -66,7 +69,9 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 /**
  * A class with Node Operator Queries tests
  */
+@Tag(ONLY_EMBEDDED)
 @Tag(CRYPTO)
+@TargetEmbeddedMode(CONCURRENT)
 @DisplayName("Node Operator Queries")
 @HapiTestLifecycle
 @OrderedInIsolation
@@ -88,7 +93,7 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
         nodes = lifecycle.getNodes();
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Only node operators don't need to sign file contents queries")
     final Stream<DynamicTest> fileGetContentsNoSigRequired() {
         final var filename = "anyFile.txt";
@@ -112,7 +117,7 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
                         .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_SIGNATURE)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Only node operators don't need to sign file info queries")
     final Stream<DynamicTest> getFileInfoQueryNoSigRequired() {
         final var filename = "anyFile.json";
@@ -136,7 +141,7 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
                         .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_SIGNATURE)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Only node operators don't need to sign contract info queries")
     final Stream<DynamicTest> getSmartContractQuerySigNotRequired() {
         final var contract = "PretendPair"; // any contract, nothing special about this one
@@ -161,7 +166,7 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
                         .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_SIGNATURE)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Only node operators don't need to sign contract bytecode queries")
     final Stream<DynamicTest> getContractBytecodeQueryNoSigRequired() {
         final var contract = "PretendPair"; // any contract, nothing special about this one
@@ -186,7 +191,7 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
                         .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_SIGNATURE)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Only node operators don't need to sign schedule info queries")
     final Stream<DynamicTest> getScheduleInfoQueryNoSigRequired() {
         final var txnToSchedule =
@@ -240,7 +245,7 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
                         .hasAnswerOnlyPrecheck(OK)));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     // Not reliable in OS X local environment for some reason
     @EnabledIfEnvironmentVariable(named = "CI", matches = "true")
     @DisplayName("Node Operator Submit Query not from Localhost")
@@ -288,7 +293,7 @@ public class AsNodeOperatorQueriesTest extends NodeOperatorQueriesBase {
         }));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Node Operator gets failure trying to submit any transaction to the Node Operator port")
     final Stream<DynamicTest> submitCryptoTransferLocalHostNodeOperatorPort() {
         // Create the transaction

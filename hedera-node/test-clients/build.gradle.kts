@@ -341,9 +341,11 @@ tasks.register<Test>("testSubprocessConcurrent") {
             // cases
             else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
+            else "(${ciTagExpression}|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
-        excludeTags("XTS")
+        // Exclude XTS tests except CONCURRENT_SUBPROCESS_VALIDATION which runs validation last via
+        // @Isolated
+        excludeTags("XTS&!CONCURRENT_SUBPROCESS_VALIDATION")
     }
 
     // Choose a different initial port for each test task if running as PR check
