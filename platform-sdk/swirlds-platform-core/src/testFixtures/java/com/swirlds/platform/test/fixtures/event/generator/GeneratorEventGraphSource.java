@@ -18,6 +18,7 @@ import java.util.Objects;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
@@ -27,12 +28,12 @@ import org.hiero.consensus.test.fixtures.Randotron;
 /**
  * A utility class for generating a graph of events.
  */
-public class SimpleGraphGenerator {
+public class GeneratorEventGraphSource implements EventGraphSource {
 
     private final EventDescriptor[] latestEventPerNode;
 
     /**
-     * The roster representing the event sources.
+     * The roster.
      */
     private final Roster roster;
 
@@ -62,7 +63,7 @@ public class SimpleGraphGenerator {
      * @param roster          the roster of network nodes
      * @param eventSigner     the signer used to produce event signatures
      */
-    public SimpleGraphGenerator(
+    GeneratorEventGraphSource(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             final long seed,
@@ -109,19 +110,19 @@ public class SimpleGraphGenerator {
     public List<PlatformEvent> generateEvents(final int count) {
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            events.add(generateEvent());
+            events.add(next());
         }
         return events;
     }
 
     /**
-     * Generates a single event with a randomly selected creator, random parents from the current graph state, random
-     * transactions, and a valid signature. The event is hashed, signed, and fed through the internal consensus before
-     * being returned.
+     * Generates a single event with the hash populated.
      *
      * @return the generated event
      */
-    public PlatformEvent generateEvent() {
+    @NonNull
+    @Override
+    public PlatformEvent next() {
         final List<Integer> nodeIndices = IntStream.range(
                         0, roster.rosterEntries().size())
                 .boxed()
@@ -158,4 +159,10 @@ public class SimpleGraphGenerator {
         latestEventPerNode[eventCreator] = platformEvent.getDescriptor().eventDescriptor();
         return platformEvent;
     }
+
+    @Override
+    public boolean hasNext() {
+        return true;
+    }
+
 }

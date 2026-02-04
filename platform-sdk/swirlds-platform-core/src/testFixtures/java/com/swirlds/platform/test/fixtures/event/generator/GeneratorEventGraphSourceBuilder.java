@@ -15,9 +15,9 @@ import java.util.Objects;
 import org.hiero.consensus.test.fixtures.Randotron;
 
 /**
- * Builder for creating {@link SimpleGraphGenerator} instances with optional parameters.
+ * Builder for creating {@link GeneratorEventGraphSource} instances with optional parameters.
  */
-public class SimpleGraphGeneratorBuilder {
+public class GeneratorEventGraphSourceBuilder {
     private static final long DEFAULT_SEED = 0L;
     private static final int DEFAULT_MAX_OTHER_PARENTS = 1;
     private static final int DEFAULT_NUM_NODES = 4;
@@ -36,8 +36,8 @@ public class SimpleGraphGeneratorBuilder {
      *
      * @return a new builder
      */
-    public static SimpleGraphGeneratorBuilder builder() {
-        return new SimpleGraphGeneratorBuilder();
+    public static GeneratorEventGraphSourceBuilder builder() {
+        return new GeneratorEventGraphSourceBuilder();
     }
 
     /**
@@ -46,7 +46,7 @@ public class SimpleGraphGeneratorBuilder {
      * @param configuration the configuration
      * @return this builder
      */
-    public SimpleGraphGeneratorBuilder configuration(@Nullable final Configuration configuration) {
+    public GeneratorEventGraphSourceBuilder configuration(@Nullable final Configuration configuration) {
         this.configuration = configuration;
         return this;
     }
@@ -57,7 +57,7 @@ public class SimpleGraphGeneratorBuilder {
      * @param time the time source
      * @return this builder
      */
-    public SimpleGraphGeneratorBuilder time(@Nullable final Time time) {
+    public GeneratorEventGraphSourceBuilder time(@Nullable final Time time) {
         this.time = time;
         return this;
     }
@@ -68,7 +68,7 @@ public class SimpleGraphGeneratorBuilder {
      * @param seed the random seed
      * @return this builder
      */
-    public SimpleGraphGeneratorBuilder seed(final long seed) {
+    public GeneratorEventGraphSourceBuilder seed(final long seed) {
         this.seed = seed;
         return this;
     }
@@ -79,7 +79,7 @@ public class SimpleGraphGeneratorBuilder {
      * @param maxOtherParents the maximum number of other parents
      * @return this builder
      */
-    public SimpleGraphGeneratorBuilder maxOtherParents(final int maxOtherParents) {
+    public GeneratorEventGraphSourceBuilder maxOtherParents(final int maxOtherParents) {
         this.maxOtherParents = maxOtherParents;
         return this;
     }
@@ -90,7 +90,7 @@ public class SimpleGraphGeneratorBuilder {
      * @param roster the roster
      * @return this builder
      */
-    public SimpleGraphGeneratorBuilder roster(@Nullable final Roster roster) {
+    public GeneratorEventGraphSourceBuilder roster(@Nullable final Roster roster) {
         if (numNodes != null) {
             throw new IllegalStateException("Cannot set roster when numNodes is already set");
         }
@@ -107,7 +107,7 @@ public class SimpleGraphGeneratorBuilder {
      * @param numNodes the number of nodes
      * @return this builder
      */
-    public SimpleGraphGeneratorBuilder numNodes(final int numNodes) {
+    public GeneratorEventGraphSourceBuilder numNodes(final int numNodes) {
         if (roster != null) {
             throw new IllegalStateException("Cannot set numNodes when roster is already set");
         }
@@ -122,7 +122,7 @@ public class SimpleGraphGeneratorBuilder {
      * @param realSignatures {@code true} to use real signatures, {@code false} for random signatures
      * @return this builder
      */
-    public SimpleGraphGeneratorBuilder realSignatures(final boolean realSignatures) {
+    public GeneratorEventGraphSourceBuilder realSignatures(final boolean realSignatures) {
         if (realSignatures && roster != null) {
             throw new IllegalStateException("Cannot use realSignatures with a supplied roster");
         }
@@ -131,12 +131,12 @@ public class SimpleGraphGeneratorBuilder {
     }
 
     /**
-     * Builds the {@link SimpleGraphGenerator} with the configured parameters.
+     * Builds the {@link GeneratorEventGraphSource} with the configured parameters.
      *
      * @return a new SimpleGraphGenerator instance
      */
-    public SimpleGraphGenerator build() {
-        return new SimpleGraphGenerator(
+    public GeneratorEventGraphSource build() {
+        return new GeneratorEventGraphSource(
                 getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), getRoster(), getEventSigner());
     }
 

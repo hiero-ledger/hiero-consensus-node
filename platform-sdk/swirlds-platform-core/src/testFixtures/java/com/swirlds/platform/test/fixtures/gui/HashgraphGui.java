@@ -3,8 +3,8 @@ package com.swirlds.platform.test.fixtures.gui;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGeneratorBuilder;
+import com.swirlds.platform.test.fixtures.event.generator.GeneratorEventGraphSource;
+import com.swirlds.platform.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 
 public class HashgraphGui {
 
@@ -21,7 +21,7 @@ public class HashgraphGui {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final SimpleGraphGenerator generator = SimpleGraphGeneratorBuilder.builder()
+        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .numNodes(4)
                 .maxOtherParents(2)
                 .seed(0)

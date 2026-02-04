@@ -8,8 +8,8 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.generator.SimpleGraphGeneratorBuilder;
+import com.swirlds.platform.test.fixtures.event.generator.GeneratorEventGraphSource;
+import com.swirlds.platform.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
@@ -35,7 +35,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 /**
  * A JMH benchmark that measures the throughput of the event intake pipeline. Events are generated using a
- * {@link SimpleGraphGenerator} with real cryptographic signatures, submitted to the intake module, and the benchmark
+ * {@link GeneratorEventGraphSource} with real cryptographic signatures, submitted to the intake module, and the benchmark
  * waits until all events have been validated and emitted.
  */
 @State(Scope.Thread)
@@ -73,7 +73,7 @@ public class IntakeBenchmark {
     public void setup() {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
-        final SimpleGraphGenerator generator = SimpleGraphGeneratorBuilder.builder()
+        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .numNodes(numNodes)
                 .maxOtherParents(1)
                 .seed(seed)

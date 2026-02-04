@@ -20,7 +20,7 @@ import org.hiero.consensus.orphan.OrphanBuffer;
 
 /**
  * Wraps the consensus implementation, orphan buffer, and linker to track consensus state during event generation. Used
- * internally by {@link SimpleGraphGenerator} to determine correct birth rounds for newly generated events.
+ * internally by {@link GeneratorEventGraphSource} to determine correct birth rounds for newly generated events.
  */
 public class GeneratorConsensus {
     /**

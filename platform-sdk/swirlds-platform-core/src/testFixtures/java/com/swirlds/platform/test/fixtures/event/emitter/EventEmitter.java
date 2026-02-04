@@ -2,13 +2,16 @@
 package com.swirlds.platform.test.fixtures.event.emitter;
 
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
+import com.swirlds.platform.test.fixtures.event.generator.GeneratorEventGraphSource;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Emits events from a graph created by a {@link GraphGenerator}.
+ * @deprecated intended to be replaced by {@link GeneratorEventGraphSource}
  */
+@Deprecated(forRemoval = true)
 public interface EventEmitter {
 
     /**
