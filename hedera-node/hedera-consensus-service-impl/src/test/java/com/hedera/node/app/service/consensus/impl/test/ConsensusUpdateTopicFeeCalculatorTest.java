@@ -14,9 +14,9 @@ import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
 import com.hedera.hapi.node.transaction.FeeExemptKeyList;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusUpdateTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
@@ -63,7 +63,7 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
             final var op = ConsensusUpdateTopicTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusUpdateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
             Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L);
@@ -87,7 +87,7 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
                     .build();
             final var body =
                     TransactionBody.newBuilder().consensusUpdateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
             // update topic base 498500000L
@@ -114,7 +114,7 @@ public class ConsensusUpdateTopicFeeCalculatorTest {
                     .build();
             final var body =
                     TransactionBody.newBuilder().consensusUpdateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(body, SimpleFeeContextUtil.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
             // update topic base 498500000L

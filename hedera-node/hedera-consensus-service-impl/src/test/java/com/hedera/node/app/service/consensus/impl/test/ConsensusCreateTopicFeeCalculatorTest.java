@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusCreateTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import java.util.List;
@@ -54,8 +55,7 @@ public class ConsensusCreateTopicFeeCalculatorTest {
             final var op = ConsensusCreateTopicTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusCreateTopic(op).build();
-            final var result = feeCalculator.calculateTxFee(
-                    body, com.hedera.node.app.spi.fees.SimpleFeeContextUtil.fromFeeContext(feeContext));
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
