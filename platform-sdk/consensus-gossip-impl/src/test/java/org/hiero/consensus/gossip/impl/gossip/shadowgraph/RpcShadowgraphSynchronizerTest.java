@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.gossip.shadowgraph;
+package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,8 +25,6 @@ import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuardFactory;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcSender;
 import org.hiero.consensus.gossip.impl.gossip.rpc.SyncData;
-import org.hiero.consensus.gossip.impl.gossip.shadowgraph.RpcPeerHandler;
-import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ShadowgraphSynchronizer;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.gossip.SyncProgress;

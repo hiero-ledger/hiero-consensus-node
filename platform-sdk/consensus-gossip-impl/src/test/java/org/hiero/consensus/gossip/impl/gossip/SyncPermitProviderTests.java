@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.gossip;
+package org.hiero.consensus.gossip.impl.gossip;
 
 import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.base.units.TimeUnit.UNIT_SECONDS;

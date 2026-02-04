@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.gossip.modular;
+package org.hiero.consensus.gossip.impl.gossip.modular;
 
 import java.io.IOException;
 import java.time.Instant;

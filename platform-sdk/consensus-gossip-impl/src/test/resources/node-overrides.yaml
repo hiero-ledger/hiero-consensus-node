@@ -1,0 +1,11 @@
+gossip:
+  interfaceBindings:
+    - { "nodeId": 0, "hostname": "10.10.10.1", "port": 1234 }
+    - { "nodeId": 1, "hostname": "10.10.10.3", "port": 1236 }
+    - { "nodeId": 2, "hostname": "10.10.10.2", "port": 1235 }
+    - { "nodeId": 3, "hostname": "2001:db8:3333:4444:5555:6666:7777:8888", "port": 1237 }
+  endpointOverrides:
+    - { "nodeId": 5, "hostname": "10.10.10.11", "port": 1238 }
+    - { "nodeId": 6, "hostname": "10.10.10.21", "port": 1239 }
+    - { "nodeId": 7, "hostname": "10.10.10.31", "port": 1240 }
+    - { "nodeId": 8, "hostname": "2001:db8:3333:4444:5555:6666:7777:8889", "port": 1241 }
