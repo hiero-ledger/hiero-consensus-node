@@ -101,7 +101,6 @@ module com.swirlds.platform.core {
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
-    requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.pces.impl;

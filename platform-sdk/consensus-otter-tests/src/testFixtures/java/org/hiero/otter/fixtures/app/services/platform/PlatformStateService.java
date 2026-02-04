@@ -12,7 +12,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -48,7 +48,7 @@ public class PlatformStateService implements OtterService {
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
-            @NonNull final VirtualMapStateImpl state) {
+            @NonNull final VirtualMapState state) {
         log.info(STARTUP.getMarker(), "PlatformStateService initialized");
     }
 

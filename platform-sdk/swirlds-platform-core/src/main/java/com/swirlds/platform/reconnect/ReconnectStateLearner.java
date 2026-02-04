@@ -23,7 +23,6 @@ import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -193,10 +192,6 @@ public class ReconnectStateLearner {
      */
     @NonNull
     private ReservedSignedState reconnect() throws InterruptedException {
-        if (!(currentState instanceof VirtualMapStateImpl virtualMapState)) {
-            throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
-        }
-
         statistics.incrementReceiverStartTimes();
 
         final SerializableDataInputStream in = new SerializableDataInputStream(connection.getDis());
@@ -207,7 +202,7 @@ public class ReconnectStateLearner {
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
-        final VirtualMap reconnectRoot = virtualMapState.getRoot().newReconnectRoot();
+        final VirtualMap reconnectRoot = currentState.getRoot().newReconnectRoot();
         final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
         // The learner view will be closed by LearningSynchronizer
         final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
@@ -215,7 +210,7 @@ public class ReconnectStateLearner {
                 threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
         try {
             synchronizer.synchronize();
-            logger.info(RECONNECT.getMarker(), () -> mapStats.format());
+            logger.info(RECONNECT.getMarker(), mapStats::format);
         } catch (final InterruptedException e) {
             logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
             Thread.currentThread().interrupt();

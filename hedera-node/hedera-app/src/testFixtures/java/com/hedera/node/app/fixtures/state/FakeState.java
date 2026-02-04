@@ -345,7 +345,7 @@ public class FakeState implements VirtualMapState {
         throw new UnsupportedOperationException();
     }
 
-    // --- New VirtualMapStateImpl mutation APIs (no-op implementations for test fixture) ---
+    // --- New VirtualMapState mutation APIs (no-op implementations for test fixture) ---
     @Override
     public void updateSingleton(int stateId, @NonNull Bytes value) {
         throw new UnsupportedOperationException();

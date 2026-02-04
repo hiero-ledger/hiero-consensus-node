@@ -8,7 +8,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -68,7 +68,7 @@ public class ConsistencyService implements OtterService {
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
-            @NonNull final VirtualMapStateImpl state) {
+            @NonNull final VirtualMapState state) {
         if (trigger != InitTrigger.GENESIS && trigger != InitTrigger.RESTART) {
             return;
         }

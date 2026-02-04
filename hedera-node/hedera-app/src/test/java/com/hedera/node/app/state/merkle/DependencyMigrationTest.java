@@ -23,6 +23,7 @@ import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -63,19 +64,19 @@ class DependencyMigrationTest extends MerkleTestBase {
 
     private ConfigProviderImpl configProvider;
 
-    private VirtualMapStateImpl merkleTree;
+    private VirtualMapState vmState;
 
     @BeforeEach
     void setUp() {
         registry = mock(ConstructableRegistry.class);
-        merkleTree = new VirtualMapStateImpl(CONFIGURATION, new NoOpMetrics());
+        vmState = new VirtualMapStateImpl(CONFIGURATION, new NoOpMetrics());
         configProvider = new ConfigProviderImpl();
         storeMetricsService = new StoreMetricsServiceImpl(new NoOpMetrics());
     }
 
     @AfterEach
     void tearDown() {
-        merkleTree.release();
+        vmState.release();
     }
 
     @Nested
@@ -106,7 +107,7 @@ class DependencyMigrationTest extends MerkleTestBase {
         void currentVersionRequired() {
             final var subject = new OrderedServiceMigrator();
             Assertions.assertThatThrownBy(() -> subject.doMigrations(
-                            merkleTree,
+                            vmState,
                             servicesRegistry,
                             null,
                             null,
@@ -123,7 +124,7 @@ class DependencyMigrationTest extends MerkleTestBase {
         void configRequired2() {
             final var subject = new OrderedServiceMigrator();
             Assertions.assertThatThrownBy(() -> subject.doMigrations(
-                            merkleTree,
+                            vmState,
                             servicesRegistry,
                             null,
                             CURRENT_VERSION,
@@ -215,7 +216,7 @@ class DependencyMigrationTest extends MerkleTestBase {
         // When: the migrations are run
         final var subject = new OrderedServiceMigrator();
         subject.doMigrations(
-                merkleTree,
+                vmState,
                 servicesRegistry,
                 null,
                 SemanticVersion.newBuilder().major(1).build(),

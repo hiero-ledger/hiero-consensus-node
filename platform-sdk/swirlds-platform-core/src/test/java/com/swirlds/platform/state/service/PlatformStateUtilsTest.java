@@ -36,7 +36,6 @@ import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
 import com.swirlds.state.VirtualMapState;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.EmptyReadableStates;
 import java.time.Instant;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
@@ -114,9 +113,7 @@ class PlatformStateUtilsTest {
 
     @Test
     void testPlatformStateOf_noPlatformState() {
-        final var virtualMapLabel =
-                "vm-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final VirtualMapStateImpl noPlatformState = createTestState();
+        final VirtualMapState noPlatformState = createTestState();
         noPlatformState.getReadableStates(PlatformStateService.NAME);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateOf(noPlatformState));
         noPlatformState.release();
@@ -185,9 +182,7 @@ class PlatformStateUtilsTest {
 
     @Test
     void testSetSnapshotTo() {
-        final String virtualMapLabel =
-                "vm-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final VirtualMapStateImpl randomState = createTestState();
+        final VirtualMapState randomState = createTestState();
         TestingAppStateInitializer.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState);
         final var newSnapshot = randomPlatformState.getSnapshot();

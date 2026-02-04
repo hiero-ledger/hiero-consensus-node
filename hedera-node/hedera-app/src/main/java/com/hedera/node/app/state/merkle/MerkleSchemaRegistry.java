@@ -47,7 +47,7 @@ import org.apache.logging.log4j.Logger;
  * then registers each and every {@link Schema} that it has. Each {@link Schema} is associated with
  * a {@link SemanticVersion}.
  *
- * <p>The Hedera application then calls {@code com.hedera.node.app.Hedera#onMigrate(VirtualMapStateImpl, InitTrigger, Metrics)} on each {@link MerkleSchemaRegistry} instance, supplying it the
+ * <p>The Hedera application then calls {@code com.hedera.node.app.Hedera#migrateSchemas(com.swirlds.state.VirtualMapState, com.hedera.hapi.node.base.SemanticVersion, com.swirlds.platform.system.InitTrigger, com.swirlds.config.api.Configuration)} on each {@link MerkleSchemaRegistry} instance, supplying it the
  * application version number and the newly created (or deserialized) but not yet hashed copy of the {@link
  * VirtualMapState}. The registry determines which {@link Schema}s to apply, possibly taking multiple migration steps,
  * to transition the merkle tree from its current version to the final version.

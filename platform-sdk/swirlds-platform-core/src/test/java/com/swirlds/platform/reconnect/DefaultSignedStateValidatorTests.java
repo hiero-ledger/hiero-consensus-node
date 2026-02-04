@@ -15,7 +15,7 @@ import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterEntryBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -311,7 +311,7 @@ class DefaultSignedStateValidatorTests {
      * @return the signed state
      */
     private SignedState stateSignedByNodes(final List<Node> signingNodes) {
-        final VirtualMapStateImpl state = VirtualMapStateTestUtils.createTestState();
+        final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
 
         final SignatureVerifier signatureVerifier = (data, signature, key) -> {
             // a signature with a 0 byte is always invalid
