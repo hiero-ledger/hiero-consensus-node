@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.emitter;
 
-import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.GeneratorEventGraphSource;
+import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;

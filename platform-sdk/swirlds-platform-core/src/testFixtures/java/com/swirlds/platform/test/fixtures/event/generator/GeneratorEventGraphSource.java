@@ -164,5 +164,4 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     public boolean hasNext() {
         return true;
     }
-
 }

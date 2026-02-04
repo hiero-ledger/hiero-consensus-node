@@ -134,9 +134,8 @@ class GeneratorEventGraphSourceTest {
     @DisplayName("numNodes controls roster size")
     void numNodesControlsRosterSize() {
         for (final int size : new int[] {2, 3, 6, 10}) {
-            final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                    .numNodes(size)
-                    .build();
+            final GeneratorEventGraphSource generator =
+                    GeneratorEventGraphSourceBuilder.builder().numNodes(size).build();
 
             assertEquals(size, generator.getRoster().rosterEntries().size());
         }
@@ -151,9 +150,8 @@ class GeneratorEventGraphSourceTest {
                 .withRealKeysEnabled(false)
                 .build();
 
-        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .roster(roster)
-                .build();
+        final GeneratorEventGraphSource generator =
+                GeneratorEventGraphSourceBuilder.builder().roster(roster).build();
 
         assertEquals(roster, generator.getRoster());
         assertEquals(3, generator.getRoster().rosterEntries().size());
@@ -178,8 +176,8 @@ class GeneratorEventGraphSourceTest {
         for (final PlatformEvent event : events) {
             assertTrue(
                     event.getOtherParents().size() <= maxOtherParents,
-                    "other parents count " + event.getOtherParents().size()
-                            + " should not exceed maxOtherParents " + maxOtherParents);
+                    "other parents count " + event.getOtherParents().size() + " should not exceed maxOtherParents "
+                            + maxOtherParents);
         }
     }
 
@@ -232,7 +230,8 @@ class GeneratorEventGraphSourceTest {
         final List<PlatformEvent> events = generator.generateEvents(200);
 
         for (int i = 1; i < events.size(); i++) {
-            assertFalse(events.get(i).getTimeCreated().isBefore(events.get(i - 1).getTimeCreated()),
+            assertFalse(
+                    events.get(i).getTimeCreated().isBefore(events.get(i - 1).getTimeCreated()),
                     "timestamps should not decrease");
         }
     }
@@ -261,18 +260,16 @@ class GeneratorEventGraphSourceTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Other parents reference different creators than the event creator")
     void otherParentsFromDifferentCreators() {
-        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .numNodes(4)
-                .seed(0L)
-                .build();
+        final GeneratorEventGraphSource generator =
+                GeneratorEventGraphSourceBuilder.builder().numNodes(4).seed(0L).build();
 
         final List<PlatformEvent> events = generator.generateEvents(200);
 
         for (final PlatformEvent event : events) {
             for (final EventDescriptorWrapper otherParent : event.getOtherParents()) {
                 // Other parents should be created by a node different from the event creator node
-                assertNotEquals(event.getCreatorId(), otherParent.creator(),
-                        "other parent should be from a different creator");
+                assertNotEquals(
+                        event.getCreatorId(), otherParent.creator(), "other parent should be from a different creator");
             }
         }
     }
@@ -326,16 +323,13 @@ class GeneratorEventGraphSourceTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Single node network generates valid events")
     void singleNodeNetworkGeneratesValidEvents() {
-        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .numNodes(1)
-                .seed(0L)
-                .build();
+        final GeneratorEventGraphSource generator =
+                GeneratorEventGraphSourceBuilder.builder().numNodes(1).seed(0L).build();
 
         final List<PlatformEvent> events = generator.generateEvents(50);
 
         assertEquals(50, events.size());
-        final NodeId expectedCreator =
-                RosterUtils.getNodeId(generator.getRoster(), 0);
+        final NodeId expectedCreator = RosterUtils.getNodeId(generator.getRoster(), 0);
 
         for (final PlatformEvent event : events) {
             assertEquals(expectedCreator, event.getCreatorId(), "all events should be from the single node");
