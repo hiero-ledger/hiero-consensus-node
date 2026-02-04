@@ -13,9 +13,9 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.gossip.impl;
+    requires transitive org.hiero.consensus.hashgraph.impl.test.fixtures;
     requires transitive org.hiero.consensus.hashgraph.impl;
     requires transitive org.hiero.consensus.hashgraph;
-    requires transitive org.hiero.consensus.model.test.fixtures;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires transitive org.hiero.consensus.utility;
@@ -32,6 +32,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.model.test.fixtures;
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.roster.test.fixtures;
     requires com.github.spotbugs.annotations;
@@ -53,10 +54,6 @@ open module com.swirlds.platform.core.test.fixtures {
     exports com.swirlds.platform.test.fixtures.stream;
     exports com.swirlds.platform.test.fixtures.sync;
     exports com.swirlds.platform.test.fixtures.utils;
-    exports com.swirlds.platform.test.fixtures.event;
-    exports com.swirlds.platform.test.fixtures.event.emitter;
-    exports com.swirlds.platform.test.fixtures.event.generator;
-    exports com.swirlds.platform.test.fixtures.event.source;
     exports com.swirlds.platform.test.fixtures.resource;
     exports com.swirlds.platform.test.fixtures.state;
     exports com.swirlds.platform.test.fixtures.state.manager;

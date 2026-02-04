@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.event.generator;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
 
-import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
-import static com.swirlds.platform.test.fixtures.event.EventUtils.weightedChoice;
-import static com.swirlds.platform.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.EventUtils.staticDynamicValue;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.EventUtils.weightedChoice;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.gui.GuiEventStorage;
-import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
-import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
-import com.swirlds.platform.test.fixtures.event.DynamicValue;
-import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
+// GUI imports commented out - will be restored when consensus-gui module is created
+// import com.swirlds.platform.gui.GuiEventStorage;
+// import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
+// import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -36,6 +34,9 @@ import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
 import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
 import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValue;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValueGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -558,11 +559,12 @@ public class StandardGraphGenerator implements GraphGenerator {
         }
     }
 
-    @SuppressWarnings("unused") // useful for debugging
-    public HashgraphGuiSource createGuiSource() {
-        return new StandardGuiSource(
-                getRoster(), new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
-    }
+    // GUI method commented out - will be restored when consensus-gui module is created
+    // @SuppressWarnings("unused") // useful for debugging
+    // public HashgraphGuiSource createGuiSource() {
+    //     return new StandardGuiSource(
+    //             getRoster(), new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
+    // }
 
     /**
      * {@inheritDoc}
