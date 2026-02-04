@@ -126,13 +126,20 @@ public class HighVolumePricingValidator {
                 if (highVolumeRates != null) {
                     final var maxMultiplier =
                             highVolumeRates.get("maxMultiplier").asInt();
+                    assertTrue(
+                            maxMultiplier >= MULTIPLIER_SCALE,
+                            name + ": maxMultiplier must be at least " + MULTIPLIER_SCALE);
                     final var points = new ArrayList<ActualPoint>();
                     final var piecewiseLinear =
                             highVolumeRates.get("pricingCurve").get("piecewiseLinear");
                     for (JsonNode point : piecewiseLinear.get("points")) {
+                        final var multiplier = point.get("multiplier").asInt();
+                        assertTrue(
+                                multiplier >= MULTIPLIER_SCALE,
+                                name + ": point multiplier must be at least " + MULTIPLIER_SCALE);
                         points.add(new ActualPoint(
                                 point.get("utilizationBasisPoints").asInt(),
-                                point.get("multiplier").asInt()));
+                                multiplier));
                     }
                     curves.put(name, new ActualPricingCurve(maxMultiplier, points));
                 }
