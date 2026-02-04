@@ -6,6 +6,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbjResponseType;
+import static com.hedera.node.app.service.contract.impl.state.ProxyEvmAccount.createDelegationIndicator;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
 
@@ -21,7 +23,6 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
-import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -141,8 +142,10 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         if (account != null) {
             if (account.deleted()) {
                 return null;
+            } else if (account.delegationAddress().length() == 0) {
+                return tuweniToPbjBytes(org.apache.tuweni.bytes.Bytes.EMPTY);
             } else {
-                return bytecodeFrom(context, account);
+                return tuweniToPbjBytes(createDelegationIndicator(pbjToTuweniBytes(account.delegationAddress())));
             }
         }
 
@@ -168,23 +171,5 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
 
         // Fallback to null
         return null;
-    }
-
-    /**
-     * Getting bytecode by contract account
-     * <p>
-     * We are getting bytecode from Account, but not from initial ContractID,
-     * because initial ContractID can be an alias to real account.
-     *
-     * @param context Context of a single query. Contains all query specific information.
-     * @param contract the account of the contract
-     * @return the bytecode
-     */
-    private Bytes bytecodeFrom(@NonNull final QueryContext context, @NonNull final Account contract) {
-        var accountId = contract.accountIdOrThrow();
-        var contractNumber = accountId.accountNumOrThrow();
-        var contractId = entityIdFactory.newContractId(contractNumber);
-        final var bytecode = context.createStore(ContractStateStore.class).getBytecode(contractId);
-        return bytecode == null ? null : bytecode.code();
     }
 }
