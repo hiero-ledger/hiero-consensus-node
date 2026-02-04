@@ -543,7 +543,7 @@ jobs:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload-file-path: slack_payload.jsonq
+          payload-file-path: slack_payload.json
 
       - name: Report failure (slack release-team)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
