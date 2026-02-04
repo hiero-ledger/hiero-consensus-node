@@ -208,10 +208,15 @@ public class FeeResult {
                 this.getServiceTotalTinycents());
     }
 
+    /**
+     * Scales the given amount by the given multiplier.
+     */
     private static long scaleAmount(final long amount, final long rawMultiplier, final long scale) {
         return clampedMultiply(amount, rawMultiplier) / scale;
     }
-
+    /**
+     * Scales the per-unit cost of each fee detail by the given multiplier.
+     */
     private static void scaleFeeDetails(final List<FeeDetail> details, final long rawMultiplier, final long scale) {
         if (details.isEmpty()) {
             return;
@@ -228,7 +233,9 @@ public class FeeResult {
         details.clear();
         details.addAll(scaled);
     }
-
+    /**
+     * Recomputes the totals based on the base fees and extra details.
+     */
     private void recomputeTotals() {
         long serviceSum = serviceBase;
         for (final var detail : serviceExtrasDetails) {
@@ -242,7 +249,14 @@ public class FeeResult {
         }
         nodeTotal = nodeSum;
     }
-
+    /**
+     * Details about a fee extra, including the name, per-unit cost, and how many were used and included.
+     * @param charged how many of the extra were charged
+     * @param included how many of the extra were included for free
+     * @param name the name of this extra
+     * @param perUnit the cost of a single extra in tiny cents.
+     * @param used how many of the extra were used
+     */
     public record FeeDetail(String name, long perUnit, long used, long included, long charged) {}
 
     @Override
