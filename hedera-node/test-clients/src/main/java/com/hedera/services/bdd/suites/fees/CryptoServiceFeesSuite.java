@@ -25,11 +25,13 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.specOps;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -411,17 +413,23 @@ public class CryptoServiceFeesSuite {
                         .maxAutomaticAssociations(-1)
                         .via(validNegativeTxn),
                 getAccountInfo(autoAssocTarget).hasMaxAutomaticAssociations(-1).logged(),
-                validateChargedUsd(baseTxn, BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE, allowedPercentDiff),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag->{
-                    if("true".equals(flag)){
-                        return validateChargedUsd(plusOneTxn, CRYPTO_UPDATE_FEE, allowedPercentDiff);
-                    }else{
-                        return validateChargedUsd(plusOneTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff);
+                doSeveralWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return specOps(
+                                validateChargedUsd(baseTxn, CRYPTO_UPDATE_FEE, allowedPercentDiff),
+                                validateChargedUsd(plusOneTxn, CRYPTO_UPDATE_FEE, allowedPercentDiff),
+                                validateChargedUsd(plusTenTxn, CRYPTO_UPDATE_FEE, allowedPercentDiff),
+                                validateChargedUsd(plusFiveKTxn, CRYPTO_UPDATE_FEE, allowedPercentDiff),
+                                validateChargedUsd(validNegativeTxn, CRYPTO_UPDATE_FEE, allowedPercentDiff));
+                    } else {
+                        return specOps(
+                                validateChargedUsd(baseTxn, BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE, allowedPercentDiff),
+                                validateChargedUsd(plusOneTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
+                                validateChargedUsd(plusTenTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
+                                validateChargedUsd(plusFiveKTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
+                                validateChargedUsd(validNegativeTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff));
                     }
-                }),
-                validateChargedUsd(plusTenTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
-                validateChargedUsd(plusFiveKTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
-                validateChargedUsd(validNegativeTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff));
+                }));
     }
 
     @HapiTest
