@@ -40,7 +40,7 @@ public class RpcOverloadMonitor {
     }
 
     /**
-     * Check if given output queue size for RPC is not an indication of overloaded communication
+     * Check if given output queue size for RPC is an indication of overloaded communication
      *
      * @param size number of items in the queue
      */
