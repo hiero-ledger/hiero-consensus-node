@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state;
 
+import com.swirlds.common.Reservable;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Path;
 
 /**
@@ -14,14 +16,28 @@ import java.nio.file.Path;
  * </ul>
  *
  */
-public interface StateLifecycleManager {
+public interface StateLifecycleManager<T extends Reservable> {
 
     /**
-     * Set the initial State. This method should only be on a startup or after a reconnect.
+     * Create a state from a root node. This method doesn't update the current mutable or immutable state.
+     * @param rootNode the root node of a Merkle tree to create a state from
+     * @return a state created from the root node
+     */
+    MerkleNodeState<T> createStateFrom(@NonNull T rootNode);
+
+    /**
+     * Set the initial State. This method should only be on a startup
      *
      * @param state the initial state
+     * @throws IllegalStateException if the state has already been initialized
      */
-    void initState(@NonNull final MerkleNodeState state, boolean onStartup);
+    void initState(@NonNull MerkleNodeState<T> state);
+
+    /**
+     * Initialize with the state on reconnect. This method should only be called on a reconnect.
+     * @param state the state to initialize with
+     */
+    void initStateOnReconnect(@NonNull MerkleNodeState<T> state);
 
     /**
      * Get the mutable state. Consecutive calls to this method may return different instances,
@@ -32,7 +48,7 @@ public interface StateLifecycleManager {
      *
      * @return the mutable state.
      */
-    MerkleNodeState getMutableState();
+    MerkleNodeState<T> getMutableState();
 
     /**
      * Get the latest immutable state. Consecutive calls to this method may return different instances
@@ -47,7 +63,7 @@ public interface StateLifecycleManager {
      *
      * @return the latest immutable state.
      */
-    MerkleNodeState getLatestImmutableState();
+    MerkleNodeState<T> getLatestImmutableState();
 
     /**
      * Creates a snapshot for the state provided as a parameter. The state has to be hashed before calling this method.
@@ -55,7 +71,7 @@ public interface StateLifecycleManager {
      * @param merkleNodeState The state to save.
      * @param targetPath The path to save the snapshot.
      */
-    void createSnapshot(@NonNull MerkleNodeState merkleNodeState, @NonNull Path targetPath);
+    void createSnapshot(@NonNull MerkleNodeState<T> merkleNodeState, @NonNull Path targetPath);
 
     /**
      * Loads a snapshot of a state.
@@ -63,7 +79,7 @@ public interface StateLifecycleManager {
      * @param targetPath The path to load the snapshot from.
      * @return mutable copy of the loaded state
      */
-    MerkleNodeState loadSnapshot(@NonNull Path targetPath);
+    MerkleNodeState<T> loadSnapshot(@NonNull Path targetPath) throws IOException;
 
     /**
      * Creates a mutable copy of the mutable state. The previous mutable state becomes immutable,
@@ -71,5 +87,5 @@ public interface StateLifecycleManager {
      *
      * @return a mutable copy of the previous mutable state
      */
-    MerkleNodeState copyMutableState();
+    MerkleNodeState<T> copyMutableState();
 }

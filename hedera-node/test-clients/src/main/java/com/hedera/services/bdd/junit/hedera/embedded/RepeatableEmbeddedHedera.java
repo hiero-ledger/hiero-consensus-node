@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.hedera.embedded;
 
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static java.util.Objects.requireNonNull;
 
@@ -166,10 +167,21 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         this.roundDuration = requireNonNull(roundDuration);
     }
 
+    /**
+     * Resets the round duration to the default value.
+     */
+    public void resetRoundDuration() {
+        this.roundDuration = DEFAULT_ROUND_DURATION;
+    }
+
     @Override
     protected void handleRoundWith(@NonNull final byte[] serializedSignedTx) {
         final var round = platform.roundWith(serializedSignedTx);
         hedera.onPreHandle(round.iterator().next(), state, preHandleStateSignatureCallback);
+        bulkUpdateOf(state, v -> {
+            v.setRound(round.getRoundNum());
+            v.setConsensusTimestamp(round.getConsensusTimestamp());
+        });
         hedera.handleWorkflow().handleRound(state, round, handleStateSignatureCallback);
         hedera.onSealConsensusRound(round, state);
         notifyStateHashed(round.getRoundNum());

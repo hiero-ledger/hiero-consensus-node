@@ -24,56 +24,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Code
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    with:
-      enable-spotless-check: false
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  dependency-check:
-    name: Dependency (Module Info)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - build
-    with:
-      custom-job-label: "Check"
-      enable-dependency-check: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  spotless:
-    name: Spotless
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - build
-    with:
-      custom-job-label: "Check"
-      enable-unit-tests: false
-      enable-spotless-check: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
   mats-pr-checks:
     name: MATS
     uses: ./.github/workflows/zxc-mats-tests.yaml
-    needs:
-      - dependency-check
-      - spotless
     with:
       ref: ${{ github.event.pull_request.head.sha }}
+      enable-dependency-check: "true"
+      enable-spotless-check: "true"
+      enable-snyk-scan: "true"
       enable-unit-tests: "true"
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
       enable-otter-tests: "true"
-      enable-spotless-check: "true"
+      enable-gradle-determinism: "true"
+      enable-docker-determinism: "true"
       java-version: "21.0.6"
       java-distribution: "temurin"
       custom-job-label: "Standard"
@@ -85,36 +49,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
 
-  mats-determinism-checks:
-    name: MATS Determinism
-    uses: ./.github/workflows/zxc-mats-tests.yaml
-    needs:
-      - dependency-check
-      - spotless
-    if: ${{ github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository }}
-    with:
-      ref: ${{ github.event.pull_request.head.sha }}
-      enable-docker-determinism: "true"
-      enable-gradle-determinism: "true"
-      enable-snyk-scan: "true"
-      java-version: "21.0.6"
-      java-distribution: "temurin"
-      custom-job-label: "Standard"
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
-
   report-summary:
     name: Report PR Check Summary
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
-      - build
-      - dependency-check
-      - spotless
       - mats-pr-checks
-      - mats-determinism-checks
     if: ${{ !cancelled() && always() }}
     steps:
       - name: Harden Runner
@@ -141,11 +80,7 @@ jobs:
             echo ""
             echo "------------------------------------"
             echo "### Results"
-            echo "- **Build:** ${{ needs.build.result }}"
-            echo "- **Dependency Check:** ${{ needs.dependency-check.result }}"
-            echo "- **Spotless:** ${{ needs.spotless.result }}"
             echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"
-            echo "- **MATS Determinism Checks:** ${{ needs.mats-determinism-checks.result }}"
             echo "------------------------------------"
             if [[ "${{ needs.mats-pr-checks.result }}" == "failure" ]]; then
                 echo "### MATS Test Failures"
@@ -153,14 +88,6 @@ jobs:
                 echo "- **Failure Mode:** ${{ needs.mats-pr-checks.outputs.failure-mode }}"
                 echo "- **Failed Tests:**"
                 bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-pr-checks.outputs.failed-tests }}"
-                echo "------------------------------------"
-            fi
-            if [[ "${{ needs.mats-determinism-checks.result }}" == "failure" ]]; then
-                echo "### MATS Determinism Check Failures"
-                echo ""
-                echo "- **Failure Mode:** ${{ needs.mats-determinism-checks.outputs.failure-mode }}"
-                echo "- **Failed Checks:**"
-                bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-determinism-checks.outputs.failed-tests }}"
                 echo "------------------------------------"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"

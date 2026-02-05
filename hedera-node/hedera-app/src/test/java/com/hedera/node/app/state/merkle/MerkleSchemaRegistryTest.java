@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.Mockito.lenient;
@@ -17,6 +18,7 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -26,7 +28,6 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -167,12 +168,10 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
          * Utility method that migrates from version 9 to 10
          */
         void migrateFromV9ToV10() {
-            final var virtualMapLabel =
-                    "vm-" + MerkleSchemaRegistryTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
+            final var virtualMap = VirtualMapUtils.createVirtualMap();
             SemanticVersion latestVersion = version(10, 0, 0);
             schemaRegistry.migrate(
-                    new TestVirtualMapState(virtualMap),
+                    createTestStateWithVM(virtualMap),
                     version(9, 0, 0),
                     latestVersion,
                     config,
@@ -180,7 +179,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
-                    TEST_PLATFORM_STATE_FACADE);
+                    InitTrigger.RESTART);
             virtualMap.release();
         }
     }
@@ -199,9 +198,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             for (int i = 1; i < versions.length; i++) {
                 versions[i] = version(0, i, 0);
             }
-            final var virtualMapLabel =
-                    "vm-" + MerkleSchemaRegistryTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            merkleTree = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+            merkleTree = createTestState();
         }
 
         @AfterEach
@@ -225,7 +222,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
+                            InitTrigger.RESTART))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -242,7 +239,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
+                            InitTrigger.RESTART))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -259,7 +256,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
+                            InitTrigger.GENESIS))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -276,7 +273,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
+                            InitTrigger.RESTART))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -293,7 +290,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             new HashMap<>(),
                             migrationStateChanges,
                             startupNetworks,
-                            TEST_PLATFORM_STATE_FACADE))
+                            InitTrigger.RESTART))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
@@ -314,7 +311,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
-                    TEST_PLATFORM_STATE_FACADE);
+                    InitTrigger.RESTART);
 
             // Then nothing happens
             Mockito.verify(schema, Mockito.times(0)).migrate(Mockito.any());
@@ -337,7 +334,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
-                    TEST_PLATFORM_STATE_FACADE);
+                    InitTrigger.RESTART);
 
             // Then migration doesn't happen but restart is called
             Mockito.verify(schema, Mockito.times(0)).migrate(Mockito.any());
@@ -361,7 +358,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
-                    TEST_PLATFORM_STATE_FACADE);
+                    InitTrigger.GENESIS);
 
             // Then migration doesn't happen but restart is called
             Mockito.verify(schema, Mockito.times(1)).migrate(Mockito.any());
@@ -393,7 +390,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     new HashMap<>(),
                     migrationStateChanges,
                     startupNetworks,
-                    TEST_PLATFORM_STATE_FACADE);
+                    InitTrigger.GENESIS);
 
             // Then each of v1, v4, and v6 are called
             assertThat(called).hasSize(3);
@@ -457,7 +454,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         assertThat(previousStates.isEmpty()).isFalse();
                         assertThat(previousStates.contains(FRUIT_STATE_ID)).isTrue();
                         final ReadableKVState<ProtoBytes, ProtoBytes> oldFruit = previousStates.get(FRUIT_STATE_ID);
-                        assertThat(oldFruit.keys()).toIterable().hasSize(3);
                         assertThat(oldFruit.get(A_KEY)).isEqualTo(APPLE);
                         assertThat(oldFruit.get(B_KEY)).isEqualTo(BANANA);
                         assertThat(oldFruit.get(C_KEY)).isEqualTo(CHERRY);
@@ -487,7 +483,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         assertThat(previousStates.contains(COUNTRY_STATE_ID)).isFalse();
 
                         // Make sure old fruit hasn't been changed in any way
-                        assertThat(oldFruit.keys()).toIterable().hasSize(3);
                         assertThat(oldFruit.get(A_KEY)).isEqualTo(APPLE);
                         assertThat(oldFruit.get(B_KEY)).isEqualTo(BANANA);
                         assertThat(oldFruit.get(C_KEY)).isEqualTo(CHERRY);
@@ -513,7 +508,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         assertThat(previousStates.stateIds())
                                 .containsExactlyInAnyOrder(FRUIT_STATE_ID, STEAM_STATE_ID, COUNTRY_STATE_ID);
                         final ReadableKVState<ProtoBytes, ProtoBytes> oldFruit = previousStates.get(FRUIT_STATE_ID);
-                        assertThat(oldFruit.keys()).toIterable().containsExactlyInAnyOrder(B_KEY, C_KEY, E_KEY);
                         assertThat(oldFruit.get(B_KEY)).isEqualTo(BLACKBERRY);
                         assertThat(oldFruit.get(C_KEY)).isEqualTo(CHERRY);
                         assertThat(oldFruit.get(E_KEY)).isEqualTo(EGGPLANT);
@@ -561,13 +555,12 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
-                        TEST_PLATFORM_STATE_FACADE);
+                        InitTrigger.RESTART);
 
                 // Then we see that the values for A, B, and C are available
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
                 assertThat(readableStates.size()).isEqualTo(1);
                 final ReadableKVState<ProtoBytes, ProtoBytes> fruitV1 = readableStates.get(FRUIT_STATE_ID);
-                assertThat(fruitV1.keys()).toIterable().containsExactlyInAnyOrder(A_KEY, B_KEY, C_KEY);
             }
 
             @Test
@@ -589,14 +582,13 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
-                        TEST_PLATFORM_STATE_FACADE);
+                        InitTrigger.RESTART);
 
                 // We should see the v2 state (the delta from v2 after applied atop v1)
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
                 assertThat(readableStates.size()).isEqualTo(3);
 
                 final ReadableKVState<ProtoBytes, ProtoBytes> fruitV2 = readableStates.get(FRUIT_STATE_ID);
-                assertThat(fruitV2.keys()).toIterable().containsExactlyInAnyOrder(B_KEY, C_KEY, E_KEY);
                 assertThat(fruitV2.get(B_KEY)).isEqualTo(BLACKBERRY);
 
                 final ReadableKVState<ProtoBytes, ProtoBytes> learningV2 = readableStates.get(STEAM_STATE_ID);
@@ -628,7 +620,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
-                        TEST_PLATFORM_STATE_FACADE);
+                        InitTrigger.RESTART);
 
                 // We should see the v3 state (the delta from v3 after applied atop v2 and v1)
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
@@ -672,7 +664,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                                 new HashMap<>(),
                                 migrationStateChanges,
                                 startupNetworks,
-                                TEST_PLATFORM_STATE_FACADE))
+                                InitTrigger.RESTART))
                         .isInstanceOf(RuntimeException.class)
                         .hasMessage("Bad");
 

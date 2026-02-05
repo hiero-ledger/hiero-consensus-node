@@ -24,7 +24,6 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
@@ -39,9 +38,10 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -58,7 +58,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import java.time.Instant;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -145,7 +144,7 @@ class ParentTxnTest {
     private TransactionChecker transactionChecker;
 
     @Mock
-    private BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback;
+    private PreHandleWorkflow.ShortCircuitCallback shortCircuitTxnCallback;
 
     @BeforeEach
     void setUp() {
@@ -284,7 +283,8 @@ class ParentTxnTest {
                 blockStreamManager,
                 childDispatchFactory,
                 transactionChecker,
-                Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER));
+                Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER),
+                NodeFeeAccumulator.NOOP);
     }
 
     private void givenExistingCreator() {

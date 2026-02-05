@@ -4,21 +4,18 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure;
 import com.swirlds.platform.components.SavedStateController;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise.ReservedSignedStateResult;
+import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.state.signed.SignedStateValidator;
@@ -37,13 +34,15 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterRetriever;
 
 /**
@@ -58,24 +57,22 @@ import org.hiero.consensus.roster.RosterRetriever;
  * Callers are responsible to call this in a separated thread.
  *
  * @see FallenBehindMonitor
- * @see ReservedSignedStateResultPromise
+ * @see BlockingResourceProvider
  * @see PlatformCoordinator
  */
 public class ReconnectController implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(ReconnectController.class);
 
-    private final PlatformStateFacade platformStateFacade;
     private final Roster roster;
     private final SignedStateValidator signedStateValidator;
-    private final MerkleCryptography merkleCryptography;
     private final Platform platform;
-    private final PlatformContext platformContext;
+    private final Configuration configuration;
     private final PlatformCoordinator platformCoordinator;
     private final StateLifecycleManager stateLifecycleManager;
     private final SavedStateController savedStateController;
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private final ReservedSignedStateResultPromise peerReservedSignedStateResultPromise;
+    private final BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultProvider;
     private final NodeId selfId;
     private final ReconnectConfig reconnectConfig;
     private final Time time;
@@ -84,48 +81,32 @@ public class ReconnectController implements Runnable {
     private final AtomicBoolean run = new AtomicBoolean(true);
 
     public ReconnectController(
-            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final Configuration configuration,
+            @NonNull final Time time,
             @NonNull final Roster roster,
-            @NonNull final MerkleCryptography merkleCryptography,
             @NonNull final Platform platform,
-            @NonNull final PlatformContext platformContext,
             @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
             @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
-            @NonNull final ReservedSignedStateResultPromise peerReservedSignedStateResultPromise,
+            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultProvider,
             @NonNull final NodeId selfId,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final SignedStateValidator signedStateValidator) {
-        this.platformStateFacade = requireNonNull(platformStateFacade);
         this.roster = requireNonNull(roster);
         this.platformCoordinator = requireNonNull(platformCoordinator);
-        this.peerReservedSignedStateResultPromise = requireNonNull(peerReservedSignedStateResultPromise);
+        this.peerReservedSignedStateResultProvider = requireNonNull(peerReservedSignedStateResultProvider);
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
         this.signedStateValidator = requireNonNull(signedStateValidator);
-        this.merkleCryptography = requireNonNull(merkleCryptography);
-        this.reconnectConfig = platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
+        this.reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         this.platform = requireNonNull(platform);
-        this.platformContext = requireNonNull(platformContext);
+        this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
         this.savedStateController = requireNonNull(savedStateController);
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
-        this.time = platformContext.getTime();
+        this.time = requireNonNull(time);
         this.selfId = selfId;
         this.startupTime = time.now();
-    }
-
-    /**
-     * Hash the working state to prepare for reconnect
-     */
-    private static void hashStateForReconnect(
-            final @NonNull MerkleCryptography merkleCryptography, final @NonNull MerkleNodeState workingState)
-            throws InterruptedException {
-        try {
-            merkleCryptography.digestTreeAsync(workingState.getRoot()).get();
-        } catch (final ExecutionException e) {
-            throw new IllegalStateException("Error encountered while hashing state for reconnect", e);
-        }
     }
 
     /**
@@ -157,12 +138,13 @@ public class ReconnectController implements Runnable {
                 platformCoordinator.submitStatusAction(new FallenBehindAction());
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
                 platformCoordinator.pauseGossip();
+                fallenBehindMonitor.awaitGossipPaused();
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, start clearing queues");
                 platformCoordinator.clear();
                 logger.info(RECONNECT.getMarker(), "Queues have been cleared");
 
                 final MerkleNodeState currentState = stateLifecycleManager.getMutableState();
-                hashStateForReconnect(merkleCryptography, currentState);
+                currentState.getHash(); // hash the state
                 int failedReconnectsInARow = 0;
                 do {
                     final AttemptReconnectResult result = attemptReconnect(currentState);
@@ -199,7 +181,8 @@ public class ReconnectController implements Runnable {
     }
 
     /** One reconnect attempt; returns true on success. */
-    private AttemptReconnectResult attemptReconnect(final MerkleNodeState currentState) throws InterruptedException {
+    private AttemptReconnectResult attemptReconnect(@NonNull final MerkleNodeState currentState)
+            throws InterruptedException {
         // This is a direct connection with the protocols at Gossip component.
         // reservedStateResource is a blocking data structure that will provide a signed state from one of the peers
         // At the same time this code is evaluated, the ReconnectStateProtocol is being executed
@@ -208,21 +191,19 @@ public class ReconnectController implements Runnable {
         // unblocked
         logger.info(RECONNECT.getMarker(), "Waiting for a state to be obtained from a peer");
         try (final LockedResource<ReservedSignedStateResult> reservedStateResource =
-                        requireNonNull(peerReservedSignedStateResultPromise.awaitResolution());
+                        requireNonNull(peerReservedSignedStateResultProvider.waitForResource());
                 final ReservedSignedStateResult result = requireNonNull(reservedStateResource.getResource())) {
             if (result.isError()) {
-                return AttemptReconnectResult.error(result.throwable());
+                return AttemptReconnectResult.error(requireNonNull(result.throwable()));
             }
 
             logger.info(RECONNECT.getMarker(), "A state was obtained from a peer");
-            signedStateValidator.validate(
-                    result.reservedSignedState().get(),
-                    roster,
-                    new SignedStateValidationData(currentState, roster, platformStateFacade));
-            logger.info(RECONNECT.getMarker(), "The state obtained from a peer was validated");
-
+            // We validate the data in the peer state relative to our current state
+            final SignedStateValidationData data = new SignedStateValidationData(currentState, roster);
             SignedStateFileReader.registerServiceStates(
                     result.reservedSignedState().get());
+            signedStateValidator.validate(result.reservedSignedState().get(), roster, data);
+            logger.info(RECONNECT.getMarker(), "The state obtained from a peer was validated");
             loadState(result.reservedSignedState().get());
             // Notify any listeners that the reconnect has been completed
             platformCoordinator.sendReconnectCompleteNotification(
@@ -242,7 +223,7 @@ public class ReconnectController implements Runnable {
         logger.debug(RECONNECT.getMarker(), "`loadState` : reloading state");
         final Hash reconnectHash = signedState.getState().getHash();
         final MerkleNodeState state = signedState.getState();
-        final SemanticVersion creationSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
+        final SemanticVersion creationSoftwareVersion = creationSoftwareVersionOf(state);
         consensusStateEventHandler.onStateInitialized(state, platform, InitTrigger.RECONNECT, creationSoftwareVersion);
 
         if (!Objects.equals(signedState.getState().getHash(), reconnectHash)) {
@@ -261,12 +242,12 @@ public class ReconnectController implements Runnable {
                     + Roster.JSON.toJSON(stateRoster) + ")");
         }
 
-        stateLifecycleManager.initState(signedState.getState(), false);
+        stateLifecycleManager.initStateOnReconnect(state);
         // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
         // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
         platformCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
         savedStateController.reconnectStateReceived(signedState.reserve("savedStateController.reconnectStateReceived"));
-        platformCoordinator.loadReconnectState(platformContext.getConfiguration(), signedState);
+        platformCoordinator.loadReconnectState(configuration, signedState);
     }
 
     /**
@@ -320,7 +301,8 @@ public class ReconnectController implements Runnable {
         }
     }
 
-    private record AttemptReconnectResult(boolean success, @Nullable Throwable throwable) {
+    private record AttemptReconnectResult(
+            boolean success, @Nullable Throwable throwable) {
         static AttemptReconnectResult ok() {
             return new AttemptReconnectResult(true, null);
         }

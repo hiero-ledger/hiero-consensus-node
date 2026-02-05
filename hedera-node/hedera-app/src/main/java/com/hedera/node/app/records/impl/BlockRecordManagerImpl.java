@@ -4,6 +4,8 @@ package com.hedera.node.app.records.impl;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
+import static com.hedera.node.app.records.BlockRecordService.GENESIS_BLOCK_INFO;
+import static com.hedera.node.app.records.BlockRecordService.GENESIS_RUNNING_HASHES;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
@@ -33,6 +35,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -41,7 +44,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -103,15 +105,16 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * @param configProvider The configuration provider
      * @param state The current hedera state
      * @param streamFileProducer The stream file producer
+     * @param initTrigger The init trigger
      */
-    @Inject
     public BlockRecordManagerImpl(
             @NonNull final ConfigProvider configProvider,
             @NonNull final State state,
             @NonNull final BlockRecordStreamProducer streamFileProducer,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
-            @NonNull final Platform platform) {
+            @NonNull final Platform platform,
+            @NonNull final InitTrigger initTrigger) {
         this.platform = platform;
         requireNonNull(state);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -130,20 +133,22 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         this.blockPeriodInSeconds = recordStreamConfig.logPeriod();
         this.numBlockHashesToKeepBytes = recordStreamConfig.numOfBlockHashesInState() * HASH_SIZE;
 
-        // Initialize the last block info and provisional block info.
-        // NOTE: State migration happens BEFORE dagger initialization, and this object is managed by dagger. So we are
-        // guaranteed that the state exists PRIOR to this call.
-        final var states = state.getReadableStates(BlockRecordService.NAME);
-        final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
-        this.lastBlockInfo = blockInfoState.get();
-        assert this.lastBlockInfo != null : "Cannot be null, because this state is created at genesis";
-
+        final RunningHashes lastRunningHashes;
+        if (initTrigger == InitTrigger.GENESIS) {
+            this.lastBlockInfo = GENESIS_BLOCK_INFO;
+            lastRunningHashes = GENESIS_RUNNING_HASHES;
+        } else {
+            final var states = state.getReadableStates(BlockRecordService.NAME);
+            final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+            this.lastBlockInfo = blockInfoState.get();
+            assert this.lastBlockInfo != null : "Cannot be null, because this state is created at genesis";
+            final var runningHashState = states.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID);
+            lastRunningHashes = runningHashState.get();
+            assert lastRunningHashes != null : "Cannot be null, because this state is created at genesis";
+        }
         // Initialize the stream file producer. NOTE, if the producer cannot be initialized, and a random exception is
         // thrown here, then startup of the node will fail. This is the intended behavior. We MUST be able to produce
         // record streams, or there really is no point to running the node!
-        final var runningHashState = states.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID);
-        final var lastRunningHashes = runningHashState.get();
-        assert lastRunningHashes != null : "Cannot be null, because this state is created at genesis";
         this.streamFileProducer.initRunningHash(lastRunningHashes);
     }
 
@@ -251,7 +256,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                         consensusTime);
             }
 
-            switchBlocksAt(consensusTime, state);
+            switchBlocksAt(consensusTime);
             return true;
         }
         return false;
@@ -267,33 +272,41 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * We need this to preserve unit test expectations written that assumed a bug in the original implementation,
      * in which the first consensus time of the current block was not in state.
      * @param consensusTime the consensus time at which to switch to the current block
-     * @param state the state at the end of the just-finished block
      */
     @VisibleForTesting
-    public void switchBlocksAt(@NonNull final Instant consensusTime, State state) {
+    public void switchBlocksAt(@NonNull final Instant consensusTime) {
         final long blockNo = lastBlockInfo.lastBlockNumber() + 1;
         streamFileProducer.switchBlocks(lastBlockInfo.lastBlockNumber(), blockNo, consensusTime);
         if (streamMode == RECORDS) {
+            quiescenceController.finishHandlingInProgressBlock();
             // All no-ops below if quiescence is disabled
             if (quiescenceController.switchTracker(blockNo)) {
                 // There is no asynchronous signing concept in the record stream, do it now
                 quiescenceController.blockFullySigned(blockNo - 1);
             }
-            final var lastCommand = lastQuiescenceCommand.get();
-            final var commandNow = quiescenceController.getQuiescenceStatus();
-            if (commandNow != lastCommand && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
-                logger.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
-                platform.quiescenceCommand(commandNow);
-                if (commandNow == QUIESCE) {
-                    final var config = configProvider.getConfiguration();
-                    final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-                    quiescedHeartbeat.start(
-                            blockStreamConfig.quiescedHeartbeatInterval(),
-                            new TctProbe(
-                                    blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
-                                    config.getConfigData(StakingConfig.class).periodMins(),
-                                    state));
-                }
+        }
+    }
+
+    /**
+     * If called, checks if the quiescence command has changed and updates the platform accordingly.
+     * @param state the state to use
+     */
+    @VisibleForTesting
+    public void maybeQuiesce(@NonNull final State state) {
+        final var lastCommand = lastQuiescenceCommand.get();
+        final var commandNow = quiescenceController.getQuiescenceStatus();
+        if (commandNow != lastCommand && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
+            logger.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
+            platform.quiescenceCommand(commandNow);
+            if (commandNow == QUIESCE) {
+                final var config = configProvider.getConfiguration();
+                final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+                quiescedHeartbeat.start(
+                        blockStreamConfig.quiescedHeartbeatInterval(),
+                        new TctProbe(
+                                blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                                config.getConfigData(StakingConfig.class).periodMins(),
+                                state));
             }
         }
     }

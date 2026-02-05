@@ -5,12 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
-import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -21,8 +20,6 @@ import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Comprehensive tests for Node lifecycle operations (start and kill).
@@ -33,12 +30,19 @@ import org.junit.jupiter.params.provider.MethodSource;
 class NodeLifecycleTest {
 
     /**
-     * Provides a stream of test environments for the parameterized tests.
-     *
-     * @return a stream of {@link TestEnvironment} instances
+     * Test killing and restarting a single node (Turtle environment).
      */
-    public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    @Test
+    void testKillAndRestartSingleNodeTurtle() {
+        testKillAndRestartSingleNode(new TurtleTestEnvironment());
+    }
+
+    /**
+     * Test killing and restarting a single node (Container environment).
+     */
+    @Test
+    void testKillAndRestartSingleNodeContainer() {
+        testKillAndRestartSingleNode(new ContainerTestEnvironment());
     }
 
     /**
@@ -46,9 +50,7 @@ class NodeLifecycleTest {
      *
      * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testKillAndRestartSingleNode(@NonNull final TestEnvironment env) {
+    private void testKillAndRestartSingleNode(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

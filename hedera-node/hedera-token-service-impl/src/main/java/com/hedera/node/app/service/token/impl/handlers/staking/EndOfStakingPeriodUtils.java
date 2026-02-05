@@ -104,8 +104,6 @@ public final class EndOfStakingPeriodUtils {
      * @param maxPerHbarRewardRate the maximum reward rate per hbar for the period (per HIP-782)
      * @param reservedStakingRewards the total amount of staking rewards reserved in the 0.0.800 balance
      * @param unreservedStakingRewardBalance the remaining "unreserved" part of the 0.0.800 balance
-     * @param rewardBalanceThreshold the 0.0.800 balance threshold at which the max reward rate is attainable
-     * @param maxStakeRewarded the maximum stake that can be rewarded at the max reward rate
      * @param memo the memo to include in the transaction
      * @return the transaction builder with the {@code NodeStakeUpdateTransactionBody} set
      */
@@ -117,17 +115,44 @@ public final class EndOfStakingPeriodUtils {
             final long maxPerHbarRewardRate,
             final long reservedStakingRewards,
             final long unreservedStakingRewardBalance,
-            final long rewardBalanceThreshold,
-            final long maxStakeRewarded,
             @NonNull final String memo) {
         requireNonNull(stakingPeriodEnd);
         requireNonNull(nodeStakes);
         requireNonNull(stakingConfig);
         requireNonNull(memo);
-        final var threshold = stakingConfig.startThreshold();
-        final var stakingPeriod = stakingConfig.periodMins();
-        final var stakingPeriodsStored = stakingConfig.rewardHistoryNumStoredPeriods();
+        final var txnBody = newNodeStakeUpdate(
+                stakingPeriodEnd,
+                nodeStakes,
+                stakingConfig,
+                totalStakedRewardStart,
+                maxPerHbarRewardRate,
+                reservedStakingRewards,
+                unreservedStakingRewardBalance);
+        return TransactionBody.newBuilder().memo(memo).nodeStakeUpdate(txnBody);
+    }
 
+    /**
+     * Returns a {@link NodeStakeUpdateTransactionBody} that summarizes the given information about node stakes and
+     * staking reward rates for an ending period.
+     * @param stakingPeriodEnd the last nanosecond of the staking period being described
+     * @param nodeStakes the stakes of each node at the end of the just-ending period
+     * @param stakingConfig the staking configuration of the network at period end
+     * @param totalStakedRewardStart the total staked reward at the start of the period
+     * @param maxPerHbarRewardRate the maximum reward rate per hbar for the period (per HIP-782)
+     * @param reservedStakingRewards the total amount of staking rewards reserved in the 0.0.800 balance
+     * @param unreservedStakingRewardBalance the remaining "unreserved" part of the 0.0.800 balance
+     * @return the {@link NodeStakeUpdateTransactionBody}
+     */
+    public static NodeStakeUpdateTransactionBody newNodeStakeUpdate(
+            @NonNull final Timestamp stakingPeriodEnd,
+            @NonNull final List<NodeStake> nodeStakes,
+            @NonNull final StakingConfig stakingConfig,
+            final long totalStakedRewardStart,
+            final long maxPerHbarRewardRate,
+            final long reservedStakingRewards,
+            final long unreservedStakingRewardBalance) {
+        final long hbarsStakedToReward = (totalStakedRewardStart / HBARS_TO_TINYBARS);
+        final long maxTotalReward = maxPerHbarRewardRate * hbarsStakedToReward;
         final var nodeRewardFeeFraction = Fraction.newBuilder()
                 .numerator(stakingConfig.feesNodeRewardPercentage())
                 .denominator(100L)
@@ -136,28 +161,23 @@ public final class EndOfStakingPeriodUtils {
                 .numerator(stakingConfig.feesStakingRewardPercentage())
                 .denominator(100L)
                 .build();
-
-        final var hbarsStakedToReward = (totalStakedRewardStart / HBARS_TO_TINYBARS);
-        final var maxTotalReward = maxPerHbarRewardRate * hbarsStakedToReward;
-        final var txnBody = NodeStakeUpdateTransactionBody.newBuilder()
+        return NodeStakeUpdateTransactionBody.newBuilder()
                 .endOfStakingPeriod(stakingPeriodEnd)
                 .nodeStake(nodeStakes)
                 .maxStakingRewardRatePerHbar(maxPerHbarRewardRate)
                 .nodeRewardFeeFraction(nodeRewardFeeFraction)
-                .stakingPeriodsStored(stakingPeriodsStored)
-                .stakingPeriod(stakingPeriod)
+                .stakingPeriodsStored(stakingConfig.rewardHistoryNumStoredPeriods())
+                .stakingPeriod(stakingConfig.periodMins())
                 .stakingRewardFeeFraction(stakingRewardFeeFraction)
-                .stakingStartThreshold(threshold)
+                .stakingStartThreshold(stakingConfig.startThreshold())
                 // Deprecated field but keep it for backward compatibility at the moment
                 .stakingRewardRate(maxTotalReward)
                 .maxTotalReward(maxTotalReward)
                 .reservedStakingRewards(reservedStakingRewards)
                 .unreservedStakingRewardBalance(unreservedStakingRewardBalance)
-                .rewardBalanceThreshold(rewardBalanceThreshold)
-                .maxStakeRewarded(maxStakeRewarded)
+                .rewardBalanceThreshold(stakingConfig.rewardBalanceThreshold())
+                .maxStakeRewarded(stakingConfig.maxStakeRewarded())
                 .build();
-
-        return TransactionBody.newBuilder().memo(memo).nodeStakeUpdate(txnBody);
     }
 
     /**

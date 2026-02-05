@@ -19,7 +19,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,6 +37,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
 import org.hiero.junit.extensions.ParameterCombinationExtension;
@@ -746,7 +746,7 @@ class TipsetEventCreatorTests {
         final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
         // All nodes except for node A (0) are fully mocked. This test is testing how node A behaves.
-        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList, 1);
 
         // Create some genesis events
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
@@ -833,7 +833,7 @@ class TipsetEventCreatorTests {
         final NodeId nodeE = NodeId.of(nodeD.id() + 1);
 
         // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
-        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList, 1);
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
@@ -904,7 +904,7 @@ class TipsetEventCreatorTests {
 
         final NodeId nodeA = NodeId.of(roster.rosterEntries().getFirst().nodeId()); // self
 
-        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList, 1);
         eventCreator.setEventWindow(
                 EventWindowBuilder.builder().setAncientThreshold(100).build());
 
@@ -1010,7 +1010,7 @@ class TipsetEventCreatorTests {
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
         final EventCreator eventCreator =
-                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList);
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
 
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
@@ -1059,7 +1059,7 @@ class TipsetEventCreatorTests {
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
         final EventCreator eventCreator =
-                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList);
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
 
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
@@ -1105,7 +1105,7 @@ class TipsetEventCreatorTests {
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
         final EventCreator eventCreator =
-                buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList);
+                buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList, 1);
 
         var event = eventCreator.maybeCreateEvent(); // the self-parent
         assertNotNull(event, "An event should have been created");
@@ -1136,7 +1136,7 @@ class TipsetEventCreatorTests {
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
         final EventCreator eventCreator =
-                buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList);
+                buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList, 1);
 
         eventCreator.quiescenceCommand(QuiescenceCommand.QUIESCE);
         var event = eventCreator.maybeCreateEvent(); // the self-parent
@@ -1145,5 +1145,108 @@ class TipsetEventCreatorTests {
         eventCreator.quiescenceCommand(QuiescenceCommand.DONT_QUIESCE);
         event = eventCreator.maybeCreateEvent(); // the self-parent
         assertNotNull(event, "An event should have been created when switched back to active");
+    }
+
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed"),
+        @ParamSource(
+                param = "maxParents",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
+                method = "maxParentSizes"),
+    })
+    @DisplayName("Multiple parents")
+    void useMultipleParents(@ParamName("random") final Random random, @ParamName("maxParents") final int maxParents) {
+
+        final int networkSize = 100;
+
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withMinimumWeight(1)
+                .withMaximumWeight(1)
+                .withSize(networkSize)
+                .build();
+
+        final FakeTime time = new FakeTime();
+
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
+
+        // All nodes except for node A (0) are fully mocked. This test is testing how node A behaves.
+        final EventCreator eventCreator =
+                buildEventCreator(random, time, roster, nodeA, Collections::emptyList, maxParents);
+
+        // Create some genesis events
+        final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
+        assertNotNull(eventA1);
+
+        for (int i = 1; i < networkSize; i++) {
+            final NodeId nodeX = NodeId.of(roster.rosterEntries().get(i).nodeId());
+            final PlatformEvent event =
+                    createTestEventWithParent(random, nodeX, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+            eventCreator.registerEvent(event);
+        }
+
+        for (int i = 0; i < (networkSize - 1) / maxParents; i++) {
+            final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+            assertNotNull(newEvent);
+            assertEquals(maxParents, newEvent.getOtherParents().size());
+            assertEquals(maxParents + 1, newEvent.getAllParents().size());
+        }
+    }
+
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed"),
+        @ParamSource(
+                param = "maxParents",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
+                method = "maxParentSizes"),
+    })
+    @DisplayName("Possibly more parents then size of network")
+    void useMultipleParentsSmallNetwork(
+            @ParamName("random") final Random random, @ParamName("maxParents") final int maxParents) {
+
+        final int networkSize = 5;
+
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withMinimumWeight(1)
+                .withMaximumWeight(1)
+                .withSize(networkSize)
+                .build();
+
+        final FakeTime time = new FakeTime();
+
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
+
+        // All nodes except for node A (0) are fully mocked. This test is testing how node A behaves.
+        final EventCreator eventCreator =
+                buildEventCreator(random, time, roster, nodeA, Collections::emptyList, maxParents);
+
+        // Create some genesis events
+        final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
+        assertNotNull(eventA1);
+
+        for (int i = 1; i < networkSize; i++) {
+            final NodeId nodeX = NodeId.of(roster.rosterEntries().get(i).nodeId());
+            final PlatformEvent event =
+                    createTestEventWithParent(random, nodeX, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+            eventCreator.registerEvent(event);
+        }
+
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(
+                Math.min(maxParents, networkSize - 1),
+                newEvent.getOtherParents().size());
+        assertEquals(
+                Math.min(maxParents, networkSize - 1) + 1,
+                newEvent.getAllParents().size());
     }
 }

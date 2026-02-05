@@ -1,33 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.base.utility.Pair;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.network.SocketConnection;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -37,7 +31,12 @@ import java.util.stream.IntStream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.SocketConnection;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -59,9 +58,6 @@ final class ReconnectTest {
     // This test uses a threading pattern that is incompatible with gzip compression.
     private final Configuration configuration =
             new TestConfigBuilder().withValue("socket.gzipCompression", false).getOrCreateConfig();
-
-    private final PlatformContext platformContext =
-            TestPlatformContextBuilder.create().build();
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
@@ -109,14 +105,15 @@ final class ReconnectTest {
                 .build();
 
         MerkleNodeState stateCopy = null;
+        StateLifecycleManager stateLifecycleManager = null;
         try (final PairedStreams pairedStreams = new PairedStreams()) {
-            final Pair<SignedState, TestPlatformStateFacade> signedStateFacadePair = new RandomSignedStateGenerator()
+            final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
-                    .setState(new TestVirtualMapState())
-                    .buildWithFacade();
-            final SignedState signedState = signedStateFacadePair.left();
-            final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();
+                    .setState(createTestState())
+                    .build();
+            stateLifecycleManager = new StateLifecycleManagerImpl(
+                    new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, configuration);
 
             stateCopy = signedState.getState().copy();
             // hash the underlying VM
@@ -125,19 +122,19 @@ final class ReconnectTest {
             final ReconnectStateLearner receiver = buildReceiver(
                     stateCopy,
                     new DummyConnection(
-                            platformContext, pairedStreams.getLearnerInput(), pairedStreams.getLearnerOutput()),
+                            configuration, pairedStreams.getLearnerInput(), pairedStreams.getLearnerOutput()),
                     reconnectMetrics,
-                    platformStateFacade);
+                    stateLifecycleManager);
 
             final Thread thread = new Thread(() -> {
                 try {
                     signedState.reserve("test");
                     final ReconnectStateTeacher sender = buildSender(
                             new DummyConnection(
-                                    platformContext, pairedStreams.getTeacherInput(), pairedStreams.getTeacherOutput()),
-                            reconnectMetrics,
-                            platformStateFacade);
-                    sender.execute(signedState);
+                                    configuration, pairedStreams.getTeacherInput(), pairedStreams.getTeacherOutput()),
+                            signedState,
+                            reconnectMetrics);
+                    sender.execute();
                 } catch (final IOException ex) {
                     ex.printStackTrace();
                 }
@@ -155,19 +152,14 @@ final class ReconnectTest {
     }
 
     private ReconnectStateTeacher buildSender(
-            final SocketConnection connection,
-            final ReconnectMetrics reconnectMetrics,
-            final PlatformStateFacade platformStateFacade)
+            final SocketConnection connection, final SignedState signedState, final ReconnectMetrics reconnectMetrics)
             throws IOException {
-
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
 
         final NodeId selfId = NodeId.of(0);
         final NodeId otherId = NodeId.of(3);
         final long lastRoundReceived = 100;
         return new ReconnectStateTeacher(
-                platformContext,
+                configuration,
                 Time.getCurrent(),
                 getStaticThreadManager(),
                 connection,
@@ -175,26 +167,24 @@ final class ReconnectTest {
                 selfId,
                 otherId,
                 lastRoundReceived,
-                reconnectMetrics,
-                platformStateFacade);
+                signedState,
+                reconnectMetrics);
     }
 
     private ReconnectStateLearner buildReceiver(
             final MerkleNodeState state,
             final Connection connection,
             final ReconnectMetrics reconnectMetrics,
-            final PlatformStateFacade platformStateFacade) {
-        final Roster roster =
-                RandomRosterBuilder.create(getRandomPrintSeed()).withSize(5).build();
+            final StateLifecycleManager stateLifecycleManager) {
 
         return new ReconnectStateLearner(
-                TestPlatformContextBuilder.create().build(),
+                configuration,
+                new NoOpMetrics(),
                 getStaticThreadManager(),
                 connection,
                 state,
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
-                platformStateFacade,
-                TestVirtualMapState::new);
+                stateLifecycleManager);
     }
 }

@@ -3,7 +3,7 @@ package com.swirlds.platform.state.service;
 
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.utility.CommonUtils.toPbjTimestamp;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -36,17 +36,6 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
         super(writableStates);
         this.writableStates = writableStates;
         this.state = writableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
-    }
-
-    /**
-     * Overwrite the current platform state with the provided state.
-     */
-    public void setAllFrom(@NonNull final PlatformStateModifier modifier) {
-        this.update(toPbjPlatformState(modifier));
-    }
-
-    private void setAllFrom(@NonNull final PlatformStateValueAccumulator accumulator) {
-        this.update(toPbjPlatformState(stateOrThrow(), accumulator));
     }
 
     /**
@@ -148,9 +137,14 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      */
     @Override
     public void bulkUpdate(@NonNull final Consumer<PlatformStateModifier> updater) {
+        if (state.get() == null) {
+            // A very special case of going ACTIVE at genesis; this is the first change each new network makes to state,
+            // and the Hedera app has a matching special case to ensure it is the first state change in the block stream
+            state.put(PlatformState.DEFAULT);
+        }
         final var accumulator = new PlatformStateValueAccumulator();
         updater.accept(accumulator);
-        setAllFrom(accumulator);
+        update(toPbjPlatformState(stateOrThrow(), accumulator));
     }
 
     private @NonNull PlatformState stateOrThrow() {

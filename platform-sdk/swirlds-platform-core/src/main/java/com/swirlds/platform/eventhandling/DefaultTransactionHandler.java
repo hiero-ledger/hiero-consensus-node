@@ -12,6 +12,10 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.SETTING
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE;
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATING_PLATFORM_STATE_RUNNING_HASH;
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING_FOR_PREHANDLE;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
+import static com.swirlds.platform.state.service.PlatformStateUtils.setLegacyRunningEventHashTo;
+import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -19,13 +23,10 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
 import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
@@ -45,6 +46,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -84,11 +87,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * we need to reuse the previous round's hash.
      */
     private Hash previousRoundLegacyRunningEventHash;
-
-    /**
-     * Enables access to the platform state.
-     */
-    private final PlatformStateFacade platformStateFacade;
 
     /**
      * Enables submitting platform status actions.
@@ -133,14 +131,12 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param stateLifecycleManager    the swirld state manager to send events to
      * @param statusActionSubmitter enables submitting of platform status actions
      * @param softwareVersion       the current version of the software
-     * @param platformStateFacade   enables access to the platform state
      */
     public DefaultTransactionHandler(
             @NonNull final PlatformContext platformContext,
             @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SemanticVersion softwareVersion,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
             @NonNull final NodeId selfId) {
 
@@ -159,7 +155,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
         this.transactionMetrics = new TransactionMetrics(platformContext.getMetrics());
 
         previousRoundLegacyRunningEventHash = Cryptography.NULL_HASH;
-        this.platformStateFacade = platformStateFacade;
 
         final PlatformSchedulersConfig schedulersConfig =
                 platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
@@ -204,8 +199,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             return null;
         }
 
-        if (platformStateFacade.isInFreezePeriod(
-                consensusRound.getConsensusTimestamp(), stateLifecycleManager.getMutableState())) {
+        if (isInFreezePeriod(consensusRound.getConsensusTimestamp(), stateLifecycleManager.getMutableState())) {
             statusActionSubmitter.submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
             logger.info(
@@ -296,7 +290,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param round the consensus round
      */
     private void updatePlatformState(@NonNull final ConsensusRound round) {
-        platformStateFacade.bulkUpdateOf(stateLifecycleManager.getMutableState(), v -> {
+        bulkUpdateOf(stateLifecycleManager.getMutableState(), v -> {
             v.setRound(round.getRoundNum());
             v.setConsensusTimestamp(round.getConsensusTimestamp());
             v.setCreationSoftwareVersion(softwareVersion);
@@ -331,9 +325,9 @@ public class DefaultTransactionHandler implements TransactionHandler {
                         last.getRunningHash().getFutureHash().getAndRethrow();
             }
 
-            platformStateFacade.setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
+            setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
         } else {
-            platformStateFacade.setLegacyRunningEventHashTo(consensusState, Cryptography.NULL_HASH);
+            setLegacyRunningEventHashTo(consensusState, Cryptography.NULL_HASH);
         }
     }
 
@@ -350,20 +344,17 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions)
             throws InterruptedException {
         if (freezeRoundReceived) {
-            platformStateFacade.updateLastFrozenTime(stateLifecycleManager.getMutableState());
+            updateLastFrozenTime(stateLifecycleManager.getMutableState());
         }
         final MerkleNodeState state = stateLifecycleManager.getMutableState();
         final boolean isBoundary = consensusStateEventHandler.onSealConsensusRound(consensusRound, state);
         final ReservedSignedState reservedSignedState;
         if (isBoundary || freezeRoundReceived) {
             if (freezeRoundReceived && !isBoundary) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        """
+                logger.error(EXCEPTION.getMarker(), """
                                 The freeze round {} is not a boundary round. The freeze state will be saved to disk, \
                                 but the app may not have done some work that it needs to (like finishing a block). The \
-                                app must ensure that the freeze round is always a boundary round.""",
-                        consensusRound.getRoundNum());
+                                app must ensure that the freeze round is always a boundary round.""", consensusRound.getRoundNum());
             }
             handlerMetrics.setPhase(GETTING_STATE_TO_SIGN);
             stateLifecycleManager.copyMutableState();
@@ -372,13 +363,12 @@ public class DefaultTransactionHandler implements TransactionHandler {
             handlerMetrics.setPhase(CREATING_SIGNED_STATE);
             final SignedState signedState = new SignedState(
                     platformContext.getConfiguration(),
-                    CryptoStatic::verifySignature,
+                    ConsensusCryptoUtils::verifySignature,
                     immutableState,
                     "TransactionHandler.createSignedState()",
                     freezeRoundReceived,
                     true,
-                    consensusRound.isPcesRound(),
-                    platformStateFacade);
+                    consensusRound.isPcesRound());
 
             reservedSignedState = signedState.reserve("transaction handler output");
 

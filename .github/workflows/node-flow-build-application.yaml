@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - "release/*"
+      - "release/**"
 
 defaults:
   run:
@@ -19,58 +19,17 @@ permissions:
   contents: read
 
 jobs:
-  code:
-    name: Compile Code
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    with:
-      java-version: "21.0.6"
-      java-distribution: "temurin"
-      enable-spotless-check: false
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  dependency-check:
-    name: Dependency (Module Info)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - code
-    with:
-      custom-job-label: "Check"
-      enable-dependency-check: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  spotless:
-    name: Spotless
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - code
-    with:
-      custom-job-label: "Check"
-      enable-unit-tests: false
-      enable-spotless-check: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
   mats-tests:
     name: MATS Tests
     uses: ./.github/workflows/zxc-mats-tests.yaml
-    needs:
-      - dependency-check
-      - spotless
     with:
       ref: ${{ github.ref }}
+      enable-spotless-check: "true"
+      enable-dependency-check: "true"
       enable-unit-tests: "true"
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
       enable-otter-tests: "true"
-      enable-spotless-check: "true"
       enable-snyk-scan: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
@@ -87,7 +46,7 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests
     if: ${{ needs.mats-tests.result == 'success' }}
@@ -112,17 +71,11 @@ jobs:
 
   report-failure:
     name: Report MATS execution failure
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
-      - code
-      - dependency-check
-      - spotless
       - mats-tests
       - deploy-ci-trigger
-    if: ${{ (needs.code.result != 'success' ||
-      needs.dependency-check.result != 'success' ||
-      needs.spotless.result != 'success' ||
-      needs.mats-tests.result != 'success' ||
+    if: ${{ (needs.mats-tests.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success') &&
       !cancelled() && always() }}
 
@@ -159,14 +112,12 @@ jobs:
 
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && always() }}
         continue-on-error: true
         with:
           retention-days: 7
           path: |
             run.log
-            hedera-node/test-clients/build/*.log
-            hedera-node/test-clients/build/*.blk.gz
-            hedera-node/test-clients/build/*.rcd.gz
 
       - name: Get Commit Information
         id: fetch-commit-info
@@ -218,9 +169,6 @@ jobs:
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each jobs:"
-            echo "- Code Compiles: ${{ needs.code.result }}"
-            echo "- Dependency (Module Info): ${{ needs.dependency-check.result }}"
-            echo "- Spotless: ${{ needs.spotless.result }}"
             echo "- MATS Tests: ${{ needs.mats-tests.result }}"
             echo "- Deploy CI Triggers: ${{ needs.deploy-ci-trigger.result }}"
             echo "------------------------------------"
@@ -290,18 +238,6 @@ jobs:
                     "fields": [
                       {
                         "type": "mrkdwn",
-                        "text": "*Code Compiles*: ${{ needs.code.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Dependency (Module Info)*: ${{ needs.dependency-check.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Spotless*: ${{ needs.spotless.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
                         "text": "*MATS Tests*: ${{ needs.mats-tests.result }}"
                       },
                       {
@@ -369,9 +305,19 @@ jobs:
           EOF
 
       - name: Report failure (slack citr-operations)
+        if: ${{ steps.set-rootly-parameters.outputs.service != 'CI/CD Workflows' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack citr-failures)
+        if: ${{ steps.set-rootly-parameters.outputs.service == 'CI/CD Workflows' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

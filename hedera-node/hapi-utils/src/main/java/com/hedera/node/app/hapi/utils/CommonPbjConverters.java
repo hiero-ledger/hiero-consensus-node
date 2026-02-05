@@ -2,6 +2,7 @@
 package com.hedera.node.app.hapi.utils;
 
 import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.*;
 import static java.util.Objects.requireNonNull;
 
@@ -19,6 +20,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
@@ -47,6 +49,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 
 public class CommonPbjConverters {
+    public static final int MAX_PBJ_RECORD_SIZE = 33554432;
+
     public static @NonNull com.hederahashgraph.api.proto.java.Query fromPbj(@NonNull Query query) {
         requireNonNull(query);
         try {
@@ -235,6 +239,15 @@ public class CommonPbjConverters {
                 .shardNum(tokenID.getShardNum())
                 .realmNum(tokenID.getRealmNum())
                 .tokenNum(tokenID.getTokenNum())
+                .build();
+    }
+
+    public static @NonNull ScheduleID toPbj(@NonNull com.hederahashgraph.api.proto.java.ScheduleID tokenID) {
+        requireNonNull(tokenID);
+        return ScheduleID.newBuilder()
+                .shardNum(tokenID.getShardNum())
+                .realmNum(tokenID.getRealmNum())
+                .scheduleNum(tokenID.getScheduleNum())
                 .build();
     }
 
@@ -427,7 +440,8 @@ public class CommonPbjConverters {
         requireNonNull(txBody);
         try {
             final var bytes = txBody.toByteArray();
-            return TransactionBody.PROTOBUF.parse(BufferedData.wrap(bytes));
+            return TransactionBody.PROTOBUF.parse(
+                    BufferedData.wrap(bytes), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }

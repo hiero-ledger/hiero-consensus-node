@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.logging.context.NodeLoggingContext.logToConsole;
@@ -16,8 +18,7 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -28,7 +29,6 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -36,6 +36,9 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -49,21 +52,23 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterApp;
-import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
+import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
@@ -133,6 +138,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * @param logging the logging instance for the node
      * @param outputDirectory the output directory for the node
      * @param networkConfiguration the network configuration
+     * @param consensusRoundPool the shared pool for deduplicating consensus rounds
      */
     public TurtleNode(
             @NonNull final Randotron randotron,
@@ -142,7 +148,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory,
-            @NonNull final NetworkConfiguration networkConfiguration) {
+            @NonNull final NetworkConfiguration networkConfiguration,
+            @NonNull final ConsensusRoundPool consensusRoundPool) {
         super(selfId, keysAndCerts, networkConfiguration);
         try (final LoggingContextScope ignored = installNodeContext()) {
             this.outputDirectory = requireNonNull(outputDirectory);
@@ -154,7 +161,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(
                     () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
-            this.resultsCollector = new NodeResultsCollector(selfId);
+            this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
         }
     }
 
@@ -169,12 +176,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             logToConsole(() -> log.info("Starting node {}...", selfId));
 
-            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-                if (Objects.equals(logEntry.nodeId(), selfId)) {
-                    resultsCollector.addLogEntry(logEntry);
-                }
-                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
-            });
+            // Only subscribe to log entries if the node is in the INIT stage to avoid double subscriptions after
+            // restart
+            if (lifeCycle == INIT) {
+                InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+                    if (Objects.equals(logEntry.nodeId(), selfId)) {
+                        resultsCollector.addLogEntry(logEntry);
+                    }
+                    return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
+                });
+            }
 
             // Log the startup message using the same STARTUP marker and message as production nodes
             // Uses a platform logger to ensure it routes through per-node appenders
@@ -193,7 +204,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             setupGlobalMetrics(currentConfiguration);
 
-            final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
             try {
                 // If a previous test didn't clean up properly, remove any existing metrics for this node
                 // This can happen if a test fails during platform initialization
@@ -203,7 +213,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
             final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
-            final RecycleBin recycleBin = RecycleBin.create(
+            final RecycleBin recycleBin = RecycleBinImpl.create(
                     metrics,
                     currentConfiguration,
                     getStaticThreadManager(),
@@ -219,6 +229,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withRecycleBin(recycleBin)
                     .build();
 
+            final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                    metrics,
+                    timeManager.time(),
+                    virtualMap -> new VirtualMapState(virtualMap, metrics),
+                    currentConfiguration);
+
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
                     .deterministic()
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
@@ -229,29 +245,22 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
                     version,
-                    () -> OtterAppState.createGenesisState(
-                            currentConfiguration,
-                            metrics,
-                            timeManager.time(),
-                            roster(),
-                            version,
-                            otterApp.allServices()),
+                    () -> createGenesisState(currentConfiguration, metrics, roster(), version, otterApp.allServices()),
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
-                    platformStateFacade,
                     platformContext,
-                    virtualMap -> new OtterAppState(virtualMap, metrics, timeManager.time()));
+                    stateLifecycleManager);
 
             final ReservedSignedState initialState = reservedState.state();
             final MerkleNodeState state = initialState.get().getState();
 
-            // Set active the roster
+            // Set the active roster
             final ReadablePlatformStateStore store =
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-            RosterUtils.setActiveRoster(state, roster(), store.getRound() + 1);
+            RosterStateUtils.setActiveRoster(state, roster(), store.getRound() + 1);
 
-            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+            final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
             final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(
@@ -266,8 +275,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             selfId,
                             eventStreamLoc,
                             rosterHistory,
-                            platformStateFacade,
-                            virtualMap -> new OtterAppState(virtualMap, metrics, timeManager.time()))
+                            stateLifecycleManager)
                     .withPlatformContext(platformContext)
                     .withConfiguration(currentConfiguration)
                     .withKeysAndCerts(keysAndCerts)
@@ -281,19 +289,17 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final SimulatedGossip gossip = network.getGossipInstance(selfId);
             gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
 
-            platformComponentBuilder
-                    .withMetricsDocumentationEnabled(false)
-                    .withGossip(network.getGossipInstance(selfId));
+            platformComponentBuilder.withGossip(network.getGossipInstance(selfId));
 
             platformComponent = platformBuildingBlocks.platformComponents();
 
             platformComponent
-                    .consensusEngineWiring()
-                    .consensusRoundsOutputWire()
+                    .hashgraphModule()
+                    .consensusRoundOutputWire()
                     .solderTo(
                             "nodeConsensusRoundsCollector",
                             "consensusRounds",
-                            wrapConsumerWithNodeContext(resultsCollector::addConsensusRounds));
+                            wrapConsumerWithNodeContext(resultsCollector::addConsensusRound));
 
             platformComponent
                     .platformMonitorWiring()

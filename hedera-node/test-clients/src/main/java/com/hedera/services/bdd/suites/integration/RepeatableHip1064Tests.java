@@ -97,7 +97,8 @@ public class RepeatableHip1064Tests {
         testLifecycle.overrideInClass(Map.of(
                 "nodes.nodeRewardsEnabled", "true",
                 "nodes.preserveMinNodeRewardBalance", "true",
-                "ledger.transfers.maxLen", "2"));
+                "ledger.transfers.maxLen", "2",
+                "nodes.feeCollectionAccountEnabled", "false"));
         testLifecycle.doAdhoc(
                 nodeUpdate("0").declineReward(false),
                 nodeUpdate("1").declineReward(false),
@@ -135,6 +136,7 @@ public class RepeatableHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
                 // First get any node fees already collected at the end of this block
                 sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 cryptoCreate(CIVILIAN_PAYER),
                 EmbeddedVerbs.<NodeRewards>viewSingleton(
                         TokenService.NAME,
@@ -236,6 +238,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -433,6 +436,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -516,6 +520,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -598,6 +603,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -657,12 +663,14 @@ public class RepeatableHip1064Tests {
     Stream<DynamicTest> nodeRewardPaymentsAlsoTriggersStakePeriodBoundarySideEffects() {
         return hapiTest(
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(false),
                 sleepForBlockPeriod(),
                 setAllNodesActive(),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
                 // Move into a new staking period
                 waitUntilStartOfNextStakingPeriod(1),
+                setAllNodesActive(),
                 // Simulate a few transactions to close a block, whose only chance of exporting a NodeStakeUpdate is the
                 // node reward payment
                 doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
@@ -691,6 +699,45 @@ public class RepeatableHip1064Tests {
                                             hasNodeRewardDebit, "Node rewards payment should be present in the block");
                                 },
                                 Duration.ofSeconds(1)))));
+    }
+
+    @Order(8)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    Stream<DynamicTest> nodeMissingSingleRoundStillActive() {
+        final int minActivePercent = 90;
+        return hapiTest(
+                overriding("nodes.activeRoundsPercent", Integer.toString(minActivePercent)),
+                waitUntilStartOfNextStakingPeriod(1),
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
+                        .copyBuilder()
+                        .numRoundsInStakingPeriod(10)
+                        .nodeActivities(List.of(
+                                NodeActivity.newBuilder()
+                                        .nodeId(0)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(1)
+                                        .numMissedJudgeRounds(1)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(2)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(3)
+                                        .numMissedJudgeRounds(0)
+                                        .build()))
+                        .build()),
+                EmbeddedVerbs.<NodeRewards>viewSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, nodeRewards -> {
+                    final long rounds = nodeRewards.numRoundsInStakingPeriod();
+                    final long maxMissed = (rounds * (100 - minActivePercent)) / 100;
+                    assertEquals(1L, maxMissed, "Test setup should allow one missed round");
+                    final var missedCounts = nodeRewards.nodeActivities().stream()
+                            .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
+                    assertEquals(1L, missedCounts.get(1L));
+                    assertTrue(missedCounts.get(1L) <= maxMissed, "Node1 should remain active after missing one round");
+                }));
     }
 
     private static SpecOperation setAllNodesActive() {

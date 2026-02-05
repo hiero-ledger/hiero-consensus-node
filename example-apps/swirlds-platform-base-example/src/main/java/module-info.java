@@ -13,10 +13,11 @@ module com.swirlds.platform.base.example {
             com.swirlds.config.impl;
 
     requires com.swirlds.base;
-    requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions;
     requires com.swirlds.metrics.api;
+    requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
     requires com.fasterxml.jackson.databind;
     requires com.google.common;
@@ -24,7 +25,6 @@ module com.swirlds.platform.base.example {
     requires jdk.management;
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;
-    requires static com.google.auto.service;
 
     provides ConfigurationExtension with
             BaseConfigurationExtension;

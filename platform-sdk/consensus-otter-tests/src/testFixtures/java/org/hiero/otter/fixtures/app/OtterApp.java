@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -25,7 +29,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
@@ -38,10 +41,11 @@ import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
  * The main entry point for the Otter application. This class is instantiated by the platform when the application is
  * started. It creates the services that make up the application and routes events and rounds to those services.
  */
-@SuppressWarnings("removal")
-public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
+public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
 
-    private static final Logger log = LogManager.getLogger();
+    public static final String UPGRADE_DETECTED_LOG_PAYLOAD = "OtterAppUpgradeDetectedPayload";
+
+    private static final Logger log = LogManager.getLogger("OtterApp");
 
     private static final long BOTTLENECK_STEP_MILLIS = 500L;
 
@@ -118,7 +122,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     @Override
     public void onPreHandle(
             @NonNull final Event event,
-            @NonNull final OtterAppState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
             service.preHandleEvent(event);
@@ -146,7 +150,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
-            @NonNull final OtterAppState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
             service.onRoundStart(state.getWritableStates(service.name()), round);
@@ -187,7 +191,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             service.onRoundComplete(state.getWritableStates(service.name()), round);
         }
 
-        state.commitState();
+        commitState(state);
 
         maybeDoBottleneck();
     }
@@ -214,7 +218,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * {@inheritDoc}
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final OtterAppState state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final VirtualMapState state) {
         return true;
     }
 
@@ -223,10 +227,22 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     @Override
     public void onStateInitialized(
-            @NonNull final OtterAppState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
+        if (previousVersion != null) {
+            final int compare = SEMANTIC_VERSION_COMPARATOR.compare(previousVersion, version);
+            if (compare > 0) {
+                log.error(EXCEPTION.getMarker(), "Previous version is greater than current version");
+            } else if (compare < 0) {
+                log.info(
+                        STARTUP.getMarker(),
+                        "[{}] Previous version is older than current version. Executing upgrade.",
+                        UPGRADE_DETECTED_LOG_PAYLOAD);
+            }
+        }
+
         final Configuration configuration = platform.getContext().getConfiguration();
         if (!appServices.isEmpty()) {
             final boolean stateNotInitialized = appServices.stream()
@@ -234,7 +250,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
                     .map(state::getReadableStates)
                     .allMatch(ReadableStates::isEmpty);
             if (stateNotInitialized) {
-                OtterStateInitializer.initOtterAppState(state, version, appServices);
+                OtterStateInitializer.initOtterAppState(state, appServices);
             }
         }
 
@@ -247,18 +263,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * {@inheritDoc}
      */
     @Override
-    public void onUpdateWeight(
-            @NonNull final OtterAppState state,
-            @NonNull final AddressBook configAddressBook,
-            @NonNull final PlatformContext context) {
-        // No weight update required yet
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void onNewRecoveredState(@NonNull final OtterAppState recoveredState) {
+    public void onNewRecoveredState(@NonNull final VirtualMapState recoveredState) {
         // No new recovered state required yet
     }
 

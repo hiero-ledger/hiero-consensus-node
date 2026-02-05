@@ -14,15 +14,14 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterEntryBuilder;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -30,6 +29,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterEntryBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +37,7 @@ class EventCreatorTests {
     private EventCreator creator;
     private List<PlatformEvent> eventsToCreate;
     private FakeTime time;
-    private DefaultEventCreator manager;
+    private DefaultEventCreationManager manager;
 
     @BeforeEach
     void setUp() {
@@ -64,8 +64,8 @@ class EventCreatorTests {
 
         final Roster roster = new Roster(rosterEntries);
 
-        manager = new DefaultEventCreator();
-        manager.initialize(configuration, metrics, time, () -> false, creator, roster, NodeId.of(1));
+        manager = new DefaultEventCreationManager(
+                configuration, metrics, time, () -> false, creator, roster, NodeId.of(1));
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
     }

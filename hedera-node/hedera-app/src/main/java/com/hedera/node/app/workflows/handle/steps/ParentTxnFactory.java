@@ -20,7 +20,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -40,13 +39,15 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
@@ -65,13 +66,13 @@ import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
+import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -79,7 +80,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -110,6 +110,7 @@ public class ParentTxnFactory {
     private final ChildDispatchFactory childDispatchFactory;
     private final TransactionChecker transactionChecker;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
+    private final NodeFeeAccumulator nodeFeeAccumulator;
 
     @Inject
     public ParentTxnFactory(
@@ -130,7 +131,8 @@ public class ParentTxnFactory {
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ChildDispatchFactory childDispatchFactory,
             @NonNull final TransactionChecker transactionChecker,
-            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders) {
+            @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
+            @NonNull final NodeFeeAccumulator nodeFeeAccumulator) {
         this.configProvider = requireNonNull(configProvider);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
@@ -153,6 +155,7 @@ public class ParentTxnFactory {
                 .streamMode();
         this.transactionChecker = requireNonNull(transactionChecker);
         this.apiProviders = requireNonNull(apiProviders);
+        this.nodeFeeAccumulator = requireNonNull(nodeFeeAccumulator);
     }
 
     /**
@@ -172,8 +175,8 @@ public class ParentTxnFactory {
      * @param creatorInfo the node information of the creator
      * @param platformTxn the transaction itself
      * @param consensusNow the current consensus time
-     * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
-     *                                transaction type
+     * @param shortCircuitCallback A callback to be called when encountering any short-circuiting
+     * transaction type
      * @return the new top-level transaction, or {@code null} if the transaction is not parseable
      */
     public @Nullable ParentTxn createTopLevelTxn(
@@ -181,15 +184,16 @@ public class ParentTxnFactory {
             @Nullable final NodeInfo creatorInfo,
             @NonNull final ConsensusTransaction platformTxn,
             @NonNull final Instant consensusNow,
-            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
+            @NonNull final ShortCircuitCallback shortCircuitCallback) {
         requireNonNull(state);
         requireNonNull(platformTxn);
         requireNonNull(consensusNow);
+        requireNonNull(shortCircuitCallback);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state);
-        final var readableStoreFactory = new ReadableStoreFactory(stack);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
-                creatorInfo, platformTxn, readableStoreFactory, shortCircuitTxnCallback);
+                creatorInfo, platformTxn, readableStoreFactory, shortCircuitCallback);
         // In case we got this without a prehandle call, ensure there's metadata for quiescence controller
         if (platformTxn.getMetadata() == null) {
             log.error(
@@ -251,7 +255,7 @@ public class ParentTxnFactory {
         requireNonNull(body);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state);
-        final var readableStoreFactory = new ReadableStoreFactory(stack);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
         final var functionality = functionOfTxn(body);
         final var preHandleResult =
                 preHandleSystemTransaction(body, payerId, config, readableStoreFactory, creatorInfo, type);
@@ -329,11 +333,11 @@ public class ParentTxnFactory {
         final var tokenContextImpl = parentTxn.tokenContextImpl();
         final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
 
-        final var readableStoreFactory = new ReadableStoreFactory(stack);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
-        final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders);
+        final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders, nodeFeeAccumulator);
         final var priceCalculator =
                 new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
         final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);

@@ -3,14 +3,14 @@ package com.swirlds.platform.test.fixtures.event.source;
 
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
-import com.swirlds.common.test.fixtures.TransactionGenerator;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Random;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.transaction.TransactionGenerator;
 
 public interface EventSource {
 
@@ -85,17 +85,17 @@ public interface EventSource {
     /**
      * Generates a new event. Is responsible for populating IndexedEvent metadata fields.
      *
-     * @param random      a source of randomness
-     * @param eventIndex  the unique index of the event that will be generated
-     * @param otherParent the node that is contributing the "other parent" event
-     * @param timestamp   the creation timesetamp that the event should have
-     * @param birthRound  the pending consensus round when the event was created
+     * @param random       a source of randomness
+     * @param eventIndex   the unique index of the event that will be generated
+     * @param otherParents the node that is contributing the "other parent" event
+     * @param timestamp    the creation timesetamp that the event should have
+     * @param birthRound   the pending consensus round when the event was created
      * @return The random event that was generated.
      */
-    EventImpl generateEvent(
+    PlatformEvent generateEvent(
             @NonNull final Random random,
             final long eventIndex,
-            @Nullable final EventSource otherParent,
+            @NonNull final Collection<EventSource> otherParents,
             @NonNull final Instant timestamp,
             final long birthRound);
 
@@ -107,7 +107,7 @@ public interface EventSource {
      * @return the event, if it exists. Null if there are no events, and the oldest possible if the event at the
      * 		requested index is no longer stored.
      */
-    EventImpl getRecentEvent(Random random, int index);
+    PlatformEvent getRecentEvent(Random random, int index);
 
     /**
      * Return the latest event that was generated.
@@ -116,7 +116,7 @@ public interface EventSource {
      * @param random
      * 		a source of randomness
      */
-    default EventImpl getLatestEvent(final Random random) {
+    default PlatformEvent getLatestEvent(final Random random) {
         return getRecentEvent(random, 0);
     }
 
@@ -128,7 +128,7 @@ public interface EventSource {
      * @param event
      * 		an event that was just created by this source
      */
-    void setLatestEvent(Random random, EventImpl event);
+    void setLatestEvent(Random random, PlatformEvent event);
 
     /**
      * Get the event index (i.e. the age of the event) that this node would like to use for its other parent.

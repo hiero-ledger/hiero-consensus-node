@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.task;
 
-import static com.swirlds.common.merkle.synchronization.task.LessonType.CUSTOM_VIEW_ROOT;
 import static com.swirlds.common.merkle.synchronization.task.LessonType.INTERNAL_NODE_DATA;
 import static com.swirlds.common.merkle.synchronization.task.LessonType.LEAF_NODE_DATA;
 import static com.swirlds.common.merkle.synchronization.task.LessonType.NODE_IS_UP_TO_DATE;
@@ -18,7 +17,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 /**
  * Used during the synchronization protocol to send data needed to reconstruct a single node.
  */
-public class Lesson<T> implements Releasable, SelfSerializable {
+public class Lesson implements Releasable, SelfSerializable {
 
     private static final long CLASS_ID = 0x98bc0d340d9bca1dL;
 
@@ -29,7 +28,7 @@ public class Lesson<T> implements Releasable, SelfSerializable {
     private byte lessonType;
     private SelfSerializable subLesson;
 
-    private LearnerTreeView<T> learnerView;
+    private LearnerTreeView learnerView;
 
     /**
      * Zero-arg constructor for constructable registry.
@@ -55,7 +54,7 @@ public class Lesson<T> implements Releasable, SelfSerializable {
      * @param learnerTreeView
      * 		the learner's view
      */
-    public Lesson(final LearnerTreeView<T> learnerTreeView) {
+    public Lesson(final LearnerTreeView learnerTreeView) {
         this.learnerView = learnerTreeView;
     }
 
@@ -81,13 +80,10 @@ public class Lesson<T> implements Releasable, SelfSerializable {
             case NODE_IS_UP_TO_DATE:
                 return;
             case LEAF_NODE_DATA:
-                subLesson = new LeafDataLesson<>(learnerView);
+                subLesson = new LeafDataLesson(learnerView);
                 break;
             case INTERNAL_NODE_DATA:
-                subLesson = new InternalDataLesson<>(learnerView);
-                break;
-            case CUSTOM_VIEW_ROOT:
-                subLesson = new CustomViewRootLesson();
+                subLesson = new InternalDataLesson(learnerView);
                 break;
             default:
                 throw new IllegalStateException("unsupported lesson type " + lessonType);
@@ -135,55 +131,20 @@ public class Lesson<T> implements Releasable, SelfSerializable {
      */
     @SuppressWarnings("unchecked")
     public List<Hash> getQueries() {
-        return ((InternalDataLesson<T>) subLesson).getQueries();
+        return ((InternalDataLesson) subLesson).getQueries();
     }
 
     /**
-     * Get the leaf node. Will be unset and throw an exception if {@link #isCurrentNodeUpToDate()} is true or
-     * if {@link #isCustomViewRoot()} is true.
+     * Get the leaf node. Will be unset and throw an exception if {@link #isCurrentNodeUpToDate()} is true.
      *
      * @return the leaf node, or null if unset
      */
     @SuppressWarnings("unchecked")
-    public T getNode() {
+    public Long getNode() {
         if (lessonType == LEAF_NODE_DATA) {
-            return ((LeafDataLesson<T>) subLesson).getLeaf();
+            return ((LeafDataLesson) subLesson).getLeaf();
         }
-        return ((InternalDataLesson<T>) subLesson).getInternal();
-    }
-
-    /**
-     * Check if this is the initial lesson for a custom root.
-     *
-     * @return true if this is the initial lesson for the custom root
-     */
-    public boolean isCustomViewRoot() {
-        return lessonType == CUSTOM_VIEW_ROOT;
-    }
-
-    /**
-     * If {@link #isCustomViewRoot()} returns true, this method returns the class ID for the
-     * root of the subtree with the custom view.
-     *
-     * @return the class ID of the root of the subtree
-     */
-    public long getCustomViewClassId() {
-        return ((CustomViewRootLesson) subLesson).getRootClassId();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @SuppressWarnings("unchecked")
-    @Override
-    public boolean release() {
-        if (lessonType == LEAF_NODE_DATA && learnerView != null) {
-            final T node = ((LeafDataLesson<T>) subLesson).getLeaf();
-            if (node != null) {
-                learnerView.releaseNode(node);
-            }
-        }
-        return true;
+        return ((InternalDataLesson) subLesson).getInternal();
     }
 
     /**

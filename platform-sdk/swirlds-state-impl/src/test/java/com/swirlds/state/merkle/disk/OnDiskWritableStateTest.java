@@ -11,8 +11,6 @@ import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,7 +57,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
 
         @Test
         @DisplayName("You must specify the virtual map")
-        void nullMerkleMapThrows() {
+        void nullVirtualMapThrows() {
             //noinspection DataFlowIssue
             assertThatThrownBy(() -> new OnDiskWritableKVState<>(
                             FRUIT_STATE_ID, FRUIT_STATE_LABEL, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, null))
@@ -111,17 +109,6 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             assertThat(state.get(E_KEY)).isNull();
             assertThat(state.get(F_KEY)).isNull();
             assertThat(state.get(G_KEY)).isNull();
-        }
-
-        @Test
-        @DisplayName("Iteration includes both mutations and committed state")
-        void iterateIncludesMutations() {
-            add(FRUIT_STATE_ID, A_KEY, APPLE);
-            add(FRUIT_STATE_ID, B_KEY, BANANA);
-            state.put(C_KEY, toProtoBytes("Cherry"));
-            final var actual = StreamSupport.stream(Spliterators.spliterator(state.keys(), 3, 0), false)
-                    .toList();
-            assertThat(actual).containsExactlyInAnyOrder(A_KEY, B_KEY, C_KEY);
         }
 
         @AfterEach

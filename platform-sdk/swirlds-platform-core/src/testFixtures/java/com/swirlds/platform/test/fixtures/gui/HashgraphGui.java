@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.gui;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
@@ -13,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import org.hiero.consensus.test.fixtures.Randotron;
 
 public class HashgraphGui {
 
@@ -34,6 +34,7 @@ public class HashgraphGui {
         final GraphGenerator graphGenerator = new StandardGraphGenerator(
                 platformContext,
                 randotron.nextInt(),
+                2,
                 generateSources(numNodes, Arrays.stream(args).anyMatch("branch"::equals)));
         graphGenerator.reset();
 

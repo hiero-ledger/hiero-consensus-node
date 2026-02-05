@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.task;
 
-import static com.swirlds.common.merkle.synchronization.task.LessonType.CUSTOM_VIEW_ROOT;
 import static com.swirlds.common.merkle.synchronization.task.LessonType.INTERNAL_NODE_DATA;
 import static com.swirlds.common.merkle.synchronization.task.LessonType.LEAF_NODE_DATA;
 import static com.swirlds.common.merkle.synchronization.task.LessonType.NODE_IS_UP_TO_DATE;
@@ -9,43 +8,37 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.merkle.synchronization.views.CustomReconnectRoot;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.common.utility.throttle.RateLimiter;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * This class encapsulates all logic for the teacher's sending task.
- *
- * @param <T> the type of data used by the view to represent a node
  */
-public class TeacherPushSendTask<T> {
+public class TeacherPushSendTask {
 
     private static final Logger logger = LogManager.getLogger(TeacherPushSendTask.class);
 
     private static final String NAME = "teacher-send-task";
 
     /**
-     * The lesson used to describe an up to date node is always eactly the same. No need to create a new object each
+     * The lesson used to describe an up to date node is always exactly the same. No need to create a new object each
      * time.
      */
-    private static final Lesson<?> UP_TO_DATE_LESSON = new Lesson<>(NODE_IS_UP_TO_DATE, null);
+    private static final Lesson UP_TO_DATE_LESSON = new Lesson(NODE_IS_UP_TO_DATE, null);
 
-    private final ReconnectConfig reconnectConfig;
     private final StandardWorkGroup workGroup;
     private final AsyncInputStream<QueryResponse> in;
-    private final AsyncOutputStream<Lesson<T>> out;
-    private final Queue<TeacherSubtree> subtrees;
-    private final TeacherTreeView<T> view;
+    private final AsyncOutputStream<Lesson> out;
+    private final TeacherTreeView view;
 
     private final AtomicBoolean senderIsFinished;
 
@@ -60,8 +53,6 @@ public class TeacherPushSendTask<T> {
      * @param workGroup             the work group managing the reconnect
      * @param in                    the input stream
      * @param out                   the output stream, this object is responsible for closing this object when finished
-     * @param subtrees              a queue containing roots of subtrees to send, may have more roots added by this
-     *                              class
      * @param view                  an object that interfaces with the subtree
      * @param senderIsFinished      set to true when this thread has finished
      */
@@ -70,15 +61,12 @@ public class TeacherPushSendTask<T> {
             @NonNull final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
             final AsyncInputStream<QueryResponse> in,
-            final AsyncOutputStream<Lesson<T>> out,
-            final Queue<TeacherSubtree> subtrees,
-            final TeacherTreeView<T> view,
+            final AsyncOutputStream<Lesson> out,
+            final TeacherTreeView view,
             final AtomicBoolean senderIsFinished) {
-        this.reconnectConfig = reconnectConfig;
         this.workGroup = workGroup;
         this.in = in;
         this.out = out;
-        this.subtrees = subtrees;
         this.view = view;
         this.senderIsFinished = senderIsFinished;
 
@@ -103,37 +91,25 @@ public class TeacherPushSendTask<T> {
      * When a {@link Lesson} for in an internal node is sent, that lesson contains embedded queries. This method
      * prepares for the responses to those queries.
      */
-    private void prepareForQueryResponse(final T parent, final int childIndex) {
+    private void prepareForQueryResponse(final long parent, final int childIndex) {
         in.anticipateMessage();
-        final T child = view.getChildAndPrepareForQueryResponse(parent, childIndex);
+        final long child = view.getChildAndPrepareForQueryResponse(parent, childIndex);
         view.addToHandleQueue(child);
-    }
-
-    /**
-     * Send a lesson that describes the root of a subtree with a custom view.
-     */
-    private Lesson<T> buildCustomReconnectRootLesson(final T node) {
-        final Lesson<T> lesson = new Lesson<>(CUSTOM_VIEW_ROOT, new CustomViewRootLesson(view.getClassId(node)));
-        final CustomReconnectRoot<?, ?> subtreeRoot = (CustomReconnectRoot<?, ?>) view.getMerkleRoot(node);
-
-        subtrees.add(new TeacherSubtree(subtreeRoot, subtreeRoot.buildTeacherView(reconnectConfig)));
-
-        return lesson;
     }
 
     /**
      * Send a lesson that contains data for a leaf or an internal node.
      */
-    private Lesson<T> buildDataLesson(final T node) {
-        final Lesson<T> lesson;
+    private Lesson buildDataLesson(final long node) {
+        final Lesson lesson;
         if (view.isInternal(node, true)) {
-            lesson = new Lesson<>(INTERNAL_NODE_DATA, new InternalDataLesson<>(view, node));
+            lesson = new Lesson(INTERNAL_NODE_DATA, new InternalDataLesson(view, node));
             final int childCount = view.getNumberOfChildren(node);
             for (int childIndex = 0; childIndex < childCount; childIndex++) {
                 prepareForQueryResponse(node, childIndex);
             }
         } else {
-            lesson = new Lesson<>(LEAF_NODE_DATA, new LeafDataLesson<>(view, node));
+            lesson = new Lesson(LEAF_NODE_DATA, new LeafDataLesson(view, node));
         }
 
         return lesson;
@@ -152,15 +128,13 @@ public class TeacherPushSendTask<T> {
      * </p>
      */
     @SuppressWarnings("unchecked")
-    private void sendLesson(final T node) throws InterruptedException {
-        final Lesson<T> lesson;
+    private void sendLesson(final long node) throws InterruptedException {
+        final Lesson lesson;
 
         final boolean learnerHasConfirmed = view.hasLearnerConfirmedFor(node);
 
         if (learnerHasConfirmed) {
-            lesson = (Lesson<T>) UP_TO_DATE_LESSON;
-        } else if (view.isCustomReconnectRoot(node)) {
-            lesson = buildCustomReconnectRootLesson(node);
+            lesson = UP_TO_DATE_LESSON;
         } else {
             lesson = buildDataLesson(node);
         }
@@ -186,11 +160,11 @@ public class TeacherPushSendTask<T> {
      */
     private void run() {
         try (out) {
-            out.sendAsync(buildDataLesson(view.getRoot()));
+            out.sendAsync(buildDataLesson(0));
 
             while (view.areThereNodesToHandle()) {
                 rateLimit();
-                final T node = view.getNextNodeToHandle();
+                final long node = view.getNextNodeToHandle();
                 sendLesson(node);
             }
         } catch (final InterruptedException ex) {

@@ -17,6 +17,10 @@ message OtterTransaction {
     OtterFreezeTransaction freezeTransaction = 101;
     com.hedera.hapi.platform.event.StateSignatureTransaction stateSignatureTransaction = 102;
     OtterIssTransaction issTransaction = 103;
+    BenchmarkTransaction benchmarkTransaction = 104;
+
+    CreateAccountTransaction createAccountTransaction = 201;
+    DeleteAccountTransaction deleteAccountTransaction = 202;
   }
 }
 
@@ -31,7 +35,22 @@ message OtterIssTransaction {
   repeated HashPartition partition = 1;
 }
 
+message CreateAccountTransaction {
+  string name = 1;
+}
+
+message DeleteAccountTransaction {
+  uint64 id = 1;
+}
+
 message HashPartition {
   repeated uint64 node_id = 1;
+}
+
+// A transaction used for benchmark measurements.
+// Contains a submission timestamp to calculate latency when the transaction reaches consensus.
+message BenchmarkTransaction {
+  // The timestamp (in epoch microseconds) when this transaction was submitted.
+  uint64 submission_time_micros = 1;
 }
 

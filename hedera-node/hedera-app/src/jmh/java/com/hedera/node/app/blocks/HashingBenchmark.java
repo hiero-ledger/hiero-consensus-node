@@ -13,17 +13,14 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.blocks.impl.ConcurrentStreamingTreeHasher;
-import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
+import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.SplittableRandom;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -58,27 +55,27 @@ public class HashingBenchmark {
     private Bytes expectedAnswer;
 
     @Setup(Level.Trial)
-    public void setup() throws IOException {
-        final var digest = sha384DigestOrThrow();
+    public void setup() {
         leafHashes = new ArrayList<>(numLeafHashes);
         for (int i = 0; i < numLeafHashes; i++) {
             final var item = randomBlockItem();
-            final var hash = digest.digest(BlockItem.PROTOBUF.toBytes(item).toByteArray());
-            leafHashes.add(hash);
+            final var hash = BlockImplUtils.hashLeaf(BlockItem.PROTOBUF.toBytes(item));
+            leafHashes.add(hash.toByteArray());
         }
-        expectedAnswer = NaiveStreamingTreeHasher.computeRootHash(leafHashes);
+        expectedAnswer = Bytes.wrap(
+                new IncrementalStreamingHasher(sha384DigestOrThrow(), leafHashes, numLeafHashes).computeRootHash());
     }
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     public void hashItemTree(@NonNull final Blackhole blackhole) {
-        //                final var subject = new NaiveStreamingTreeHasher();
-        final var subject = new ConcurrentStreamingTreeHasher(ForkJoinPool.commonPool());
+        final var subject =
+                new IncrementalStreamingHasher(sha384DigestOrThrow(), new ArrayList<>(leafHashes.size()), 0);
         for (final var hash : leafHashes) {
-            subject.addLeaf(ByteBuffer.wrap(hash));
+            subject.addLeaf(hash);
         }
-        final var rootHash = subject.rootHash().join();
+        final var rootHash = Bytes.wrap(subject.computeRootHash());
         if (!rootHash.equals(expectedAnswer)) {
             throw new IllegalStateException("Expected " + expectedAnswer + " but got " + rootHash);
         }

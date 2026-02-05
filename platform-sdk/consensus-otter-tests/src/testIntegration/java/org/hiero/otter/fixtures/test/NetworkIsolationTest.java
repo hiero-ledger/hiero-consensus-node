@@ -5,11 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
-import java.util.stream.Stream;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -19,8 +18,6 @@ import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Tests for the node isolation functionality in the Network interface.
@@ -28,12 +25,19 @@ import org.junit.jupiter.params.provider.MethodSource;
 class NetworkIsolationTest {
 
     /**
-     * Provides a stream of test environments for the parameterized tests.
-     *
-     * @return a stream of {@link TestEnvironment} instances
+     * Test isolating and removing a single node from the network (Turtle environment).
      */
-    public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    @Test
+    void testIsolateAndRejoinSingleNodeTurtle() {
+        testIsolateAndRejoinSingleNode(new TurtleTestEnvironment());
+    }
+
+    /**
+     * Test isolating and removing a single node from the network (Container environment).
+     */
+    @Test
+    void testIsolateAndRejoinSingleNodeContainer() {
+        testIsolateAndRejoinSingleNode(new ContainerTestEnvironment());
     }
 
     /**
@@ -41,9 +45,7 @@ class NetworkIsolationTest {
      *
      * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testIsolateAndRejoinSingleNode(@NonNull final TestEnvironment env) {
+    private void testIsolateAndRejoinSingleNode(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

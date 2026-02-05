@@ -20,35 +20,80 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "services/basic_types.proto";
 import "services/timestamp.proto";
 import "streams/sidecar_file.proto";
+import "streams/record_stream_file.proto";
+import "services/transaction_record.proto";
+import "services/transaction_contents.proto";
 
 /**
  * A Block Item for record files.
  *
  * A `RecordFileItem` contains data produced before the innovation of the
  * Block Stream, when data was stored in files and validated by individual
- * signature files rather than a block proof.<br/>
+ * signature files.<br/>
+ *
  * This item enables a single format, the Block Stream, to carry both
  * historical and current data; eliminating the need to search two sources for
  * block and block chain data.<br/>
+ *
+ * There are 3 versions of the binary file format that record files were
+ * produced in: v2, v5 and v6. Version 6 was protobuf already in the format of
+ * `proto.RecordStreamFile`. Version 5 was almost identical in content but a
+ * custom binary encoding rather than protobuf. Version 2 was a different
+ * custom binary format. All versions can be converted to a block stream block
+ * with RecordFileItem in a fully reversible lossless way.<br/>
+ *
+ * The following pseudocode describes how to reconstruct the original record
+ * file from the contents of this item. All numbers are big-endian.
+ * <code><pre>{@code
+ * recordFormatVersion = BlockProof.SignedRecordFileProof.version
+ * PROCEDURE reconstructRecordFile(recordFormatVersion,
+ *                                  hapiProtoVersion, previousBlockHash,
+ *                                  recordStreamFile):
+ *     WRITE version number (4 bytes, int)
+ *     IF version == 2:
+ *         WRITE HAPI major version (4 bytes int)
+ *         WRITE previous file hash marker (1 byte = 0x01)
+ *         WRITE previous block hash (48 bytes SHA-384)
+ *         FOR EACH item IN recordStreamFile.recordStreamItems:
+ *             WRITE record marker (1 byte = 0x02)
+ *             WRITE transaction length (4 bytes int)
+ *             WRITE transaction (protobuf bytes)
+ *             WRITE transaction record length (4 bytes int)
+ *             WRITE transaction record (protobuf bytes)
+ *         END FOR
+ *     ELSE IF version == 5:
+ *         WRITE HAPI major version (4 bytes int)
+ *         WRITE HAPI minor version (4 bytes int)
+ *         WRITE HAPI patch version (4 bytes int)
+ *         WRITE object stream version (4 bytes int = 1)
+ *         WRITE start object running hash (V5 HashObject format)
+ *         FOR EACH item IN recordStreamFile.recordStreamItems:
+ *             WRITE class ID (8 bytes long = 0xe370929ba5429d8b)
+ *             WRITE class version (4 bytes int = 1)
+ *             WRITE transaction record length (4 bytes int)
+ *             WRITE transaction record (protobuf bytes)
+ *             WRITE transaction length (4 bytes int)
+ *             WRITE transaction (protobuf bytes)
+ *         END FOR
+ *         WRITE end object running hash (V5 HashObject format)
+ *     ELSE IF version == 6:
+ *         WRITE RecordStreamFile (protobuf encoded)
+ *     ELSE:
+ *         THROW UnsupportedOperationException
+ * END PROCEDURE
+ * }</pre></code>
+ *
  * Any block containing this item requires special handling.
  * - The block SHALL have a `BlockHeader`.
  *    - Some fields in the `BlockHeader` may be interpreted differently, and
  *      may depend on when the original record file was created.
- * - The block SHALL NOT have a `BlockProof`.
- * - The block SHALL end with an `AddressBookProof`, which is only used for
- *   `RecordFileItem` blocks.
  * - The block SHALL contain _exactly one_ `RecordFileItem`.
- * - The block SHALL NOT contain any content item other than a `RecordFileItem`.
- * - The content of the `RecordFileItem` MUST be validated using the
- *   signature data and content provided herein according to the
- *   process used for Record Files prior to the creation of Block Stream.
- *    - This block item only replaces the requirement to read several
- *      individual files from cloud storage services.
- * - The address book relevant to a particular record file SHALL be available
- *   separately as an `AddressBookProof` item.
+ * - The block SHALL have a `BlockFooter`.
+ * - The block SHALL have a `SignedRecordFileProof` type `BlockProof`.
+ * - The block SHALL NOT contain any content item other than a block header,
+ *   single `RecordFileItem`, block footer and one or more block proofs.
  */
 message RecordFileItem {
     /**
@@ -59,10 +104,12 @@ message RecordFileItem {
 
     /**
      * The contents of a record file.<br/>
-     * The first 4 bytes are a 32bit int little endian version number.
-     * The versions that existed are 2,3,5 and 6.
+     * Record files were originally stored in different binary formats,
+     * this is the content converted to V6 format RecordStreamFile. That
+     * conversion is lossless and reversible. It will need to be reversed to
+     * validate the block with a `SignedRecordFileProof`.
      */
-    bytes record_file_contents = 2;
+    proto.RecordStreamFile record_file_contents = 2;
 
     /**
      * The contents of sidecar files for this block.<br/>
@@ -71,26 +118,15 @@ message RecordFileItem {
     repeated proto.SidecarFile sidecar_file_contents = 3;
 
     /**
-     * A collection of RSA signatures from consensus nodes.<br/>
-     * These signatures validate the hash of the record_file_contents field.
+     * Amendments to the record file data.<br/>
+     * Over the years there were various bugs that caused data to be missed,
+     * incorrect or added erroneously.  Amendments are used to fix those
+     * mistakes with the aim that all data in the block stream is correct and
+     * complete. This field carries the record items that amend the original
+     * record file contents. Each item may contain a Transaction and/or
+     * TransactionRecord that are intended to replace the original data. They
+     * can be matched by the transaction ID. If you want the original raw data
+     * then you can ignore the contents of this field.
      */
-    repeated RecordFileSignature record_file_signatures = 4;
-}
-
-/**
- * A signature by a node on the SHA384 hash of the record file.
- */
-message RecordFileSignature {
-    /**
-     * A single RSA signature.<br/>
-     * This is the RSA signature of the node on the SHA384 hash of
-     * the record file
-     */
-    bytes signatures_bytes = 1;
-
-    /**
-     * A unique node identifier.<br/>
-     * This is the node id of the consensus node that created this signature.
-     */
-    int32 node_id = 2;
+    repeated proto.RecordStreamItem amendments = 4;
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -18,7 +19,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -43,7 +44,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 
+@Tag(ATOMIC_BATCH)
 @OrderedInIsolation
 @HapiTestLifecycle
 class AtomicBatchTokenAirdropTest {
@@ -54,7 +57,7 @@ class AtomicBatchTokenAirdropTest {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         // create default batch operator
-        testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+        testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(10 * THOUSAND_HBAR));
     }
 
     @Contract(contract = "Airdrop", creationGas = 5_000_000)
@@ -96,8 +99,7 @@ class AtomicBatchTokenAirdropTest {
     @HapiTest
     @DisplayName("Atomic Airdrop token")
     Stream<DynamicTest> atomicAirdropToken(
-            @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 10_000L * ONE_MILLION_HBARS)
-                    final SpecAccount sender,
+            @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = THOUSAND_HBAR) final SpecAccount sender,
             @NonNull @Account(maxAutoAssociations = -1) final SpecAccount receiver,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token) {
         return hapiTest(
@@ -119,8 +121,7 @@ class AtomicBatchTokenAirdropTest {
     @HapiTest
     @DisplayName("Can atomic airdrop fungible token to a contract that is already associated to it")
     Stream<DynamicTest> atomicAirdropToContract(
-            @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 10_000L * ONE_MILLION_HBARS)
-                    final SpecAccount sender,
+            @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = THOUSAND_HBAR) final SpecAccount sender,
             @NonNull @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
                     final SpecContract receiverContract,
             @NonNull @FungibleToken(initialSupply = 1000L) final SpecFungibleToken token) {
@@ -182,7 +183,7 @@ class AtomicBatchTokenAirdropTest {
     @DisplayName("Can cancel atomic airdrop of fungible token")
     Stream<DynamicTest> canCancelAtomicAirdropOfFungibleToken(
             @NonNull @FungibleToken(initialSupply = 1_000L) final SpecFungibleToken token,
-            @NonNull @Account(tinybarBalance = 10_000L * ONE_MILLION_HBARS) final SpecAccount sender,
+            @NonNull @Account(tinybarBalance = THOUSAND_HBAR) final SpecAccount sender,
             @NonNull @Account(maxAutoAssociations = 0) final SpecAccount receiver) {
         return hapiTest(
                 sender.associateTokens(token),

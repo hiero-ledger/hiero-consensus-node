@@ -15,11 +15,13 @@ syntax = "proto3";
 package com.hedera.node.internal.network;
 
 // SPDX-License-Identifier: Apache-2.0
-import "block/stream/block_proof.proto";
+import "block/stream/state_proof.proto";
 
 option java_package = "com.hedera.node.internal.network.legacy";
 // <<<pbj.java_package = "com.hedera.node.internal.network">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
+
+import "services/timestamp.proto";
 
 /**
  * Provides context for a block proof pending a TSS signature.
@@ -42,6 +44,10 @@ message PendingProof {
      */
     bytes previous_block_hash = 4;
     /**
+     * The timestamp of the pending block
+     */
+    proto.Timestamp block_timestamp = 5;
+    /**
      * If set, the sibling hashes that could be used to prove the
      * previous block hash (in case it was also pending, and we
      * obtain a signature for this block first).
@@ -50,5 +56,5 @@ message PendingProof {
      * already been signed and this block proof will not be used
      * for any indirect proofs.
      */
-    repeated com.hedera.hapi.block.stream.MerkleSiblingHash sibling_hashes_from_prev_block_root = 5;
+    repeated com.hedera.hapi.block.stream.MerkleSiblingHash sibling_hashes_from_prev_block_root = 6;
 }

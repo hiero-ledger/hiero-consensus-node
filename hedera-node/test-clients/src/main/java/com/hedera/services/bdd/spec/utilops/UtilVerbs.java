@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -251,6 +252,7 @@ import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DynamicTest;
 
 public class UtilVerbs {
     public static final int DEFAULT_COLLISION_AVOIDANCE_FACTOR = 2;
@@ -619,7 +621,7 @@ public class UtilVerbs {
         return new QueryModificationsOp(false, queryOpSupplier, modificationsFn);
     }
 
-    public static SourcedOp sourcing(Supplier<HapiSpecOperation> source) {
+    public static SourcedOp sourcing(Supplier<? extends SpecOperation> source) {
         return new SourcedOp(source);
     }
 
@@ -2085,6 +2087,28 @@ public class UtilVerbs {
         return validateChargedUsdWithin(txn, expectedUsd, allowedPercentDiff);
     }
 
+    public static CustomSpecAssert validateChargedAccount(String txn, String expectedAccount) {
+        return assertionsHold((spec, log) -> {
+            requireNonNull(spec);
+            requireNonNull(txn);
+            var subOp = getTxnRecord(txn);
+            allRunFor(spec, subOp);
+            final var rcd = subOp.getResponseRecord();
+            final var expectedAccountId = asId(expectedAccount, spec);
+            final var negativeAccountAmount = rcd.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAmount() < 0)
+                    .findFirst();
+            assertTrue(negativeAccountAmount.isPresent());
+            final var actualChargedAccountId = negativeAccountAmount.get().getAccountID();
+            assertEquals(
+                    actualChargedAccountId,
+                    expectedAccountId,
+                    String.format(
+                            "Charged account %s is different than expected: %s",
+                            actualChargedAccountId, expectedAccountId));
+        });
+    }
+
     public static CustomSpecAssert validateChargedFee(String txn, long expectedFee) {
         return assertionsHold((spec, assertLog) -> {
             final var actualFeeCharged = getChargedFee(spec, txn);
@@ -2095,30 +2119,82 @@ public class UtilVerbs {
         });
     }
 
+    public static CustomSpecAssert validateChargedSimpleFees(
+            String name, String txn, double expectedUsd, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
+            final var actualUsdCharged = getChargedUsed(spec, txn);
+            assertEquals(
+                    expectedUsd,
+                    actualUsdCharged,
+                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    String.format(
+                            "%s: %s fee (%s) more than %.2f percent different than expected!",
+                            name, sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+        });
+    }
+
+    @FunctionalInterface
+    public interface OpsProvider {
+        List<SpecOperation> provide();
+    }
+
+    public static Stream<DynamicTest> compareSimpleToOld(
+            OpsProvider provider, String txName, double simpleFee, double simpleDiff, double oldFee, double oldDiff) {
+        List<SpecOperation> opsList = new ArrayList<>();
+
+        opsList.add(overriding("fees.simpleFeesEnabled", "true"));
+        opsList.addAll(provider.provide());
+        opsList.add(validateChargedSimpleFees("Simple Fees", txName, simpleFee, simpleDiff));
+
+        opsList.add(overriding("fees.simpleFeesEnabled", "false"));
+        opsList.addAll(provider.provide());
+        opsList.add(validateChargedSimpleFees("Old Fees", txName, oldFee, oldDiff));
+
+        return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
+    }
+
     public static CustomSpecAssert validateChargedUsdWithChild(
             String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
+            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsdFromChild(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (allowedPercentDiff / 100.0) * expectedUsd,
+                    (effectivePercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
         });
     }
 
     public static CustomSpecAssert validateChargedUsdWithin(String txn, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
+            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsed(spec, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (allowedPercentDiff / 100.0) * expectedUsd,
+                    (effectivePercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
+        });
+    }
+
+    public static CustomSpecAssert validateChargedUsdForQueries(
+            String txn, double expectedUsd, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
+            final var actualUsdCharged = getChargedUsedQuery(spec, txn);
+            assertEquals(
+                    expectedUsd,
+                    actualUsdCharged,
+                    (effectivePercentDiff / 100.0) * expectedUsd,
+                    String.format(
+                            "%s fee (%s) more than %.2f percent different than expected!",
+                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
         });
     }
 
@@ -2129,14 +2205,15 @@ public class UtilVerbs {
     public static CustomSpecAssert validateInnerTxnChargedUsd(
             String txn, String parent, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
+            final var effectivePercentDiff = Math.max(allowedPercentDiff, 1.0);
             final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
             assertEquals(
                     expectedUsd,
                     actualUsdCharged,
-                    (allowedPercentDiff / 100.0) * expectedUsd,
+                    (effectivePercentDiff / 100.0) * expectedUsd,
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
-                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+                            sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
         });
     }
 
@@ -2846,6 +2923,23 @@ public class UtilVerbs {
         allRunFor(spec, subOp);
         final var rcd = subOp.getResponseRecord();
         return (1.0 * rcd.getTransactionFee())
+                / ONE_HBAR
+                / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
+    private static double getChargedUsedQuery(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        return (-1.0
+                        * rcd.getTransferList().getAccountAmountsList().stream()
+                                .filter(aa -> aa.getAmount() < 0)
+                                .mapToLong(AccountAmount::getAmount)
+                                .sum())
                 / ONE_HBAR
                 / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
                 * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()

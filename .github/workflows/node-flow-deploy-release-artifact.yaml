@@ -30,7 +30,7 @@ permissions:
 jobs:
   prepare-tag-release:
     name: Prepare Release [Tag]
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     outputs:
       version: ${{ steps.tag.outputs.version }}
@@ -99,7 +99,7 @@ jobs:
 
   update-hedera-protobufs:
     name: Update Hedera Protobufs
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - prepare-tag-release
     steps:
@@ -185,7 +185,7 @@ jobs:
 
   deploy-xts-ci-trigger:
     name: Trigger XTS CI Flow
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
     steps:
@@ -210,7 +210,7 @@ jobs:
           JOB_ENABLED="true"
           JOB_STATE=$(gh workflow list --all --json name,state | jq -r '.[]|select(.name=="ZXF: Prepare Extended Test Suite")|.state')
           [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
-          echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
+          echo "enabled=${JOB_ENABLED}" >> "${GITHUB_OUTPUT}"
 
       - name: Trigger ZXF Prepare Extended Test Suite
         if: ${{ needs.release-branch.result == 'success' && steps.check-xts-job.outputs.enabled == 'true' }}
@@ -227,7 +227,7 @@ jobs:
 
   deploy-integration-ci-trigger:
     name: Trigger Deploy Integration Flow
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
     steps:
@@ -252,7 +252,7 @@ jobs:
           JOB_ENABLED="true"
           JOB_STATE=$(gh workflow list --all --json name,state --limit 200 | jq -r '.[]|select(.name=="ZXF: [Node] Deploy Integration Network Release")|.state')
           [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
-          echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
+          echo "enabled=${JOB_ENABLED}" >> "${GITHUB_OUTPUT}"
 
       - name: Trigger ZXF Deploy Integration
         if: >-
@@ -271,7 +271,7 @@ jobs:
 
   report-failures:
     name: Report Production Release Failures
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
       - deploy-xts-ci-trigger
@@ -482,10 +482,10 @@ jobs:
           }
           EOF
 
-      - name: Report failure (slack citr-operations)
+      - name: Report failure (slack citr-failures)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
