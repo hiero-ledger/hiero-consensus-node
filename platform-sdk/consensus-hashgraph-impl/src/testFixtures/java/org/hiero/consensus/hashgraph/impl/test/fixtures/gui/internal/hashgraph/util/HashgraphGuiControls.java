@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.util;
+//  SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.util;
 
-import static org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.GuiUtils.wrap;
-import static org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.HashgraphGuiConstants.DEFAULT_GENERATIONS_TO_DISPLAY;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.GuiUtils.wrap;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphGuiConstants.DEFAULT_GENERATIONS_TO_DISPLAY;
 
 import java.awt.Checkbox;
 import java.awt.Color;
@@ -16,8 +17,8 @@ import java.awt.event.ItemListener;
 import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.GuiUtils;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.HashgraphPictureOptions;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.GuiUtils;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphPictureOptions;
 import org.hiero.consensus.model.event.EventConstants;
 
 /**

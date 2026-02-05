@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.util;
+//  SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.util;
 
 import java.awt.Color;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.HashgraphGuiConstants;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.HashgraphPictureOptions;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphGuiConstants;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphPictureOptions;
 
 /**
  * Various static utils for the {@link org.hiero.consensus.gui.hashgraph.HashgraphGui}

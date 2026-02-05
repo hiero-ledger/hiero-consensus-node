@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.components;
+//  SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.components;
 
 public interface ChartLabelModel {
 

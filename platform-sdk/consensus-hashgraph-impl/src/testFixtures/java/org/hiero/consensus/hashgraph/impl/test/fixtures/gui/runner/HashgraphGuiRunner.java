@@ -9,8 +9,8 @@ import java.awt.event.WindowListener;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.HashgraphGui;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.HashgraphGuiSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphGui;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphGuiSource;
 
 /** Helper class to open a {@link HashgraphGui} window */
 final class HashgraphGuiRunner {

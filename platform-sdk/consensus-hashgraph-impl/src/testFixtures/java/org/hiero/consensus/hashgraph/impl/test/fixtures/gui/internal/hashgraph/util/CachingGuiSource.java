@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.util;
+//  SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.util;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.GuiEventStorage;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.HashgraphGuiConstants;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.HashgraphGuiSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.GuiEventStorage;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphGuiConstants;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.model.event.EventConstants;
 
 /**

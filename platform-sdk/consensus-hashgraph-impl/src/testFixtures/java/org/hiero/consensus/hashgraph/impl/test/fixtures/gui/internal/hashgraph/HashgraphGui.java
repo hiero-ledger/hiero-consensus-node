@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph;
+//  SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph;
 
 import java.awt.Color;
 import java.awt.Dimension;
@@ -8,11 +9,11 @@ import java.awt.GridBagLayout;
 import java.awt.event.ItemEvent;
 import java.io.Serial;
 import javax.swing.JPanel;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.GuiUtils;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.components.PrePaintableJPanel;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.util.CachingGuiSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.util.HashgraphGuiControls;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.util.HashgraphPicture;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.GuiUtils;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.components.PrePaintableJPanel;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.util.CachingGuiSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.util.HashgraphGuiControls;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.util.HashgraphPicture;
 
 /**
  * A {@link JPanel} that draws a hashgraph from a provided source, as well as having controls to modify display options

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui;
+//  SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal;
 
 import com.swirlds.common.Console;
 import java.awt.Color;
@@ -15,8 +16,8 @@ import javax.swing.JPanel;
 import javax.swing.JTextArea;
 import javax.swing.WindowConstants;
 import javax.swing.text.DefaultCaret;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.components.PrePaintableJPanel;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.components.ScrollableJPanel;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.components.PrePaintableJPanel;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.components.ScrollableJPanel;
 
 /**
  * Miscellaneous GUI utility methods.

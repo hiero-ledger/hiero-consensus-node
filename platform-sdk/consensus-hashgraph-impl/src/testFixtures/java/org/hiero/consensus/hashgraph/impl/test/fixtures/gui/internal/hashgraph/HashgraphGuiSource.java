@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph;
+//  SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.GuiEventStorage;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.GuiEventStorage;
 
 /**
  * Provides the {@code HashgraphGui} information it needs to render an image of the hashgraph

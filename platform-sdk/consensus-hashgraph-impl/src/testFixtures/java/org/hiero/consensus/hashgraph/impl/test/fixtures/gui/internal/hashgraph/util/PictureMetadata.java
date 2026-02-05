@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.util;
+//  SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.util;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,8 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.BranchedEventMetadata;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.HashgraphGuiSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.BranchedEventMetadata;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphGuiSource;
 
 /**
  * Metadata that is used to aid in drawing a {@code HashgraphPicture}
