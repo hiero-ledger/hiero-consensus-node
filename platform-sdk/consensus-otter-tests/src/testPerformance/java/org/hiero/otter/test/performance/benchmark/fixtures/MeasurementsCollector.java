@@ -177,7 +177,7 @@ public class MeasurementsCollector {
         // JMH-style header
         jmhStyleReport.append("\n");
         jmhStyleReport.append(String.format(
-                "%-12s %6s %10s %10s %10s %8s %8s %8s %8s %10s %4s%n",
+                "%-12s %6s %10s  %10s %10s %8s %8s %8s %8s %10s %5s%n",
                 "Benchmark", "Cnt", "Score", "Error", "StdDev", "p50", "p95", "p99", "Max", "Throughput", "Units"));
 
         // TSV for spreadsheet
@@ -215,7 +215,7 @@ public class MeasurementsCollector {
 
     private void appendJmhRow(final StringBuilder sb, final String label, final Statistics stats) {
         sb.append(String.format(
-                "%-12s %6d %10.3f ±%9.3f %10.3f %8d %8d %8d %8d %.3f %s/op%n",
+                "%-12s %6d %10.3f ±%10.3f %10.3f %8d %8d %8d %8d %10.3f %s/op%n",
                 label,
                 stats.sampleCount(),
                 stats.average(),

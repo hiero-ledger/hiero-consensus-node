@@ -3,9 +3,9 @@ package org.hiero.otter.test.performance.benchmark.fixtures;
 
 import com.swirlds.common.utility.InstantUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -85,7 +85,11 @@ public class LoadThrottler {
             final long elapsedNanos = System.nanoTime() - startNanos;
             final long waitTime = expectedNanos - elapsedNanos;
             if (waitTime > 0) {
-                timeManager.waitFor(Duration.ofNanos(waitTime));
+                try {
+                    TimeUnit.NANOSECONDS.sleep(waitTime);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
             }
         }
     }

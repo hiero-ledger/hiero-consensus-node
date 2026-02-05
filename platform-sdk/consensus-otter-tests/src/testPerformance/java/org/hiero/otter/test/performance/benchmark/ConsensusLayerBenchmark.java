@@ -92,10 +92,10 @@ public class ConsensusLayerBenchmark {
         log.info("Warm-up phase complete");
 
         log.info(
-                "Starting benchmark: submitting {} transactions for measurement at a rate of {} ops/s. it will take approximately: {}s ...",
+                "Starting benchmark: Will take approximately: {}s submitting {} transactions for measurement at a rate of {} ops/s...",
+                TRANSACTION_COUNT / INVOCATION_RATE_IN_SECONDS,
                 TRANSACTION_COUNT,
-                INVOCATION_RATE_IN_SECONDS,
-                TRANSACTION_COUNT * INVOCATION_RATE_IN_SECONDS);
+                INVOCATION_RATE_IN_SECONDS);
 
         final LoadThrottler throttler = new LoadThrottler(
                 env, () -> createBenchmarkTransaction(nonceGenerator.incrementAndGet(), timeManager.now()));
