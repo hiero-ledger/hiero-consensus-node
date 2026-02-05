@@ -24,8 +24,6 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /*
@@ -146,7 +144,7 @@ public class SimpleFeesRecordStreamTest {
         CSVWriter csv = new CSVWriter(new FileWriter(records_dir+".csv"));
         JSONFormatter json = new JSONFormatter(new FileWriter(records_dir+".json"));
         csv.write(
-                "Service Name, AccountID, Txn Seconds, Txn Nanos, Txn Nonce, Transaction Fee");
+                "Service Name, AccountID, Txn Seconds, Txn Nanos, Txn Nonce, Transaction Fee, Status, Signed Txn Bytes, Custom Fees Count, Memo");
         csv.endLine();
         try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
             paths.filter(Files::isRegularFile).forEach(file -> {
@@ -166,6 +164,7 @@ public class SimpleFeesRecordStreamTest {
                                     Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
                             final Transaction txn = Transaction.newBuilder().body(body).build();
                             if (txn.body().data().kind() == TransactionBody.DataOneOfType.UNSET) {
+                                System.out.println("skipping unset");
                                 // skip unset types
                                 return;
                             }
@@ -186,6 +185,14 @@ public class SimpleFeesRecordStreamTest {
                             json.key("nonce",txnId.nonce());
                             csv.field(txnFee);
                             json.key("fee",txnFee);
+                            csv.field(item.getRecord().getReceipt().getStatus().name());
+                            json.key("status",item.getRecord().getReceipt().getStatus().name());
+                            csv.field(signedTxnBytes.size());
+                            json.key("signedTxnBytes",signedTxnBytes.size());
+                            csv.field(item.getRecord().getAssessedCustomFeesCount());
+                            json.key("custom_fees_count",item.getRecord().getAssessedCustomFeesCount());
+                            csv.field(item.getRecord().getMemo());
+                            json.key("memo",item.getRecord().getMemo());
                             csv.endLine();
                             json.endRecord();
                         } catch (Exception e) {
