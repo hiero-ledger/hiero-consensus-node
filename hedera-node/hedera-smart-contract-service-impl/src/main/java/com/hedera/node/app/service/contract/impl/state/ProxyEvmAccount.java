@@ -34,6 +34,10 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
         }
     }
 
+    private static Bytes createDelegationIndicator(Bytes delegationAddress) {
+        return Bytes.concatenate(CODE_DELEGATION_PREFIX, delegationAddress);
+    }
+
     @Override
     public @NonNull Hash getCodeHash() {
         if (account.delegationAddress().length() == 0) {
@@ -41,9 +45,5 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
         } else {
             return Hash.wrap(keccak256(getCode()));
         }
-    }
-
-    public static Bytes createDelegationIndicator(Bytes delegationAddress) {
-        return Bytes.concatenate(CODE_DELEGATION_PREFIX, delegationAddress);
     }
 }

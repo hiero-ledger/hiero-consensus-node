@@ -6,10 +6,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbjResponseType;
-import static com.hedera.node.app.service.contract.impl.state.ProxyEvmAccount.createDelegationIndicator;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -143,9 +142,9 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
             if (account.deleted()) {
                 return null;
             } else if (account.delegationAddress().length() == 0) {
-                return tuweniToPbjBytes(org.apache.tuweni.bytes.Bytes.EMPTY);
+                return Bytes.EMPTY;
             } else {
-                return tuweniToPbjBytes(createDelegationIndicator(pbjToTuweniBytes(account.delegationAddress())));
+                return Bytes.merge(Bytes.wrap(CODE_DELEGATION_PREFIX.toArray()), account.delegationAddress());
             }
         }
 
