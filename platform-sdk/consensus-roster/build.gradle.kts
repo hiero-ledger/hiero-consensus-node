@@ -2,6 +2,7 @@
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
+    id("org.hiero.gradle.feature.test-fixtures")
 }
 
 description = "Consensus Roster"
@@ -15,8 +16,8 @@ testModuleInfo {
     requires("com.swirlds.state.impl")
     requires("com.swirlds.state.impl.test.fixtures")
     requires("com.swirlds.virtualmap")
-    requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")

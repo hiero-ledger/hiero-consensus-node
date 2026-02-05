@@ -54,7 +54,6 @@ public class MerkleStateUtils {
         sb.append("\n");
         sb.append(String.format(HASH_INFO_TEMPLATE, Mnemonics.generateMnemonic(rootHash)));
         sb.append("\n");
-
         return sb.toString();
     }
 }
