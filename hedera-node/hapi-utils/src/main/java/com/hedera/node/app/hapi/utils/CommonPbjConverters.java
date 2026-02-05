@@ -20,6 +20,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
@@ -238,6 +239,15 @@ public class CommonPbjConverters {
                 .shardNum(tokenID.getShardNum())
                 .realmNum(tokenID.getRealmNum())
                 .tokenNum(tokenID.getTokenNum())
+                .build();
+    }
+
+    public static @NonNull ScheduleID toPbj(@NonNull com.hederahashgraph.api.proto.java.ScheduleID tokenID) {
+        requireNonNull(tokenID);
+        return ScheduleID.newBuilder()
+                .shardNum(tokenID.getShardNum())
+                .realmNum(tokenID.getRealmNum())
+                .scheduleNum(tokenID.getScheduleNum())
                 .build();
     }
 

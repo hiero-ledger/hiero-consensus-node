@@ -10,6 +10,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.FeeContext;
 import java.util.List;
 import java.util.Set;
@@ -55,7 +56,7 @@ class CryptoDeleteFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
             // Then: Real production values from simpleFeesSchedules.json
             // node=100000, network=200000, service=49850000 (base only, no extras)
@@ -76,7 +77,7 @@ class CryptoDeleteFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
             // Then: Base service fee only - CryptoDelete doesn't call addExtraFee
             // service=49850000
@@ -94,7 +95,7 @@ class CryptoDeleteFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
             // Then: Base service fee only - CryptoDelete doesn't call addExtraFee
             // service=49850000 (SIGNATURES are handled by node fee, not service fee)

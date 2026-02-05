@@ -14,6 +14,7 @@ import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusSubmitMessageFeeCalculator;
 import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
@@ -77,7 +78,7 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
                             .sequenceNumber(1L)
                             .build());
 
-            final var result = feeCalculator.calculateTxFee(body, feeCtx);
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeCtx, null));
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
             Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L);
@@ -103,7 +104,7 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
             // the 'topic' variable already has custom fees
             given(readableStore.getTopic(topic.topicId())).willReturn(topic);
 
-            final var result = feeCalculator.calculateTxFee(body, feeCtx);
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeCtx, null));
             assertThat(result).isNotNull();
             Assertions.assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
             Assertions.assertThat(result.getServiceTotalTinycents()).isEqualTo(498500000L + 500000000L);

@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYING_SENDER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
@@ -36,7 +37,6 @@ public class ScheduleServiceSimpleFeesTest {
     private static final double BASE_FEE_SCHEDULE_DELETE = 0.001;
     private static final double BASE_FEE_SCHEDULE_INFO = 0.0001;
     private static final double BASE_FEE_CONTRACT_CALL = 0.1;
-    private static final double SINGLE_SIGNATURE_COST = 0.001;
 
     @HapiTest
     @DisplayName("Schedule ops have expected USD fees")
@@ -95,7 +95,7 @@ public class ScheduleServiceSimpleFeesTest {
                 validateChargedUsd("canonicalCreation", BASE_FEE_SCHEDULE_CREATE),
                 validateChargedUsd("canonicalSigning", BASE_FEE_SCHEDULE_SIGN),
                 // validate the fee when we have single overage signature
-                validateChargedUsd("multiScheduleSign", BASE_FEE_SCHEDULE_SIGN + SINGLE_SIGNATURE_COST),
+                validateChargedUsd("multiScheduleSign", BASE_FEE_SCHEDULE_SIGN + SIGNATURE_FEE_AFTER_MULTIPLIER),
                 validateChargedUsd("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE),
                 validateChargedUsd("canonicalContractCall", BASE_FEE_CONTRACT_CALL),
                 validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO));

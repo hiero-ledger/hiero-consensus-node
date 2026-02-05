@@ -26,6 +26,7 @@ jmhModuleInfo {
     requires("com.swirlds.virtualmap.test.fixtures")
     requires("jmh.core")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.reconnect")
     requires("org.junit.jupiter.api")
 }
 

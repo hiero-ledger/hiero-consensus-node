@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.crypto;
 
-import static com.swirlds.platform.crypto.KeyCertPurpose.AGREEMENT;
-import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
+import static org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT;
+import static org.hiero.consensus.crypto.KeyCertPurpose.SIGNING;
 
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -89,7 +90,7 @@ public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
      */
     public X509Certificate getCertificate(final KeyCertPurpose type, final NodeId nodeId) throws KeyLoadingException {
         final Certificate certificate;
-        final var name = type.storeName(nodeId);
+        final String name = type.storeName(nodeId);
         try {
             certificate = switch (type) {
                 case SIGNING -> sigTrustStore.getCertificate(name);

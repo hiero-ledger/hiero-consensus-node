@@ -33,6 +33,7 @@ public interface EventIntakeModule {
      * @param rosterHistory provides the roster history
      * @param intakeEventCounter counter for the number of events in the intake pipeline
      * @param transactionLimits provides transaction limits
+     * @param eventPipelineTracker tracker for event pipeline statistics, or null if not used
      */
     void initialize(
             @NonNull WiringModel model,

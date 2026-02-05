@@ -8,7 +8,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
@@ -17,7 +16,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
@@ -37,6 +35,8 @@ import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * This class encapsulates logic for receiving the up-to-date state from a peer when the local node's state is out-of-date.
@@ -210,7 +210,7 @@ public class ReconnectStateLearner {
         final VirtualMap reconnectRoot = virtualMapState.getRoot().newReconnectRoot();
         final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
         // The learner view will be closed by LearningSynchronizer
-        final LearnerTreeView<?> learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
+        final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
         try {
