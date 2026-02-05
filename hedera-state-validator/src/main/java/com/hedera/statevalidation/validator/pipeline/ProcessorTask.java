@@ -254,11 +254,7 @@ public class ProcessorTask implements Callable<Void> {
                 });
             } else if (data.location() == -1) {
                 dataStats.getP2kv().incrementInvalidLocationCount();
-                LogUtils.printFileDataLocationError(
-                        log,
-                        "data.location() was -1 for P2KV entry",
-                        vds.getPathToKeyValue().getFileCollection(),
-                        data);
+                LogUtils.printFileDataLocationError(log, "data.location() was -1 for P2KV entry", data);
             } else {
                 // Add to wasted items/space
                 dataStats.getP2kv().addObsoleteSpaceSize(data.bytes().length());
@@ -266,8 +262,7 @@ public class ProcessorTask implements Callable<Void> {
             }
         } catch (final Exception e) {
             dataStats.getP2kv().incrementParseErrorCount();
-            LogUtils.printFileDataLocationError(
-                    log, e.getMessage(), vds.getPathToKeyValue().getFileCollection(), data);
+            LogUtils.printFileDataLocationError(log, e.getMessage(), data);
         }
     }
 
@@ -294,11 +289,7 @@ public class ProcessorTask implements Callable<Void> {
             // Index sanity check (should not contain `-1` entry for a live object)
             if (path >= 0 && path <= vds.getLastLeafPath() && pathToDiskLocationInternalNodes.get(path) == -1) {
                 dataStats.getP2h().incrementInvalidLocationCount();
-                LogUtils.printFileDataLocationError(
-                        log,
-                        "data.location() was -1 for P2H entry",
-                        vds.getHashStoreDisk().getFileCollection(),
-                        data);
+                LogUtils.printFileDataLocationError(log, "data.location() was -1 for P2H entry", data);
                 return;
             }
 
@@ -317,11 +308,7 @@ public class ProcessorTask implements Callable<Void> {
                 });
             } else if (data.location() == -1) {
                 dataStats.getP2h().incrementInvalidLocationCount();
-                LogUtils.printFileDataLocationError(
-                        log,
-                        "data.location() was -1 for P2H entry",
-                        vds.getHashStoreDisk().getFileCollection(),
-                        data);
+                LogUtils.printFileDataLocationError(log, "data.location() was -1 for P2H entry", data);
             } else {
                 // Add to wasted items/space
                 dataStats.getP2h().addObsoleteSpaceSize(data.bytes().length());
@@ -329,8 +316,7 @@ public class ProcessorTask implements Callable<Void> {
             }
         } catch (final Exception e) {
             dataStats.getP2h().incrementParseErrorCount();
-            LogUtils.printFileDataLocationError(
-                    log, e.getMessage(), vds.getHashStoreDisk().getFileCollection(), data);
+            LogUtils.printFileDataLocationError(log, e.getMessage(), data);
         }
     }
 
@@ -368,11 +354,7 @@ public class ProcessorTask implements Callable<Void> {
                     });
                 } else if (data.location() == -1) {
                     dataStats.getK2p().incrementInvalidLocationCount();
-                    LogUtils.printFileDataLocationError(
-                            log,
-                            "data.location() was -1 for K2P entry",
-                            vds.getKeyToPath().getFileCollection(),
-                            data);
+                    LogUtils.printFileDataLocationError(log, "data.location() was -1 for K2P entry", data);
                 } else {
                     // Add to wasted items/space
                     dataStats.getK2p().addObsoleteSpaceSize(data.bytes().length());
@@ -381,8 +363,7 @@ public class ProcessorTask implements Callable<Void> {
             }
         } catch (final Exception e) {
             dataStats.getK2p().incrementParseErrorCount();
-            LogUtils.printFileDataLocationError(
-                    log, e.getMessage(), vds.getKeyToPath().getFileCollection(), data);
+            LogUtils.printFileDataLocationError(log, e.getMessage(), data);
         }
     }
 }

@@ -8,7 +8,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.validator.util.ValidationAssertions;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -30,7 +29,6 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     public static final String LEAF_GROUP = "leaf";
 
     private VirtualMap virtualMap;
-    private DataFileCollection pathToKeyValueDfc;
     private HalfDiskHashMap keyToPath;
 
     private final AtomicLong processedCount = new AtomicLong(0);
@@ -65,7 +63,6 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     public void initialize(@NonNull final MerkleNodeState state) {
         this.virtualMap = (VirtualMap) state.getRoot();
         final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
-        this.pathToKeyValueDfc = vds.getPathToKeyValue().getFileCollection();
         this.keyToPath = vds.getKeyToPath();
     }
 
@@ -76,7 +73,6 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     @Override
     public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes<?> leafBytes) {
         Objects.requireNonNull(virtualMap);
-        Objects.requireNonNull(pathToKeyValueDfc);
         Objects.requireNonNull(keyToPath);
 
         try {
@@ -98,7 +94,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
             successCount.incrementAndGet();
         } catch (IOException e) {
             exceptionCount.incrementAndGet();
-            printFileDataLocationError(log, e.getMessage(), pathToKeyValueDfc, dataLocation);
+            printFileDataLocationError(log, e.getMessage(), dataLocation);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         } finally {

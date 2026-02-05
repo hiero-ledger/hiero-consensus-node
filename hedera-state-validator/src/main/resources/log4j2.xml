@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="WARN">
     <Appenders>
-      <Console name="SummaryConsoleAppender" target="SYSTEM_OUT">
+      <Console name="DefaultConsoleAppender" target="SYSTEM_OUT">
           <PatternLayout pattern="%msg%n%throwable"/>
       </Console>
       <Console name="StateAnalysisConsoleAppender" target="SYSTEM_OUT">
@@ -20,8 +20,14 @@
       </RollingFile>
     </Appenders>
     <Loggers>
-      <Logger name="com.hedera.statevalidation.validator.listener.SummaryGeneratingListener" level="INFO">
-          <AppenderRef ref="SummaryConsoleAppender"/>
+      <Logger name="com.hedera.statevalidation.ValidateCommand" level="INFO">
+        <AppenderRef ref="DefaultConsoleAppender"/>
+      </Logger>
+      <Logger name="com.hedera.statevalidation.validator.listener.ValidationExecutionListener" level="INFO">
+        <AppenderRef ref="DefaultConsoleAppender"/>
+      </Logger>
+      <Logger name="com.hedera.statevalidation.validator.pipeline.ValidationPipelineExecutor" level="INFO">
+          <AppenderRef ref="DefaultConsoleAppender"/>
       </Logger>
       <Logger name="com.hedera.statevalidation.AnalyzeCommand" level="INFO">
           <AppenderRef ref="StateAnalysisConsoleAppender"/>

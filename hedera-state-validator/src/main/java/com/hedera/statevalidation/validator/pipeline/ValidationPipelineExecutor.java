@@ -307,7 +307,8 @@ public final class ValidationPipelineExecutor {
      * @param dataType the type of data items in this collection
      * @return list of file read tasks
      */
-    private List<FileReadTaskConfig> planFileReadTasks(@NonNull final DataFileCollection dfc, @NonNull final Type dataType) {
+    private List<FileReadTaskConfig> planFileReadTasks(
+            @NonNull final DataFileCollection dfc, @NonNull final Type dataType) {
 
         final List<FileReadTaskConfig> tasks = new ArrayList<>();
 

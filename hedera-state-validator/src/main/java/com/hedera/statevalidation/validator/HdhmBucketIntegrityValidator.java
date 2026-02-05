@@ -33,7 +33,6 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
 
     public static final String HDHM_GROUP = "hdhm";
 
-    private DataFileCollection keyToPathDfc;
     private DataFileCollection pathToKeyValueDfc;
     private LongList pathToDiskLocationLeafNodes;
 
@@ -75,7 +74,6 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
         final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
 
         this.pathToKeyValueDfc = vds.getPathToKeyValue().getFileCollection();
-        this.keyToPathDfc = vds.getKeyToPath().getFileCollection();
 
         this.pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
     }
@@ -86,7 +84,6 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
     @Override
     public void processBucket(long bucketLocation, @NonNull final ParsedBucket bucket) {
         Objects.requireNonNull(pathToKeyValueDfc);
-        Objects.requireNonNull(keyToPathDfc);
         Objects.requireNonNull(pathToDiskLocationLeafNodes);
 
         final int bucketIndex = bucket.getBucketIndex();
@@ -100,41 +97,41 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                 // get path -> dataLocation
                 final long dataLocation = pathToDiskLocationLeafNodes.get(path);
                 if (dataLocation == 0) {
-                    printFileDataLocationError(log, "Stale path", keyToPathDfc, bucketLocation);
+                    printFileDataLocationError(log, "Stale path", bucketLocation);
                     collectInfo(new StalePathInfo(path, parseKey(keyBytes)), stalePathsInfos);
                     continue;
                 }
                 final BufferedData leafData = pathToKeyValueDfc.readDataItem(dataLocation);
                 if (leafData == null) {
-                    printFileDataLocationError(log, "Null leaf", keyToPathDfc, bucketLocation);
+                    printFileDataLocationError(log, "Null leaf", bucketLocation);
                     collectInfo(new NullLeafInfo(path, parseKey(keyBytes)), nullLeafsInfo);
                     continue;
                 }
                 final VirtualLeafBytes<?> leafBytes = VirtualLeafBytes.parseFrom(leafData);
                 if (!keyBytes.equals(leafBytes.keyBytes())) {
-                    printFileDataLocationError(log, "Leaf key mismatch", keyToPathDfc, bucketLocation);
+                    printFileDataLocationError(log, "Leaf key mismatch", bucketLocation);
                     collectInfo(
                             new UnexpectedKeyInfo(path, parseKey(keyBytes), parseKey(leafBytes.keyBytes())),
                             unexpectedKeyInfos);
                 }
                 if (leafBytes.path() != path) {
-                    printFileDataLocationError(log, "Leaf path mismatch", keyToPathDfc, bucketLocation);
+                    printFileDataLocationError(log, "Leaf path mismatch", bucketLocation);
                     collectInfo(new PathMismatchInfo(path, leafBytes.path(), parseKey(keyBytes)), pathMismatchInfos);
                     continue;
                 }
                 final int hashCode = entry.getHashCode();
                 if ((hashCode & bucketIndex) != bucketIndex) {
-                    printFileDataLocationError(log, "Bucket index mismatch", keyToPathDfc, bucketLocation);
+                    printFileDataLocationError(log, "Bucket index mismatch", bucketLocation);
                     collectInfo(new BucketIndexMismatchInfo(hashCode, bucketIndex), bucketIndexMismatchInfos);
                 }
                 if (hashCode != keyBytes.hashCode()) {
-                    printFileDataLocationError(log, "Hash code mismatch", keyToPathDfc, bucketLocation);
+                    printFileDataLocationError(log, "Hash code mismatch", bucketLocation);
                     collectInfo(new HashCodeMismatchInfo(hashCode, keyBytes.hashCode()), hashCodeMismatchInfos);
                 }
             }
         } catch (Exception e) {
             if (bucketLocation != 0) {
-                printFileDataLocationError(log, e.getMessage(), keyToPathDfc, bucketLocation);
+                printFileDataLocationError(log, e.getMessage(), bucketLocation);
             }
         } finally {
             processedCount.incrementAndGet();

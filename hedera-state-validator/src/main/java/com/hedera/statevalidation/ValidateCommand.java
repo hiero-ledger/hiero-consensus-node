@@ -172,8 +172,19 @@ public class ValidateCommand implements Callable<Integer> {
                                 .toList();
                 SlackReportBuilder.generateReport(failures);
 
+                // Log final results
+                if (!pipelineSuccess) {
+                    log.error(
+                            "Validation failed. Cause: detected corrupted or invalid entries on disk - see data stats above.");
+                }
+                if (validationExecutionListener.isFailed()) {
+                    log.error("Validation failed. Cause: validation error(s) - see failed validators above.");
+                }
+
                 return 1;
             }
+
+            log.info("Validation completed successfully!");
 
             return 0;
 
