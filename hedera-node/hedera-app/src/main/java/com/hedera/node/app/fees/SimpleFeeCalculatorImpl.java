@@ -8,32 +8,26 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
-import static com.hedera.hapi.node.base.HederaFunctionality.NONE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
-import static com.hedera.hapi.util.HapiUtils.functionOf;
-import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.HederaFunctionality.*;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -83,7 +77,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators,
             @NonNull Set<QueryFeeCalculator> queryFeeCalculators,
             @NonNull CongestionMultipliers congestionMultipliers) {
-        this.feeSchedule = feeSchedule;
+        this.feeSchedule = requireNonNull(feeSchedule);
         this.serviceFeeCalculators = serviceFeeCalculators.stream()
                 .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
         this.queryFeeCalculators = queryFeeCalculators.stream()
@@ -162,14 +156,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
 
-        // Get the HederaFunctionality for this transaction
-        HederaFunctionality functionality;
-        try {
-            functionality = functionOf(txnBody);
-        } catch (UnknownHederaFunctionality e) {
-            log.error("Unknown Hedera functionality for transaction body: {}", txnBody, e);
-            functionality = NONE;
-        }
+        final var functionality = simpleFeeContext.functionality();
         final var isHighVolumeFunction = HIGH_VOLUME_FUNCTIONS.contains(functionality);
 
         // Apply high-volume pricing multiplier if applicable (HIP-1313)
@@ -177,7 +164,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             applyHighVolumeMultiplier(functionality, simpleFeeContext, result);
         } else {
             // Apply congestion multiplier if available
-            applyCongestionMultiplier(txnBody, simpleFeeContext, result);
+            applyCongestionMultiplier(txnBody, simpleFeeContext, result, functionality);
         }
 
         return result;
@@ -190,36 +177,27 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @param txnBody the transaction body
      * @param simpleFeeContext the simple fee context
      * @param result the base fee result
-     * @return a new FeeResult with congestion multiplier applied, or the original if no multiplier
      */
-    private FeeResult applyCongestionMultiplier(
+    private void applyCongestionMultiplier(
             @NonNull final TransactionBody txnBody,
-            @Nullable final SimpleFeeContext simpleFeeContext,
-            @NonNull final FeeResult result) {
-        if (simpleFeeContext == null || simpleFeeContext.feeContext() == null || congestionMultipliers == null) {
-            return result;
-        }
+            @NonNull final SimpleFeeContext simpleFeeContext,
+            @NonNull final FeeResult result,
+            @NonNull final HederaFunctionality functionality) {
+        requireNonNull(simpleFeeContext.feeContext());
+        requireNonNull(congestionMultipliers);
 
-        try {
-            final HederaFunctionality functionality = functionOf(txnBody);
-            final var feeContext = simpleFeeContext.feeContext();
-            final long congestionMultiplier = congestionMultipliers.maxCurrentMultiplier(
-                    txnBody, functionality, feeContext.readableStoreFactory());
-            if (congestionMultiplier <= 1) {
-                return result;
-            }
-            return new FeeResult(
-                    clampedMultiply(result.getServiceTotalTinycents(), congestionMultiplier),
-                    clampedMultiply(result.getNodeTotalTinycents(), congestionMultiplier),
-                    result.getNetworkMultiplier());
-        } catch (UnknownHederaFunctionality e) {
-            log.error("Unknown Hedera functionality for transaction body: {}", txnBody, e);
-            return result;
+        final var feeContext = requireNonNull(simpleFeeContext.feeContext());
+        final long congestionMultiplier =
+                congestionMultipliers.maxCurrentMultiplier(txnBody, functionality, feeContext.readableStoreFactory());
+        if (congestionMultiplier <= 1) {
+            return;
         }
+        result.applyMultiplier(congestionMultiplier, 1);
     }
 
     /**
-     * Applies the high-volume pricing multiplier to the service fee based on throttle utilization.
+     * Applies the high-volume pricing multiplier to the total fee based on throttle utilization.
+     * This is applied after total fee is calculated.
      * Per HIP-1313, the multiplier is calculated from the pricing curve defined in the fee schedule.
      *
      * @param functionality the transaction body functionality
@@ -244,20 +222,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final long rawMultiplier = HighVolumePricingCalculator.calculateMultiplier(
                 serviceFeeDefinition.highVolumeRates(), utilizationPercentage);
 
-        // Apply the multiplier to the service fee
-        // The raw multiplier is scaled by MULTIPLIER_SCALE (1,000) and represents the effective multiplier
-        // So effective multiplier = rawMultiplier / MULTIPLIER_SCALE
-        // We apply this to the service fee: newServiceFee = serviceFee * (rawMultiplier / MULTIPLIER_SCALE)
-        // Since rawMultiplier is at least MULTIPLIER_SCALE (1000) for 1.0x, we need to replace the service fee
-        final long multipliedServiceFee =
-                (result.getServiceTotalTinycents() * rawMultiplier) / HighVolumePricingCalculator.MULTIPLIER_SCALE;
-
-        // Replace the service fee with the multiplied amount
-        // We subtract the original service fee and add the new multiplied fee
-        final long additionalFee = multipliedServiceFee - result.getServiceTotalTinycents();
-        if (additionalFee > 0) {
-            result.addServiceFeeTinycents(additionalFee);
-        }
+        result.applyMultiplier(rawMultiplier, HighVolumePricingCalculator.MULTIPLIER_SCALE);
     }
 
     @Override

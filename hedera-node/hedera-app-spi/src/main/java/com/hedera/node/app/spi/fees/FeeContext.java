@@ -129,6 +129,8 @@ public interface FeeContext {
      */
     long getGasPriceInTinycents();
 
+    HederaFunctionality functionality();
+
     /**
      * Gets the number of tinybars equivalent to the given number of tinycents.
      *

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees;
 
+import static java.util.Objects.requireNonNull;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -21,9 +23,9 @@ import org.hiero.hapi.support.fees.VariableRateDefinition;
  * <p>For example:
  * <ul>
  *   <li>utilizationBasisPoints = 5,000 means 50% utilization</li>
- *   <li>multiplier = 1,000 means a multiplier of 1.0x (1,000/1,000)</li>
- *   <li>multiplier = 2,000 means a multiplier of 2.0x (2,000/1,000)</li>
- *   <li>multiplier = 5,000 means a multiplier of 5.0x (5,000/1,000)</li>
+ *   <li>multiplier = 1,000 means a multiplier of 1x (1,000/1,000)</li>
+ *   <li>multiplier = 2,000 means a multiplier of 2x (2,000/1,000)</li>
+ *   <li>multiplier = 5,000 means a multiplier of 5x (5,000/1,000)</li>
  * </ul>
  */
 public final class HighVolumePricingCalculator {
@@ -31,11 +33,11 @@ public final class HighVolumePricingCalculator {
     /** The scale factor for utilization percentage (10,000 = 100%). */
     public static final int UTILIZATION_SCALE = 10_000;
 
-    /** The scale factor for multiplier values (1,000 = 1.0x). */
+    /** The scale factor for multiplier values (1,000 = 1x). */
     public static final long MULTIPLIER_SCALE = 1_000L;
 
     private HighVolumePricingCalculator() {
-        // Utility class - prevent instantiation
+        // Utility class
     }
 
     /**
@@ -60,29 +62,24 @@ public final class HighVolumePricingCalculator {
         final int clampedUtilization = Math.max(0, Math.min(utilizationBasisPoints, UTILIZATION_SCALE));
 
         long rawMultiplier;
-        if (pricingCurve == null || !pricingCurve.hasPiecewiseLinear()) {
+        if (pricingCurve == null
+                || !pricingCurve.hasPiecewiseLinear()
+                || pricingCurve
+                        .piecewiseLinearOrElse(PiecewiseLinearCurve.DEFAULT)
+                        .points()
+                        .isEmpty()) {
             // No pricing curve specified - use linear interpolation between 1x (1000) and max_multiplier
             rawMultiplier =
                     linearInterpolate(0, (int) MULTIPLIER_SCALE, UTILIZATION_SCALE, maxMultiplier, clampedUtilization);
         } else {
             // Use piecewise linear curve
-            rawMultiplier = interpolatePiecewiseLinear(pricingCurve.piecewiseLinear(), clampedUtilization);
+            rawMultiplier =
+                    interpolatePiecewiseLinear(requireNonNull(pricingCurve.piecewiseLinear()), clampedUtilization);
         }
 
         // Enforce minimum 1x and cap at max multiplier
         final long clamped = Math.max(rawMultiplier, MULTIPLIER_SCALE);
         return Math.min(clamped, maxMultiplier);
-    }
-
-    /**
-     * Calculates the effective multiplier as a double value (for display/logging purposes).
-     * The effective multiplier is the raw multiplier divided by MULTIPLIER_SCALE.
-     *
-     * @param rawMultiplier the raw multiplier value (scaled by MULTIPLIER_SCALE)
-     * @return the effective multiplier as a double (e.g., 2.0 for 2x)
-     */
-    public static double toEffectiveMultiplier(final long rawMultiplier) {
-        return (double) rawMultiplier / MULTIPLIER_SCALE;
     }
 
     /**
@@ -95,23 +92,16 @@ public final class HighVolumePricingCalculator {
     private static long interpolatePiecewiseLinear(
             @NonNull final PiecewiseLinearCurve curve, final int utilizationBasisPoints) {
         final List<PiecewiseLinearPoint> points = curve.points();
-
-        // Handle empty curve - return base multiplier (1x = 1000)
-        if (points.isEmpty()) {
-            return MULTIPLIER_SCALE;
-        }
-
-        // Handle single point - return that point's multiplier
+        // If there is only one point, return that point's multiplier
         if (points.size() == 1) {
-            return points.get(0).multiplier();
+            return normalizeMultiplier(points.getFirst().multiplier());
         }
 
         // Find the two points to interpolate between
         PiecewiseLinearPoint lowerPoint = null;
         PiecewiseLinearPoint upperPoint = null;
 
-        for (int i = 0; i < points.size(); i++) {
-            final PiecewiseLinearPoint point = points.get(i);
+        for (final PiecewiseLinearPoint point : points) {
             if (point.utilizationBasisPoints() <= utilizationBasisPoints) {
                 lowerPoint = point;
             }
@@ -122,39 +112,51 @@ public final class HighVolumePricingCalculator {
 
         // If utilization is below the first point, use the first point's multiplier
         if (lowerPoint == null) {
-            return points.get(0).multiplier();
+            return normalizeMultiplier(points.getFirst().multiplier());
         }
 
         // If utilization is above the last point, use the last point's multiplier
         if (upperPoint == null) {
-            return points.get(points.size() - 1).multiplier();
+            return normalizeMultiplier(points.getLast().multiplier());
         }
 
         // If we're exactly on a point, return that point's multiplier
         if (lowerPoint.utilizationBasisPoints() == upperPoint.utilizationBasisPoints()) {
-            return upperPoint.multiplier();
+            return normalizeMultiplier(upperPoint.multiplier());
         }
 
         // Interpolate between the two points
         return linearInterpolate(
                 lowerPoint.utilizationBasisPoints(),
-                lowerPoint.multiplier(),
+                normalizeMultiplier(lowerPoint.multiplier()),
                 upperPoint.utilizationBasisPoints(),
-                upperPoint.multiplier(),
+                normalizeMultiplier(upperPoint.multiplier()),
                 utilizationBasisPoints);
     }
 
     /**
      * Performs linear interpolation between two points.
      */
-    private static long linearInterpolate(final int x1, final long y1, final int x2, final long y2, final int x) {
-        if (x2 == x1) {
-            return y1;
+    private static long linearInterpolate(
+            final int lowerUtilization,
+            final long lowerMultiplier,
+            final int upperUtilization,
+            final long upperMultiplier,
+            final int utilization) {
+        if (upperUtilization == lowerUtilization) {
+            return lowerMultiplier;
         }
         // Use long arithmetic to avoid overflow
-        final long dx = x2 - x1;
-        final long dy = y2 - y1;
-        final long offset = x - x1;
-        return y1 + (dy * offset) / dx;
+        final long utilizationDiff = upperUtilization - lowerUtilization;
+        final long multiplierDiff = upperMultiplier - lowerMultiplier;
+        final long offset = utilization - lowerUtilization;
+        return lowerMultiplier + (multiplierDiff * offset) / utilizationDiff;
+    }
+
+    /**
+     * Enforces the minimum multiplier of 1x (1,000 scaled).
+     */
+    private static long normalizeMultiplier(final long multiplier) {
+        return Math.max(multiplier, MULTIPLIER_SCALE);
     }
 }
