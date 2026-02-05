@@ -97,14 +97,6 @@ public class TokenExpiryInfoSuite {
     @FungibleToken(name = "mutableToken", useAutoRenewAccount = true)
     static SpecFungibleToken mutableToken;
 
-    // Separate token that will NOT be authorized - used by cannotUpdateWithoutAuthorization test
-    // to avoid race condition with the WhenAuthorized nested class's @BeforeAll which authorizes mutableToken
-    @FungibleToken(name = "unauthorizedToken", useAutoRenewAccount = true)
-    static SpecFungibleToken unauthorizedToken;
-
-    @Account
-    static SpecAccount unauthorizedAutoRenewAccount;
-
     @HapiTest
     @DisplayName("cannot update a missing token's expiry info")
     final Stream<DynamicTest> cannotUpdateMissingToken() {
@@ -119,7 +111,10 @@ public class TokenExpiryInfoSuite {
 
     @HapiTest
     @DisplayName("cannot update expiry metadata without authorization")
-    final Stream<DynamicTest> cannotUpdateWithoutAuthorization() {
+    final Stream<DynamicTest> cannotUpdateWithoutAuthorization(
+            @FungibleToken(name = "unauthorizedToken", useAutoRenewAccount = true)
+                    final SpecFungibleToken unauthorizedToken,
+            @Account final SpecAccount unauthorizedAutoRenewAccount) {
         // Uses unauthorizedToken instead of mutableToken to avoid race condition with the WhenAuthorized
         // nested class's @BeforeAll which authorizes mutableToken for the contract. Since tests within
         // a class can run concurrently, using mutableToken here would cause flaky failures when the
