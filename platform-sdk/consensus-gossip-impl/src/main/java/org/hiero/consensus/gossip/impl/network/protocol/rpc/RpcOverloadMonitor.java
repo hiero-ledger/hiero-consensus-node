@@ -83,7 +83,7 @@ public class RpcOverloadMonitor {
             disabledBroadcastDueToLagTime = NOT_DISABLED;
             syncMetrics.disabledBroadcastDueToLag(false);
             if (disabledBroadcastDueToQueueSizeTime == NOT_DISABLED) {
-                // if both are not disabled, notify the client
+                // if both are enabled, notify the client
                 communicationOverloadHandler.accept(false);
             }
         }
