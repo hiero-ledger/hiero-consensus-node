@@ -8,7 +8,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
  *
  * @param type the MerkleDB data type
  * @param bytes the serialized data content
- * @param location the packed data location (file index + byte offset), or -1 for terminators
+ * @param location the packed data location (file index + byte offset)
  */
 public record DiskDataItem(Type type, Bytes bytes, long location) implements ValidationItem {
 
