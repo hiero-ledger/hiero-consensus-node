@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.event.source;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.event.source;
 
-import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
-import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.EventUtils.integerPowerDistribution;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.EventUtils.staticDynamicValue;
 
-import com.swirlds.platform.test.fixtures.event.DynamicValue;
-import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
-import com.swirlds.platform.test.fixtures.event.RandomEventUtils;
-import com.swirlds.platform.test.fixtures.event.TransactionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -16,6 +12,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValue;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValueGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.RandomEventUtils;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.TransactionUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.transaction.TransactionGenerator;

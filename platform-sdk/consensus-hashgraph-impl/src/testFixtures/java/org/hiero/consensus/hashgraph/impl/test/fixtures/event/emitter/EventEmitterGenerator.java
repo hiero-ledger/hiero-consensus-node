@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.event.emitter;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter;
 
-import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGenerator;
 
 /**
  * Generates an {@link EventEmitter} that emits events using the {@link GraphGenerator} instance provided.
