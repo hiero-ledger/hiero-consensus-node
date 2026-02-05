@@ -59,7 +59,7 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final Path outputPath,
             @NonNull final String expectedHash)
             throws IOException {
-        final MerkleNodeState state = StateUtils.getState();
+        final MerkleNodeState state = StateUtils.getDefaultState();
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
                 new BlockStreamRecoveryWorkflow(state, targetRound, outputPath, expectedHash);

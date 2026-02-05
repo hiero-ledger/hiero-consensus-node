@@ -1,8 +1,6 @@
 {
   "paths": [{
-    "leaf": {
-      "blockConsensusTimestamp": "CLDF9soGEPDQgrgD"
-    },
+    "timestampLeaf": "CLDF9soGEPDQgrgD",
     "nextPathIndex": 2
   }, {
     "hash": "FwgU9fmkMUewLy4NinJTWlnx1ZhfynuD0u+Vwsjc+HbF8Ym1rh4msyRQUz++Ea2N",
