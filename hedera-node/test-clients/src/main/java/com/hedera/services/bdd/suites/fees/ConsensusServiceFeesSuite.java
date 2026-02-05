@@ -140,7 +140,13 @@ public class ConsensusServiceFeesSuite {
                         .via("submitMessage1024"),
                 sleepFor(1000),
                 validateChargedUsd("submitMessage", BASE_FEE_TOPIC_SUBMIT_MESSAGE),
-                validateChargedUsd("submitMessage500", BASE_FEE_TOPIC_SUBMIT_MESSAGE),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsd("submitMessage500", BASE_FEE_TOPIC_SUBMIT_MESSAGE);
+                    } else {
+                        return validateChargedUsd("submitMessage500", 0.00088);
+                    }
+                }),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) {
                         return validateChargedUsd(
