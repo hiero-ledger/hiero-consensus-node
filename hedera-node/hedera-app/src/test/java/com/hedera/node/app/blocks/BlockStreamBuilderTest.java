@@ -193,6 +193,7 @@ public class BlockStreamBuilderTest {
         assertEquals(List.of(tokenAssociation), result.automaticTokenAssociations());
         assertEquals(List.of(accountAmount), result.paidStakingRewards());
         assertEquals(10L, result.congestionPricingMultiplier());
+        assertEquals(4L, result.highVolumePricingMultiplier());
     }
 
     private void validateTransactionBlockItems(final List<BlockItem> blockItems) {
@@ -219,7 +220,8 @@ public class BlockStreamBuilderTest {
                 .tokenTransferLists(tokenTransferLists)
                 .addAutomaticTokenAssociation(tokenAssociation)
                 .paidStakingRewards(paidStakingRewards)
-                .congestionMultiplier(10L);
+                .congestionMultiplier(10L)
+                .highVolumePricingMultiplier(4L);
     }
 
     private BlockStreamBuilder createEmptyBuilder() {
