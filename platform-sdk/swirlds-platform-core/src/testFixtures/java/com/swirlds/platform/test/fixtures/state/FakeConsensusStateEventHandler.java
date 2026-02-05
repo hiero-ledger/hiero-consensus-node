@@ -6,7 +6,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
@@ -20,7 +20,7 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
     @Override
     public void onPreHandle(
             @NonNull Event event,
-            @NonNull VirtualMapState state,
+            @NonNull State state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         // no-op
     }
@@ -28,13 +28,13 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
     @Override
     public void onHandleConsensusRound(
             @NonNull Round round,
-            @NonNull VirtualMapState state,
+            @NonNull State state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         // no-op
     }
 
     @Override
-    public boolean onSealConsensusRound(@NonNull Round round, @NonNull VirtualMapState state) {
+    public boolean onSealConsensusRound(@NonNull Round round, @NonNull State state) {
         // Touch this round
         round.getRoundNum();
         return true;
@@ -42,7 +42,7 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
 
     @Override
     public void onStateInitialized(
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
@@ -50,7 +50,7 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
     }
 
     @Override
-    public void onNewRecoveredState(@NonNull VirtualMapState recoveredState) {
+    public void onNewRecoveredState(@NonNull State recoveredState) {
         // no-op
     }
 }

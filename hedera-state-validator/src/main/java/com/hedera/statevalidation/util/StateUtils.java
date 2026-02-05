@@ -65,11 +65,12 @@ import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
@@ -157,11 +158,12 @@ public final class StateUtils {
 
             final PlatformContext platformContext = getPlatformContext();
             final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
-            final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                    platformContext.getMetrics(),
-                    platformContext.getTime(),
-                    virtualMap -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),
-                    platformContext.getConfiguration());
+            final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                    new StateLifecycleManagerImpl(
+                            platformContext.getMetrics(),
+                            platformContext.getTime(),
+                            virtualMap -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),
+                            platformContext.getConfiguration());
 
             serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState, () -> {
                 throw new UnsupportedOperationException("No startup networks available");

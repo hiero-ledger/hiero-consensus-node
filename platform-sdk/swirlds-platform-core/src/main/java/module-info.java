@@ -83,6 +83,8 @@ module com.swirlds.platform.core {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
+    requires transitive com.swirlds.state.impl;
+    requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
@@ -101,7 +103,6 @@ module com.swirlds.platform.core {
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
-    requires com.swirlds.virtualmap;
     requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.pces.impl;
     requires com.github.spotbugs.annotations;

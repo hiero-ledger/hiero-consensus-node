@@ -22,7 +22,7 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -54,7 +54,7 @@ public class ReconnectStateLearner {
     private final VirtualMapState currentState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics statistics;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final Configuration configuration;
     private final Metrics metrics;
 
@@ -85,7 +85,7 @@ public class ReconnectStateLearner {
             @NonNull final VirtualMapState currentState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
 
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");

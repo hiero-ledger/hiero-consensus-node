@@ -128,11 +128,12 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
@@ -336,7 +337,7 @@ public final class Hedera
      * When initializing the State API, the state being initialized.
      */
     @Nullable
-    private VirtualMapState initState;
+    private State initState;
 
     /**
      * The metrics object being used for reporting.
@@ -364,7 +365,7 @@ public final class Hedera
     /**
      * The action to take, if any, when a consensus round is sealed.
      */
-    private final BiPredicate<Round, VirtualMapState> onSealConsensusRound;
+    private final BiPredicate<Round, State> onSealConsensusRound;
 
     private final boolean quiescenceEnabled;
 
@@ -389,7 +390,7 @@ public final class Hedera
     private final StoreMetricsServiceImpl storeMetricsService;
 
     @NonNull
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     private boolean onceOnlyServiceInitializationPostDaggerHasHappened = false;
 
@@ -693,7 +694,7 @@ public final class Hedera
      * @param platformConfig the platform configuration
      */
     public void initializeStatesApi(
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @NonNull final InitTrigger trigger,
             @NonNull final Configuration platformConfig) {
         requireNonNull(state);
@@ -743,7 +744,7 @@ public final class Hedera
     @Override
     @SuppressWarnings("java:S1181") // catching Throwable instead of Exception when we do a direct System.exit()
     public void onStateInitialized(
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
@@ -795,7 +796,7 @@ public final class Hedera
      * @param platformConfig platform configuration
      */
     private void migrateSchemas(
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @Nullable final SemanticVersion deserializedVersion,
             @NonNull final InitTrigger trigger,
             @NonNull final Configuration platformConfig) {
@@ -990,7 +991,7 @@ public final class Hedera
     @Override
     public void onPreHandle(
             @NonNull final Event event,
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
         // Will be null if the submitting node is no longer in the address book
@@ -1018,7 +1019,7 @@ public final class Hedera
     }
 
     @Override
-    public void onNewRecoveredState(@NonNull final VirtualMapState recoveredStateRoot) {
+    public void onNewRecoveredState(@NonNull final State recoveredStateRoot) {
         // Always close the block manager so replay will end with a complete record file
         daggerApp.blockRecordManager().close();
     }
@@ -1030,7 +1031,7 @@ public final class Hedera
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         daggerApp.workingStateAccessor().setState(state);
         daggerApp.handleWorkflow().handleRound(state, round, stateSignatureTxnCallback);
@@ -1045,7 +1046,7 @@ public final class Hedera
      * of transactions in the event of an incident
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final VirtualMapState state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
         requireNonNull(state);
         requireNonNull(round);
         return onSealConsensusRound.test(round, state);
@@ -1216,7 +1217,7 @@ public final class Hedera
      */
     @NonNull
     @Override
-    public StateLifecycleManager getStateLifecycleManager() {
+    public StateLifecycleManager<VirtualMapState, VirtualMap> getStateLifecycleManager() {
         return stateLifecycleManager;
     }
 
@@ -1371,13 +1372,13 @@ public final class Hedera
         }
     }
 
-    private VirtualMapState withListeners(@NonNull final VirtualMapState root) {
-        root.registerCommitListener(boundaryStateChangeListener);
-        root.registerCommitListener(immediateStateChangeListener);
-        return root;
+    private <T extends State> T withListeners(@NonNull final T state) {
+        state.registerCommitListener(boundaryStateChangeListener);
+        state.registerCommitListener(immediateStateChangeListener);
+        return state;
     }
 
-    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final VirtualMapState state) {
+    private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
         daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
         return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
     }

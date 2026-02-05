@@ -35,7 +35,7 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.EmptyReadableStates;
 import java.time.Instant;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
@@ -72,7 +72,6 @@ class PlatformStateUtilsTest {
         final Instant t1 = Instant.now();
         final Instant t2 = t1.plusSeconds(1);
         final Instant t3 = t2.plusSeconds(1);
-        final Instant t4 = t3.plusSeconds(1);
 
         // No freeze time set
         assertFalse(PlatformStateUtils.isInFreezePeriod(t1, null, null));
@@ -157,9 +156,7 @@ class PlatformStateUtilsTest {
     @Test
     void testUpdateLastFrozenTime() {
         final Instant newFreezeTime = Instant.now();
-        bulkUpdateOf(state, v -> {
-            v.setFreezeTime(newFreezeTime);
-        });
+        bulkUpdateOf(state, v -> v.setFreezeTime(newFreezeTime));
         updateLastFrozenTime(state);
         assertEquals(newFreezeTime, platformStateModifier.getLastFrozenTime());
         assertEquals(newFreezeTime, lastFrozenTimeOf(state));

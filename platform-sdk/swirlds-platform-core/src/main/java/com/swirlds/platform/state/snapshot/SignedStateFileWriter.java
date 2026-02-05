@@ -19,11 +19,11 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.MerkleStateUtils;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -59,7 +59,6 @@ public final class SignedStateFileWriter {
             @NonNull final Path directory,
             @NonNull final VirtualMapState state)
             throws IOException {
-        final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
         final String platformInfo = getInfoString(state);
 
         logger.info(STATE_TO_DISK.getMarker(), """
@@ -121,7 +120,7 @@ public final class SignedStateFileWriter {
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
             @NonNull final SignedState signedState,
-            @NonNull final StateLifecycleManager stateLifecycleManager)
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws IOException {
         requireNonNull(platformContext);
         requireNonNull(directory);
@@ -190,7 +189,7 @@ public final class SignedStateFileWriter {
             @NonNull final Path savedStateDirectory,
             @Nullable final StateToDiskReason stateToDiskReason,
             @NonNull final SignedState signedState,
-            @NonNull final StateLifecycleManager stateLifecycleManager)
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws IOException {
 
         requireNonNull(signedState);

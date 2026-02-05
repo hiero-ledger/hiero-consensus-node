@@ -2,7 +2,7 @@
 package com.hedera.statevalidation.util.junit;
 
 import com.hedera.statevalidation.util.StateUtils;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;

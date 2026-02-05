@@ -2,7 +2,6 @@
 package com.swirlds.platform.listeners;
 
 import com.swirlds.state.State;
-import com.swirlds.state.VirtualMapState;
 import java.time.Instant;
 import org.hiero.consensus.model.notification.AbstractNotification;
 import org.hiero.consensus.model.notification.Notification;
@@ -12,12 +11,11 @@ import org.hiero.consensus.model.notification.Notification;
  */
 public class ReconnectCompleteNotification extends AbstractNotification {
 
-    private long roundNumber;
-    private Instant consensusTimestamp;
-    private VirtualMapState state;
+    private final long roundNumber;
+    private final Instant consensusTimestamp;
+    private final State state;
 
-    public ReconnectCompleteNotification(
-            final long roundNumber, final Instant consensusTimestamp, final VirtualMapState state) {
+    public ReconnectCompleteNotification(final long roundNumber, final Instant consensusTimestamp, final State state) {
         this.roundNumber = roundNumber;
         this.consensusTimestamp = consensusTimestamp;
         this.state = state;

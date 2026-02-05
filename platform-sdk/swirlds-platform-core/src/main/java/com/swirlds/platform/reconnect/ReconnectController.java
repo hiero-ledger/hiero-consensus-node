@@ -27,8 +27,10 @@ import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.wiring.PlatformCoordinator;
+import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -69,7 +71,7 @@ public class ReconnectController implements Runnable {
     private final Platform platform;
     private final Configuration configuration;
     private final PlatformCoordinator platformCoordinator;
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final SavedStateController savedStateController;
     private final ConsensusStateEventHandler consensusStateEventHandler;
     private final BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultProvider;
@@ -86,7 +88,7 @@ public class ReconnectController implements Runnable {
             @NonNull final Roster roster,
             @NonNull final Platform platform,
             @NonNull final PlatformCoordinator platformCoordinator,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> peerReservedSignedStateResultProvider,
@@ -143,7 +145,7 @@ public class ReconnectController implements Runnable {
                 platformCoordinator.clear();
                 logger.info(RECONNECT.getMarker(), "Queues have been cleared");
 
-                final VirtualMapState currentState = stateLifecycleManager.getMutableState();
+                final State currentState = stateLifecycleManager.getMutableState();
                 currentState.getHash(); // hash the state
                 int failedReconnectsInARow = 0;
                 do {
@@ -181,8 +183,7 @@ public class ReconnectController implements Runnable {
     }
 
     /** One reconnect attempt; returns true on success. */
-    private AttemptReconnectResult attemptReconnect(@NonNull final VirtualMapState currentState)
-            throws InterruptedException {
+    private AttemptReconnectResult attemptReconnect(@NonNull final State currentState) throws InterruptedException {
         // This is a direct connection with the protocols at Gossip component.
         // reservedStateResource is a blocking data structure that will provide a signed state from one of the peers
         // At the same time this code is evaluated, the ReconnectStateProtocol is being executed

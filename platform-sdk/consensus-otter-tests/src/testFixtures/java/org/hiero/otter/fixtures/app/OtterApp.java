@@ -13,7 +13,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -123,7 +123,7 @@ public class OtterApp implements ConsensusStateEventHandler {
     @Override
     public void onPreHandle(
             @NonNull final Event event,
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
             service.preHandleEvent(event);
@@ -151,7 +151,7 @@ public class OtterApp implements ConsensusStateEventHandler {
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
             service.onRoundStart(state.getWritableStates(service.name()), round);
@@ -219,7 +219,7 @@ public class OtterApp implements ConsensusStateEventHandler {
      * {@inheritDoc}
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final VirtualMapState state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
         return true;
     }
 
@@ -228,7 +228,7 @@ public class OtterApp implements ConsensusStateEventHandler {
      */
     @Override
     public void onStateInitialized(
-            @NonNull final VirtualMapState state,
+            @NonNull final State state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
@@ -264,7 +264,7 @@ public class OtterApp implements ConsensusStateEventHandler {
      * {@inheritDoc}
      */
     @Override
-    public void onNewRecoveredState(@NonNull final VirtualMapState recoveredState) {
+    public void onNewRecoveredState(@NonNull final State recoveredState) {
         // No new recovered state required yet
     }
 

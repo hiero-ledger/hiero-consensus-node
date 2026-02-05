@@ -23,9 +23,10 @@ import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.virtualmap.VirtualMap;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.test.fixtures.Randotron;
@@ -37,7 +38,7 @@ import org.junit.jupiter.api.Test;
 
 class StateLifecycleManagerTests {
 
-    private StateLifecycleManager stateLifecycleManager;
+    private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private VirtualMapState initialState;
 
     @BeforeAll
@@ -99,12 +100,12 @@ class StateLifecycleManagerTests {
     @DisplayName("Load From Signed State - state reference counts")
     void initStateRefCount() {
         final SignedState ss1 = newSignedState();
-        final Reservable state1 = ss1.getState().getRoot();
-        stateLifecycleManager.initStateOnReconnect(ss1.getState());
+        final VirtualMapState state1 = ss1.getState();
+        stateLifecycleManager.initStateOnReconnect(state1);
 
         assertEquals(
                 2,
-                state1.getReservationCount(),
+                state1.getRoot().getReservationCount(),
                 "Loading from signed state should increment the reference count, because it is now referenced by the "
                         + "signed state and the previous immutable state in StateLifecycleManagerImpl.");
         final VirtualMapState consensusState1 = stateLifecycleManager.getMutableState();
@@ -114,13 +115,13 @@ class StateLifecycleManagerTests {
                 "The current consensus state should have a single reference count.");
 
         final SignedState ss2 = newSignedState();
-        stateLifecycleManager.initStateOnReconnect(ss2.getState());
+        final VirtualMapState state2 = ss2.getState();
+        stateLifecycleManager.initStateOnReconnect(state2);
         final VirtualMapState consensusState2 = stateLifecycleManager.getMutableState();
 
-        Reservable state2 = ss2.getState().getRoot();
         assertEquals(
                 2,
-                state2.getReservationCount(),
+                state2.getRoot().getReservationCount(),
                 "Loading from signed state should increment the reference count, because it is now referenced by the "
                         + "signed state and the previous immutable state in StateLifecycleManagerImpl.");
         assertEquals(
@@ -129,7 +130,7 @@ class StateLifecycleManagerTests {
                 "The current consensus state should have a single reference count.");
         assertEquals(
                 1,
-                state1.getReservationCount(),
+                state1.getRoot().getReservationCount(),
                 "The previous immutable state was replaced, so the old state's reference count should have been "
                         + "decremented.");
         state1.release();

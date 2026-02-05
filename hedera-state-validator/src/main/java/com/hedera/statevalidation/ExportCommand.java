@@ -3,7 +3,7 @@ package com.hedera.statevalidation;
 
 import com.hedera.statevalidation.exporter.JsonExporter;
 import com.hedera.statevalidation.util.StateUtils;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.io.File;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

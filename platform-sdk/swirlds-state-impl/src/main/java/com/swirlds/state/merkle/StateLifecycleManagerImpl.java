@@ -13,7 +13,6 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -37,7 +36,7 @@ import org.apache.logging.log4j.Logger;
  * <b>Important:</b> {@link #initState(VirtualMapState)} and {@link #copyMutableState()} are NOT supposed to be called from multiple threads.
  * They only provide the happens-before guarantees that are described above.
  */
-public class StateLifecycleManagerImpl implements StateLifecycleManager {
+public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualMapState, VirtualMap> {
 
     private static final Logger log = LogManager.getLogger(StateLifecycleManagerImpl.class);
 

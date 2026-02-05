@@ -31,9 +31,10 @@ import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotifica
 import com.swirlds.platform.util.HederaUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -111,7 +112,7 @@ public final class EventRecoveryWorkflow {
         // FUTURE-WORK: Follow Browser approach
         final SwirldMain hederaApp = HederaUtils.createHederaAppMain(platformContext);
 
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
                 virtualMap -> new VirtualMapStateImpl(virtualMap, platformContext.getMetrics()),

@@ -15,7 +15,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.state.State;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -72,7 +72,7 @@ public final class PlatformStateUtils {
      * @param state         the state object to extract the data from
      * @return true is the {@code timestamp} is in a freeze period
      */
-    public static boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final VirtualMapState state) {
+    public static boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final State state) {
         return isInFreezePeriod(consensusTime, freezeTimeOf(state), lastFrozenTimeOf(state));
     }
 
@@ -137,7 +137,6 @@ public final class PlatformStateUtils {
      * @param state the state to extract the platform state from
      * @return the platform state, or null if the state is a genesis state
      */
-    @SuppressWarnings("unchecked")
     @Nullable
     public static PlatformState platformStateOf(@NonNull final State state) {
         final ReadableStates readableStates = state.getReadableStates(NAME);

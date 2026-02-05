@@ -19,7 +19,7 @@ import com.hedera.statevalidation.util.reflect.MemoryIndexDiskKeyValueStoreAcces
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -116,7 +116,6 @@ public class ValidateLeafIndexHalfDiskHashMap {
                     if ((hashCode & bucketIndex) != bucketIndex) {
                         printFileDataLocationError(log, "Hash code mismatch", dfc, bucketLocation);
                         collectInfo(new HashCodeMismatchInfo(hashCode, bucketIndex), hashCodeMismatchInfos);
-                        continue;
                     }
                 }
             } catch (Exception e) {

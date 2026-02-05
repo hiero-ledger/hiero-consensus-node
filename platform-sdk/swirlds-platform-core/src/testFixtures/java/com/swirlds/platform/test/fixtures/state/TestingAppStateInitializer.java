@@ -6,14 +6,13 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.output.StateChanges.Builder;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
-import com.swirlds.state.VirtualMapState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -35,14 +34,12 @@ public final class TestingAppStateInitializer {
      * platform and roster states.
      *
      * @param state the state to initialize
-     * @param configuration configuration to use
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public static List<Builder> initConsensusModuleStates(
-            @NonNull final VirtualMapState state, @NonNull final Configuration configuration) {
+    public static List<Builder> initConsensusModuleStates(@NonNull final VirtualMapState state) {
         List<Builder> list = new ArrayList<>();
         list.addAll(initPlatformState(state));
-        list.addAll(initRosterState(state, configuration));
+        list.addAll(initRosterState(state));
         return list;
     }
 
@@ -82,8 +79,7 @@ public final class TestingAppStateInitializer {
      * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public static List<Builder> initRosterState(
-            @NonNull final VirtualMapState state, @NonNull final Configuration configuration) {
+    public static List<Builder> initRosterState(@NonNull final VirtualMapState state) {
         final var schema = new V0540RosterBaseSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))

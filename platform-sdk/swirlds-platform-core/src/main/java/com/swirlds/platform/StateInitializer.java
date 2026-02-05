@@ -9,20 +9,18 @@ import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * Encapsulates the logic for calling
- * {@link ConsensusStateEventHandler#onStateInitialized(VirtualMapState, Platform, InitTrigger, SemanticVersion)}
+ * {@link ConsensusStateEventHandler#onStateInitialized(State, Platform, InitTrigger, SemanticVersion)}
  * startup time.
  */
 public final class StateInitializer {
@@ -35,12 +33,10 @@ public final class StateInitializer {
      * Initialize the state.
      *
      * @param platform        the platform instance
-     * @param platformContext the platform context
      * @param signedState     the state to initialize
      */
     public static void initializeState(
             @NonNull final Platform platform,
-            @NonNull final PlatformContext platformContext,
             @NonNull final SignedState signedState,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler) {
 
@@ -55,7 +51,7 @@ public final class StateInitializer {
             trigger = RESTART;
         }
 
-        final VirtualMapState initialState = signedState.getState();
+        final State initialState = signedState.getState();
 
         // Although the state from disk / genesis state is initially hashed, we are actually dealing with a copy
         // of that state here. That copy should have caused the hash to be cleared.
@@ -77,7 +73,6 @@ public final class StateInitializer {
             signedState.pruneInvalidSignatures();
         }
 
-        final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
         logger.info(STARTUP.getMarker(), """
                         The platform is using the following initial state:
                         {}""", getInfoString(signedState.getState()));

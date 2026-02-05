@@ -6,7 +6,7 @@ import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.statevalidation.exporter.SortedJsonExporter;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.util.ArrayList;

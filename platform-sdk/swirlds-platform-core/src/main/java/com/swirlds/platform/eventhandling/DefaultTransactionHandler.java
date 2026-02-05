@@ -34,7 +34,8 @@ import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -65,7 +66,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     /**
      * The class responsible for all interactions with the swirld state
      */
-    private final StateLifecycleManager stateLifecycleManager;
+    private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     private final RoundHandlingMetrics handlerMetrics;
 
@@ -247,13 +248,13 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
     /**
      * Handles the events in a consensus round. Implementations are responsible for invoking
-     * {@link ConsensusStateEventHandler#onHandleConsensusRound(Round, VirtualMapState, Consumer)} .
+     * {@link ConsensusStateEventHandler#onHandleConsensusRound(Round, State, Consumer)} .
      *
      * @param round the round to handle
      */
     private Queue<ScopedSystemTransaction<StateSignatureTransaction>> doHandleConsensusRound(
             final ConsensusRound round) {
-        final VirtualMapState state = stateLifecycleManager.getMutableState();
+        final State state = stateLifecycleManager.getMutableState();
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> scopedSystemTransactions =
                 new ConcurrentLinkedQueue<>();
         try {

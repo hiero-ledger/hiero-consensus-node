@@ -5,7 +5,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.VirtualMapState;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
@@ -30,7 +30,7 @@ public interface ConsensusStateEventHandler {
      */
     void onPreHandle(
             @NonNull Event event,
-            @NonNull VirtualMapState state,
+            @NonNull State state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback);
 
     /**
@@ -42,7 +42,7 @@ public interface ConsensusStateEventHandler {
      */
     void onHandleConsensusRound(
             @NonNull Round round,
-            @NonNull VirtualMapState state,
+            @NonNull State state,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback);
 
     /**
@@ -51,7 +51,7 @@ public interface ConsensusStateEventHandler {
      * @return true if sealing this round completes a block, in effect signaling if it is safe to
      * sign this round's state
      */
-    boolean onSealConsensusRound(@NonNull Round round, @NonNull VirtualMapState state);
+    boolean onSealConsensusRound(@NonNull Round round, @NonNull State state);
 
     /**
      * Called when the platform is initializing the network state.
@@ -62,7 +62,7 @@ public interface ConsensusStateEventHandler {
      * @param previousVersion if non-null, the network version that was previously in use
      */
     void onStateInitialized(
-            @NonNull VirtualMapState state,
+            @NonNull State state,
             @NonNull Platform platform,
             @NonNull InitTrigger trigger,
             @Nullable SemanticVersion previousVersion);
@@ -72,5 +72,5 @@ public interface ConsensusStateEventHandler {
      *
      * @param recoveredState the recovered state after reapplying all events
      */
-    void onNewRecoveredState(@NonNull VirtualMapState recoveredState);
+    void onNewRecoveredState(@NonNull State recoveredState);
 }
