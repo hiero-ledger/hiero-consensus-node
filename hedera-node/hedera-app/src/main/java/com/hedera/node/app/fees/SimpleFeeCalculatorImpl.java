@@ -8,14 +8,12 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
-import static com.hedera.hapi.node.base.HederaFunctionality.NONE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
-import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
@@ -24,7 +22,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
@@ -160,14 +157,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
 
-        // Get the HederaFunctionality for this transaction
-        HederaFunctionality functionality;
-        try {
-            functionality = functionOf(txnBody);
-        } catch (UnknownHederaFunctionality e) {
-            log.error("Unknown Hedera functionality for transaction body: {}", txnBody, e);
-            functionality = NONE;
-        }
+        final var functionality = simpleFeeContext.functionality();
         final var isHighVolumeFunction = HIGH_VOLUME_FUNCTIONS.contains(functionality);
 
         // Apply high-volume pricing multiplier if applicable (HIP-1313)
@@ -175,7 +165,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             applyHighVolumeMultiplier(functionality, simpleFeeContext, result);
         } else {
             // Apply congestion multiplier if available
-            applyCongestionMultiplier(txnBody, simpleFeeContext, result);
+            applyCongestionMultiplier(txnBody, simpleFeeContext, result, functionality);
         }
 
         return result;
@@ -193,23 +183,18 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     private void applyCongestionMultiplier(
             @NonNull final TransactionBody txnBody,
             @Nullable final SimpleFeeContext simpleFeeContext,
-            @NonNull final FeeResult result) {
+            @NonNull final FeeResult result,
+            @NonNull final HederaFunctionality functionality) {
         if (simpleFeeContext == null || simpleFeeContext.feeContext() == null || congestionMultipliers == null) {
             return;
         }
-
-        try {
-            final HederaFunctionality functionality = functionOf(txnBody);
-            final var feeContext = simpleFeeContext.feeContext();
-            final long congestionMultiplier = congestionMultipliers.maxCurrentMultiplier(
-                    txnBody, functionality, feeContext.readableStoreFactory());
-            if (congestionMultiplier <= 1) {
-                return;
-            }
-            result.applyMultiplier(congestionMultiplier, 1);
-        } catch (UnknownHederaFunctionality e) {
-            log.error("Unknown Hedera functionality for transaction body: {}", txnBody, e);
+        final var feeContext = simpleFeeContext.feeContext();
+        final long congestionMultiplier =
+                congestionMultipliers.maxCurrentMultiplier(txnBody, functionality, feeContext.readableStoreFactory());
+        if (congestionMultiplier <= 1) {
+            return;
         }
+        result.applyMultiplier(congestionMultiplier, 1);
     }
 
     /**

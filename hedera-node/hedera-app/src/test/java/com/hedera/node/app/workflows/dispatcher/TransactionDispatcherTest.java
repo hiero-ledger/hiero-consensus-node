@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
@@ -170,7 +171,7 @@ class TransactionDispatcherTest {
             given(simpleFeeCalculator.calculateTxFee(eq(txBody), any())).willReturn(feeResult);
 
             // When
-            final var result = subject.dispatchComputeFees(feeContext);
+            final var result = subject.dispatchComputeFees(feeContext, HederaFunctionality.CRYPTO_CREATE);
 
             // Then: Should use simple fee calculator
             verify(simpleFeeCalculator).calculateTxFee(eq(txBody), any());
@@ -208,7 +209,7 @@ class TransactionDispatcherTest {
             given(cryptoCreateHandler.calculateFees(feeContext)).willReturn(handlerFees);
 
             // When
-            final var result = subject.dispatchComputeFees(feeContext);
+            final var result = subject.dispatchComputeFees(feeContext, HederaFunctionality.CRYPTO_CREATE);
 
             // Then: Should NOT use simple fee calculator, use handler instead
             verify(cryptoCreateHandler).calculateFees(feeContext);

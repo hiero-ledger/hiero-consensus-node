@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -33,6 +34,12 @@ public final class SimpleFeeContextImpl implements SimpleFeeContext {
     @Override
     public int numTxnBytes() {
         return feeContext == null ? 0 : feeContext.numTxnBytes();
+    }
+
+    @Override
+    public HederaFunctionality functionality() {
+        // This is used only for high volume transactions
+        return feeContext == null ? HederaFunctionality.NONE : feeContext.functionality();
     }
 
     @Override

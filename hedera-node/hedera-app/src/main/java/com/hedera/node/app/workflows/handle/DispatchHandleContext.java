@@ -287,6 +287,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         return feeManager.getGasPriceInTinyCents(consensusNow);
     }
 
+    @Override
+    public HederaFunctionality functionality() {
+        return topLevelFunction;
+    }
+
     @NonNull
     @Override
     public BlockRecordInfo blockRecordInfo() {
@@ -413,26 +418,31 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             @NonNull final AccountID syntheticPayerId,
             @NonNull final ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel) {
         final var bodyToDispatch = ensureTxnId(txBody);
+        var function = HederaFunctionality.NONE;
         try {
+            function = functionOf(txBody);
             // If the payer is authorized to waive fees, then we can skip the fee calculation.
-            if (authorizer.hasWaivedFees(syntheticPayerId, functionOf(txBody), bodyToDispatch)) {
+            if (authorizer.hasWaivedFees(syntheticPayerId, function, bodyToDispatch)) {
                 return Fees.FREE;
             }
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
         final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap());
-        return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
-                feeManager,
-                this,
-                bodyToDispatch,
-                syntheticPayerId,
-                computeDispatchFeesAsTopLevel == ComputeDispatchFeesAsTopLevel.NO,
-                authorizer,
-                storeFactory.asReadOnly(),
-                consensusNow,
-                shouldChargeForSigVerification(txBody) ? verifier : null,
-                shouldChargeForSigVerification(txBody) ? signatureMapSize : 0));
+        return dispatcher.dispatchComputeFees(
+                new ChildFeeContextImpl(
+                        feeManager,
+                        this,
+                        bodyToDispatch,
+                        syntheticPayerId,
+                        computeDispatchFeesAsTopLevel == ComputeDispatchFeesAsTopLevel.NO,
+                        authorizer,
+                        storeFactory.asReadOnly(),
+                        consensusNow,
+                        shouldChargeForSigVerification(txBody) ? verifier : null,
+                        shouldChargeForSigVerification(txBody) ? signatureMapSize : 0,
+                        function),
+                function);
     }
 
     private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {

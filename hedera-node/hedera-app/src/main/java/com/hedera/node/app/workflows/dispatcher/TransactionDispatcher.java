@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
@@ -129,10 +130,11 @@ public class TransactionDispatcher {
      * calculation and returns the resulting {@link Fees}.
      *
      * @param feeContext information needed to calculate the fees
+     * @param function
      * @return the calculated fees
      */
     @NonNull
-    public Fees dispatchComputeFees(@NonNull final FeeContext feeContext) {
+    public Fees dispatchComputeFees(@NonNull final FeeContext feeContext, final HederaFunctionality function) {
         requireNonNull(feeContext, "feeContext must not be null!");
 
         try {

@@ -373,7 +373,7 @@ public class ParentTxnFactory {
                 preHandleResult.innerResults(),
                 preHandleWorkflow,
                 transactionCategory);
-        final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
+        final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext, txnInfo.functionality());
         if (streamMode != RECORDS) {
             final var congestionMultiplier = feeManager.congestionMultiplierFor(
                     txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
