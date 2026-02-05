@@ -621,7 +621,7 @@ public class UtilVerbs {
         return new QueryModificationsOp(false, queryOpSupplier, modificationsFn);
     }
 
-    public static SourcedOp sourcing(Supplier<HapiSpecOperation> source) {
+    public static SourcedOp sourcing(Supplier<? extends SpecOperation> source) {
         return new SourcedOp(source);
     }
 
@@ -2085,6 +2085,28 @@ public class UtilVerbs {
 
     public static CustomSpecAssert validateChargedUsd(String txn, double expectedUsd, double allowedPercentDiff) {
         return validateChargedUsdWithin(txn, expectedUsd, allowedPercentDiff);
+    }
+
+    public static CustomSpecAssert validateChargedAccount(String txn, String expectedAccount) {
+        return assertionsHold((spec, log) -> {
+            requireNonNull(spec);
+            requireNonNull(txn);
+            var subOp = getTxnRecord(txn);
+            allRunFor(spec, subOp);
+            final var rcd = subOp.getResponseRecord();
+            final var expectedAccountId = asId(expectedAccount, spec);
+            final var negativeAccountAmount = rcd.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAmount() < 0)
+                    .findFirst();
+            assertTrue(negativeAccountAmount.isPresent());
+            final var actualChargedAccountId = negativeAccountAmount.get().getAccountID();
+            assertEquals(
+                    actualChargedAccountId,
+                    expectedAccountId,
+                    String.format(
+                            "Charged account %s is different than expected: %s",
+                            actualChargedAccountId, expectedAccountId));
+        });
     }
 
     public static CustomSpecAssert validateChargedFee(String txn, long expectedFee) {
