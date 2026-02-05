@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.event.emitter;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.BranchingEventSource;
-import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
-import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.BranchingEventSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSourceFactory;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
 
 /**
  * A factory for various {@link EventEmitter} classes.

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.event.source;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.event.source;
 
 import com.swirlds.base.utility.Pair;
 import java.util.LinkedList;

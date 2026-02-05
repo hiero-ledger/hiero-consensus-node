@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.event.emitter;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
-import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSourceFactory;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerator;

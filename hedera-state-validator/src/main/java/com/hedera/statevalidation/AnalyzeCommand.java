@@ -48,7 +48,7 @@ public class AnalyzeCommand implements Runnable {
 
         final MerkleDbDataSource vds;
 
-        final VirtualMapState state = StateUtils.getState();
+        final VirtualMapState state = StateUtils.getDefaultState();
         final VirtualMap virtualMap = state.getRoot();
         requireNonNull(virtualMap);
         vds = (MerkleDbDataSource) virtualMap.getDataSource();

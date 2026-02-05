@@ -68,7 +68,7 @@ public class SortedExportCommand implements Runnable {
 
         log.info("Initializing the state...");
         long start = System.currentTimeMillis();
-        final VirtualMapState state = StateUtils.getState();
+        final VirtualMapState state = StateUtils.getDefaultState();
         log.info("State has been initialized in {} seconds.", (System.currentTimeMillis() - start) / 1000);
 
         if (serviceName == null) {
