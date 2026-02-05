@@ -36,7 +36,7 @@ public class IntrospectCommand implements Runnable {
     public void run() {
         parent.initializeStateDir();
 
-        final State state = StateUtils.getState();
+        final State state = StateUtils.getDefaultState();
         final int stateId = StateUtils.stateIdFor(serviceName, stateKey);
         if (keyInfo == null) {
             // we assume it's a singleton
