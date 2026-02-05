@@ -43,6 +43,7 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
     private final CopyOnWriteArrayList<NullLeafInfo> nullLeafsInfo = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<UnexpectedKeyInfo> unexpectedKeyInfos = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<PathMismatchInfo> pathMismatchInfos = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<BucketIndexMismatchInfo> bucketIndexMismatchInfos = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<HashCodeMismatchInfo> hashCodeMismatchInfos = new CopyOnWriteArrayList<>();
 
     /**
@@ -122,9 +123,13 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                     continue;
                 }
                 final int hashCode = entry.getHashCode();
-                if ((hashCode & bucketIndex) != bucketIndex || hashCode != keyBytes.hashCode()) {
+                if ((hashCode & bucketIndex) != bucketIndex) {
+                    printFileDataLocationError(log, "Bucket index mismatch", keyToPathDfc, bucketLocation);
+                    collectInfo(new BucketIndexMismatchInfo(hashCode, bucketIndex), bucketIndexMismatchInfos);
+                }
+                if (hashCode != keyBytes.hashCode()) {
                     printFileDataLocationError(log, "Hash code mismatch", keyToPathDfc, bucketLocation);
-                    collectInfo(new HashCodeMismatchInfo(hashCode, bucketIndex), hashCodeMismatchInfos);
+                    collectInfo(new HashCodeMismatchInfo(hashCode, keyBytes.hashCode()), hashCodeMismatchInfos);
                 }
             }
         } catch (Exception e) {
@@ -171,6 +176,13 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                     pathMismatchInfos.size());
         }
 
+        if (!bucketIndexMismatchInfos.isEmpty()) {
+            log.error("Bucket index mismatch info:\n{}", bucketIndexMismatchInfos);
+            log.error(
+                    "There are {} records with bucket index mismatches, please check the logs for more info",
+                    bucketIndexMismatchInfos.size());
+        }
+
         if (!hashCodeMismatchInfos.isEmpty()) {
             log.error("Hash code mismatch info:\n{}", hashCodeMismatchInfos);
             log.error(
@@ -183,6 +195,7 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                         && nullLeafsInfo.isEmpty()
                         && unexpectedKeyInfos.isEmpty()
                         && pathMismatchInfos.isEmpty()
+                        && bucketIndexMismatchInfos.isEmpty()
                         && hashCodeMismatchInfos.isEmpty(),
                 getName(),
                 "One of the test condition hasn't been met. "
@@ -191,12 +204,14 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                                         + "nullLeafsInfo.isEmpty() = %s, "
                                         + "unexpectedKeyInfos.isEmpty() = %s, "
                                         + "pathMismatchInfos.isEmpty() = %s, "
+                                        + "bucketIndexMismatchInfos.isEmpty() = %s, "
                                         + "hashCodeMismatchInfos.isEmpty() = %s")
                                 .formatted(
                                         stalePathsInfos.isEmpty(),
                                         nullLeafsInfo.isEmpty(),
                                         unexpectedKeyInfos.isEmpty(),
                                         pathMismatchInfos.isEmpty(),
+                                        bucketIndexMismatchInfos.isEmpty(),
                                         hashCodeMismatchInfos.isEmpty()));
     }
 
@@ -254,12 +269,21 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
         }
     }
 
-    // Bucket entry hash code doesn't match bucket index (modulo HDHM resize)
-    private record HashCodeMismatchInfo(int entryHashCode, int bucketIndex) {
+    // Bucket entry landed in wrong bucket (entry's hash code & bucket index != bucket index)
+    private record BucketIndexMismatchInfo(int entryHashCode, int bucketIndex) {
         @Override
         @NonNull
         public String toString() {
-            return "HashCodeMismatchInfo{" + "entryHashCode=" + entryHashCode + ", bucketIndex=" + bucketIndex + "}\n";
+            return "BucketIndexMismatchInfo{" + "entryHashCode=" + entryHashCode + ", bucketIndex=" + bucketIndex + "}\n";
+        }
+    }
+
+    // Bucket entry hash code doesn't match key bytes hash code (hash code integrity broken)
+    private record HashCodeMismatchInfo(int entryHashCode, int keyBytesHashCode) {
+        @Override
+        @NonNull
+        public String toString() {
+            return "HashCodeMismatchInfo{" + "entryHashCode=" + entryHashCode + ", keyBytesHashCode=" + keyBytesHashCode + "}\n";
         }
     }
 }
