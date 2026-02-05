@@ -185,7 +185,7 @@ jobs:
             CREATE_RELEASE_BRANCH=false
             echo "Dry run enabled. Skipping release branch creation."
           fi
-          
+
           # Create and push the release branch if CREATE_RELEASE_BRANCH is true
           if [[ "${CREATE_RELEASE_BRANCH}" == "true" ]]; then
             echo "Check if the release branch already exists."
