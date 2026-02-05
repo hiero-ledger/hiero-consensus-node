@@ -9,6 +9,6 @@ open module org.hiero.consensus.roster.test.fixtures {
     requires com.hedera.pbj.runtime;
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.utility;
-    requires static transitive com.github.spotbugs.annotations;
     requires org.junit.jupiter.params;
+    requires static transitive com.github.spotbugs.annotations;
 }
