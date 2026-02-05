@@ -187,6 +187,16 @@ public class ProcessorTask implements Callable<Void> {
     private void processMemoryHashRecord(@NonNull final VirtualHashRecord hashRecord) {
         dataStats.getP2hMemory().incrementItemCount();
 
+        // Cross-check with a threshold
+        if (hashRecord.path() > vds.getHashesRamToDiskThreshold()) {
+            dataStats.getP2hMemory().incrementInvalidLocationCount();
+            log.error(
+                    "Path found in P2H memory (p:{}) exceeds hashes ram to disc threshold (p:{})",
+                    hashRecord.path(),
+                    vds.getHashesRamToDiskThreshold());
+            return;
+        }
+
         // Cross-check with P2H disk
         if (pathToDiskLocationInternalNodes.get(hashRecord.path()) != IMPERMISSIBLE_VALUE) {
             log.error(
