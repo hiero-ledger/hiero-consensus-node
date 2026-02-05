@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.service;
+package org.hiero.consensus.platformstate;
 
-import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
-import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
-import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
+import static org.hiero.consensus.platformstate.PbjConverter.toPbjPlatformState;
+import static org.hiero.consensus.platformstate.PbjConverterTest.randomPlatformState;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
@@ -23,6 +22,7 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import java.time.Instant;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,7 +79,7 @@ class WritablePlatformStateStoreTest {
 
     @Test
     void verifyLegacyRunningEventHash() {
-        final var hash = randomHash();
+        final var hash = CryptoRandomUtils.randomHash();
         store.setLegacyRunningEventHash(hash);
         assertEquals(hash, store.getLegacyRunningEventHash());
     }
