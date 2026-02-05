@@ -5,9 +5,9 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeClientFactory;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionHelper;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
@@ -39,7 +39,19 @@ import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
-import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
@@ -331,7 +343,8 @@ public class BlockStreamingBenchmark {
         bufferService = new BlockBufferService(configProvider, blockStreamMetrics);
         bufferService.start();
 
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, blockStreamMetrics);
+        connectionManager = new BlockNodeConnectionManager(
+                configProvider, bufferService, blockStreamMetrics, () -> pipelineExecutor);
         bufferService.setBlockNodeConnectionManager(connectionManager);
         connectionManager.start();
 
@@ -364,7 +377,7 @@ public class BlockStreamingBenchmark {
                 .clientGrpcConfig(grpcConfig)
                 .build();
 
-        final BlockNodeConnection connection = new BlockNodeConnection(
+        final BlockNodeStreamingConnection connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
                 connectionManager,

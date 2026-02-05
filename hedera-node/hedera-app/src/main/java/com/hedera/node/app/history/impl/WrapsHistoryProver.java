@@ -15,8 +15,8 @@ import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.hedera.cryptography.wraps.Proof;
-import com.hedera.hapi.block.stream.AggregatedNodeSignatures;
-import com.hedera.hapi.block.stream.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;

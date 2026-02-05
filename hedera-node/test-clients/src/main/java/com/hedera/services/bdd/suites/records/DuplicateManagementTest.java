@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.records;
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.reducedFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -12,6 +13,7 @@ import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includ
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.getDeduction;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.getNonFeeDeduction;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -21,6 +23,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
@@ -40,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -53,9 +57,69 @@ public class DuplicateManagementTest {
     private static final String CIVILIAN = "civilian";
     private static final long MS_TO_WAIT_FOR_CONSENSUS = 6_000L;
 
-    @HapiTest
-    @SuppressWarnings("java:S5960")
     @Tag(MATS)
+    @Tag(SIMPLE_FEES)
+    @LeakyHapiTest(overrides = "fees.simpleFeesEnabled")
+    final Stream<DynamicTest> hasExpectedDuplicatesSimpleFees() {
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
+                usableTxnIdNamed(TXN_ID).payerId(CIVILIAN),
+                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID))
+                        .payingWith(CIVILIAN)
+                        .fee(ONE_HBAR)
+                        .hasPrecheckFrom(NOT_SUPPORTED, BUSY),
+                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
+                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
+                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
+                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
+                getReceipt(TXN_ID)
+                        .andAnyDuplicates()
+                        .payingWith(CIVILIAN)
+                        .hasPriorityStatus(SUCCESS)
+                        .hasDuplicateStatuses(DUPLICATE_TRANSACTION, DUPLICATE_TRANSACTION),
+                getTxnRecord(TXN_ID)
+                        .payingWith(CIVILIAN)
+                        .via("cheapTxn")
+                        .assertingNothingAboutHashes()
+                        .hasPriority(recordWith().status(SUCCESS)),
+                getTxnRecord(TXN_ID)
+                        .andAnyDuplicates()
+                        .payingWith(CIVILIAN)
+                        .via("costlyTxn")
+                        .assertingNothingAboutHashes()
+                        .hasPriority(recordWith().status(SUCCESS))
+                        .hasDuplicates(inOrder(
+                                recordWith().status(DUPLICATE_TRANSACTION),
+                                recordWith().status(DUPLICATE_TRANSACTION))),
+                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
+                withOpContext((spec, opLog) -> {
+                    var cheapGet = getTxnRecord("cheapTxn").assertingNothingAboutHashes();
+                    var costlyGet = getTxnRecord("costlyTxn").assertingNothingAboutHashes();
+                    allRunFor(spec, cheapGet, costlyGet);
+                    var cheapRecord = cheapGet.getResponseRecord();
+                    var costlyRecord = costlyGet.getResponseRecord();
+                    opLog.info("cheapRecord: {}", cheapRecord);
+                    opLog.info("costlyRecord: {}", costlyRecord);
+                    var cheapPrice = getDeduction(
+                                    cheapRecord.getTransferList(),
+                                    cheapRecord.getTransactionID().getAccountID())
+                            .orElse(0);
+                    var costlyPrice = getDeduction(
+                                    costlyRecord.getTransferList(),
+                                    costlyRecord.getTransactionID().getAccountID())
+                            .orElse(0);
+                    assertEquals(
+                            3 * cheapPrice,
+                            costlyPrice,
+                            String.format(
+                                    "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
+                                    costlyPrice, cheapPrice));
+                }));
+    }
+
+    @Tag(MATS)
+    @HapiTest
     final Stream<DynamicTest> hasExpectedDuplicates() {
         return hapiTest(
                 cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
