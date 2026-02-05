@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-//  SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.util;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
