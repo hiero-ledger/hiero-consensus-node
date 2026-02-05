@@ -57,7 +57,6 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
         this.lastLeafPath = vds.getLastLeafPath();
     }
 
-    // Cross-check with index?
     /**
      * {@inheritDoc}
      */

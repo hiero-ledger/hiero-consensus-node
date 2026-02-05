@@ -66,7 +66,6 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
         this.keyToPath = vds.getKeyToPath();
     }
 
-    // Cross-check with P2KV index as well?
     /**
      * {@inheritDoc}
      */

@@ -148,7 +148,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
     }
 
     private void checkEntityUniqueness(long entityId) {
-        // From time to time we need to create copies to limit cache growth and prevent OOM errors
+        // From time to time we need to reset cache to prevent OOM errors
         if (idCounter.incrementAndGet() % 100_000 == 0) {
             StateUtils.resetStateCache();
         }
