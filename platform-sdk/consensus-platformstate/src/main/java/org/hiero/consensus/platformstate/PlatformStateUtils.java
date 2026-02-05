@@ -15,7 +15,6 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.base.formatting.TextTable;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.state.State;
-import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -289,9 +288,8 @@ public final class PlatformStateUtils {
      */
     @NonNull
     public static String getInfoString(@NonNull final State state) {
-        final VirtualMapState virtualMapState = (VirtualMapState) state;
-        return createInfoString(readablePlatformStateStore(state), virtualMapState.getHash())
-                .concat(virtualMapState.getInfoJson());
+        return createInfoString(readablePlatformStateStore(state), state.getHash())
+                .concat(state.getInfoJson());
     }
 
     private static PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {
