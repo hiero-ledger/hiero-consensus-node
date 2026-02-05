@@ -44,10 +44,7 @@ public class ReconnectHashLeafFlusherTest {
         final VirtualMapStatistics stats = new VirtualMapStatistics("testNadLeafPaths");
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashLeafFlusher(
-                        null,
-                        VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                        stats));
+                () -> new ReconnectHashLeafFlusher(null, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), stats));
     }
 
     @Test
@@ -55,10 +52,7 @@ public class ReconnectHashLeafFlusherTest {
         final VirtualDataSource ds = new InMemoryDataSource("testNullStatsThrows");
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashLeafFlusher(
-                        ds,
-                        VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                        null));
+                () -> new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), null));
     }
 
     @ParameterizedTest
@@ -74,8 +68,8 @@ public class ReconnectHashLeafFlusherTest {
     void testNadLeafPaths(long firstLeafPath, long lastLeafPath) {
         final VirtualDataSource ds = new InMemoryDataSource("testNadLeafPaths");
         final VirtualMapStatistics stats = new VirtualMapStatistics("testNadLeafPaths");
-        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(
-                ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), stats);
+        final ReconnectHashLeafFlusher flusher =
+                new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), stats);
         assertThrows(IllegalArgumentException.class, () -> flusher.start(firstLeafPath, lastLeafPath));
     }
 
@@ -85,8 +79,7 @@ public class ReconnectHashLeafFlusherTest {
         final VirtualDataSource ds = new InMemoryDataSource("testHashesFlushed");
         final int hashChunkHeight = ds.getHashChunkHeight();
         final VirtualMapStatistics stats = new VirtualMapStatistics("testHashesFlushed");
-        final ReconnectHashLeafFlusher flusher =
-                new ReconnectHashLeafFlusher(ds, flushInterval, stats);
+        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
         final int COUNT = 500;
         flusher.start(COUNT - 1, COUNT * 2 - 2);
         final long minHashChunkId = VirtualHashChunk.lastChunkIdForPaths(COUNT * 2 - 2, hashChunkHeight);
@@ -119,8 +112,7 @@ public class ReconnectHashLeafFlusherTest {
     void testLeavesFlushed(final int flushInterval) throws Exception {
         final VirtualDataSource ds = new InMemoryDataSource("testLeavesFlushed");
         final VirtualMapStatistics stats = new VirtualMapStatistics("testLeavesFlushed");
-        final ReconnectHashLeafFlusher flusher =
-                new ReconnectHashLeafFlusher(ds, flushInterval, stats);
+        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
         final int COUNT = 500;
         flusher.start(COUNT - 1, COUNT * 2 - 2);
         for (int i = COUNT - 1; i < COUNT * 2 - 1; i++) {

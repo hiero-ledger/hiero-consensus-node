@@ -125,38 +125,42 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private final LongList pathToDiskLocationLeafNodes;
 
     /**
-     * Hash chunk height.
+     * Hash chunk height. When an empty MerkleDb data source is created, the height is
+     * read from {@link VirtualMapConfig#hashChunkHeight()}. When an existing
+     * data source is loaded from disk, the value from the config is ignored, and the
+     * height is loaded from the data source metadata file.
      */
     private final int hashChunkHeight;
 
     /**
-     * On disk store for hash chunks. Stores {@link VirtualHashChunk} objects.
+     * Mixed disk (data) and off-heap memory (index) store for hash chunks. Stores
+     * {@link VirtualHashChunk} objects.
      */
     private final MemoryIndexDiskKeyValueStore hashChunkStore;
 
     private final int hashChunkCacheThreshold;
 
     /**
-     * In memory cache for hash chunks with IDs less than {@link
-     * MerkleDbConfig#hashChunkCacheThreshold()}. When data source snapshot is written
-     * to disk, all hash chunks from this cache are written to disk first.
+     * In memory cache for hash chunks with IDs less than {@link #hashChunkCacheThreshold}.
+     * When a data source snapshot is written to disk, all hash chunks from this cache are
+     * written to disk first.
      */
     private final Map<Long, VirtualHashChunk> hashChunkCache;
 
     /**
-     * Mixed disk and off-heap memory store for key to path map.
+     * Mixed disk (data) and off-heap (index) memory store for key to path mappings.
      */
     private final HalfDiskHashMap keyToPath;
 
     /**
-     * Mixed disk and off-heap memory store for leaf key and value. Stores {@link
+     * Mixed disk (data) and off-heap memory (index) store for leaves. Stores {@link
      * VirtualLeafBytes} objects.
      */
     private final MemoryIndexDiskKeyValueStore keyValueStore;
 
     /**
      * Cache size for reading virtual leaf records. Initialized in data source creation time from
-     * MerkleDb settings. If the value is zero, leaf records cache isn't used.
+     * MerkleDb settings. If the value is zero, the leaf records cache isn't used.
      */
     private final int leafRecordCacheSize;
 
@@ -240,7 +244,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         this.preferDiskBasedIndices = diskBasedIndices;
 
         final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
-        this.hashChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
+        this.hashChunkHeight = virtualMapConfig.hashChunkHeight();
         this.merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
 
         // create thread group with label
@@ -315,7 +319,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final long maxPath = merkleDbConfig.maxNumOfKeys() * 2;
         // Path to KV index capacity is the same as max virtual path
         final long kvIndexCapacity = maxPath;
-        // Path to hash index capacity is the min chunk ID to cover all paths from 0 to maxPath
+        // ID to hash index capacity is the min chunk ID to cover all paths from 0 to maxPath
         final long hashIndexCapacity = VirtualHashChunk.lastChunkIdForPaths(maxPath, hashChunkHeight);
 
         // Hash chunk disk location index (chunk ID to disk location)
@@ -868,6 +872,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (chunkId < hashChunkCacheThreshold) {
             final VirtualHashChunk chunk = hashChunkCache.get(chunkId);
             if (chunk != null) {
+                // Should count hash reads here, too?
                 return chunk.copy();
             }
         }
@@ -1024,7 +1029,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         return new ToStringBuilder(this)
                 .append("initialCapacity", initialCapacity)
                 .append("preferDiskBasedIndexes", preferDiskBasedIndices)
-                .append("pathToDiskLocationInternalNodes.size", idToDiskLocationHashChunks.size())
+                .append("idToDiskLocationHashChunks.size", idToDiskLocationHashChunks.size())
                 .append("pathToDiskLocationLeafNodes.size", pathToDiskLocationLeafNodes.size())
                 .append("hashChunkStore", hashChunkStore)
                 .append("keyToPath", keyToPath)

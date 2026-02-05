@@ -1281,10 +1281,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
         assert originalMap != null;
         // During reconnect we want to look up state from the original records
         final VirtualMapMetadata originalState = originalMap.getMetadata();
-        reconnectFlusher = new ReconnectHashLeafFlusher(
-                dataSource,
-                virtualMapConfig.reconnectFlushInterval(),
-                statistics);
+        reconnectFlusher =
+                new ReconnectHashLeafFlusher(dataSource, virtualMapConfig.reconnectFlushInterval(), statistics);
         nodeRemover = new ReconnectNodeRemover(
                 originalMap.getRecords(),
                 originalState.getFirstLeafPath(),

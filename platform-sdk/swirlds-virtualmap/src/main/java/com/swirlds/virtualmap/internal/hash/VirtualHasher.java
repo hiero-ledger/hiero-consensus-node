@@ -474,8 +474,8 @@ public final class VirtualHasher {
                 ? thread.getPool()
                 : getHashingPool(virtualMapConfig);
 
-        final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(() ->
-                hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool)));
+        final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(
+                () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool)));
         if (rootTask != null) {
             try {
                 rootTask.join();
@@ -599,8 +599,8 @@ public final class VirtualHasher {
                     // Identify the parent task for the last path at stack
                     final int lastTaskAtRankParentChunkHeight = getChunkHeightForInputRank(
                             lastPathAtRank, curRank, firstLeafRank, lastLeafRank, defaultChunkHeight);
-                    final long lastTaskAtRankParentPath = Path.getGrandParentPath(lastPathAtRank,
-                            lastTaskAtRankParentChunkHeight);
+                    final long lastTaskAtRankParentPath =
+                            Path.getGrandParentPath(lastPathAtRank, lastTaskAtRankParentChunkHeight);
                     final ChunkHashTask lastTaskAtRankParentTask = chunkTasks.get(lastTaskAtRankParentPath);
                     // The parent tank must exist, since it was created at the previous iteration
                     assert lastTaskAtRankParentTask != null;

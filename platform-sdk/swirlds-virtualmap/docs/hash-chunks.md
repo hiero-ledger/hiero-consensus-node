@@ -50,7 +50,7 @@ the whole virtual tree.
 Chunks may also be identified by IDs. The root chunk at path 0 has ID 0. Chunk with ID 1 may be
 located at path 1 (chunk height 1), or path 3 (chunk height 2), or path 7 (chunk height 3), and
 so on. Chunk with ID 2 is a sibling of chunk with ID 1. If chunk height is 1, chunk with ID 3
-is at path 3. If chunk height is 2, chunk with ID 2 is at path 5. When chunk height is fixed,
+is at path 3. If chunk height is 2, chunk with ID 2 is at path 4. When chunk height is fixed,
 there is 1-1 mapping between chunk IDs and chunk paths.
 
 Chunk paths are handy during hashing. Chunk IDs are used in the node cache and in the data
@@ -180,7 +180,7 @@ There is something to be very careful about here. Given a chunk, there is no way
 a hash at a path is for that very path, or for some of its parents. This really depends on the
 current leaf range. If a hash was set for path `P`, which is not at the lowest chunk rank, it must
 never be queried for path `P*2+1`, which is a left child of `P`. The hash will be the same, but
-the end result will be wrong, since this is not the has for `P*2+1`.
+the end result will be wrong, since this is not the hash for `P*2+1`.
 
 What if a partial chunk was stored for one leaf range, and later the range increased, so the
 chunk now contains more hashes in the range? It may even become a complete chunk. In the example

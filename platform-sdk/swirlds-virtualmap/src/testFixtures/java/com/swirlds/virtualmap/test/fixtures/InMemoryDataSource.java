@@ -18,7 +18,7 @@ import java.util.stream.Stream;
  */
 public class InMemoryDataSource implements VirtualDataSource {
 
-    // This doesn't have to match VirtualMapConfig#virtualHasherChunkHeight
+    // This doesn't have to match VirtualMapConfig#hashChunkHeight
     private static final int DEFAULT_HASH_CHUNK_HEIGHT = 3;
 
     private static final String NEGATIVE_CHUNKID_MESSAGE = "chunk ID is less than 0";
