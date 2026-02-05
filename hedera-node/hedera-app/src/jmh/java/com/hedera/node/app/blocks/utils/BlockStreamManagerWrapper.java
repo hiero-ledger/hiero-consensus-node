@@ -46,6 +46,7 @@ import java.util.function.Supplier;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 
 /**
  * Wrapper around BlockStreamManagerImpl that provides a simpler API for benchmarking.
@@ -440,9 +441,7 @@ public class BlockStreamManagerWrapper {
 
                         @Override
                         public @NonNull Set<Integer> stateIds() {
-                            return Set.of(
-                                    com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema
-                                            .PLATFORM_STATE_STATE_ID);
+                            return Set.of(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
                         }
                     };
                 case EntityIdService.NAME ->

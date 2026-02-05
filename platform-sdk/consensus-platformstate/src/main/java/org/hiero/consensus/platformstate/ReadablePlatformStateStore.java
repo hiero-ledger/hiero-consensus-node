@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.service;
+package org.hiero.consensus.platformstate;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
@@ -7,7 +7,9 @@ import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.state.State;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -15,18 +17,20 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
 /**
- * Provides access to a snapshot of the platform state.
+ * Gives read-only access to the platform state, encapsulating conversion from PBJ types to the current types
+ * in use by the platform.
  */
-public class SnapshotPlatformStateAccessor implements PlatformStateAccessor {
-    private final PlatformState state;
+public class ReadablePlatformStateStore implements PlatformStateAccessor {
+
+    private final ReadableSingletonState<PlatformState> state;
 
     /**
-     * Constructs a new accessor for the given state.
-     *
-     * @param state the state to access
+     * Constructor
+     * Must be used from within {@link State}.
+     * @param readableStates the readable states
      */
-    public SnapshotPlatformStateAccessor(@NonNull final PlatformState state) {
-        this.state = requireNonNull(state);
+    public ReadablePlatformStateStore(@NonNull final ReadableStates readableStates) {
+        this.state = requireNonNull(readableStates).getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
     }
 
     /**
@@ -127,15 +131,12 @@ public class SnapshotPlatformStateAccessor implements PlatformStateAccessor {
         return fromPbjTimestamp(stateOrThrow().lastFrozenTime());
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getLatestFreezeRound() {
         return stateOrThrow().latestFreezeRound();
     }
 
     private @NonNull PlatformState stateOrThrow() {
-        return requireNonNull(state);
+        return requireNonNull(state.get());
     }
 }
