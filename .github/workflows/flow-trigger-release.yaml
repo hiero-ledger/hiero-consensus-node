@@ -203,7 +203,7 @@ jobs:
         run: |
           echo "Applying computed version tag"
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
-            echo "Dry run enabled, not applying tag "v${{ steps.next-release.outputs.version }}"
+            echo "Dry run enabled, not applying tag v${{ steps.next-release.outputs.version }}"
           else
             # git tag -sign --annotate "v${{ steps.next-release.outputs.version }}" --message "v${{ steps.next-release.outputs.version }}"
             echo "Applied tag v${{ steps.next-release.outputs.version }}"
