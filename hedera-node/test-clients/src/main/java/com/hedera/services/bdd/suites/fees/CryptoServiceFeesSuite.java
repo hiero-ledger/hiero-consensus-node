@@ -100,7 +100,6 @@ public class CryptoServiceFeesSuite {
                         .key(CIVILIAN)
                         .via(cryptoCreate)
                         .blankMemo()
-                        .fee(ONE_HBAR)
                         .signedBy(CIVILIAN)
                         .payingWith(CIVILIAN),
                 validateChargedUsd(cryptoCreate, BASE_FEE_CRYPTO_CREATE));
@@ -170,10 +169,7 @@ public class CryptoServiceFeesSuite {
                         .addNftDeleteAllowance(MISSING_OWNER, nft, List.of(1L))
                         .via(baseDeleteNft),
                 validateChargedUsdWithin(baseDeleteNft, BASE_FEE_CRYPTO_DELETE_ALLOWANCE, 0.01),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .fee(ONE_HBAR)
-                        .addNftAllowance(OWNER, nft, SPENDER, false, List.of(1L)),
+                cryptoApproveAllowance().payingWith(OWNER).addNftAllowance(OWNER, nft, SPENDER, false, List.of(1L)),
                 /* with specifying owner */
                 cryptoDeleteAllowance()
                         .payingWith(OWNER)
