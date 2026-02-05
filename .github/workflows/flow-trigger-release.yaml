@@ -109,7 +109,7 @@ jobs:
           git push --set-upstream origin "${{ steps.branch.outputs.name }}"
 
       - name: Git-Semver Setup Action
-        uses: DJ-BBot/setup-git-semver@6bb4ebdd43599b4b1ce2db197bd364612128d175 # v1.0.6
+        uses: pandaswhocode/setup-git-semver@b820991c162d51f81f309c522b2b595d97d645eb # v1.0.8
 
       - name: Identify Current Version Number
         run: |
@@ -221,8 +221,6 @@ jobs:
 
       - name: Create Release Notes with Markdown
         id: release
-        # Skip step if not alpha release and not dry run
-        if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true }}
         run: |
           echo git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
           git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
@@ -231,7 +229,7 @@ jobs:
 
       - name: Publish Release Notes
         uses: step-security/action-gh-release@868edcd064bf35267c4b218913c3d36d547086b4 # v2.2.2
-        # Skip step if not alpha release and not dry run
+        # Skip step if not alpha release or not dry run
         if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true }}
         with:
           name: v${{ steps.next-release.outputs.version }}
@@ -241,8 +239,6 @@ jobs:
           body_path: "RELEASE.md"
 
       - name: Clean Up Release Notes
-        # Skip step if not alpha release and not dry run
-        if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true }}
         run: |
           echo "Removing the release notes file RELEASE.md"
           rm RELEASE.md
