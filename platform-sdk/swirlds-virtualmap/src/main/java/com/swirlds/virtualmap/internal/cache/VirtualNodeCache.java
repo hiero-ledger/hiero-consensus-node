@@ -785,6 +785,7 @@ public final class VirtualNodeCache implements FastCopyable {
     private Stream<VirtualLeafBytes> dirtyLeaves(
             final long firstLeafPath, final long lastLeafPath, final boolean dedupe) {
         if (!dirtyLeaves.isImmutable()) {
+            logger.error(EXCEPTION.getMarker(), "Cannot call on a cache that is still mutable for dirty leaves");
             throw new MutabilityException("Cannot call on a cache that is still mutable for dirty leaves");
         }
         if (dedupe) {
@@ -815,6 +816,7 @@ public final class VirtualNodeCache implements FastCopyable {
      */
     public Stream<VirtualLeafBytes> deletedLeaves() {
         if (!dirtyLeaves.isImmutable()) {
+            logger.error(EXCEPTION.getMarker(), "Cannot call on a cache that is still mutable for dirty leaves");
             throw new MutabilityException("Cannot call on a cache that is still mutable for dirty leaves");
         }
 
@@ -928,6 +930,7 @@ public final class VirtualNodeCache implements FastCopyable {
      */
     public Stream<VirtualHashRecord> dirtyHashesForFlush(final long lastLeafPath) {
         if (!dirtyHashes.isImmutable()) {
+            logger.error(EXCEPTION.getMarker(), "Cannot get the dirty internal records for a non-sealed cache.");
             throw new MutabilityException("Cannot get the dirty internal records for a non-sealed cache.");
         }
         // Mark obsolete mutations to filter later

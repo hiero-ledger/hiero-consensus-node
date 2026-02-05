@@ -231,7 +231,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
         } catch (final Throwable e) {
             log.error(
                     EXCEPTION.getMarker(),
-                    "Unable to write a snapshot on demand for {} to {}: {}",
+                    "Unable to write a snapshot on demand for {} to {}",
                     state,
                     targetPath,
                     e);
@@ -257,7 +257,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager<VirtualM
             if (error != null) {
                 log.error(
                         EXCEPTION.getMarker(),
-                        "Unable to write a snapshot on demand (async) for {} to {}: {}",
+                        "Unable to write a snapshot on demand (async) for {} to {}",
                         state,
                         targetPath,
                         error);

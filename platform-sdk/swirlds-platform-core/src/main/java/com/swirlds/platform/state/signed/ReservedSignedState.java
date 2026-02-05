@@ -31,7 +31,7 @@ public class ReservedSignedState implements AutoCloseableNonThrowing {
     private static final AtomicLong nextReservationId = new AtomicLong(0);
 
     private final SignedState signedState;
-    private final String reason;
+    public final String reason;
     private final long reservationId;
     private boolean closed = false;
 

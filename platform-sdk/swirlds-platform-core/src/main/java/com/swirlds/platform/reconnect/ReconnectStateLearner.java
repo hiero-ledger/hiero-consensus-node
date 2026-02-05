@@ -89,7 +89,7 @@ public class ReconnectStateLearner {
             @NonNull final StateLifecycleManager stateLifecycleManager) {
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
 
-        currentState.throwIfImmutable("Can not perform reconnect with immutable state");
+//        currentState.throwIfImmutable("Can not perform reconnect with immutable state");
         currentState.throwIfDestroyed("Can not perform reconnect with destroyed state");
 
         this.configuration = requireNonNull(configuration);

@@ -4,6 +4,7 @@ package com.swirlds.virtualmap;
 import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static com.swirlds.virtualmap.internal.Path.FIRST_LEFT_PATH;
@@ -878,7 +879,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         final Path targetPath = snapshotTargetPath.get();
         final CompletableFuture<Void> future = snapshotFuture.get();
         if (targetPath != null && future != null) {
+            logger.info(STATE_TO_DISK.getMarker(), "Snapshotting data source to {}", targetPath);
             dataSourceBuilder.snapshot(targetPath, dataSource);
+            logger.info(STATE_TO_DISK.getMarker(), "Completing the future...");
             future.complete(null);
 
             snapshotTargetPath.set(null);
@@ -1516,6 +1519,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      *         to the specified directory
      */
     public CompletableFuture<Void> createSnapshotAsync(final @NonNull Path outputDirectory) {
+        logger.info(STATE_TO_DISK.getMarker(), "Creating snapshot asynchronously to directory for VM fast copy v{}", this.getFastCopyVersion());
         snapshotTargetPath.set(outputDirectory);
         final CompletableFuture<Void> future = new CompletableFuture<>();
         snapshotFuture.set(future);

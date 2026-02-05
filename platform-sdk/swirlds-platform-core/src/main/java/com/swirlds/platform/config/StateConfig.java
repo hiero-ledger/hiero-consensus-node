@@ -69,7 +69,7 @@ import java.time.Duration;
 @ConfigData("state")
 public record StateConfig(
         @ConfigProperty(defaultValue = "") String mainClassNameOverride,
-        @ConfigProperty(defaultValue = "900") int saveStatePeriod,
+        @ConfigProperty(defaultValue = "5") int saveStatePeriod,
         @ConfigProperty(defaultValue = "true") boolean saveStateAsync,
         @ConfigProperty(defaultValue = "5") int signedStateDisk,
         @ConfigProperty(defaultValue = "false") boolean haltOnAnyIss,
@@ -83,8 +83,8 @@ public record StateConfig(
         @ConfigProperty(defaultValue = "0") int roundsToKeepAfterSigning,
         @ConfigProperty(defaultValue = "5m") Duration suspiciousSignedStateAgeGap,
         @ConfigProperty(defaultValue = "10m") Duration signedStateAgeNotifyRateLimit,
-        @ConfigProperty(defaultValue = "false") boolean stateHistoryEnabled,
-        @ConfigProperty(defaultValue = "false") boolean debugStackTracesEnabled,
+        @ConfigProperty(defaultValue = "true") boolean stateHistoryEnabled,
+        @ConfigProperty(defaultValue = "true") boolean debugStackTracesEnabled,
         @ConfigProperty(defaultValue = "false") boolean deleteInvalidStateFiles,
         @ConfigProperty(defaultValue = "true") boolean validateInitialState) {
 

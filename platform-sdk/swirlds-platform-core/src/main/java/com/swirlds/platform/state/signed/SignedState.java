@@ -68,6 +68,8 @@ public class SignedState {
 
     private static final Logger logger = LogManager.getLogger(SignedState.class);
 
+    public static long latest_round = -1;
+
     /**
      * the signatures collected so far (including from self)
      */
@@ -457,7 +459,7 @@ public class SignedState {
      * @return true if this state eventually needs to be written to disk
      */
     public boolean isStateToSave() {
-        return stateToDiskReason != null;
+        return stateToDiskReason != null && latest_round == getRound();
     }
 
     /**

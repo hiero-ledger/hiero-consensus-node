@@ -182,7 +182,10 @@ public class PlatformWiring {
         // Filter to complete states only and add a 3rd reservation since completes states are used in two input wires.
         final OutputWire<ReservedSignedState> completeReservedSignedStatesWire = allReservedSignedStatesWire
                 .buildFilter("completeStateFilter", "states", rs -> {
-                    if (rs.get().isComplete()) {
+                    if (rs.get().isFreezeState()) {
+                        System.out.println("freeze state:");
+                    }
+                    if (rs.get().isComplete() || rs.get().isFreezeState()) {
                         return true;
                     } else {
                         // close the second reservation on states that are not passed on.

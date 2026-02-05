@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -13,6 +14,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload.CauseOfFailure;
+import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.reconnect.api.ReservedSignedStateResult;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -143,8 +145,10 @@ public class ReconnectController implements Runnable {
                 platformCoordinator.clear();
                 logger.info(RECONNECT.getMarker(), "Queues have been cleared");
 
-                final MerkleNodeState currentState = stateLifecycleManager.getMutableState();
+                final MerkleNodeState currentState = stateLifecycleManager.getLatestImmutableState();
                 currentState.getHash(); // hash the state
+                logger.info(RECONNECT.getMarker(),"Immutable state for validation has round: {}", roundOf(currentState));
+
                 int failedReconnectsInARow = 0;
                 do {
                     final AttemptReconnectResult result = attemptReconnect(currentState);

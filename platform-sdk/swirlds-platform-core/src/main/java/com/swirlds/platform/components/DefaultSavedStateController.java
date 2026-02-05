@@ -33,6 +33,21 @@ public class DefaultSavedStateController implements SavedStateController {
     private final StateConfig stateConfig;
 
     /**
+     * DEBUG: The round number of the last state marked for saving. When the very next round (this value + 1)
+     * arrives, it will also be forced to save, reproducing the back-to-back PERIODIC_SNAPSHOT condition.
+     * Set to -1 when no forced save is pending.
+     */
+    private long forceNextRoundAfter = -1;
+
+    /**
+     * DEBUG: Probability (0.0 to 1.0) of triggering a back-to-back save after a PERIODIC_SNAPSHOT.
+     * Set to 0.0 to disable.
+     */
+    private static final double FORCE_BACK_TO_BACK_PROBABILITY = 0.3;
+
+    private static final java.util.Random DEBUG_RANDOM = new java.util.Random();
+
+    /**
      * Constructor
      *
      * @param platformContext the platform context
@@ -108,6 +123,8 @@ public class DefaultSavedStateController implements SavedStateController {
     private StateToDiskReason shouldSaveToDisk(
             @NonNull final SignedState signedState, @Nullable final Instant previousTimestamp) {
 
+        SignedState.latest_round = signedState.getRound();
+
         if (signedState.isFreezeState()) {
             // the state right before a freeze should be written to disk
             return FREEZE_STATE;
@@ -135,5 +152,33 @@ public class DefaultSavedStateController implements SavedStateController {
             // the period hasn't yet elapsed
             return null;
         }
+//        // DEBUG: if this is exactly the round after one we marked, force a back-to-back save
+//        if (forceNextRoundAfter >= 0 && signedState.getRound() == forceNextRoundAfter + 1) {
+//            forceNextRoundAfter = -1;
+//            logger.info(STATE_TO_DISK.getMarker(),
+//                    "DEBUG: Forcing consecutive PERIODIC_SNAPSHOT for round {} (previous marked round was {})",
+//                    signedState.getRound(), signedState.getRound() - 1);
+//            return PERIODIC_SNAPSHOT;
+//        }
+//        // Reset if we passed the target round without hitting it
+//        if (forceNextRoundAfter >= 0 && signedState.getRound() > forceNextRoundAfter + 1) {
+//            forceNextRoundAfter = -1;
+//        }
+//
+//        if ((signedState.getConsensusTimestamp().getEpochSecond() / saveStatePeriod)
+//                > (previousTimestamp.getEpochSecond() / saveStatePeriod)) {
+//            // Occasionally arm the trigger to also save the very next consecutive round
+//            if (FORCE_BACK_TO_BACK_PROBABILITY > 0.0
+//                    && DEBUG_RANDOM.nextDouble() < FORCE_BACK_TO_BACK_PROBABILITY) {
+//                forceNextRoundAfter = signedState.getRound();
+//                logger.info(STATE_TO_DISK.getMarker(),
+//                        "DEBUG: Armed back-to-back trigger — round {} will also be saved",
+//                        forceNextRoundAfter + 1);
+//            }
+//            return PERIODIC_SNAPSHOT;
+//        } else {
+//            // the period hasn't yet elapsed
+//            return null;
+//        }
     }
 }
