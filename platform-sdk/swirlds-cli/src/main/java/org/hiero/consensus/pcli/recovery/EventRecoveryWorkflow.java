@@ -472,7 +472,7 @@ public final class EventRecoveryWorkflow {
      * @param judge              the judge event
      * @return the synthetic snapshot
      */
-    public static @NonNull ConsensusSnapshot generateSyntheticSnapshot(
+    private static @NonNull ConsensusSnapshot generateSyntheticSnapshot(
             final long round,
             final long lastConsensusOrder,
             @NonNull final Instant roundTimestamp,
