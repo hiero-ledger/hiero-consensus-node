@@ -68,7 +68,6 @@ public class BlockStreamMetrics {
     private Counter conn_createFailureCounter;
     private LongGauge conn_activeConnIpGauge;
     private Counter conn_endOfStreamLimitCounter;
-    private Counter conn_behindPublisherLimitCounter;
     private Counter conn_highLatencyCounter;
     private Counter conn_pipelineOperationTimeoutCounter;
     private RunningAverageMetric conn_headerSentToAckLatency;
@@ -303,11 +302,6 @@ public class BlockStreamMetrics {
                         "Number of times the active block node connection has exceeded the allowed number of EndOfStream responses");
         conn_endOfStreamLimitCounter = metrics.getOrCreate(endOfStreamLimitCfg);
 
-        final Counter.Config behindPublisherLimitCfg = newCounter(GROUP_CONN, "behindPublisherLimitExceeded")
-                .withDescription(
-                        "Number of times the active block node connection has exceeded the allowed number of BehindPublisher responses");
-        conn_behindPublisherLimitCounter = metrics.getOrCreate(behindPublisherLimitCfg);
-
         final Counter.Config highLatencyCfg = newCounter(GROUP_CONN, "highLatencyEvents")
                 .withDescription("Count of high latency events from the active block node connection");
         conn_highLatencyCounter = metrics.getOrCreate(highLatencyCfg);
@@ -359,13 +353,6 @@ public class BlockStreamMetrics {
      */
     public void recordEndOfStreamLimitExceeded() {
         conn_endOfStreamLimitCounter.increment();
-    }
-
-    /**
-     * Record that an active connection has exceeded the allowed number of BehindPublisher responses.
-     */
-    public void recordBehindPublisherLimitExceeded() {
-        conn_behindPublisherLimitCounter.increment();
     }
 
     /**

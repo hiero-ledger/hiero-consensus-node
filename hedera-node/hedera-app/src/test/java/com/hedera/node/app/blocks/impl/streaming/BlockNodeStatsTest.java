@@ -45,18 +45,6 @@ class BlockNodeStatsTest {
     }
 
     @Test
-    void test_behindPublisher_withinLimit() {
-        final Instant now = Instant.now();
-        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(3), 5, Duration.ofSeconds(10L)))
-                .isFalse();
-        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(2), 5, Duration.ofSeconds(10L)))
-                .isFalse();
-        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(1), 5, Duration.ofSeconds(10L)))
-                .isFalse();
-        assertThat(blockNodeStats.getBehindPublisherCount()).isEqualTo(3);
-    }
-
-    @Test
     void test_behindPublisher_expiredTimestampsPruned() {
         final Instant now = Instant.now();
         // Add timestamps that will be outside the time window

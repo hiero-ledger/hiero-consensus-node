@@ -1693,7 +1693,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockBehindPublisher(10L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
-        verify(metrics).recordBehindPublisherLimitExceeded();
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         // Verify EndStream request metrics

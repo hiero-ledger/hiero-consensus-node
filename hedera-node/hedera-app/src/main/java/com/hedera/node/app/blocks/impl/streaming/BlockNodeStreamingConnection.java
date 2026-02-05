@@ -587,7 +587,6 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         connectionManager.getBehindPublisherTimeframe(),
                         connectionManager.getBehindPublisherScheduleDelay());
             }
-            blockStreamMetrics.recordBehindPublisherLimitExceeded();
 
             // Send EndStream with RESET code and reschedule with configured delay
             endStreamAndReschedule(RESET, connectionManager.getBehindPublisherScheduleDelay());
