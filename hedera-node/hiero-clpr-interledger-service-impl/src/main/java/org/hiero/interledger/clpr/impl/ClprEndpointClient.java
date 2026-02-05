@@ -56,8 +56,7 @@ public class ClprEndpointClient {
             endpointCursorByLedgerId = new ConcurrentHashMap<>();
     private final Clock clock;
 
-    private record RemoteEndpoint(
-            ServiceEndpoint endpoint, @Nullable AccountID nodeAccountId) {}
+    private record RemoteEndpoint(ServiceEndpoint endpoint, @Nullable AccountID nodeAccountId) {}
 
     private record QueueMetadata(boolean hasMessages) {}
 

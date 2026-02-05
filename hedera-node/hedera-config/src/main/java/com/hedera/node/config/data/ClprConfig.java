@@ -15,14 +15,7 @@ import com.swirlds.config.api.ConfigProperty;
  */
 @ConfigData("clpr")
 public record ClprConfig(
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean clprEnabled,
-
-        @ConfigProperty(defaultValue = "5000") @NetworkProperty
-        int connectionFrequency,
-
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
-        boolean publicizeNetworkAddresses,
-
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
-        boolean devModeEnabled) {}
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean clprEnabled,
+        @ConfigProperty(defaultValue = "5000") @NetworkProperty int connectionFrequency,
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean publicizeNetworkAddresses,
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean devModeEnabled) {}
