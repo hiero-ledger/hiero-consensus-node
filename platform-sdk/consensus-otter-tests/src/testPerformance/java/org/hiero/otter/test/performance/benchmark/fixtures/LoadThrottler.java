@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -23,29 +24,21 @@ import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
  */
 public class LoadThrottler {
 
-    private final List<Node> nodes;
+    private final Network network;
     private final Supplier<OtterTransaction> transactionFactory;
     private final TimeManager timeManager;
 
     /**
-     * Creates a new TransactionSubmitter.
+     * Creates a new LoadThrottler.
      *
      * @param environment the environment containing nodes to submit transactions to
      * @param transactionFactory the transaction factory used to create the transactions to submit
      *
-     * @throws IllegalArgumentException if invocationRate is not positive or no active nodes are available
      */
     public LoadThrottler(
             @NonNull final TestEnvironment environment, @NonNull final Supplier<OtterTransaction> transactionFactory) {
-        this.nodes = Objects.requireNonNull(environment).network().nodes().stream()
-                .filter(Node::isActive)
-                .toList();
+        this.network = Objects.requireNonNull(environment).network();
         this.timeManager = environment.timeManager();
-
-        if (nodes.isEmpty()) {
-            throw new IllegalArgumentException("No active nodes available in the network");
-        }
-
         this.transactionFactory = Objects.requireNonNull(transactionFactory);
     }
 
@@ -60,20 +53,26 @@ public class LoadThrottler {
      * </ol>
      *
      * @param count the number of transactions to submit
-     * @param invocationRate the maximum rate to send transactions to the network
+     * @param invocationRateInSeconds the maximum rate in seconds to send transactions to the network
      */
-    public void submitWithRate(final int count, final int invocationRate) {
+    public void submitWithRate(final int count, final int invocationRateInSeconds) {
 
         if (count <= 0) {
             throw new IllegalArgumentException("count must be positive, got: " + count);
         }
-        if (invocationRate <= 0) {
-            throw new IllegalArgumentException("invocationRate must be positive, got: " + invocationRate);
+        if (invocationRateInSeconds <= 0) {
+            throw new IllegalArgumentException(
+                    "invocationRateInSeconds must be positive, got: " + invocationRateInSeconds);
         }
 
-        final long intervalNanos = InstantUtils.NANOS_IN_MICRO * InstantUtils.MICROS_IN_SECOND / invocationRate;
+        final long intervalNanos =
+                InstantUtils.NANOS_IN_MICRO * InstantUtils.MICROS_IN_SECOND / invocationRateInSeconds;
         final long startNanos = System.nanoTime();
-        final List<Node> candidates = nodes.stream().filter(Node::isActive).toList();
+        final List<Node> candidates =
+                network.nodes().stream().filter(Node::isActive).toList();
+        if (candidates.isEmpty()) {
+            throw new IllegalArgumentException("No active nodes available in the network");
+        }
         for (int i = 0; i < count; i++) {
             // Select node with even distribution
             final Node targetNode = candidates.get(i % candidates.size());
