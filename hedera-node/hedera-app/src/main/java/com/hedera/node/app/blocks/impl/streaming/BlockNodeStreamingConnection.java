@@ -283,9 +283,21 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param code the code indicating why the stream was ended
      */
     private void endStreamAndReschedule(@NonNull final EndStream.Code code) {
+        endStreamAndReschedule(code, THIRTY_SECONDS);
+    }
+
+    /**
+     * Ends the stream with the specified code and reschedules with the specified delay. This method sends an end stream
+     * message before cleanup and retry logic.
+     *
+     * @param code the code indicating why the stream was ended
+     * @param delay the delay before attempting to reconnect
+     */
+    private void endStreamAndReschedule(@NonNull final EndStream.Code code, @NonNull final Duration delay) {
         requireNonNull(code, "code must not be null");
+        requireNonNull(delay, "delay must not be null");
         endTheStreamWith(code);
-        connectionManager.rescheduleConnection(this, THIRTY_SECONDS, null, true);
+        connectionManager.rescheduleConnection(this, delay, null, true);
     }
 
     /**
@@ -447,8 +459,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             }
             blockStreamMetrics.recordEndOfStreamLimitExceeded();
 
-            // Schedule delayed retry through connection manager
-            closeAndReschedule(connectionManager.getEndOfStreamScheduleDelay(), true);
+            // Send EndStream with RESET code and reschedule with configured delay
+            endStreamAndReschedule(RESET, connectionManager.getEndOfStreamScheduleDelay());
             return;
         }
 
@@ -577,8 +589,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             }
             blockStreamMetrics.recordBehindPublisherLimitExceeded();
 
-            // Schedule delayed retry through connection manager
-            closeAndReschedule(connectionManager.getBehindPublisherScheduleDelay(), true);
+            // Send EndStream with RESET code and reschedule with configured delay
+            endStreamAndReschedule(RESET, connectionManager.getBehindPublisherScheduleDelay());
             return;
         }
 
