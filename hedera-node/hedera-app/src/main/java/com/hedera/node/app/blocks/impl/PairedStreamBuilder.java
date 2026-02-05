@@ -285,7 +285,16 @@ public class PairedStreamBuilder
 
     @Override
     public StreamBuilder congestionMultiplier(final long congestionMultiplier) {
-        return null;
+        recordStreamBuilder.congestionMultiplier(congestionMultiplier);
+        blockStreamBuilder.congestionMultiplier(congestionMultiplier);
+        return this;
+    }
+
+    @Override
+    public StreamBuilder highVolumePricingMultiplier(final long highVolumePricingMultiplier) {
+        recordStreamBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        blockStreamBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        return this;
     }
 
     @NonNull

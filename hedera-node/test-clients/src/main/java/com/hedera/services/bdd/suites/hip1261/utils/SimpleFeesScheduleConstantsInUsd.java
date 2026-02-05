@@ -14,7 +14,8 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long NODE_INCLUDED_BYTES = 1024L;
 
     public static final int NETWORK_MULTIPLIER = 9;
-
+    public static final double NETWORK_BASE_FEE = NODE_BASE_FEE_USD * NETWORK_MULTIPLIER;
+    public static final double NODE_AND_NETWORK_BASE_FEE = NODE_BASE_FEE_USD + NETWORK_BASE_FEE;
     public static final double UNREADABLE_FEE_USD = 0.00000001;
 
     /* ---------- Global extras price table ("extras") ---------- */
@@ -137,14 +138,16 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOKEN_REVOKE_KYC_BASE_FEE_USD = 0.0009;
 
     public static final double TOKEN_FREEZE_BASE_FEE_USD = 0.0009;
-
     public static final double TOKEN_UNFREEZE_BASE_FEE_USD = 0.0009;
+    public static final double TOKEN_FREEZE_FEE = 0.001;
+    public static final double TOKEN_UNFREEZE_FEE = 0.001;
 
     public static final double TOKEN_PAUSE_BASE_FEE_USD = 0.0009;
 
     public static final double TOKEN_UNPAUSE_BASE_FEE_USD = 0.0009;
 
     public static final double TOKEN_WIPE_BASE_FEE_USD = 0.0009;
+    public static final double TOKEN_WIPE_FEE = 0.001;
 
     /* ---------- Schedule service ---------- */
 
