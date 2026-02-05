@@ -4,7 +4,7 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.platform.reconnect.ReconnectStateLearner.endReconnectHandshake;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;

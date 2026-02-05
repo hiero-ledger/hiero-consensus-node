@@ -6,9 +6,9 @@ import static com.hedera.statevalidation.util.ConfigUtils.getConfiguration;
 import static com.hedera.statevalidation.util.ConfigUtils.resetConfiguration;
 import static com.hedera.statevalidation.util.PlatformContextHelper.getPlatformContext;
 import static com.hedera.statevalidation.util.PlatformContextHelper.resetPlatformContext;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static com.swirlds.platform.state.signed.StartupStateUtils.copyInitialSignedState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
@@ -58,7 +58,6 @@ import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -86,6 +85,7 @@ import java.util.function.Supplier;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.platformstate.PlatformStateService;
 
 /**
  * Utility for loading and initializing state from disk. Manages the complete initialization

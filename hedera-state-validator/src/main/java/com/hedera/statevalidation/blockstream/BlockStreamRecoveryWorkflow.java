@@ -2,8 +2,8 @@
 package com.hedera.statevalidation.blockstream;
 
 import static com.hedera.statevalidation.ApplyBlocksCommand.DEFAULT_TARGET_ROUND;
-import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
