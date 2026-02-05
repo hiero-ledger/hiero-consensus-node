@@ -176,33 +176,34 @@ jobs:
           # If this is an alpha flag we do not want to create a release branch
           if [[ "${ALPHA_FLAG}" == "true" ]]; then
             CREATE_RELEASE_BRANCH=false
+            echo "Alpha release detected. Skipping release branch creation."
           fi
 
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
+            CREATE_RELEASE_BRANCH=false
             echo "Dry run enabled. Skipping release branch creation."
+          fi
+          
           # Create and push the release branch if CREATE_RELEASE_BRANCH is true
-          elif [[ "${CREATE_RELEASE_BRANCH}" == "true" ]]; then
+          if [[ "${CREATE_RELEASE_BRANCH}" == "true" ]]; then
             echo "Check if the release branch already exists."
             # Check if the branch exists remotely
-            if git rev-list -n 1 "origin/${release_branch}" >/dev/null 2>&1; then
+            if [[ git rev-list -n 1 "origin/${release_branch}" >/dev/null 2>&1; ]] then
               echo "Release branch '${release_branch}' already exists. Skipping creation."
             else
               echo "Creating release branch: '${release_branch}'"
               git checkout -b "${release_branch}"
               git push origin "${release_branch}"
             fi
-          else
-            echo "Release branch creation not required."
           fi
 
       - name: Apply Tag with Calculated Next Version
-        if: ${{ inputs.dry-run-enabled != true }}
         run: |
           echo "Applying computed version tag"
           if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
             echo "Dry run enabled, not applying tag "v${{ steps.next-release.outputs.version }}"
           else
-            git tag --annotate "v${{ steps.next-release.outputs.version }}" --message "v${{ steps.next-release.outputs.version }}"
+            git tag -sign --annotate "v${{ steps.next-release.outputs.version }}" --message "v${{ steps.next-release.outputs.version }}"
             echo "Applied tag v${{ steps.next-release.outputs.version }}"
             current_version="$(git-semver latest)"
             echo "Version Tag Applied: v${{ steps.next-release.outputs.version }}" >> ${GITHUB_STEP_SUMMARY}
@@ -218,8 +219,8 @@ jobs:
 
       - name: Create Release Notes with Markdown
         id: release
-        # Skip step if alpha-release is true, or we are dry running workflow
-        if: ${{ inputs.alpha-release != true || inputs.dry-run-enabled != true }}
+        # Skip step if not alpha release and not dry run
+        if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true }}
         run: |
           echo git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
           git-semver log --markdown "${{ steps.next-release.outputs.version }}" > "RELEASE.md"
@@ -228,8 +229,8 @@ jobs:
 
       - name: Publish Release Notes
         uses: step-security/action-gh-release@868edcd064bf35267c4b218913c3d36d547086b4 # v2.2.2
-        # Skip step if alpha-release is true, or we are dry running workflow
-        if: ${{ inputs.alpha-release != true || inputs.dry-run-enabled != true }}
+        # Skip step if not alpha release and not dry run
+        if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true }}
         with:
           name: v${{ steps.next-release.outputs.version }}
           tag_name: v${{ steps.next-release.outputs.version }}
@@ -238,8 +239,8 @@ jobs:
           body_path: "RELEASE.md"
 
       - name: Clean Up Release Notes
-        # Skip step if alpha-release is true, or we are dry running workflow
-        if: ${{ inputs.alpha-release != true || inputs.dry-run-enabled != true }}
+        # Skip step if not alpha release and not dry run
+        if: ${{ inputs.alpha-release != true && inputs.dry-run-enabled != true }}
         run: |
           echo "Removing the release notes file RELEASE.md"
           rm RELEASE.md
