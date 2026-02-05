@@ -161,8 +161,8 @@ public class EntityIdUniqueness {
                 servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
 
         final EntityCounts entityCounts = entityIdSingleton.get();
-        final VirtualMapMetadata metadata = ((VirtualMap) servicesState.getRoot()).getMetadata();
-        final VirtualMap vm = (VirtualMap) StateUtils.getDefaultState().getRoot();
+        final VirtualMapMetadata metadata = (servicesState.getRoot()).getMetadata();
+        final VirtualMap vm = StateUtils.getDefaultState().getRoot();
 
         final AtomicLong accountCount = new AtomicLong(0);
         final AtomicLong aliasesCount = new AtomicLong(0);

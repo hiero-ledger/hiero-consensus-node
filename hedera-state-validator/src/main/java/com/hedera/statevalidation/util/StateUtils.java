@@ -69,9 +69,9 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.state.spi.ReadableStates;
-import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
@@ -139,7 +139,7 @@ public final class StateUtils {
         if (states.get(DEFAULT) == null) {
             throw new IllegalStateException("State is not initialized yet");
         }
-        VirtualMapState defaultState = (VirtualMapState) getDefaultState();
+        VirtualMapStateImpl defaultState = (VirtualMapStateImpl) getDefaultState();
         Set<Map.Entry<String, Map<Integer, StateMetadata<?, ?>>>> serviceEntries =
                 defaultState.getServices().entrySet();
         // resetting readable state caches
