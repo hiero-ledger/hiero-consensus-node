@@ -409,7 +409,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                             weights[j] = contribution.weight();
                             publicKeys[j] = contribution.historyProofKey().toByteArray();
                         }
-                        // Eager-set the relevant public keys for later verification
+                        // Set the relevant public keys for later verification
                         TSS.setAddressBook(publicKeys, weights, nodeIds);
                     }
                 }

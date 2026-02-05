@@ -1,25 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression;
 
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.NOT_REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.regression.factories.RegressionProviderFactory.factoryFrom;
 import static java.util.concurrent.TimeUnit.MINUTES;
 
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -38,17 +31,6 @@ public class UmbrellaRedux {
     private final AtomicInteger backoffSleepSecs = new AtomicInteger(1);
     private final AtomicInteger statusTimeoutSecs = new AtomicInteger(5);
     private final AtomicReference<String> props = new AtomicReference<>(DEFAULT_PROPERTIES);
-
-    @HapiTest
-    @Tag(ADHOC)
-    final Stream<DynamicTest> workForSomeTime() {
-        return hapiTest(sourcing(
-                () -> runWithProvider(spec -> () -> Optional.of(cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))))
-                        .lasting(duration::get, unit::get)
-                        .maxOpsPerSec(maxOpsPerSec::get)
-                        .maxPendingOps(maxPendingOps::get)
-                        .backoffSleepSecs(backoffSleepSecs::get)));
-    }
 
     @LeakyHapiTest
     @Tag(NOT_REPEATABLE)
