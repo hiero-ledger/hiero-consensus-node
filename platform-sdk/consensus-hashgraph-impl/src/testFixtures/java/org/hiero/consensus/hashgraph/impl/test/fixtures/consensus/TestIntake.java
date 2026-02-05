@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-//  SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
@@ -28,7 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngine;

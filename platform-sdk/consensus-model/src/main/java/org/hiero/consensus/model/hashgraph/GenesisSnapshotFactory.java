@@ -1,7 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-//  SPDX-License-Identifier: Apache-2.0
-
-//  SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.hashgraph;
 
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;

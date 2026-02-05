@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-//  SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 
 import com.hedera.hapi.node.state.roster.Roster;
