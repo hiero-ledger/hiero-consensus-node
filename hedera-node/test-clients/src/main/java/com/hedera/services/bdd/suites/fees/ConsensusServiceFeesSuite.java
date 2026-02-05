@@ -70,13 +70,13 @@ public class ConsensusServiceFeesSuite {
                 validateChargedUsd("topicCreateWithCustomFee", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 1.5),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) {
-                        return validateChargedUsd("topicCreateWithMultipleCustomFees", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 1.5);
+                        return validateChargedUsd(
+                                "topicCreateWithMultipleCustomFees", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 1.5);
                     } else {
-                        return validateChargedUsd("topicCreateWithMultipleCustomFees", TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, 1.5);
+                        return validateChargedUsd(
+                                "topicCreateWithMultipleCustomFees", TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, 1.5);
                     }
-                })
-        );
-
+                }));
     }
 
     @HapiTest
@@ -143,12 +143,12 @@ public class ConsensusServiceFeesSuite {
                 validateChargedUsd("submitMessage500", BASE_FEE_TOPIC_SUBMIT_MESSAGE),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) {
-                        return validateChargedUsd("submitMessage1024", BASE_FEE_TOPIC_SUBMIT_MESSAGE + 125*EXTRA_PROCESSING_BYTE*10);
+                        return validateChargedUsd(
+                                "submitMessage1024", BASE_FEE_TOPIC_SUBMIT_MESSAGE + 125 * EXTRA_PROCESSING_BYTE * 10);
                     } else {
                         return validateChargedUsd("submitMessage1024", 0.00098);
                     }
-                })
-        );
+                }));
     }
 
     @HapiTest
