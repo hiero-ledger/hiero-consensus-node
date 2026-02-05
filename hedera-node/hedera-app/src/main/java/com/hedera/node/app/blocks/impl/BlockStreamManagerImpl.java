@@ -777,7 +777,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             } else {
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
-
                 if (configProvider
                         .getConfiguration()
                         .getConfigData(BlockStreamConfig.class)
