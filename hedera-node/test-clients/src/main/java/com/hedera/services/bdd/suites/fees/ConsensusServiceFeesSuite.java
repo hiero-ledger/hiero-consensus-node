@@ -18,10 +18,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.EXTRA_PROCESSING_BYTE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.doSafeSimpleValidateChargedUsd;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.spec.SpecOperation;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -36,17 +37,6 @@ public class ConsensusServiceFeesSuite {
     private static final double BASE_FEE_TOPIC_UPDATE = 0.00022;
     private static final double BASE_FEE_TOPIC_DELETE = 0.005;
     private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0008;
-    public static final double EXTRA_PROCESSING_BYTE = 0.000011;
-
-    public static SpecOperation doSafeSimpleValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equals(flag)) {
-                return validateChargedUsd(txnName, newPrice);
-            } else {
-                return validateChargedUsd(txnName, oldPrice);
-            }
-        });
-    }
 
     private static final double BASE_FEE_TOPIC_GET_INFO = 0.0001;
 
