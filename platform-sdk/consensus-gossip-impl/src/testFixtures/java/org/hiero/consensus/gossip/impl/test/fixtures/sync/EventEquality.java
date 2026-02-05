@@ -2,7 +2,6 @@
 package org.hiero.consensus.gossip.impl.test.fixtures.sync;
 
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /**
  * Utility types to define equality of events, sets of shadow events and hashes.
@@ -19,9 +18,9 @@ public final class EventEquality {
     /**
      * Equality of two events by hash. If the events are both null, they are considered equal.
      */
-    public static boolean identicalHashes(final EventImpl a, final EventImpl b) {
-        return (a == null && b == null) || a.getBaseHash().equals(b.getBaseHash());
-    }
+    //    public static boolean identicalHashes(final EventImpl a, final EventImpl b) {
+    //        return (a == null && b == null) || a.getBaseHash().equals(b.getBaseHash());
+    //    }
 
     /**
      * Equality of two events by hash. If the events are both null, they are considered equal.

@@ -9,8 +9,12 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf
 import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.JudgeId;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
@@ -40,7 +44,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.LongStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
@@ -48,7 +54,8 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.hashgraph.impl.consensus.SyntheticSnapshot;
+import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusUtils;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -59,6 +66,7 @@ import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.consensus.pces.impl.common.PcesFile;
 import org.hiero.consensus.pces.impl.common.PcesMutableFile;
+import org.hiero.consensus.round.RoundCalculationUtils;
 
 /**
  * Handles the event stream recovery workflow.
@@ -332,7 +340,7 @@ public final class EventRecoveryWorkflow {
             v.setRound(round.getRoundNum());
             v.setLegacyRunningEventHash(getHashEventsCons(legacyRunningEventHashOf(newState), round));
             v.setConsensusTimestamp(currentRoundTimestamp);
-            v.setSnapshot(SyntheticSnapshot.generateSyntheticSnapshot(
+            v.setSnapshot(generateSyntheticSnapshot(
                     round.getRoundNum(), lastEvent.getConsensusOrder(), currentRoundTimestamp, config, lastEvent));
             v.setCreationSoftwareVersion(creationSoftwareVersionOf(previousState.getState()));
         });
@@ -447,5 +455,42 @@ public final class EventRecoveryWorkflow {
 
         return CompareTo.isLessThan(previousRoundTimestamp, freezeTime)
                 && CompareTo.isGreaterThanOrEqualTo(currentRoundTimestamp, freezeTime);
+    }
+
+    /**
+     * Generate a {@link ConsensusSnapshot} based on the supplied data. This snapshot is not the result of consensus
+     * but is instead generated to be used as a starting point for consensus. The snapshot will contain a single
+     * judge whose generation will be almost ancient. All events older than the judge will be considered ancient.
+     * The judge is the only event needed to continue consensus operations. Once the judge is added to
+     * {@link Consensus}, it will be marked as already having reached consensus beforehand, so it
+     * will not reach consensus again.
+     *
+     * @param round              the round of the snapshot
+     * @param lastConsensusOrder the last consensus order of all events that have reached consensus
+     * @param roundTimestamp     the timestamp of the round
+     * @param config             the consensus configuration
+     * @param judge              the judge event
+     * @return the synthetic snapshot
+     */
+    public static @NonNull ConsensusSnapshot generateSyntheticSnapshot(
+            final long round,
+            final long lastConsensusOrder,
+            @NonNull final Instant roundTimestamp,
+            @NonNull final ConsensusConfig config,
+            @NonNull final PlatformEvent judge) {
+        final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(
+                        RoundCalculationUtils.getOldestNonAncientRound(config.roundsNonAncient(), round), round + 1)
+                .mapToObj(r -> new MinimumJudgeInfo(r, judge.getBirthRound()))
+                .toList();
+        return ConsensusSnapshot.newBuilder()
+                .round(round)
+                .judgeIds(List.of(JudgeId.newBuilder()
+                        .creatorId(judge.getCreatorId().id())
+                        .judgeHash(judge.getHash().getBytes())
+                        .build()))
+                .minimumJudgeInfoList(minimumJudgeInfos)
+                .nextConsensusNumber(lastConsensusOrder + 1)
+                .consensusTimestamp(toPbjTimestamp(ConsensusUtils.calcMinTimestampForNextEvent(roundTimestamp)))
+                .build();
     }
 }
