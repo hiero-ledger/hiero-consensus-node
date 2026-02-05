@@ -72,9 +72,8 @@ public class IntakeBenchmark {
      * Executed once at the beginning of the benchmark.
      */
     @Setup(Level.Trial)
-    public void beforeBenchmark(){
-        platformContext =
-                TestPlatformContextBuilder.create().build();
+    public void beforeBenchmark() {
+        platformContext = TestPlatformContextBuilder.create().build();
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .numNodes(numNodes)
                 .maxOtherParents(1)
@@ -109,8 +108,8 @@ public class IntakeBenchmark {
                 .withDefaultPool(threadPool)
                 .withWiringConfig(platformContext.getConfiguration().getConfigData(WiringConfig.class))
                 .build();
-        final RosterHistory rosterHistory = new RosterHistory(
-                List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
+        final RosterHistory rosterHistory =
+                new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
 
         intake = new DefaultEventIntakeModule();
         intake.initialize(

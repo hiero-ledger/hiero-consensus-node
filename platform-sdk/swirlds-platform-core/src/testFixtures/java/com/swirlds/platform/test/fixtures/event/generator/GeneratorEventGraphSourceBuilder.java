@@ -139,7 +139,7 @@ public class GeneratorEventGraphSourceBuilder {
         if (roster != null) {
             signer = new RandomEventSigner(getSeed());
             actualRoster = roster;
-        }else{
+        } else {
             final int nodeCount = numNodes != null ? numNodes : DEFAULT_NUM_NODES;
             if (realSignatures) {
                 final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(Randotron.create(getSeed()))
