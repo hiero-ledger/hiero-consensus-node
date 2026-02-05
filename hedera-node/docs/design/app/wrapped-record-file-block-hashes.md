@@ -1,33 +1,34 @@
-## Wrapped record-file block hashes in state
+## Wrapped record-file block hashes on disk
 
 This document describes the **feature-flagged** mechanism that lets the consensus node (CN) compute hashes for each
-record-stream “record block” and enqueue them into state at the end of that record block.
+record-stream “record block” and append them to a file on disk at the end of that record block.
 
 ### Feature flag
 
 The behavior is gated by:
 
-- **`hedera.recordStream.storeWrappedRecordFileBlockHashesInState`** (default `false`)
+- **`hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk`** (default `false`)
+- **`hedera.recordStream.wrappedRecordHashesDir`** (default `"/opt/hgcapp/wrappedRecordHashes/"`)
 
-When disabled, the CN does **not** accumulate record-block inputs and does **not** enqueue anything to state.
+When disabled, the CN does **not** accumulate record-block inputs and does **not** write anything to disk.
 
-### State model
+### On-disk model
 
-Each record block produces a single queue element:
+Each record block produces a single entry:
 
 - **Message**: `WrappedRecordFileBlockHashes`
   - `block_number` (int64)
   - `consensus_timestamp_hash` (bytes, 48-byte SHA-384)
   - `output_items_tree_root_hash` (bytes, 48-byte SHA-384)
-- **Queue state**: `BlockRecordService_I_WRAPPED_RECORD_FILE_BLOCK_HASHES`
-  - State ID comes from `StateKey.KeyOneOfType.BLOCKRECORDSERVICE_I_WRAPPED_RECORD_FILE_BLOCK_HASHES.protoOrdinal()`
 
-The queue is owned by `BlockRecordService` and created via the block record service schema.
+Entries are appended to a single file named `wrapped-record-hashes.pb` under `wrappedRecordHashesDir`.
+The file contents are an append-only sequence of protobuf-framed occurrences of the `entries` field from an internal
+container message `WrappedRecordFileBlockHashesLog { repeated WrappedRecordFileBlockHashes entries = 1; }`.
 
-### When the queue entry is written
+### When the entry is written
 
 At the moment the CN detects it must **close the current record block and start a new one** (record stream block
-boundary), it computes the two hashes for the *just-finished* block and enqueues a `WrappedRecordFileBlockHashes` entry.
+boundary), it computes the two hashes for the *just-finished* block and appends a `WrappedRecordFileBlockHashes` entry.
 
 ### Inputs accumulated per record block
 

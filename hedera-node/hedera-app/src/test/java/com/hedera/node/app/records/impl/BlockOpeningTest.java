@@ -71,6 +71,9 @@ class BlockOpeningTest {
     @Mock
     private Platform platform;
 
+    @Mock
+    private WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter;
+
     private BlockRecordManagerImpl subject;
 
     @Test
@@ -149,6 +152,7 @@ class BlockOpeningTest {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform,
+                wrappedRecordHashesDiskWriter,
                 InitTrigger.RESTART);
     }
 }

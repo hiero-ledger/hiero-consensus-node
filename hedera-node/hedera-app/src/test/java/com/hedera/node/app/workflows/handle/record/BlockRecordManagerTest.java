@@ -33,6 +33,7 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
+import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter;
 import com.hedera.node.app.records.impl.producers.BlockRecordFormat;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
 import com.hedera.node.app.records.impl.producers.StreamFileProducerConcurrent;
@@ -203,6 +204,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform,
+                mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 InitTrigger.RESTART)) {
             if (!startMode.equals("GENESIS")) {
                 blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
@@ -297,6 +299,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform,
+                mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 InitTrigger.RESTART)) {
             blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
@@ -451,6 +454,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform,
+                mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
@@ -469,6 +473,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform,
+                mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();

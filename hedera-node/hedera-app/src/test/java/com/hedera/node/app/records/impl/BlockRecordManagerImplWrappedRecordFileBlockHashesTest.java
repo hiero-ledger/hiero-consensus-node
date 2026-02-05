@@ -7,12 +7,15 @@ import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.TAG_T
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.WIRE_TYPE_DELIMITED;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
-import static com.hedera.node.app.records.schemas.V0720BlockRecordSchema.WRAPPED_RECORD_FILE_BLOCK_HASHES_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
@@ -22,7 +25,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
-import com.hedera.hapi.node.state.blockrecords.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.HashAlgorithm;
@@ -49,7 +51,6 @@ import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.CommittableWritableStates;
 import java.io.BufferedOutputStream;
 import java.io.OutputStream;
 import java.security.MessageDigest;
@@ -62,15 +63,16 @@ import java.util.zip.GZIPOutputStream;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.HashingOutputStream;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase {
 
     @Test
-    void doesNotEnqueueWhenFeatureFlagDisabled() {
+    void doesNotAppendWhenFeatureFlagDisabled() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
-                .withConfigValue("hedera.recordStream.storeWrappedRecordFileBlockHashesInState", false)
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
                 .build();
 
         // The fixture doesn't run genesis migrations by default, so seed the block record singletons
@@ -94,8 +96,16 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var controller = new QuiescenceController(
                 new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
         final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         try (final var mgr = new BlockRecordManagerImpl(
-                app.configProvider(), state, producer, controller, heartbeat, app.platform(), InitTrigger.RECONNECT)) {
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -103,18 +113,15 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary (default 2s)
             mgr.startUserTransaction(t1, state);
         }
-
-        final var queue = state.getReadableStates(BlockRecordService.NAME)
-                .<WrappedRecordFileBlockHashes>getQueue(WRAPPED_RECORD_FILE_BLOCK_HASHES_STATE_ID);
-        assertNull(queue.peek());
+        verify(diskWriter, never()).append(any());
     }
 
     @Test
-    void enqueuesExpectedHashesWhenFeatureFlagEnabled() throws Exception {
+    void appendsExpectedHashesWhenFeatureFlagEnabled() throws Exception {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
-                .withConfigValue("hedera.recordStream.storeWrappedRecordFileBlockHashesInState", true)
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
                 .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 1)
                 .build();
 
@@ -140,8 +147,16 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var controller = new QuiescenceController(
                 new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
         final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         try (final var mgr = new BlockRecordManagerImpl(
-                app.configProvider(), state, producer, controller, heartbeat, app.platform(), InitTrigger.RECONNECT)) {
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RECONNECT)) {
 
             final var creationTime = new Timestamp(10, 1);
             final var t0 = InstantUtils.instant(creationTime.seconds(), creationTime.nanos());
@@ -171,17 +186,9 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             // Cross logPeriod boundary to end record block 0 and enqueue
             final var t1 = InstantUtils.instant(13, 1);
             mgr.startUserTransaction(t1, state);
-
-            // In production, the queue push is committed via HandleWorkflow (similar to record cache receipts).
-            final var writableStates = state.getWritableStates(BlockRecordService.NAME);
-            if (writableStates instanceof CommittableWritableStates committable) {
-                committable.commit();
-            }
-
-            final var queue = state.getReadableStates(BlockRecordService.NAME)
-                    .<WrappedRecordFileBlockHashes>getQueue(WRAPPED_RECORD_FILE_BLOCK_HASHES_STATE_ID);
-            final var entry = queue.peek();
-            assertNotNull(entry);
+            final var captor = ArgumentCaptor.forClass(WrappedRecordFileBlockHashes.class);
+            verify(diskWriter).append(captor.capture());
+            final var entry = captor.getValue();
             assertEquals(0, entry.blockNumber());
 
             // Compute expected consensus_timestamp_hash

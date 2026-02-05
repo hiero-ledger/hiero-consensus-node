@@ -30,7 +30,6 @@ import "services/exchange_rate.proto";
 import "services/state/addressbook/node.proto";
 import "services/state/blockrecords/block_info.proto";
 import "services/state/blockrecords/running_hashes.proto";
-import "services/state/blockrecords/wrapped_record_file_block_hashes.proto";
 import "services/state/blockstream/block_stream_info.proto";
 import "services/state/congestion/congestion_level_starts.proto";
 import "services/state/consensus/topic.proto";
@@ -494,11 +493,6 @@ enum StateIdentifier {
      * A state identifier for the round receipts queue. Queue state.
      */
     STATE_ID_TRANSACTION_RECEIPTS = 126;
-
-    /**
-     * A state identifier for wrapped record-file block hashes. Queue state.
-     */
-    STATE_ID_WRAPPED_RECORD_FILE_BLOCK_HASHES = 127;
 
     /**
      * A state for the `150` upgrade file data. Queue state.
@@ -1138,11 +1132,6 @@ message QueuePushChange {
          * All transaction receipts for a round added to queue state.
          */
         proto.TransactionReceiptEntries transaction_receipt_entries_element = 3;
-
-        /**
-         * Hashes derived from a wrapped record-file block, added to queue state.
-         */
-        proto.WrappedRecordFileBlockHashes wrapped_record_file_block_hashes_element = 4;
     }
 }
 

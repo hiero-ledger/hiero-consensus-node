@@ -18,6 +18,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
@@ -25,7 +26,6 @@ import com.hedera.hapi.node.base.BlockHashAlgorithm;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
-import com.hedera.hapi.node.state.blockrecords.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.streams.HashAlgorithm;
 import com.hedera.hapi.streams.HashObject;
@@ -42,7 +42,6 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
-import com.hedera.node.app.records.WritableWrappedRecordFileBlockHashesStore;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
@@ -118,12 +117,11 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>(DONT_QUIESCE);
     private final StreamMode streamMode;
-    private final boolean storeWrappedRecordFileBlockHashesInState;
+    private final boolean writeWrappedRecordFileBlockHashesToDisk;
     private final int maxSideCarSizeInBytes;
+    private final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter;
 
-    // Only used when storeWrappedRecordFileBlockHashesInState is true
     private Bytes currentBlockStartRunningHash;
-    private long currentBlockNumber = -1;
     private final List<RecordStreamItem> currentBlockRecordStreamItems = new ArrayList<>();
     private final List<TransactionSidecarRecord> currentBlockSidecarRecords = new ArrayList<>();
 
@@ -153,6 +151,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Platform platform,
+            @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
             @NonNull final InitTrigger initTrigger) {
         this.platform = platform;
         requireNonNull(state);
@@ -160,6 +159,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
         this.streamFileProducer = requireNonNull(streamFileProducer);
         this.configProvider = requireNonNull(configProvider);
+        this.wrappedRecordHashesDiskWriter = requireNonNull(wrappedRecordHashesDiskWriter);
         final var config = configProvider.getConfiguration();
         this.streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
 
@@ -171,7 +171,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var recordStreamConfig = configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
         this.blockPeriodInSeconds = recordStreamConfig.logPeriod();
         this.numBlockHashesToKeepBytes = recordStreamConfig.numOfBlockHashesInState() * HASH_SIZE;
-        this.storeWrappedRecordFileBlockHashesInState = recordStreamConfig.storeWrappedRecordFileBlockHashesInState();
+        this.writeWrappedRecordFileBlockHashesToDisk = recordStreamConfig.writeWrappedRecordFileBlockHashesToDisk();
         this.maxSideCarSizeInBytes = recordStreamConfig.sidecarMaxSizeMb() * 1024 * 1024;
 
         final RunningHashes lastRunningHashes;
@@ -247,7 +247,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     .build();
             putLastBlockInfo(state);
             streamFileProducer.switchBlocks(-1, 0, consensusTime);
-            if (storeWrappedRecordFileBlockHashesInState) {
+            if (writeWrappedRecordFileBlockHashesToDisk) {
                 beginTrackingNewBlock(0, streamFileProducer.getRunningHash());
             }
             if (streamMode == RECORDS) {
@@ -280,11 +280,11 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             // the last transaction
             final var lastBlockHashBytes = streamFileProducer.getRunningHash();
             final var justFinishedBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-            if (storeWrappedRecordFileBlockHashesInState) {
+            if (writeWrappedRecordFileBlockHashesToDisk) {
                 // Capture the just-finished record block's creation time before updating lastBlockInfo
                 final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
-                enqueueWrappedRecordFileBlockHashes(
-                        state, justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
+                appendWrappedRecordFileBlockHashesToDisk(
+                        justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
             }
             lastBlockInfo =
                     infoOfJustFinished(lastBlockInfo, justFinishedBlockNumber, lastBlockHashBytes, consensusTime);
@@ -307,7 +307,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             }
 
             switchBlocksAt(consensusTime);
-            if (storeWrappedRecordFileBlockHashesInState) {
+            if (writeWrappedRecordFileBlockHashesToDisk) {
                 final long newBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
                 beginTrackingNewBlock(newBlockNumber, lastBlockHashBytes);
             }
@@ -379,7 +379,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             // FUTURE create event recovery class and call it here. Should this be in startUserTransaction()?
             this.eventRecoveryCompleted = true;
         }
-        if (storeWrappedRecordFileBlockHashesInState) {
+        if (writeWrappedRecordFileBlockHashesToDisk) {
             final var items = recordStreamItems.toList();
             for (final var item : items) {
                 currentBlockRecordStreamItems.add(new RecordStreamItem(item.transaction(), item.transactionRecord()));
@@ -392,14 +392,12 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     }
 
     private void beginTrackingNewBlock(final long blockNumber, @NonNull final Bytes startRunningHash) {
-        this.currentBlockNumber = blockNumber;
         this.currentBlockStartRunningHash = requireNonNull(startRunningHash);
         this.currentBlockRecordStreamItems.clear();
         this.currentBlockSidecarRecords.clear();
     }
 
-    private void enqueueWrappedRecordFileBlockHashes(
-            @NonNull final State state,
+    private void appendWrappedRecordFileBlockHashesToDisk(
             final long justFinishedBlockNumber,
             @NonNull final Timestamp justFinishedBlockCreationTime,
             @NonNull final Bytes endRunningHash) {
@@ -461,13 +459,12 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 justFinishedBlockNumber, consensusTimestampHash, outputItemsTreeRootHash);
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Enqueuing wrapped record-file block hashes for block {}: consensusTimestampLeafHash {}, outputItemsRootHash {}",
+                    "Appending wrapped record-file block hashes for block {}: consensusTimestampLeafHash {}, outputItemsRootHash {}",
                     justFinishedBlockNumber,
                     hashesToEnqueue.consensusTimestampHash().toHex(),
                     hashesToEnqueue.outputItemsTreeRootHash().toHex());
         }
-        new WritableWrappedRecordFileBlockHashesStore(state.getWritableStates(BlockRecordService.NAME))
-                .add(hashesToEnqueue);
+        wrappedRecordHashesDiskWriter.append(hashesToEnqueue);
     }
 
     private static SidecarBundles buildSidecarBundles(
