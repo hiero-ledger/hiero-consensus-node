@@ -22,6 +22,7 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 import org.assertj.core.api.Assertions;
 import org.hiero.base.utility.Threshold;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusTestNode;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusTestUtils;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.OrchestratorBuilder;
@@ -76,14 +77,12 @@ public final class ConsensusTestDefinitions {
         // they are already ancient
         final List<Integer> nodePriorities =
                 IntStream.range(0, input.numberOfNodes()).boxed().toList();
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
-                OrchestratorBuilder.builder()
-                        .setTestInput(input)
-                        .setNode1EventEmitterGenerator(
-                                (graphGenerator, seed) -> new PriorityEventEmitter(graphGenerator, nodePriorities))
-                        .setNode2EventEmitterGenerator(
-                                (graphGenerator, seed) -> new StandardEventEmitter(graphGenerator))
-                        .build();
+        final ConsensusTestOrchestrator orchestrator = OrchestratorBuilder.builder()
+                .setTestInput(input)
+                .setNode1EventEmitterGenerator(
+                        (graphGenerator, seed) -> new PriorityEventEmitter(graphGenerator, nodePriorities))
+                .setNode2EventEmitterGenerator((graphGenerator, seed) -> new StandardEventEmitter(graphGenerator))
+                .build();
         final int dyingNode = input.numberOfNodes() - 1;
 
         // Phase 1: all nodes are working normally
@@ -160,7 +159,7 @@ public final class ConsensusTestDefinitions {
      */
     public static void partitionTests(@NonNull final TestInput input) {
         // Test setup
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         final List<List<Double>> fullyConnected = createBalancedOtherParentMatrix(input.numberOfNodes());
         final List<List<Double>> partitioned = createPartitionedOtherParentAffinityMatrix(
@@ -226,7 +225,7 @@ public final class ConsensusTestDefinitions {
     public static void subQuorumPartitionTests(@NonNull final TestInput input) {
         // Network is connected for a while, then is partitioned, then is connected for a while
         // again.
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         final List<List<Double>> fullyConnected = createBalancedOtherParentMatrix(input.numberOfNodes());
         final Set<Integer> partitionedNodes = ConsensusTestUtils.getSubStrongMinorityNodes(orchestrator.getWeights());
@@ -293,7 +292,7 @@ public final class ConsensusTestDefinitions {
         // Each clique syncs within itself frequently, but with outsiders it syncs rarely
         final List<List<Double>> affinity = createCliqueOtherParentMatrix(numberOfNodes, cliques);
 
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         orchestrator.setOtherParentAffinity(affinity);
 
@@ -343,7 +342,7 @@ public final class ConsensusTestDefinitions {
 
     /** One node has a tendency to use stale other parents. */
     public static void usesStaleOtherParents(@NonNull final TestInput input) {
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         orchestrator.configGenerators(g -> {
             // Setup: pick one node to use stale other-parents
@@ -365,7 +364,7 @@ public final class ConsensusTestDefinitions {
 
     /** One node has a tendency to provide stale other parents (when they are requested). */
     public static void providesStaleOtherParents(@NonNull final TestInput input) {
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         // Setup: pick one node to provide stale other-parents
         // The node's weight should be less than a strong minority so that we can reach consensus
@@ -399,7 +398,7 @@ public final class ConsensusTestDefinitions {
      */
     public static void quorumOfNodesGoDown(@NonNull final TestInput input) {
         // Test setup
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         final Set<Integer> quorumNodeIds = ConsensusTestUtils.getStrongMinorityNodes(orchestrator.getWeights());
 
@@ -448,7 +447,7 @@ public final class ConsensusTestDefinitions {
     /** less than a quorum stop producing events, consensus proceeds as normal */
     public static void subQuorumOfNodesGoDown(@NonNull final TestInput input) {
         // Test setup
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         final Set<Integer> subQuorumNodesIds = ConsensusTestUtils.getSubStrongMinorityNodes(orchestrator.getWeights());
 
@@ -503,7 +502,7 @@ public final class ConsensusTestDefinitions {
 
     public static void stale(@NonNull final TestInput input) {
         // setup
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
 
         // Phase 1: all nodes are used as other parents
@@ -533,7 +532,7 @@ public final class ConsensusTestDefinitions {
      */
     public static void restart(@NonNull final TestInput input) {
 
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
 
         orchestrator.generateEvents(0.5);
@@ -546,7 +545,7 @@ public final class ConsensusTestDefinitions {
 
     /** Simulates a reconnect */
     public static void reconnect(@NonNull final TestInput input) {
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
 
         orchestrator.generateEvents(0.5);
@@ -559,7 +558,7 @@ public final class ConsensusTestDefinitions {
     }
 
     public static void removeNode(@NonNull final TestInput input) {
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         orchestrator.generateEvents(0.5);
         orchestrator.validate(consensusOutputValidatorWithConsensusRatio05);
@@ -581,7 +580,7 @@ public final class ConsensusTestDefinitions {
      * Tests loading a genesis snapshot and continuing consensus from there
      */
     public static void genesisSnapshotTest(@NonNull final TestInput input) {
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         for (final ConsensusTestNode node : orchestrator.getNodes()) {
             node.getIntake().loadSnapshot(GenesisSnapshotFactory.newGenesisSnapshot());
@@ -605,7 +604,7 @@ public final class ConsensusTestDefinitions {
                 new OutputEventsEqualityValidation(),
                 OutputEventRatioValidation.standard().setMinimumConsensusRatio(0.9 - (0.05 * input.numberOfNodes()))));
 
-        final org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator orchestrator =
+        final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
 
         // generate half of the events and validate
