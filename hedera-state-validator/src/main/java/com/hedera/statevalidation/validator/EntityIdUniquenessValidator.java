@@ -27,6 +27,7 @@ import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.statevalidation.util.StateUtils;
 import com.hedera.statevalidation.validator.util.ValidationAssertions;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableKVState;
@@ -55,6 +56,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
     private ReadableKVState<FileID, File> fileState;
     private ReadableKVState<ScheduleID, Schedule> scheduleState;
 
+    private final AtomicLong idCounter = new AtomicLong(0);
     private final AtomicLong issuesFound = new AtomicLong(0);
 
     /**
@@ -146,6 +148,11 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
     }
 
     private void checkEntityUniqueness(long entityId) {
+        // From time to time we need to create copies to limit cache growth and prevent OOM errors
+        if (idCounter.incrementAndGet() % 100_000 == 0) {
+            StateUtils.resetStateCache();
+        }
+
         int counter = 0;
         final Token token = tokensState.get(new TokenID(0, 0, entityId));
         if (token != null) {

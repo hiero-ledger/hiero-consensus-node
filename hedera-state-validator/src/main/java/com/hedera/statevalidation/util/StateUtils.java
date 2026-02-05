@@ -68,14 +68,16 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.ReadableKVStateBase;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.time.InstantSource;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -102,8 +104,8 @@ public final class StateUtils {
      */
     private static final String DEFAULT = "DEFAULT";
 
-    private static final Map<String, MerkleNodeState> states = new HashMap<>();
-    private static final Map<String, Hash> originalStateHashes = new HashMap<>();
+    private static final Map<String, MerkleNodeState> states = new ConcurrentHashMap<>();
+    private static final Map<String, Hash> originalStateHashes = new ConcurrentHashMap<>();
 
     // Static JSON codec cache
     private static final Map<Integer, JsonCodec> keyCodecsById = new ConcurrentHashMap<>();
@@ -283,6 +285,31 @@ public final class StateUtils {
                 new StoreMetricsServiceImpl(new NoOpMetrics()),
                 new ConfigProviderImpl(),
                 InitTrigger.RESTART);
+    }
+
+    /**
+     * Call to this method resets the state caches
+     */
+    public static synchronized void resetStateCache() {
+        if (states.get(DEFAULT) == null) {
+            throw new IllegalStateException("State is not initialized yet");
+        }
+        final VirtualMapState defaultState = (VirtualMapState) getState();
+        final Set<Map.Entry<String, Map<Integer, StateMetadata<?, ?>>>> serviceEntries =
+                defaultState.getServices().entrySet();
+        // resetting readable state caches
+        for (Map.Entry<String, Map<Integer, StateMetadata<?, ?>>> serviceEntry : serviceEntries) {
+            final ReadableStates readableStates = defaultState.getReadableStates(serviceEntry.getKey());
+            for (Map.Entry<Integer, StateMetadata<?, ?>> stateEntry :
+                    serviceEntry.getValue().entrySet()) {
+                final StateMetadata<?, ?> md = stateEntry.getValue();
+                if (md.stateDefinition().onDisk()) {
+                    final ReadableKVStateBase<?, ?> readableState =
+                            (ReadableKVStateBase) readableStates.get(stateEntry.getKey());
+                    readableState.reset();
+                }
+            }
+        }
     }
 
     // Uses cached JSON codecs
