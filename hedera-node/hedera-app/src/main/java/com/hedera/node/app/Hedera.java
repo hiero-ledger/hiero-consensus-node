@@ -7,7 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
-import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
@@ -133,6 +133,7 @@ import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
@@ -594,7 +595,7 @@ public final class Hedera
      */
     @Override
     @NonNull
-    public MerkleNodeState newStateRoot() {
+    public MerkleNodeState<VirtualMap> newStateRoot() {
         return stateRootSupplier.get();
     }
 
@@ -1318,7 +1319,7 @@ public final class Hedera
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
             final var lastBlockHash = (trigger == GENESIS)
-                    ? ZERO_BLOCK_HASH
+                    ? HASH_OF_ZERO
                     : blockStreamService.migratedLastBlockHash().orElse(null);
             daggerApp.blockStreamManager().init(state, lastBlockHash);
             migrationStateChanges = null;
