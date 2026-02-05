@@ -83,8 +83,8 @@ public record StateConfig(
         @ConfigProperty(defaultValue = "0") int roundsToKeepAfterSigning,
         @ConfigProperty(defaultValue = "5m") Duration suspiciousSignedStateAgeGap,
         @ConfigProperty(defaultValue = "10m") Duration signedStateAgeNotifyRateLimit,
-        @ConfigProperty(defaultValue = "false") boolean stateHistoryEnabled,
-        @ConfigProperty(defaultValue = "false") boolean debugStackTracesEnabled,
+        @ConfigProperty(defaultValue = "true") boolean stateHistoryEnabled,
+        @ConfigProperty(defaultValue = "true") boolean debugStackTracesEnabled,
         @ConfigProperty(defaultValue = "false") boolean deleteInvalidStateFiles,
         @ConfigProperty(defaultValue = "true") boolean validateInitialState) {
 

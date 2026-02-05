@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
@@ -135,6 +136,22 @@ public final class SignedStateFileWriter {
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         final SignedState signedState = reservedSignedState.get();
 
+        writeSignatureSetFile(directory, signedState);
+        writeHashInfoFile(platformContext, directory, signedState.getState());
+        writeMetadataFile(selfId, directory, signedState);
+        final Roster currentRoster = signedState.getRoster();
+        writeRosterFile(directory, currentRoster);
+        writeSettingsUsed(directory, configuration);
+
+        if (selfId != null) {
+            copyPcesFilesRetryOnFailure(
+                    configuration,
+                    selfId,
+                    directory,
+                    ancientThresholdOf(signedState.getState()),
+                    signedState.getRound());
+        }
+
         try {
             if (stateConfig.saveStateAsync()
                     && StateToDiskReason.PERIODIC_SNAPSHOT.equals(signedState.getStateToDiskReason())) {
@@ -151,7 +168,7 @@ public final class SignedStateFileWriter {
                 // because the copy becomes destroyed and thus can be flushed.
                 reservedSignedState.close();
                 // Block until the snapshot is created.
-                snapshotFuture.get();
+                snapshotFuture.get(90, TimeUnit.SECONDS);
             } else {
                 stateLifecycleManager.createSnapshot(signedState.getState(), directory);
                 reservedSignedState.close();
@@ -159,32 +176,20 @@ public final class SignedStateFileWriter {
         } catch (final Throwable e) {
             logger.error(
                     EXCEPTION.getMarker(),
-                    "Unexpected error when writing a snapshot for round {} to {}: {}",
+                    "Unexpected error when writing a snapshot {} for round {} to {}: {}",
+                    signedState.getStateToDiskReason(),
                     signedState.getRound(),
                     directory,
                     e);
+            logger.error(EXCEPTION.getMarker(), "RESERVED STATE IS_CLOSED {}:", reservedSignedState.isClosed());
+            logger.error(EXCEPTION.getMarker(), "STATE RESERVATION COUNT {}:", signedState.getReservationCount());
+            logger.error(EXCEPTION.getMarker(), "STATE HISTORY {}", signedState.getHistory());
         } finally {
             // Ensures cleanup if an error occurs during snapshot creation. The isClosed() check
             // prevents double-close since ReservedSignedState can only be closed once.
             if (!reservedSignedState.isClosed()) {
                 reservedSignedState.close();
             }
-        }
-
-        writeSignatureSetFile(directory, signedState);
-        writeHashInfoFile(platformContext, directory, signedState.getState());
-        writeMetadataFile(selfId, directory, signedState);
-        final Roster currentRoster = signedState.getRoster();
-        writeRosterFile(directory, currentRoster);
-        writeSettingsUsed(directory, configuration);
-
-        if (selfId != null) {
-            copyPcesFilesRetryOnFailure(
-                    configuration,
-                    selfId,
-                    directory,
-                    ancientThresholdOf(signedState.getState()),
-                    signedState.getRound());
         }
     }
 
