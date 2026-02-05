@@ -274,7 +274,8 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
         @Override
         @NonNull
         public String toString() {
-            return "BucketIndexMismatchInfo{" + "entryHashCode=" + entryHashCode + ", bucketIndex=" + bucketIndex + "}\n";
+            return "BucketIndexMismatchInfo{" + "entryHashCode=" + entryHashCode + ", bucketIndex=" + bucketIndex
+                    + "}\n";
         }
     }
 
@@ -283,7 +284,8 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
         @Override
         @NonNull
         public String toString() {
-            return "HashCodeMismatchInfo{" + "entryHashCode=" + entryHashCode + ", keyBytesHashCode=" + keyBytesHashCode + "}\n";
+            return "HashCodeMismatchInfo{" + "entryHashCode=" + entryHashCode + ", keyBytesHashCode=" + keyBytesHashCode
+                    + "}\n";
         }
     }
 }
