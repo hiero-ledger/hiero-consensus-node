@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.service;
+package org.hiero.consensus.platformstate;
 
-import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.platformstate.PbjConverter.toPbjPlatformState;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -18,10 +17,11 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.state.PlatformStateModifier;
 import java.time.Instant;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.test.fixtures.Randotron;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -154,11 +154,11 @@ class PbjConverterTest {
                 oldState.legacyRunningEventHash(),
                 toPbjPlatformState(oldState, accumulator).legacyRunningEventHash());
 
-        final var newValue = randomHash();
+        final var newValue = CryptoRandomUtils.randomHash();
 
         accumulator.setLegacyRunningEventHash(newValue);
 
-        assertArrayEquals(
+        Assertions.assertArrayEquals(
                 newValue.copyToByteArray(),
                 toPbjPlatformState(oldState, accumulator)
                         .legacyRunningEventHash()
@@ -268,7 +268,7 @@ class PbjConverterTest {
         platformState.setCreationSoftwareVersion(randomSoftwareVersion());
         platformState.setRoundsNonAncient(nextInt());
         platformState.setLastFrozenTime(randomInstant(randotron));
-        platformState.setLegacyRunningEventHash(randomHash());
+        platformState.setLegacyRunningEventHash(CryptoRandomUtils.randomHash());
         platformState.setSnapshot(randomSnapshot(randotron));
         return platformState;
     }
@@ -279,8 +279,8 @@ class PbjConverterTest {
 
     private static ConsensusSnapshot randomSnapshot(final Randotron randotron) {
         final var judges = asList(
-                new JudgeId(0L, randomHash().getBytes()),
-                new JudgeId(1L, randomHash().getBytes()));
+                new JudgeId(0L, CryptoRandomUtils.randomHash().getBytes()),
+                new JudgeId(1L, CryptoRandomUtils.randomHash().getBytes()));
         return ConsensusSnapshot.newBuilder()
                 .round(nextInt())
                 .judgeIds(judges)

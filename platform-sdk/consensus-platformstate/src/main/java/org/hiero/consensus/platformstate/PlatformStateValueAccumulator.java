@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.service;
+package org.hiero.consensus.platformstate;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.platform.state.PlatformStateModifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -15,7 +14,7 @@ import org.hiero.base.crypto.Hash;
 
 /**
  * As the name suggest, the sole purpose of this class is to accumulate changes, so that they could be applied to the
- * platform state atomically in {@link com.swirlds.platform.state.service.WritablePlatformStateStore#bulkUpdate(java.util.function.Consumer)} method.
+ * platform state atomically in {@link WritablePlatformStateStore#bulkUpdate(java.util.function.Consumer)} method.
  * It's not meant to be used for other purposes. This class tracks the changes to the fields to prevent resetting original
  * platform state fields to null if they are not updated.
  */

@@ -6,13 +6,13 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.writeSettingsUsed;
 import static com.swirlds.platform.event.preconsensus.BestEffortPcesFileCopy.copyPcesFilesRetryOnFailure;
-import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
-import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -20,7 +20,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.MerkleStateUtils;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
@@ -35,6 +34,7 @@ import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
 
 /**
  * Utility methods for writing a signed state to disk.
@@ -72,7 +72,7 @@ public final class SignedStateFileWriter {
         try (final BufferedWriter writer = new BufferedWriter(new FileWriter(hashInfoFile.toFile()))) {
             // even though hash info template content is not required, it's there to preserve backwards compatibility of
             // the file format
-            writer.write(String.format(MerkleStateUtils.HASH_INFO_TEMPLATE, hashInfo));
+            writer.write(String.format(PlatformStateUtils.HASH_INFO_TEMPLATE, hashInfo));
         }
     }
 
