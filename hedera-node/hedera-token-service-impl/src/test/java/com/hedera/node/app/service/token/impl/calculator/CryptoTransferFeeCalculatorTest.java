@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.NftTransfer;
@@ -24,7 +25,9 @@ import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.*;
