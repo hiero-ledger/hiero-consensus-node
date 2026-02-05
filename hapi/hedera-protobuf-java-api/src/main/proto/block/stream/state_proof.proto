@@ -62,7 +62,7 @@ message StateProof {
  * 2. Merkle paths starting from an internal node hash like for proving a
  *    block root hash. For these the `hash` field is set.
  * 3. Merkle paths in the middle between another merkle path and the root. For
- *    these none of the fields are set.
+ *    these, none of the fields are set.
  * Merkle paths can only include sibling nodes for binary internal nodes. If
  * there is a unary node in the path a new MerklePath must be started.
  */
@@ -79,29 +79,29 @@ message MerklePath {
      * in list etc. If this is the root path then the value is UINT32_MAX
      * (this is `-1` in Java; 0xFFFFFFFF).
      */
-    uint32 nextPathIndex = 2;
+    uint32 next_path_index = 2;
 
     oneof content {
-      /**
-       * Optional hash content for a path with no leaf that hashes paths below
-       * it. Needed for cases like proving a block root hash from another block.
-       */
-      bytes hash = 3;
+        /**
+         * Optional hash content for a path with no leaf that hashes paths below
+         * it. Needed for cases like proving a block root hash from another block.
+         */
+        bytes hash = 3;
 
-      /**
-       * A {@code StateItem} leaf, if this path starts at a state item.
-       */
-      bytes stateItemLeaf = 4;
+        /**
+         * A {@code StateItem} leaf, if this path starts at a state item.
+         */
+        bytes state_item_leaf = 4;
 
-      /**
-       * A {@code BlockItem} leaf, if this path starts from a block item
-       */
-      bytes blockItemLeaf = 5;
+        /**
+         * A {@code BlockItem} leaf, if this path starts from a block item
+         */
+        bytes block_item_leaf = 5;
 
-      /**
-       * A {@code proto.Timestamp} Leaf, if this path starts from a timestamp
-       */
-      bytes timestampLeaf = 6;
+        /**
+         * A {@code proto.Timestamp} Leaf, if this path starts from a timestamp
+         */
+        bytes timestamp_leaf = 6;
     }
 }
 
