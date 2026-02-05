@@ -3,7 +3,6 @@ package org.hiero.consensus.event.intake.impl;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.PlatformEvent;
 
@@ -13,9 +12,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * completion of event processing.
  */
 public class EventCounter implements Consumer<PlatformEvent> {
-    private final int expectedEventCount;
-    private AtomicInteger currentEventCount = new AtomicInteger(0);
-    private final CountDownLatch countDownLatch = new CountDownLatch(1);
+    private final CountDownLatch countDownLatch;
 
     /**
      * Creates a new {@code EventCounter} that will wait for the given number of events.
@@ -23,7 +20,7 @@ public class EventCounter implements Consumer<PlatformEvent> {
      * @param expectedEventCount the total number of events that must be received before the latch is released
      */
     public EventCounter(final int expectedEventCount) {
-        this.expectedEventCount = expectedEventCount;
+        this.countDownLatch = new CountDownLatch(expectedEventCount);
     }
 
     /**
@@ -34,10 +31,7 @@ public class EventCounter implements Consumer<PlatformEvent> {
      */
     @Override
     public void accept(final PlatformEvent event) {
-        final int latestValue = currentEventCount.incrementAndGet();
-        if (latestValue == expectedEventCount) {
-            countDownLatch.countDown();
-        }
+        countDownLatch.countDown();
     }
 
     /**
@@ -50,8 +44,7 @@ public class EventCounter implements Consumer<PlatformEvent> {
         try {
             final boolean done = countDownLatch.await(5, TimeUnit.SECONDS);
             if (!done) {
-                throw new RuntimeException("Timed out waiting for events. Received " + currentEventCount + " out of "
-                        + expectedEventCount);
+                throw new RuntimeException("Timed out waiting for %d events".formatted(countDownLatch.getCount()));
             }
         } catch (final InterruptedException e) {
             throw new RuntimeException(e);
