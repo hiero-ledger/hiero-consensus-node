@@ -25,10 +25,13 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfig;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.specOps;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -36,6 +39,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -220,47 +225,40 @@ public class CryptoServiceFeesSuite {
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, SPENDER, 100L)
                         .via("approve")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
+                        .blankMemo(),
                 validateChargedUsdWithin("approve", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
                         .via("approveTokenTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
-                // first allowance is free
-                validateChargedUsdWithin("approveTokenTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
+                        .blankMemo(),
+                validateChargedUsdWithin("approveTokenTxn", 0.05012, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via("approveNftTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
-                // first NFT allowance is free
-                validateChargedUsdWithin("approveNftTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
+                        .blankMemo(),
+                validateChargedUsdWithin("approveNftTxn", 0.050101, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, true, List.of())
                         .via("approveForAllNftTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin("approveForAllNftTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
+                        .blankMemo(),
+                validateChargedUsdWithin("approveForAllNftTxn", 0.05, 0.01),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, SECOND_SPENDER, 100L)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SECOND_SPENDER, 100L)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SECOND_SPENDER, false, List.of(1L))
                         .via(APPROVE_TXN)
-                        .fee(ONE_HBAR * 2)
-                        .blankMemo()
-                        .logged(),
-                // three allowances but the first is free
-                validateChargedUsdWithin(APPROVE_TXN, BASE_FEE_CRYPTO_APPROVE_ALLOWANCE + ALLOWANCE_EXTRA * 2, 0.01),
+                        .blankMemo(),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsdWithin(APPROVE_TXN, 3 * CRYPTO_APPROVE_ALLOWANCE_FEE, 0.01);
+                    } else {
+                        return validateChargedUsdWithin(APPROVE_TXN, 0.05238, 0.01);
+                    }
+                }),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -274,26 +272,38 @@ public class CryptoServiceFeesSuite {
                         .payingWith(OWNER)
                         .addCryptoAllowance(OWNER, SECOND_SPENDER, 200L)
                         .via("approveModifyCryptoTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin("approveModifyCryptoTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
+                        .blankMemo(),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsdWithin("approveModifyCryptoTxn", CRYPTO_APPROVE_ALLOWANCE_FEE, 0.01);
+                    } else {
+                        return validateChargedUsdWithin("approveModifyCryptoTxn", 0.049375, 0.01);
+                    }
+                }),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SECOND_SPENDER, 200L)
                         .via("approveModifyTokenTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin("approveModifyTokenTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
+                        .blankMemo(),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsdWithin("approveModifyTokenTxn", CRYPTO_APPROVE_ALLOWANCE_FEE, 0.01);
+                    } else {
+                        return validateChargedUsdWithin("approveModifyTokenTxn", 0.04943, 0.01);
+                    }
+                }),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, false, List.of())
                         .via("approveModifyNftTxn")
-                        .fee(ONE_HBAR)
-                        .blankMemo()
-                        .logged(),
-                validateChargedUsdWithin("approveModifyNftTxn", BASE_FEE_CRYPTO_APPROVE_ALLOWANCE, 0.01),
+                        .blankMemo(),
+                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return validateChargedUsdWithin("approveModifyNftTxn", CRYPTO_APPROVE_ALLOWANCE_FEE, 0.01);
+                    } else {
+                        return validateChargedUsdWithin("approveModifyNftTxn", 0.049375, 0.01);
+                    }
+                }),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -385,11 +395,23 @@ public class CryptoServiceFeesSuite {
                         .maxAutomaticAssociations(-1)
                         .via(validNegativeTxn),
                 getAccountInfo(autoAssocTarget).hasMaxAutomaticAssociations(-1).logged(),
-                validateChargedUsd(baseTxn, BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE, allowedPercentDiff),
-                validateChargedUsd(plusOneTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
-                validateChargedUsd(plusTenTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
-                validateChargedUsd(plusFiveKTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
-                validateChargedUsd(validNegativeTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff));
+                doSeveralWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+                    if ("true".equals(flag)) {
+                        return specOps(
+                                validateChargedUsd(baseTxn, CRYPTO_UPDATE_FEE, allowedPercentDiff),
+                                validateChargedUsd(plusOneTxn, CRYPTO_UPDATE_FEE, allowedPercentDiff),
+                                validateChargedUsd(plusTenTxn, CRYPTO_UPDATE_FEE, allowedPercentDiff),
+                                validateChargedUsd(plusFiveKTxn, CRYPTO_UPDATE_FEE, allowedPercentDiff),
+                                validateChargedUsd(validNegativeTxn, CRYPTO_UPDATE_FEE, allowedPercentDiff));
+                    } else {
+                        return specOps(
+                                validateChargedUsd(baseTxn, BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE, allowedPercentDiff),
+                                validateChargedUsd(plusOneTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
+                                validateChargedUsd(plusTenTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
+                                validateChargedUsd(plusFiveKTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff),
+                                validateChargedUsd(validNegativeTxn, BASE_FEE_CRYPTO_UPDATE, allowedPercentDiff));
+                    }
+                }));
     }
 
     @HapiTest
@@ -460,12 +482,10 @@ public class CryptoServiceFeesSuite {
                         .via(nftXferTxn),
                 cryptoTransfer(moving(1, fungibleTokenWithCustomFee).between(nonTreasurySender, RECEIVER))
                         .blankMemo()
-                        .fee(ONE_HBAR)
                         .payingWith(nonTreasurySender)
                         .via(htsXferTxnWithCustomFee),
                 cryptoTransfer(movingUnique(nonFungibleTokenWithCustomFee, 1).between(nonTreasurySender, RECEIVER))
                         .blankMemo()
-                        .fee(ONE_HBAR)
                         .payingWith(nonTreasurySender)
                         .via(nftXferTxnWithCustomFee),
                 validateChargedUsdWithin(hbarXferTxn, BASE_FEE_HBAR_CRYPTO_TRANSFER, 1),

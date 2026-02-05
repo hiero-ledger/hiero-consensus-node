@@ -93,8 +93,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -111,7 +109,6 @@ public class Hip1195BasicTests {
     private static final double HBAR_TRANSFER_BASE_USD = 0.0001;
     private static final double NFT_TRANSFER_BASE_USD = 0.001;
     private static final double NFT_TRANSFER_WITH_CUSTOM_BASE_USD = 0.002;
-    private static final Logger log = LogManager.getLogger(Hip1195BasicTests.class);
 
     @Contract(contract = "FalsePreHook", creationGas = 5_000_000)
     static SpecContract FALSE_ALLOWANCE_HOOK;

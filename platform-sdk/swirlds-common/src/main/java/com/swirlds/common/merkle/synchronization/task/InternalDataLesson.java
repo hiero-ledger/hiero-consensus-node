@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.task;
 
-import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
@@ -14,10 +14,13 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 /**
  * This lesson contains data for an internal node.
  *
- * @param <T>
- * 		the type used by the view to represent a merkle node
  */
-public class InternalDataLesson<T> implements SelfSerializable {
+public class InternalDataLesson implements SelfSerializable {
+
+    /**
+     * The maximum number of children that a MerkleInternal node can have
+     */
+    private static final int MAX_CHILD_COUNT_UBOUND = 64;
 
     private static final long CLASS_ID = 0xb76e98a8989c60a1L;
 
@@ -25,9 +28,9 @@ public class InternalDataLesson<T> implements SelfSerializable {
         public static final int ORIGINAL = 1;
     }
 
-    private TeacherTreeView<T> teacherTreeView;
-    private LearnerTreeView<T> learnerTreeView;
-    private T internal;
+    private TeacherTreeView teacherTreeView;
+    private LearnerTreeView learnerTreeView;
+    private Long internal;
     private List<Hash> queries;
 
     /**
@@ -43,7 +46,7 @@ public class InternalDataLesson<T> implements SelfSerializable {
      * @param internal
      * 		the internal node to include in the lesson
      */
-    public InternalDataLesson(final TeacherTreeView<T> teacherTreeView, final T internal) {
+    public InternalDataLesson(final TeacherTreeView teacherTreeView, final Long internal) {
         this.teacherTreeView = teacherTreeView;
         this.internal = internal;
     }
@@ -54,7 +57,7 @@ public class InternalDataLesson<T> implements SelfSerializable {
      * @param learnerTreeView
      * 		the learner's view
      */
-    public InternalDataLesson(final LearnerTreeView<T> learnerTreeView) {
+    public InternalDataLesson(final LearnerTreeView learnerTreeView) {
         this.learnerTreeView = learnerTreeView;
     }
 
@@ -63,7 +66,7 @@ public class InternalDataLesson<T> implements SelfSerializable {
      *
      * @return the node described by the lesson
      */
-    public T getInternal() {
+    public Long getInternal() {
         return internal;
     }
 
@@ -88,7 +91,7 @@ public class InternalDataLesson<T> implements SelfSerializable {
      * {@inheritDoc}
      */
     @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
+    public void serialize(@NonNull final SerializableDataOutputStream out) throws IOException {
         teacherTreeView.serializeInternal(out, internal);
         teacherTreeView.writeChildHashes(internal, out);
     }
@@ -97,9 +100,9 @@ public class InternalDataLesson<T> implements SelfSerializable {
      * {@inheritDoc}
      */
     @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
+    public void deserialize(@NonNull final SerializableDataInputStream in, final int version) throws IOException {
         internal = learnerTreeView.deserializeInternal(in);
-        queries = in.readSerializableList(MerkleInternal.MAX_CHILD_COUNT_UBOUND, false, Hash::new);
+        queries = in.readSerializableList(MAX_CHILD_COUNT_UBOUND, false, Hash::new);
     }
 
     /**

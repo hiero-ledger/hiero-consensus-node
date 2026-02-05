@@ -38,6 +38,7 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.pces;
+    requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
@@ -65,6 +66,7 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.specs;
     exports org.hiero.otter.fixtures.util;
     exports org.hiero.otter.fixtures.app to
+            org.hiero.otter.test.performance,
             com.swirlds.config.extensions,
             com.swirlds.config.impl,
             org.hiero.otter.test,

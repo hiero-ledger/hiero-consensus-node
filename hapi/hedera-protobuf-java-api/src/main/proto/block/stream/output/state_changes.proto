@@ -25,7 +25,6 @@ option java_multiple_files = true;
 
 import "google/protobuf/wrappers.proto";
 import "services/basic_types.proto";
-import "services/hook_types.proto";
 import "services/exchange_rate.proto";
 import "services/state/addressbook/node.proto";
 import "services/state/blockrecords/block_info.proto";

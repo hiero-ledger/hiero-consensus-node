@@ -15,7 +15,7 @@ import java.util.Objects;
 /**
  * A convenient base class for {@link TreeView} implementations for virtual merkle.
  */
-public abstract class VirtualTreeViewBase implements TreeView<Long> {
+public abstract class VirtualTreeViewBase implements TreeView {
     /**
      * The root node that is involved in reconnect. This would be the saved state for the teacher, and
      * the new root node into which things are being serialized for the learner.
@@ -58,17 +58,16 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
      * {@inheritDoc}
      */
     @Override
-    public boolean isInternal(final Long node, final boolean isOriginal) {
+    public boolean isInternal(final Long path, final boolean isOriginal) {
         // Sometimes this is null. Sometimes null is considered a leaf.
-        if (node == null) {
+        if (path == null) {
             return false;
         }
-
         // Based on isOriginal I can know whether the node is out of the original state or the reconnect state.
         // This only matters on the learner, on the teacher they are both the same instances.
         final VirtualMapMetadata state = isOriginal ? originalState : reconnectState;
-        checkValidNode(node, state);
-        return node == ROOT_PATH || (node > ROOT_PATH && node < state.getFirstLeafPath());
+        checkValidNode(path, state);
+        return path == ROOT_PATH || (path > ROOT_PATH && path < state.getFirstLeafPath());
     }
 
     /**

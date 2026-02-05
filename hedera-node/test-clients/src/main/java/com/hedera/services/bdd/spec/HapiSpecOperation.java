@@ -319,9 +319,14 @@ public abstract class HapiSpecOperation implements SpecOperation {
         } else {
             final Key payerKey =
                     spec.registry().getKey(payer.orElse(spec.setup().defaultPayerName()));
-            final int numPayerKeys = hardcodedNumPayerKeys.orElse(spec.keys().controlledKeyCount(payerKey, overrides));
-            //            final long customFee = feeFor(spec, provisional, numPayerKeys);
-            netDef = netDef.andThen(b -> b.setTransactionFee(ONE_HUNDRED_HBARS));
+            if (simpleFeesEnabled(spec)) {
+                netDef = netDef.andThen(b -> b.setTransactionFee(ONE_HUNDRED_HBARS));
+            } else {
+                final int numPayerKeys =
+                        hardcodedNumPayerKeys.orElse(spec.keys().controlledKeyCount(payerKey, overrides));
+                final long customFee = feeFor(spec, provisional, numPayerKeys);
+                netDef = netDef.andThen(b -> b.setTransactionFee(customFee));
+            }
             txn = getSigned(spec, spec.txns().getReadyToSign(netDef, bodyMutation, spec), keys);
         }
 
@@ -481,5 +486,12 @@ public abstract class HapiSpecOperation implements SpecOperation {
             final TransactionID txnId = extractTxnId(txn);
             spec.registry().saveTxnId(txnName, txnId);
         }
+    }
+
+    private boolean simpleFeesEnabled(HapiSpec spec) {
+        return spec.targetNetworkOrThrow()
+                .startupProperties()
+                .get("fees.simpleFeesEnabled")
+                .equals("true");
     }
 }

@@ -210,7 +210,7 @@ public class ReconnectStateLearner {
         final VirtualMap reconnectRoot = virtualMapState.getRoot().newReconnectRoot();
         final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
         // The learner view will be closed by LearningSynchronizer
-        final LearnerTreeView<?> learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
+        final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
         try {
