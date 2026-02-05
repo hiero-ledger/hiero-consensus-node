@@ -84,6 +84,7 @@ public class BenchmarkService implements OtterService {
         log.info(
                 DEMO_INFO.getMarker(),
                 "{} nonce={}, latency={}μs, submissionTime={}, handleTime={}",
+                BENCHMARK_LOG_PREFIX,
                 transaction.getNonce(),
                 latencyMicros,
                 InstantUtils.instantToMicros(submissionTime),
