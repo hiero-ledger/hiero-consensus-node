@@ -22,8 +22,8 @@ public class EventCreatorConfigurationExtension implements ConfigurationExtensio
     /**
      * {@inheritDoc}
      */
-    @NonNull
     @Override
+    @NonNull
     public Set<ConverterPair<?>> getConverters() {
         return Set.of(new ConverterPair<>(TaskSchedulerConfiguration.class, TaskSchedulerConfiguration::parse));
     }
