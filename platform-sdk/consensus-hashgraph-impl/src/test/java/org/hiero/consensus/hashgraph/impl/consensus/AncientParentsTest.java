@@ -7,7 +7,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;

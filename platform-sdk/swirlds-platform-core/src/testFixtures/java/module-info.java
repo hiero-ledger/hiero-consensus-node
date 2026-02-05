@@ -36,7 +36,7 @@ open module com.swirlds.platform.core.test.fixtures {
 
     exports com.swirlds.platform.test.fixtures;
     exports com.swirlds.platform.test.fixtures.config;
-    exports com.swirlds.platform.test.fixtures.graph;
+    exports org.hiero.consensus.hashgraph.impl.test.fixtures.graph;
     exports com.swirlds.platform.test.fixtures.roster;
     exports com.swirlds.platform.test.fixtures.simulated;
     exports com.swirlds.platform.test.fixtures.stream;

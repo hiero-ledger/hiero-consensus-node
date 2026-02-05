@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.graph;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.graph;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;

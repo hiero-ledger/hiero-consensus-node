@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
-import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraph;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraphs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.HashSet;

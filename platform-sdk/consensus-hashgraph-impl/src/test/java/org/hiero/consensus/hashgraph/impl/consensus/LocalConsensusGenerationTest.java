@@ -3,8 +3,8 @@ package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
-import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraph;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraphs;
 import java.util.List;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.test.fixtures.Randotron;
