@@ -15,7 +15,7 @@ on:
       dry-run-enabled:
         description: "Perform Dry Run"
         required: false
-        default: false
+        default: true
         type: boolean
 
 defaults:
