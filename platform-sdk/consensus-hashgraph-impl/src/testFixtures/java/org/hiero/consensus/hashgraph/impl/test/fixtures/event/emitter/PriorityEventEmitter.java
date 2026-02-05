@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.event.emitter;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter;
 
-import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import java.util.List;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGenerator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
