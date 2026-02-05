@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui;
+package org.hiero.consensus.hashgraph.impl;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -12,8 +12,8 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.Standard
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.BranchingEventSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.runner.GeneratorEventProvider;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.runner.TestGuiSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.runner.GeneratorEventProvider;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.runner.TestGuiSource;
 import org.hiero.consensus.test.fixtures.Randotron;
 
 /**

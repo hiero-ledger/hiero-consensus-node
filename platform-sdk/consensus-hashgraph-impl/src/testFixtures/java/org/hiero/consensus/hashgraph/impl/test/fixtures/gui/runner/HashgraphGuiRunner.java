@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.runner;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.runner;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -13,7 +13,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.H
 import org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.hashgraph.HashgraphGuiSource;
 
 /** Helper class to open a {@link HashgraphGui} window */
-public final class HashgraphGuiRunner {
+final class HashgraphGuiRunner {
     private HashgraphGuiRunner() {}
 
     /**

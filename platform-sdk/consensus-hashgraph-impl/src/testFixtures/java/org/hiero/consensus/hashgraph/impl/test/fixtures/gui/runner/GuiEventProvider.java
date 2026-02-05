@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.runner;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.runner;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;

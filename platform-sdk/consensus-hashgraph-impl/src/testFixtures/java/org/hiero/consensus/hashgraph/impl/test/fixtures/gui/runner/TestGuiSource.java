@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.internal.gui.runner;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.runner;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -81,7 +81,7 @@ public class TestGuiSource {
         eventStorage.setBranchedEventsMetadata(eventsToBranchMetadata);
     }
 
-    public @NonNull JPanel controls() {
+    private @NonNull JPanel controls() {
         // Fame decided below
         final JLabel fameDecidedBelow = new JLabel("N/A");
         final Runnable updateFameDecidedBelow = () -> fameDecidedBelow.setText(
@@ -184,7 +184,7 @@ public class TestGuiSource {
      * @return the {@link GuiEventStorage}
      */
     @SuppressWarnings("unused") // useful for debugging
-    public GuiEventStorage getEventStorage() {
+    GuiEventStorage getEventStorage() {
         return eventStorage;
     }
 
