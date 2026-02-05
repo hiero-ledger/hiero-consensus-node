@@ -48,7 +48,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamTimeFrame,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamScheduleDelay,
         @ConfigProperty(defaultValue = "1") @NodeProperty int maxBehindPublishersAllowed,
-        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration behindPublisherTimeFrame,
+        @ConfigProperty(defaultValue = "24h") @NodeProperty Duration behindPublisherTimeFrame,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration behindPublisherScheduleDelay,
         @ConfigProperty(defaultValue = "24h") @NodeProperty Duration streamResetPeriod,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration protocolExpBackoffTimeframeReset,

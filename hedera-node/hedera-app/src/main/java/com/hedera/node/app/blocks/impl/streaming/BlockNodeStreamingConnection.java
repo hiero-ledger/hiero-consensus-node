@@ -573,9 +573,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         final long blockNumber = nodeBehind.blockNumber();
         logger.info("{} Received BehindPublisher response for block {}.", this, blockNumber);
 
-        // Check if we've exceeded the BehindPublisher rate limit
-        // Record the BehindPublisher event and check if the rate limit has been exceeded.
-        // The connection manager maintains persistent stats for each node across connections.
+        // Record the BehindPublisher event and check if the limit has been exceeded.
         if (connectionManager.recordBehindPublisherAndCheckLimit(configuration(), Instant.now())) {
             if (logger.isInfoEnabled()) {
                 logger.info(

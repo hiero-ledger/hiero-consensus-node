@@ -1602,9 +1602,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         when(connectionManager.recordEndOfStreamAndCheckLimit(eq(nodeConfig), any()))
                 .thenReturn(true);
         when(connectionManager.getEndOfStreamScheduleDelay()).thenReturn(Duration.ofMinutes(5));
-        // Mock bufferService for EndStream request
-        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(5L);
-        when(bufferService.getHighestAckedBlockNumber()).thenReturn(15L);
 
         connection.onNext(response);
 

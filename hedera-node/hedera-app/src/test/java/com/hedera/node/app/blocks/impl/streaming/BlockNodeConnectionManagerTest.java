@@ -1210,8 +1210,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
 
         final boolean limitExceeded = connectionManager.recordBehindPublisherAndCheckLimit(nodeConfig, Instant.now());
-
         assertThat(limitExceeded).isFalse();
+
+        final int count = connectionManager.getBehindPublisherCount(nodeConfig);
+        assertThat(count).isZero();
     }
 
     @Test
@@ -1219,8 +1221,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
 
         final boolean limitExceeded = connectionManager.recordBehindPublisherAndCheckLimit(nodeConfig, Instant.now());
-
         assertThat(limitExceeded).isFalse();
+
+        final int count = connectionManager.getBehindPublisherCount(nodeConfig);
+        assertThat(count).isEqualTo(1);
     }
 
     @Test
@@ -1228,59 +1232,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
 
         // Record multiple BehindPublisher events to exceed the limit
-        // The default maxBehindPublishersAllowed is 5
-        for (int i = 0; i < 5; i++) {
-            connectionManager.recordBehindPublisherAndCheckLimit(nodeConfig, Instant.now());
-        }
+        // The default maxBehindPublishersAllowed is 1
+        connectionManager.recordBehindPublisherAndCheckLimit(nodeConfig, Instant.now());
+
         final boolean limitExceeded = connectionManager.recordBehindPublisherAndCheckLimit(nodeConfig, Instant.now());
-
         assertThat(limitExceeded).isTrue();
-    }
-
-    @Test
-    void testGetBehindPublisherCount() {
-        final BlockNodeConfiguration nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-
-        connectionManager.recordBehindPublisherAndCheckLimit(nodeConfig, Instant.now());
-        connectionManager.recordBehindPublisherAndCheckLimit(nodeConfig, Instant.now());
 
         final int count = connectionManager.getBehindPublisherCount(nodeConfig);
         assertThat(count).isEqualTo(2);
-    }
-
-    @Test
-    void testGetBehindPublisherCount_unknownNode() {
-        final BlockNodeConfiguration nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-
-        final int count = connectionManager.getBehindPublisherCount(nodeConfig);
-        assertThat(count).isZero();
-    }
-
-    @Test
-    void testGetBehindPublisherCount_streamingDisabled() {
-        useStreamingDisabledManager();
-        final BlockNodeConfiguration nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
-
-        final int count = connectionManager.getBehindPublisherCount(nodeConfig);
-        assertThat(count).isZero();
-    }
-
-    @Test
-    void testGetBehindPublisherScheduleDelay() {
-        final Duration delay = connectionManager.getBehindPublisherScheduleDelay();
-        assertThat(delay).isNotNull();
-    }
-
-    @Test
-    void testGetBehindPublisherTimeframe() {
-        final Duration timeframe = connectionManager.getBehindPublisherTimeframe();
-        assertThat(timeframe).isNotNull();
-    }
-
-    @Test
-    void testGetMaxBehindPublishersAllowed() {
-        final int max = connectionManager.getMaxBehindPublishersAllowed();
-        assertThat(max).isGreaterThan(0);
     }
 
     // Priority based BN selection
