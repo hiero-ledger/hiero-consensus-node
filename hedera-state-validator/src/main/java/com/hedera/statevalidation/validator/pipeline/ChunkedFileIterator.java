@@ -167,7 +167,7 @@ public class ChunkedFileIterator implements AutoCloseable {
                 final int metadataSize = in.readVarInt(false);
                 in.skip(metadataSize);
             } else {
-                throw new IllegalArgumentException("Unknown data file field: " + fieldNum);
+                throw new IllegalArgumentException("Unknown data file field: " + tag);
             }
         }
 
