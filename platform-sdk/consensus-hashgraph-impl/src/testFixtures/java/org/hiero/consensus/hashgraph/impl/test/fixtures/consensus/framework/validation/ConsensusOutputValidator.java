@@ -3,7 +3,7 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.val
 
 import java.util.HashSet;
 import java.util.Set;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusOutput;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
 
 /**
  * This is a specific validator for consensus output related tests. It allows defining custom validations related to

@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusOutput;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**

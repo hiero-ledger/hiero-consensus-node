@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework;
+//  SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ public class ConsensusOutput implements Clearable {
      *
      * @param output the output of the consensus engine
      */
-    public void consensusEngineOutput(@NonNull final ConsensusEngineOutput output) {
+    void consensusEngineOutput(@NonNull final ConsensusEngineOutput output) {
         output.consensusRounds().forEach(this::consensusRound);
         preConsensusEvents.addAll(output.preConsensusEvents());
         staleEvents.addAll(output.staleEvents());

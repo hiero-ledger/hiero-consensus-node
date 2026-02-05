@@ -559,7 +559,7 @@ public class StandardGraphGenerator implements GraphGenerator {
     }
 
     @SuppressWarnings("unused") // useful for debugging
-    public HashgraphGuiSource createGuiSource() {
+    private HashgraphGuiSource createGuiSource() {
         return new StandardGuiSource(
                 getRoster(), new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
     }

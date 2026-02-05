@@ -2,7 +2,7 @@
 package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusOutput;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
 
 /**
  * Validates output of a consensus test. The type of validation that is done depends on the implementation.

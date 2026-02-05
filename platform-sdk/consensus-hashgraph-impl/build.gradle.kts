@@ -8,11 +8,6 @@ plugins {
 
 description = "Default Consensus Hashgraph Implementation"
 
-// Suppress exports warnings in testFixtures - classes from targeted exports are used in public
-// APIs,
-// but consumers of testFixtures are expected to also require hashgraph-impl directly.
-tasks.named<JavaCompile>("compileTestFixturesJava") { options.compilerArgs.add("-Xlint:-exports") }
-
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")

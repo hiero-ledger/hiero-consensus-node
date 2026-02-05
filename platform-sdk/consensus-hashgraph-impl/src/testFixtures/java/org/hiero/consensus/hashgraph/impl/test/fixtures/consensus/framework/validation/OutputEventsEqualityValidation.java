@@ -4,7 +4,7 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.val
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.TestFixtureValidationUtils.assertBaseEventLists;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusOutput;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
 
 /**
  * Validate that the added events in {@link ConsensusOutput} are the same.

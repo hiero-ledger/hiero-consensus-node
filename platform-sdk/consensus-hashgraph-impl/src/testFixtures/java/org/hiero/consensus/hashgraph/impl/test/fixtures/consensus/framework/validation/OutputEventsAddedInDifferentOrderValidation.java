@@ -3,7 +3,7 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.val
 
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.TestFixtureValidationUtils.assertBaseEventLists;
 
-import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusOutput;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
 
 /**
  * Validate that the events added to different nodes were added in different orders.

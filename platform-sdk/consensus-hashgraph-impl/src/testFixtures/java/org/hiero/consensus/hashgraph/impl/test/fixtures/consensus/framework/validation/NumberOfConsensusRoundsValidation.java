@@ -4,7 +4,7 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.val
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.assertj.core.api.Assertions;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusOutput;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
 
 /**
  * Validate that a given number of rounds has reached consensus
