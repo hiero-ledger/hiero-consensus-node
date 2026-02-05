@@ -223,41 +223,6 @@ class HighVolumePricingCalculatorTest {
     }
 
     @Nested
-    @DisplayName("Effective multiplier conversion")
-    class EffectiveMultiplierConversion {
-
-        @Test
-        @DisplayName("Converts 1000 raw to 1.0x effective")
-        void converts1000RawTo1xEffective() {
-            assertEquals(1.0, HighVolumePricingCalculator.toEffectiveMultiplier(1000), 0.0001);
-        }
-
-        @Test
-        @DisplayName("Converts 2000 raw to 2.0x effective")
-        void converts2000RawTo2xEffective() {
-            assertEquals(2.0, HighVolumePricingCalculator.toEffectiveMultiplier(2000), 0.0001);
-        }
-
-        @Test
-        @DisplayName("Converts 3000 raw to 3.0x effective")
-        void converts3000RawTo3xEffective() {
-            assertEquals(3.0, HighVolumePricingCalculator.toEffectiveMultiplier(3000), 0.0001);
-        }
-
-        @Test
-        @DisplayName("Converts 5000 raw to 5.0x effective")
-        void converts5000RawTo5xEffective() {
-            assertEquals(5.0, HighVolumePricingCalculator.toEffectiveMultiplier(5000), 0.0001);
-        }
-
-        @Test
-        @DisplayName("Converts 1500 raw to 1.5x effective")
-        void converts1500RawTo15xEffective() {
-            assertEquals(1.5, HighVolumePricingCalculator.toEffectiveMultiplier(1500), 0.0001);
-        }
-    }
-
-    @Nested
     @DisplayName("HIP-1313 example scenarios")
     class Hip1313ExampleScenarios {
 
@@ -275,11 +240,6 @@ class HighVolumePricingCalculatorTest {
             assertEquals(1000, HighVolumePricingCalculator.calculateMultiplier(variableRate, 0));
             assertEquals(2000, HighVolumePricingCalculator.calculateMultiplier(variableRate, 5000));
             assertEquals(5000, HighVolumePricingCalculator.calculateMultiplier(variableRate, 10000));
-
-            // Verify effective multipliers
-            assertEquals(1.0, HighVolumePricingCalculator.toEffectiveMultiplier(1000), 0.0001);
-            assertEquals(2.0, HighVolumePricingCalculator.toEffectiveMultiplier(2000), 0.0001);
-            assertEquals(5.0, HighVolumePricingCalculator.toEffectiveMultiplier(5000), 0.0001);
         }
     }
 
