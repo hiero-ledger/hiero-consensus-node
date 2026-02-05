@@ -17,15 +17,15 @@ import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
  */
 public class RpcOverloadMonitor {
 
-    private static final long NOT_DISABLED = -1L;
+    private static final long ENABLED = -1L;
 
     private final BroadcastConfig broadcastConfig;
     private final SyncMetrics syncMetrics;
     private final Time time;
     private final Consumer<Boolean> communicationOverloadHandler;
 
-    private volatile long disabledBroadcastDueToQueueSizeTime = NOT_DISABLED;
-    private volatile long disabledBroadcastDueToLagTime = NOT_DISABLED;
+    private volatile long disabledBroadcastDueToQueueSizeTime = ENABLED;
+    private volatile long disabledBroadcastDueToLagTime = ENABLED;
 
     public RpcOverloadMonitor(
             @NonNull final BroadcastConfig syncConfig,
@@ -46,18 +46,18 @@ public class RpcOverloadMonitor {
      */
     public void reportOutputQueueSize(final int size) {
         if (size > broadcastConfig.throttleOutputQueueThreshold()) {
-            if (disabledBroadcastDueToQueueSizeTime == NOT_DISABLED) {
+            if (disabledBroadcastDueToQueueSizeTime == ENABLED) {
                 syncMetrics.disabledBroadcastDueToOverload(true);
                 // it is ok to call it multiple times
                 communicationOverloadHandler.accept(true);
             }
             // we always need to update last time when queue size was breached
             disabledBroadcastDueToQueueSizeTime = time.currentTimeMillis();
-        } else if (disabledBroadcastDueToQueueSizeTime != NOT_DISABLED
+        } else if (disabledBroadcastDueToQueueSizeTime != ENABLED
                 && enoughTimePassedAfterDisable(disabledBroadcastDueToQueueSizeTime)) {
-            disabledBroadcastDueToQueueSizeTime = NOT_DISABLED;
+            disabledBroadcastDueToQueueSizeTime = ENABLED;
             syncMetrics.disabledBroadcastDueToOverload(false);
-            if (disabledBroadcastDueToLagTime == NOT_DISABLED) {
+            if (disabledBroadcastDueToLagTime == ENABLED) {
                 // if both are not disabled, notify the client
                 communicationOverloadHandler.accept(false);
             }
@@ -71,18 +71,18 @@ public class RpcOverloadMonitor {
      */
     public void reportPing(final long pingMillis) {
         if (pingMillis > broadcastConfig.disablePingThreshold().toMillis()) {
-            if (disabledBroadcastDueToLagTime == NOT_DISABLED) {
+            if (disabledBroadcastDueToLagTime == ENABLED) {
                 syncMetrics.disabledBroadcastDueToLag(true);
                 // it is ok to call it multiple times
                 communicationOverloadHandler.accept(true);
             }
             // we always need to update last time when ping was reported as broken
             disabledBroadcastDueToLagTime = time.currentTimeMillis();
-        } else if (disabledBroadcastDueToLagTime != NOT_DISABLED
+        } else if (disabledBroadcastDueToLagTime != ENABLED
                 && enoughTimePassedAfterDisable(disabledBroadcastDueToLagTime)) {
-            disabledBroadcastDueToLagTime = NOT_DISABLED;
+            disabledBroadcastDueToLagTime = ENABLED;
             syncMetrics.disabledBroadcastDueToLag(false);
-            if (disabledBroadcastDueToQueueSizeTime == NOT_DISABLED) {
+            if (disabledBroadcastDueToQueueSizeTime == ENABLED) {
                 // if both are enabled, notify the client
                 communicationOverloadHandler.accept(false);
             }

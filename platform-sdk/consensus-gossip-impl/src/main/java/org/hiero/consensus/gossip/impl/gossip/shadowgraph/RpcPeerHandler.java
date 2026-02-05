@@ -143,7 +143,8 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      * @param eventHandler                  events that are received are passed here
      * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen
      *                                      behind
-     * @param syncConfig                    sync and broadcast configuration
+     * @param syncConfig                    sync configuration
+     * @param broadcastConfig               broadcast configuration
      */
     public RpcPeerHandler(
             @NonNull final ShadowgraphSynchronizer sharedShadowgraphSynchronizer,

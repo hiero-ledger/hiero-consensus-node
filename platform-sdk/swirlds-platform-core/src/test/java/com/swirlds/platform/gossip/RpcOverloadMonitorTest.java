@@ -17,6 +17,7 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import java.time.Duration;
 import java.util.function.Consumer;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.gossip.config.BroadcastConfig_;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcOverloadMonitor;
 import org.junit.jupiter.api.BeforeEach;
@@ -140,9 +141,9 @@ public class RpcOverloadMonitorTest {
 
         return ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
-                .withValue("broadcast.throttleOutputQueueThreshold", String.valueOf(queueThreshold))
-                .withValue("broadcast.disablePingThreshold", String.valueOf(pingThreshold))
-                .withValue("broadcast.pauseOnLag", String.valueOf(pauseBroadcastOnLag))
+                .withValue(BroadcastConfig_.THROTTLE_OUTPUT_QUEUE_THRESHOLD, String.valueOf(queueThreshold))
+                .withValue(BroadcastConfig_.DISABLE_PING_THRESHOLD, String.valueOf(pingThreshold))
+                .withValue(BroadcastConfig_.PAUSE_ON_LAG, String.valueOf(pauseBroadcastOnLag))
                 .build()
                 .getConfigData(BroadcastConfig.class);
     }
