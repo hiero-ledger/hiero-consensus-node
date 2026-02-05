@@ -150,6 +150,7 @@ message TransactionResult {
      */
     repeated proto.AssessedCustomFee assessed_custom_fees = 12;
 
+
     /**
      * A high volume pricing multiplier.
      * <p>

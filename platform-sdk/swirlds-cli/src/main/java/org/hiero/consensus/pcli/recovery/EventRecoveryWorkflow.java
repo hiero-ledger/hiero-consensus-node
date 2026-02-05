@@ -3,12 +3,12 @@ package org.hiero.consensus.pcli.recovery;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFrozenTime;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
@@ -156,7 +156,11 @@ public final class EventRecoveryWorkflow {
                     recoveredState.state().get().getState().copy();
 
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext, selfId, resultingStateDirectory, recoveredState.state(), stateLifecycleManager);
+                    platformContext,
+                    selfId,
+                    resultingStateDirectory,
+                    recoveredState.state().get(),
+                    stateLifecycleManager);
 
             logger.info(STARTUP.getMarker(), "Signed state written to disk");
 

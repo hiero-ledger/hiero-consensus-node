@@ -48,7 +48,7 @@ class KeysAndCertsTest {
      * 		keys and certificates to use for testing
      */
     @ParameterizedTest
-    @MethodSource({"com.swirlds.platform.crypto.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
     void basicTest(@NonNull final Roster roster, @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts) {
         Objects.requireNonNull(roster, "roster must not be null");
         Objects.requireNonNull(keysAndCerts, "keysAndCerts must not be null");
