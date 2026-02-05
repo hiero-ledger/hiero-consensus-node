@@ -238,14 +238,14 @@ jobs:
       - name: Install Python (Linux)
         if: ${{ runner.os == 'Linux' }}
         run: |
-            sudo apt-get update
-            sudo apt-get install --yes --no-install-recommends python3 python3-venv python3-pip
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends python3 python3-venv python3-pip
 
       - name: Install Python
         if: ${{ runner.os != 'Linux' }}
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install JQ (Linux)
         if: ${{ runner.os == 'Linux' }}
