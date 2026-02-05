@@ -7,13 +7,13 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.functionalityForType;
+import static com.hedera.node.app.spi.key.KeyVerifier.NO_AUTHORIZING_KEYS;
 import static com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel.YES;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId.NO;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.PRE_HANDLE_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySortedSet;
 import static java.util.Collections.unmodifiableSortedSet;
 import static java.util.Objects.requireNonNull;
 
@@ -50,6 +50,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -58,7 +59,7 @@ import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
@@ -262,7 +263,7 @@ public class ChildDispatchFactory {
             @NonNull final ServiceScopeLookup serviceScopeLookup,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final TransactionDispatcher dispatcher) {
-        final var readableStoreFactory = new ReadableStoreFactory(childStack);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(childStack);
         final var writableEntityIdStore =
                 new WritableEntityIdStoreImpl(childStack.getWritableStates(EntityIdService.NAME));
         final var entityNumGenerator = new EntityNumGeneratorImpl(writableEntityIdStore);
@@ -558,7 +559,7 @@ public class ChildDispatchFactory {
      */
     private static SortedSet<Key> asSortedSet(@NonNull final Set<Key> keys) {
         return keys.isEmpty()
-                ? emptySortedSet()
+                ? NO_AUTHORIZING_KEYS
                 : unmodifiableSortedSet(new TreeSet<>(KEY_COMPARATOR) {
                     {
                         addAll(keys);

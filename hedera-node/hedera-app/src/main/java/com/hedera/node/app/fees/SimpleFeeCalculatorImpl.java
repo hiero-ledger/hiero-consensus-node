@@ -1,18 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
-import com.hedera.hapi.node.base.Key;
+import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -27,23 +36,38 @@ import org.hiero.hapi.support.fees.FeeSchedule;
  */
 public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
+    private static final Logger log = LogManager.getLogger(SimpleFeeCalculatorImpl.class);
+
     protected final FeeSchedule feeSchedule;
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
     private final Map<Query.QueryOneOfType, QueryFeeCalculator> queryFeeCalculators;
-
-    public SimpleFeeCalculatorImpl(FeeSchedule feeSchedule, Set<ServiceFeeCalculator> serviceFeeCalculators) {
-        this(feeSchedule, serviceFeeCalculators, Set.of());
-    }
+    private final CongestionMultipliers congestionMultipliers;
 
     public SimpleFeeCalculatorImpl(
-            FeeSchedule feeSchedule,
-            Set<ServiceFeeCalculator> serviceFeeCalculators,
-            Set<QueryFeeCalculator> queryFeeCalculators) {
+            @NonNull FeeSchedule feeSchedule,
+            @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators,
+            @NonNull Set<QueryFeeCalculator> queryFeeCalculators,
+            @NonNull CongestionMultipliers congestionMultipliers) {
         this.feeSchedule = feeSchedule;
         this.serviceFeeCalculators = serviceFeeCalculators.stream()
                 .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
         this.queryFeeCalculators = queryFeeCalculators.stream()
                 .collect(Collectors.toMap(QueryFeeCalculator::getQueryType, Function.identity()));
+        this.congestionMultipliers = congestionMultipliers;
+    }
+
+    @VisibleForTesting
+    public SimpleFeeCalculatorImpl(
+            @NonNull FeeSchedule feeSchedule,
+            @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators,
+            @NonNull Set<QueryFeeCalculator> queryFeeCalculators) {
+        this(feeSchedule, serviceFeeCalculators, queryFeeCalculators, null);
+    }
+
+    @VisibleForTesting
+    public SimpleFeeCalculatorImpl(
+            @NonNull FeeSchedule feeSchedule, @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators) {
+        this(feeSchedule, serviceFeeCalculators, Set.of());
     }
 
     /**
@@ -75,6 +99,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Calculates fees for transactions per HIP-1261.
      * Node fee includes BYTES (full transaction size) and SIGNATURES extras.
      * Service fee is transaction-specific.
+     * If congestion multipliers are configured and a store factory is available,
+     * the congestion multiplier will be applied to the total fee.
      *
      * @param txnBody the transaction body
      * @param simpleFeeContext the fee context containing signature count and full transaction bytes
@@ -99,7 +125,44 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
-        return result;
+
+        // Apply congestion multiplier if available
+        return applyCongestionMultiplier(txnBody, simpleFeeContext, result);
+    }
+
+    /**
+     * Applies the congestion multiplier to the fee result.
+     * Gets the ReadableStoreFactory from the FeeContext implementation.
+     *
+     * @param txnBody the transaction body
+     * @param simpleFeeContext the simple fee context
+     * @param result the base fee result
+     * @return a new FeeResult with congestion multiplier applied, or the original if no multiplier
+     */
+    private FeeResult applyCongestionMultiplier(
+            @NonNull final TransactionBody txnBody,
+            @Nullable final SimpleFeeContext simpleFeeContext,
+            @NonNull final FeeResult result) {
+        if (simpleFeeContext == null || simpleFeeContext.feeContext() == null || congestionMultipliers == null) {
+            return result;
+        }
+
+        try {
+            final HederaFunctionality functionality = functionOf(txnBody);
+            final var feeContext = simpleFeeContext.feeContext();
+            final long congestionMultiplier = congestionMultipliers.maxCurrentMultiplier(
+                    txnBody, functionality, feeContext.readableStoreFactory());
+            if (congestionMultiplier <= 1) {
+                return result;
+            }
+            return new FeeResult(
+                    clampedMultiply(result.getServiceTotalTinycents(), congestionMultiplier),
+                    clampedMultiply(result.getNodeTotalTinycents(), congestionMultiplier),
+                    result.getNetworkMultiplier());
+        } catch (UnknownHederaFunctionality e) {
+            log.error("Unknown Hedera functionality for transaction body: {}", txnBody, e);
+            return result;
+        }
     }
 
     @Override
@@ -109,28 +172,6 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Extra fee not found: " + extra))
                 .fee();
-    }
-
-    /**
-     * Utility: Counts all keys including nested ones in threshold/key lists.
-     * Useful for calculating KEYS extra fees per HIP-1261.
-     *
-     * @param key The key structure to count
-     * @return The total number of simple keys (ED25519, ECDSA_SECP256K1, ECDSA_384)
-     */
-    public static long countKeys(@NonNull final Key key) {
-        return switch (key.key().kind()) {
-            case ED25519, ECDSA_SECP256K1, ECDSA_384 -> 1L;
-            case THRESHOLD_KEY ->
-                key.thresholdKeyOrThrow().keys().keys().stream()
-                        .mapToLong(SimpleFeeCalculatorImpl::countKeys)
-                        .sum();
-            case KEY_LIST ->
-                key.keyListOrThrow().keys().stream()
-                        .mapToLong(SimpleFeeCalculatorImpl::countKeys)
-                        .sum();
-            default -> 0L;
-        };
     }
 
     /**

@@ -30,7 +30,7 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
     public BenchmarkSlowTeachingSynchronizer(
             final SerializableDataInputStream in,
             final SerializableDataOutputStream out,
-            final TeacherTreeView<?> view,
+            final TeacherTreeView view,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,

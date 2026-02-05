@@ -22,11 +22,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
-import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
-import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
@@ -40,15 +35,15 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.AbstractVirtualRoot;
 import com.swirlds.virtualmap.internal.RecordAccessor;
+import com.swirlds.virtualmap.internal.VirtualRoot;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
-import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
-import com.swirlds.virtualmap.internal.pipeline.VirtualRoot;
 import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPushVirtualTreeView;
@@ -84,7 +79,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
- * A {@link MerkleInternal} node that virtualizes all of its children, such that the child nodes
+ * A Merkle tree that virtualizes all of its children, such that the child nodes
  * may not exist in RAM until they are required. Significantly, <strong>downward traversal in
  * the tree WILL NOT always returns consistent results until after hashes have been computed.</strong>
  * During the hash phase, all affected internal nodes are discovered and updated and "realized" into
@@ -146,7 +141,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * through the map-like methods.
  */
 @ConstructableIgnored
-public final class VirtualMap extends PartialBinaryMerkleInternal implements Labeled, MerkleInternal, VirtualRoot {
+public final class VirtualMap extends AbstractVirtualRoot implements Labeled, VirtualRoot {
 
     private static final int MAX_PBJ_RECORD_SIZE = 33554432;
 
@@ -487,39 +482,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
      * {@inheritDoc}
      */
     @Override
-    public <T extends MerkleNode> T getChild(final int index) {
-        if (isDestroyed()
-                || dataSource == null
-                || originalMap != null
-                || metadata == null
-                || metadata.getFirstLeafPath() == INVALID_PATH
-                || index > 1) {
-            return null;
-        }
-
-        final long path = index + 1L;
-        final T node;
-        if (path < metadata.getFirstLeafPath()) {
-            //noinspection unchecked
-            node = (T) VirtualInternalNode.getInternalNode(this, path);
-        } else if (path <= metadata.getLastLeafPath()) {
-            //noinspection unchecked
-            node = (T) VirtualInternalNode.getLeafNode(this, path);
-        } else {
-            // The index is out of bounds. Maybe we have a root node with one leaf and somebody has asked
-            // for the second leaf, in which case it would be null.
-            return null;
-        }
-
-        final MerkleRoute route = this.getRoute().extendRoute(index);
-        node.setRoute(route);
-        return node;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     protected void destroyNode() {
         if (pipeline != null) {
             pipeline.destroyCopy(this);
@@ -528,45 +490,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
                     VIRTUAL_MERKLE_STATS.getMarker(),
                     "Destroying the virtual map, but its pipeline is null. It may happen during failed reconnect");
             closeDataSource();
-        }
-    }
-
-    /**
-     * The current virtual map implementation does not support children.
-     * Even though it is a {@link MerkleInternal} node, the data stored differently, in the child leaf nodes.
-     */
-    @Override
-    public int getNumberOfChildren() {
-        // FUTURE WORK: This should return 0 once the VirtualMap is migrated
-        return 2;
-    }
-
-    /**
-     * This is never called for a {@link VirtualMap}.
-     *
-     * {@inheritDoc}
-     */
-    @Override
-    protected void setChildInternal(final int index, final MerkleNode child) {
-        throw new UnsupportedOperationException("You cannot set the child of a VirtualMap directly with this API");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void allocateSpaceForChild(final int index) {
-        // No-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void checkChildIndexIsValid(final int index) {
-        // FUTURE WORK: This should throw an UnsupportedOperationException once the VirtualMap is migrated
-        if (index < 0 || index > 1) {
-            throw new IllegalChildIndexException(0, 1, index);
         }
     }
 
@@ -1175,7 +1098,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
      *
      * <p>The view will be closed by reconnect teacher, when reconnect is complete or failed.
      */
-    public TeacherTreeView<Long> buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
+    public TeacherTreeView buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH ->
                 new TeacherPushVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
@@ -1260,7 +1183,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
      *
      * <p>The view will be closed by reconnect learner, when reconnect is complete or failed.
      */
-    public LearnerTreeView<Long> buildLearnerView(
+    public LearnerTreeView buildLearnerView(
             @NonNull final ReconnectConfig reconnectConfig, @NonNull final ReconnectMapStats mapStats) {
         assert originalMap != null;
         // During reconnect we want to look up state from the original records
@@ -1363,7 +1286,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
                 .setExceptionHandler((thread, exception) -> {
                     // Shut down the iterator. This will cause reconnect to terminate.
                     reconnectIterator.close();
-                    final var message = "VirtualMap@" + getRoute() + " failed to hash during reconnect";
+                    final var message = "VirtualMap failed to hash during reconnect";
                     logger.error(EXCEPTION.getMarker(), message, exception);
                     reconnectHashingFuture.completeExceptionally(
                             new MerkleSynchronizationException(message, exception));
@@ -1391,12 +1314,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal implements Lab
             metadata = new VirtualMapMetadata(reconnectState.getSize());
             postInit();
         } catch (ExecutionException e) {
-            final var message = "VirtualMap@" + getRoute() + " failed to get hash during learner reconnect";
-            throw new MerkleSynchronizationException(message, e);
+            throw new MerkleSynchronizationException(e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            final var message = "VirtualMap@" + getRoute() + " interrupted while ending learner reconnect";
-            throw new MerkleSynchronizationException(message, e);
+            throw new MerkleSynchronizationException(e);
         }
         logger.info(RECONNECT.getMarker(), "endLearnerReconnect() complete");
     }

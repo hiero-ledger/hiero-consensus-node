@@ -28,6 +28,7 @@ import java.time.Duration;
  * @param pipelineOperationTimeout timeout for pipeline onNext() and onComplete() operations to detect unresponsive block nodes
  * @param streamingRequestPaddingBytes the base overhead (in bytes) that is applied to every pending request when estimating the request size
  * @param streamingRequestItemPaddingBytes the amount of additional bytes to include for each block item when estimating the request size
+ * @param blockNodeStatusTimeout the timeout for retrieving block node server status (millisecond precision)
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
@@ -63,4 +64,6 @@ public record BlockNodeConnectionConfig(
         int streamingRequestPaddingBytes,
 
         @ConfigProperty(defaultValue = "5") @Min(0) @NetworkProperty
-        int streamingRequestItemPaddingBytes) {}
+        int streamingRequestItemPaddingBytes,
+
+        @ConfigProperty(defaultValue = "1s") @NodeProperty Duration blockNodeStatusTimeout) {}

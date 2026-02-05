@@ -91,6 +91,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -103,7 +104,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
@@ -312,7 +313,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @BeforeEach
     void setup() {
         when(serviceScopeLookup.getServiceName(any())).thenReturn(TokenService.NAME);
-        readableStoreFactory = new ReadableStoreFactory(baseState);
+        readableStoreFactory = new ReadableStoreFactoryImpl(baseState);
         apiFactory = new ServiceApiFactory(stack, configuration, Map.of(), NodeFeeAccumulator.NOOP);
         storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, apiFactory);
         subject = createContext(txBody);
@@ -480,6 +481,11 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         assertThat(subject.storeFactory()).isEqualTo(storeFactory);
         assertThat(subject.entityNumGenerator()).isEqualTo(entityNumGenerator);
         assertThat(subject.keyVerifier()).isEqualTo(verifier);
+    }
+
+    @Test
+    void getsReadableStoreFactory() {
+        assertThat(subject.readableStoreFactory()).isEqualTo(storeFactory.asReadOnly());
     }
 
     @Nested
