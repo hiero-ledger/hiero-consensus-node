@@ -28,7 +28,6 @@ import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -78,7 +77,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators,
             @NonNull Set<QueryFeeCalculator> queryFeeCalculators,
             @NonNull CongestionMultipliers congestionMultipliers) {
-        this.feeSchedule = feeSchedule;
+        this.feeSchedule = requireNonNull(feeSchedule);
         this.serviceFeeCalculators = serviceFeeCalculators.stream()
                 .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
         this.queryFeeCalculators = queryFeeCalculators.stream()
@@ -178,17 +177,16 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @param txnBody the transaction body
      * @param simpleFeeContext the simple fee context
      * @param result the base fee result
-     * @return a new FeeResult with congestion multiplier applied, or the original if no multiplier
      */
     private void applyCongestionMultiplier(
             @NonNull final TransactionBody txnBody,
-            @Nullable final SimpleFeeContext simpleFeeContext,
+            @NonNull final SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult result,
             @NonNull final HederaFunctionality functionality) {
-        if (simpleFeeContext == null || simpleFeeContext.feeContext() == null || congestionMultipliers == null) {
-            return;
-        }
-        final var feeContext = simpleFeeContext.feeContext();
+        requireNonNull(simpleFeeContext.feeContext());
+        requireNonNull(congestionMultipliers);
+
+        final var feeContext = requireNonNull(simpleFeeContext.feeContext());
         final long congestionMultiplier =
                 congestionMultipliers.maxCurrentMultiplier(txnBody, functionality, feeContext.readableStoreFactory());
         if (congestionMultiplier <= 1) {
@@ -198,7 +196,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     }
 
     /**
-     * Applies the high-volume pricing multiplier to the service fee based on throttle utilization.
+     * Applies the high-volume pricing multiplier to the total fee based on throttle utilization.
+     * This is applied after total fee is calculated.
      * Per HIP-1313, the multiplier is calculated from the pricing curve defined in the fee schedule.
      *
      * @param functionality the transaction body functionality

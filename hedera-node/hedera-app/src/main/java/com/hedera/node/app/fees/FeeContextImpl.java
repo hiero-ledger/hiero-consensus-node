@@ -159,21 +159,19 @@ public class FeeContextImpl implements FeeContext {
     @Override
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
-        return transactionDispatcher.dispatchComputeFees(
-                new ChildFeeContextImpl(
-                        feeManager,
-                        this,
-                        childTxBody,
-                        syntheticPayerId,
-                        true,
-                        authorizer,
-                        storeFactory,
-                        consensusTime,
-                        null, // This is only used when dispatching synthetic transactions,
-                        // so no signatures to verify
-                        numSignatures,
-                        function),
-                function);
+        return transactionDispatcher.dispatchComputeFees(new ChildFeeContextImpl(
+                feeManager,
+                this,
+                childTxBody,
+                syntheticPayerId,
+                true,
+                authorizer,
+                storeFactory,
+                consensusTime,
+                null, // This is only used when dispatching synthetic transactions,
+                // so no signatures to verify
+                numSignatures,
+                function));
     }
 
     @Override

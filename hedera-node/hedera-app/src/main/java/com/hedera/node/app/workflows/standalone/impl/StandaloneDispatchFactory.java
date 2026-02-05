@@ -207,7 +207,7 @@ public class StandaloneDispatchFactory {
                 preHandleResult.innerResults(),
                 preHandleWorkflow,
                 HandleContext.TransactionCategory.USER);
-        final var fees = transactionDispatcher.dispatchComputeFees(dispatchHandleContext, txnInfo.functionality());
+        final var fees = transactionDispatcher.dispatchComputeFees(dispatchHandleContext);
         return new RecordDispatch(
                 baseBuilder,
                 config,

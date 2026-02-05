@@ -212,7 +212,7 @@ class ParentTxnTest {
         given(feeManager.congestionMultiplierFor(any(), eq(CONSENSUS_CREATE_TOPIC), any(ReadableStoreFactory.class)))
                 .willReturn(CONGESTION_MULTIPLIER);
         given(serviceScopeLookup.getServiceName(any())).willReturn(ConsensusServiceImpl.NAME);
-        given(dispatcher.dispatchComputeFees(any(), CONSENSUS_CREATE_TOPIC)).willReturn(Fees.FREE);
+        given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
         final var subject =
@@ -246,7 +246,7 @@ class ParentTxnTest {
         given(feeManager.congestionMultiplierFor(any(), eq(CONSENSUS_CREATE_TOPIC), any(ReadableStoreFactory.class)))
                 .willReturn(1L);
         given(serviceScopeLookup.getServiceName(any())).willReturn(ConsensusServiceImpl.NAME);
-        given(dispatcher.dispatchComputeFees(any(), CONSENSUS_CREATE_TOPIC)).willReturn(Fees.FREE);
+        given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
         final var subject =

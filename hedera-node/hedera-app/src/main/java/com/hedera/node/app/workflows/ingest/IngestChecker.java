@@ -340,7 +340,7 @@ public final class IngestChecker {
                 authorizer,
                 numSigs,
                 dispatcher);
-        final var fees = dispatcher.dispatchComputeFees(feeContext, functionality);
+        final var fees = dispatcher.dispatchComputeFees(feeContext);
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
 
         // 8. Re-run checks against inner transactions

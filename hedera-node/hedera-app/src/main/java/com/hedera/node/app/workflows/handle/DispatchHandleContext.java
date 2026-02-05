@@ -429,20 +429,18 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
         final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap());
-        return dispatcher.dispatchComputeFees(
-                new ChildFeeContextImpl(
-                        feeManager,
-                        this,
-                        bodyToDispatch,
-                        syntheticPayerId,
-                        computeDispatchFeesAsTopLevel == ComputeDispatchFeesAsTopLevel.NO,
-                        authorizer,
-                        storeFactory.asReadOnly(),
-                        consensusNow,
-                        shouldChargeForSigVerification(txBody) ? verifier : null,
-                        shouldChargeForSigVerification(txBody) ? signatureMapSize : 0,
-                        function),
-                function);
+        return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
+                feeManager,
+                this,
+                bodyToDispatch,
+                syntheticPayerId,
+                computeDispatchFeesAsTopLevel == ComputeDispatchFeesAsTopLevel.NO,
+                authorizer,
+                storeFactory.asReadOnly(),
+                consensusNow,
+                shouldChargeForSigVerification(txBody) ? verifier : null,
+                shouldChargeForSigVerification(txBody) ? signatureMapSize : 0,
+                function));
     }
 
     private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {

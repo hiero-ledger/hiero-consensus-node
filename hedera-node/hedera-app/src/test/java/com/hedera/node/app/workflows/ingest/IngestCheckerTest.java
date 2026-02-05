@@ -182,7 +182,7 @@ class IngestCheckerTest extends AppTestBase {
         this.deduplicationCache = new DeduplicationCacheImpl(configProvider, instantSource);
 
         when(solvencyPreCheck.getPayerAccount(any(), eq(ALICE.accountID()))).thenReturn(ALICE.account());
-        when(dispatcher.dispatchComputeFees(any(), UNCHECKED_SUBMIT)).thenReturn(DEFAULT_FEES);
+        when(dispatcher.dispatchComputeFees(any())).thenReturn(DEFAULT_FEES);
 
         subject = new IngestChecker(
                 app.networkInfo(),

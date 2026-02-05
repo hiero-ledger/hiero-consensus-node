@@ -359,8 +359,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Test
     void dispatchComputeFeesDelegatesWithBodyAndNotFree() {
-        given(dispatcher.dispatchComputeFees(any(), HederaFunctionality.CRYPTO_TRANSFER))
-                .willReturn(FEES);
+        given(dispatcher.dispatchComputeFees(any())).willReturn(FEES);
         assertThat(subject.dispatchComputeFees(CRYPTO_TRANSFER_TXN_BODY, PAYER_ACCOUNT_ID))
                 .isSameAs(FEES);
     }
@@ -561,11 +560,10 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         @Test
         void invokesComputeFeesDispatchWithChildFeeContextImpl() {
             final var fees = new Fees(1L, 2L, 3L);
-            given(dispatcher.dispatchComputeFees(any(), HederaFunctionality.CRYPTO_TRANSFER))
-                    .willReturn(fees);
+            given(dispatcher.dispatchComputeFees(any())).willReturn(fees);
             final var captor = ArgumentCaptor.forClass(FeeContext.class);
             final var result = subject.dispatchComputeFees(txBody, account1002, ComputeDispatchFeesAsTopLevel.NO);
-            verify(dispatcher).dispatchComputeFees(captor.capture(), HederaFunctionality.CRYPTO_TRANSFER);
+            verify(dispatcher).dispatchComputeFees(captor.capture());
             final var feeContext = captor.getValue();
             assertInstanceOf(ChildFeeContextImpl.class, feeContext);
             assertSame(fees, result);
@@ -575,12 +573,11 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         @Test
         void invokesComputeFeesDispatchWithNoTransactionId() {
             final var fees = new Fees(1L, 2L, 3L);
-            given(dispatcher.dispatchComputeFees(any(), HederaFunctionality.CRYPTO_TRANSFER))
-                    .willReturn(fees);
+            given(dispatcher.dispatchComputeFees(any())).willReturn(fees);
             final var captor = ArgumentCaptor.forClass(FeeContext.class);
             final var result =
                     subject.dispatchComputeFees(txnBodyWithoutId, account1002, ComputeDispatchFeesAsTopLevel.NO);
-            verify(dispatcher).dispatchComputeFees(captor.capture(), HederaFunctionality.CRYPTO_TRANSFER);
+            verify(dispatcher).dispatchComputeFees(captor.capture());
             final var feeContext = captor.getValue();
             assertInstanceOf(ChildFeeContextImpl.class, feeContext);
             assertSame(fees, result);
