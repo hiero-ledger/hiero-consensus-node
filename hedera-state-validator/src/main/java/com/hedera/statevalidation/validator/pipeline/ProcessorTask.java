@@ -279,8 +279,20 @@ public class ProcessorTask implements Callable<Void> {
 
             final VirtualHashRecord virtualHashRecord =
                     VirtualHashRecord.parseFrom(data.bytes().toReadableSequentialData());
+            final long path = virtualHashRecord.path();
 
-            if (data.location() == pathToDiskLocationInternalNodes.get(virtualHashRecord.path())) {
+            // Index sanity check (should not contain `-1` entry for a live object)
+            if (path >= 0 && path <= vds.getLastLeafPath() && pathToDiskLocationInternalNodes.get(path) == -1) {
+                dataStats.getP2h().incrementInvalidLocationCount();
+                LogUtils.printFileDataLocationError(
+                        log,
+                        "data.location() was -1 for P2H entry",
+                        vds.getHashStoreDisk().getFileCollection(),
+                        data);
+                return;
+            }
+
+            if (data.location() == pathToDiskLocationInternalNodes.get(path)) {
                 // Live object, perform ops on it...
                 if (p2hValidators == null || p2hValidators.isEmpty()) {
                     return;
