@@ -190,10 +190,10 @@ jobs:
           if [[ "${CREATE_RELEASE_BRANCH}" == "true" ]]; then
             echo "Check if the release branch already exists."
             # Check if the branch exists remotely
-            if [[ git rev-list -n 1 "origin/${release_branch}" >/dev/null 2>&1; ]] then
-              echo "Release branch '${release_branch}' already exists. Skipping creation."
+            if git ls-remote --exit-code --heads origin "${release_branch}" >/dev/null 2>&1; then
+              echo "Release branch "${release_branch}" already exists. Skipping creation."
             else
-              echo "Creating release branch: '${release_branch}'"
+              echo "Creating release branch: ${release_branch}"
               # git checkout -b "${release_branch}"
               # git push origin "${release_branch}"
             fi
