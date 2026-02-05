@@ -64,7 +64,9 @@ class OpenMetricsHttpServer implements MetricsExporter {
             address = new InetSocketAddress(config.port());
         }
 
-        server = HttpServerProvider.provider().createHttpServer(address, 2);
+        // Use a small accept backlog to absorb short TCP connection bursts so clients can receive an HTTP
+        // response (e.g., 429) instead of failing at the TCP layer. GET concurrency is limited separately.
+        server = HttpServerProvider.provider().createHttpServer(address, 3);
         server.setExecutor(executorService);
         server.createContext(config.path(), this::handleSnapshots); // main metrics endpoint
         server.start();
@@ -133,14 +135,16 @@ class OpenMetricsHttpServer implements MetricsExporter {
             MetricRegistrySnapshot registrySnapshot = supplier.get();
             exchange.sendResponseHeaders(200, 0);
 
-            // Choose output stream based on compression and send body
-            final OutputStream rawOutput = exchange.getResponseBody();
-            try (OutputStream outputStream = gzip ? new GZIPOutputStream(rawOutput) : rawOutput) {
-                if (bufferSize == 0) {
-                    writer.write(registrySnapshot, outputStream);
-                } else {
-                    writer.write(registrySnapshot, new BufferedOutputStream(outputStream, bufferSize));
-                }
+            // Choose output stream based on compression and buffer size and send body
+            OutputStream outputStream = exchange.getResponseBody();
+            if (gzip) {
+                outputStream = new GZIPOutputStream(outputStream);
+            }
+            if (bufferSize != 0) {
+                outputStream = new BufferedOutputStream(outputStream, bufferSize);
+            }
+            try (OutputStream os = outputStream) {
+                writer.write(registrySnapshot, os);
             }
         } catch (RuntimeException e) {
             logger.log(System.Logger.Level.WARNING, "Unexpected error during exporting metrics snapshots", e);

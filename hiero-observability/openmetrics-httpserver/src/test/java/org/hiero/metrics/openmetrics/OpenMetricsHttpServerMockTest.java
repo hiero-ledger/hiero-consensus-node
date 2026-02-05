@@ -110,7 +110,7 @@ public class OpenMetricsHttpServerMockTest {
 
         for (String notAllowedMethod : notAllowedMethods) {
             HttpResponse<String> response =
-                    send(newReqeust().method(notAllowedMethod, HttpRequest.BodyPublishers.noBody()));
+                    send(newRequest().method(notAllowedMethod, HttpRequest.BodyPublishers.noBody()));
 
             assertThat(response.statusCode())
                     .as("Method is not allowed: " + notAllowedMethod)
@@ -159,7 +159,7 @@ public class OpenMetricsHttpServerMockTest {
         int requestsCount = 5;
         List<CompletableFuture<HttpResponse<String>>> responseFutures = IntStream.range(0, requestsCount)
                 .mapToObj(i ->
-                        CompletableFuture.supplyAsync(() -> send(newReqeust().HEAD())))
+                        CompletableFuture.supplyAsync(() -> send(newRequest().HEAD())))
                 .toList();
 
         for (CompletableFuture<HttpResponse<String>> responseFuture : responseFutures) {
@@ -176,7 +176,7 @@ public class OpenMetricsHttpServerMockTest {
         verify(snapshotSupplier, never()).get();
     }
 
-    private HttpRequest.Builder newReqeust() {
+    private HttpRequest.Builder newRequest() {
         return HttpRequest.newBuilder().uri(uri).timeout(Duration.ofSeconds(1));
     }
 
@@ -189,6 +189,6 @@ public class OpenMetricsHttpServerMockTest {
     }
 
     private HttpResponse<String> callMetrics() {
-        return send(newReqeust().GET());
+        return send(newRequest().GET());
     }
 }

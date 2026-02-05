@@ -97,7 +97,7 @@ public class OpenMetricsHttpServerConfigTest {
 
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 1024, 2048, 65536, 2097152})
-    void testAllowedBacklogs(int bufferSize) {
+    void testAllowedBufferSizes(int bufferSize) {
         OpenMetricsHttpServerConfig endpointConfig = configBuilder()
                 .withValue("metrics.exporter.openmetrics.http.bufferSize", String.valueOf(bufferSize))
                 .build()
