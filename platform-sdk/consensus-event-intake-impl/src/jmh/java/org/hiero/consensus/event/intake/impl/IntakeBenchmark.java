@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.impl;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
@@ -41,7 +42,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @State(Scope.Thread)
 @Fork(value = 1)
 @Warmup(iterations = 1, time = 5)
-@Measurement(iterations = 2, time = 10)
+@Measurement(iterations = 3, time = 10)
 public class IntakeBenchmark {
     /** The number of nodes in the simulated network. */
     @Param({"4"})
@@ -59,19 +60,20 @@ public class IntakeBenchmark {
     @Param({"10"})
     public int numberOfThreads;
 
+    private PlatformContext platformContext;
+    private Roster roster;
     private List<PlatformEvent> events;
     private DefaultEventIntakeModule intake;
     private EventCounter counter;
+    private ForkJoinPool threadPool;
     private WiringModel model;
 
     /**
-     * Sets up the benchmark state before each invocation. Creates a graph generator with real signatures, generates
-     * events, initializes the wiring model and intake module, and wires the {@link EventCounter} to the validated
-     * events output.
+     * Executed once at the beginning of the benchmark.
      */
-    @Setup(Level.Invocation)
-    public void setup() {
-        final PlatformContext platformContext =
+    @Setup(Level.Trial)
+    public void beforeBenchmark(){
+        platformContext =
                 TestPlatformContextBuilder.create().build();
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .numNodes(numNodes)
@@ -79,19 +81,36 @@ public class IntakeBenchmark {
                 .seed(seed)
                 .realSignatures(true)
                 .build();
+        roster = generator.getRoster();
         events = generator.nextEvents(numEvents);
+        threadPool = platformContext.getExecutorFactory().createForkJoinPool(numberOfThreads);
+    }
+
+    /**
+     * Executed once at the end of the benchmark.
+     */
+    @TearDown(Level.Trial)
+    public void afterBenchmark() {
+        threadPool.shutdown();
+    }
+
+    /**
+     * Sets up the benchmark state before each invocation of the benchmarking method.
+     * <br/>
+     * At the moment, reconstructs the module every time. In the future, it would be better to reuse the same instance.
+     */
+    @Setup(Level.Invocation)
+    public void beforeInvocation() {
         // remove the hashes to force recalculation
         events.forEach(e -> e.setHash(null));
 
-        final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
-        final ForkJoinPool defaultPool = platformContext.getExecutorFactory().createForkJoinPool(numberOfThreads);
         model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .enableJvmAnchor()
-                .withDefaultPool(defaultPool)
-                .withWiringConfig(wiringConfig)
+                .withDefaultPool(threadPool)
+                .withWiringConfig(platformContext.getConfiguration().getConfigData(WiringConfig.class))
                 .build();
         final RosterHistory rosterHistory = new RosterHistory(
-                List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, generator.getRoster()));
+                List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
 
         intake = new DefaultEventIntakeModule();
         intake.initialize(
@@ -121,8 +140,8 @@ public class IntakeBenchmark {
     /*
     Results on a M1 Max MacBook Pro:
 
-    Benchmark               (numEvents)  (numNodes)  (numberOfThreads)  (seed)  Mode  Cnt    Score   Error  Units
-    IntakeBenchmark.intake        10000           4                 10       0  avgt    2  140.982          ms/op
+    Benchmark               (numEvents)  (numNodes)  (numberOfThreads)  (seed)  Mode  Cnt    Score    Error  Units
+    IntakeBenchmark.intake        10000           4                 10       0  avgt    3  107.606 ± 11.758  ms/op
     */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)

@@ -47,6 +47,7 @@ public class EventCounter implements Consumer<PlatformEvent> {
                 throw new RuntimeException("Timed out waiting for %d events".formatted(countDownLatch.getCount()));
             }
         } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
     }
