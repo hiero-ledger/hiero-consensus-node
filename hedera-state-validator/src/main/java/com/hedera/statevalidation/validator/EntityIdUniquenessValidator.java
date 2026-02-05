@@ -182,8 +182,13 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
             counter++;
         }
 
+        if (counter == 0) {
+            final String errorMessage = String.format("No entity found for Entity ID %d", entityId);
+            log.error(errorMessage);
+            issuesFound.incrementAndGet();
+        }
         if (counter > 1) {
-            if (account != null && contract != null) {
+            if ((account != null) && (contract != null) && (counter == 2)) {
                 // if it's a smart contract account, we expect it to have a contract with matching id
                 return;
             }
