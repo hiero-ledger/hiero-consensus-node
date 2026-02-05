@@ -24,6 +24,8 @@ import com.hedera.services.bdd.junit.HapiTest;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Stream;
+
+import com.hedera.services.bdd.spec.SpecOperation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -35,7 +37,17 @@ public class ConsensusServiceFeesSuite {
     private static final double BASE_FEE_TOPIC_UPDATE = 0.00022;
     private static final double BASE_FEE_TOPIC_DELETE = 0.005;
     private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0008;
-    private static final double EXTRA_PROCESSING_BYTE = 0.000011;
+    public static final double EXTRA_PROCESSING_BYTE = 0.000011;
+    public static SpecOperation doSafeSimpleValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
+        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
+            if ("true".equals(flag)) {
+                return validateChargedUsd(txnName, newPrice);
+            } else {
+                return validateChargedUsd(txnName, oldPrice);
+            }
+        });
+    }
+
     private static final double BASE_FEE_TOPIC_GET_INFO = 0.0001;
 
     private static final String PAYER = "payer";
