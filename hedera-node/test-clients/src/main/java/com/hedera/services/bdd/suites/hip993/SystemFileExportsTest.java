@@ -409,7 +409,7 @@ public class SystemFileExportsTest {
 
     @GenesisHapiTest
     @Tag(MATS)
-    final Stream<DynamicTest> syntheticFileCreationsMatchQueries() {
+    final Stream<DynamicTest> syntheticFileCreationsMatchQueriesAndNodeStakeUpdate() {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
                 eventuallyAssertingExplicitPassWithReplay(
@@ -608,15 +608,16 @@ public class SystemFileExportsTest {
                 SysFileLookups.allSystemFileNums(spec).boxed().toList();
         assertEquals(Map.of(SUCCESS, systemFileNums.size()), histogram.get(FileCreate));
         final var postGenesisContents = SysFileLookups.getSystemFileContents(spec, fileNum -> true);
-        items.entries().stream().filter(e -> e.function() == FileCreate).forEach(item -> {
-            final var fileId = item.createdFileId();
+        items.entries().stream().filter(e -> e.function() == FileCreate).forEach(entry -> {
+            final var fileId = entry.createdFileId();
             final var preContents = requireNonNull(
-                    preGenesisContents.get(item.createdFileId()), "No pre-genesis contents for " + fileId);
+                    preGenesisContents.get(entry.createdFileId()), "No pre-genesis contents for " + fileId);
             final var postContents = requireNonNull(
-                    postGenesisContents.get(item.createdFileId()), "No post-genesis contents for " + fileId);
+                    postGenesisContents.get(entry.createdFileId()), "No post-genesis contents for " + fileId);
             final var exportedContents =
-                    fromByteString(item.body().getFileCreate().getContents());
+                    fromByteString(entry.body().getFileCreate().getContents());
             if (fileId.fileNum() != 102) {
+                //  The node's weight in node details can change between preContent and exportedContents
                 assertEquals(exportedContents, preContents, fileId + " contents don't match pre-genesis query");
             }
             assertEquals(exportedContents, postContents, fileId + " contents don't match post-genesis query");
