@@ -32,6 +32,7 @@ import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.CacheConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -119,7 +120,8 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 JumboTransactionsConfig.class,
                 GovernanceTransactionsConfig.class,
                 GrpcUsageTrackerConfig.class,
-                OpsDurationConfig.class);
+                OpsDurationConfig.class,
+                ClprConfig.class);
     }
 
     @NonNull

@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
@@ -28,6 +29,11 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
 
+    /**
+     * Exercises shutdown and restart of a node while block node streaming remains stable.
+     *
+     * @return dynamic tests for the restart flow
+     */
     @HapiTest
     @HapiBlockNode(
             networkSize = 4,
@@ -82,7 +88,8 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 // Submit operations when node 2 is down
                 burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                 // Restart node2
-                FakeNmt.restartWithConfigVersion(NodeSelector.byNodeId(2), CURRENT_CONFIG_VERSION.get()),
+                sourcingContextual(spec -> FakeNmt.restartWithConfigVersion(
+                        NodeSelector.byNodeId(2), LifecycleTest.currentConfigVersion(spec))),
                 // Wait for node2 ACTIVE (BUSY and RECONNECT_COMPLETE are too transient to reliably poll for)
                 waitForActive(NodeSelector.byNodeId(2), RESTART_TO_ACTIVE_TIMEOUT),
                 // Run some more transactions

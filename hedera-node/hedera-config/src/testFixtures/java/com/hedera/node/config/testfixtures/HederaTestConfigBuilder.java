@@ -34,6 +34,7 @@ import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.CacheConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -140,6 +141,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(UptimeConfig.class)
                  */
                 .withConfigDataType(VirtualMapConfig.class)
+                .withConfigDataType(ClprConfig.class)
 
                 // These data types, converters, and validators are defined by services.
                 .withConfigDataType(AccountsConfig.class)

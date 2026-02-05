@@ -54,6 +54,7 @@ import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
+import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -188,6 +189,9 @@ class BlockStreamManagerImplTest {
     @Mock
     private QuiescedHeartbeat quiescedHeartbeat;
 
+    @Mock
+    private BlockProvenStateAccessor blockProvenStateAccessor;
+
     private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
     private final AtomicReference<PlatformState> stateRef = new AtomicReference<>();
@@ -264,6 +268,7 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
+                blockProvenStateAccessor,
                 metrics);
         assertSame(EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
@@ -289,6 +294,7 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
+                blockProvenStateAccessor,
                 metrics);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
@@ -1343,6 +1349,7 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 lifecycle,
                 quiescedHeartbeat,
+                blockProvenStateAccessor,
                 metrics);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);

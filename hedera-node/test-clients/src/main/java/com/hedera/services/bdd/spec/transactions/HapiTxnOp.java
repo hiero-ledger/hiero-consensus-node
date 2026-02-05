@@ -234,7 +234,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                         systemFunctionalityTarget(),
                         targetNodeFor(spec));
             } catch (StatusRuntimeException e) {
-                if (respondToSRE(e, "submitting transaction")) {
+                if (respondToSRE(spec, e, "submitting transaction")) {
                     continue;
                 } else {
                     if (spec.setup().suppressUnrecoverableNetworkFailures()) {
@@ -541,7 +541,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
             try {
                 response = spec.targetNetworkOrThrow().send(receiptQuery, TransactionGetReceipt, targetNodeFor(spec));
             } catch (StatusRuntimeException e) {
-                if (!respondToSRE(e, "resolving status")) {
+                if (!respondToSRE(spec, e, "resolving status")) {
                     log.warn(
                             "({}) Status resolution failed with unrecognized exception",
                             Thread.currentThread().getName(),
@@ -556,7 +556,9 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return response;
     }
 
-    private boolean respondToSRE(@NonNull final StatusRuntimeException e, @NonNull final String context) {
+    private boolean respondToSRE(
+            @NonNull final HapiSpec spec, @NonNull final StatusRuntimeException e, @NonNull final String context) {
+        requireNonNull(spec);
         final var msg = e.toString();
         try {
             if (isRecognizedRecoverable(msg)) {
@@ -565,7 +567,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 return true;
             } else if (isInternalError(e)) {
                 log.warn("Internal HTTP/2 error when {}, rebuilding channels", context);
-                HapiClients.rebuildChannels();
+                HapiClients.rebuildChannelsForNodes(spec.targetNetworkOrThrow().nodes());
                 Thread.sleep(250L);
                 return true;
             }

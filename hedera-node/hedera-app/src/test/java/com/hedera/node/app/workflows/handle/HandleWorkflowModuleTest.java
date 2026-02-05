@@ -77,6 +77,10 @@ import com.hedera.node.app.service.util.impl.handlers.UtilPrngHandler;
 import com.hedera.node.app.workflows.dispatcher.TransactionHandlers;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
+import org.hiero.interledger.clpr.impl.handlers.ClprGetLedgerConfigurationHandler;
+import org.hiero.interledger.clpr.impl.handlers.ClprHandlers;
+import org.hiero.interledger.clpr.impl.handlers.ClprLedgerConfigurationHandlers;
+import org.hiero.interledger.clpr.impl.handlers.ClprSetLedgerConfigurationHandler;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -278,7 +282,16 @@ class HandleWorkflowModuleTest {
     private UtilPrngHandler utilPrngHandler;
 
     @Mock
+    private ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler;
+
+    @Mock
+    private ClprSetLedgerConfigurationHandler clprSetLedgerConfigurationHandler;
+
+    @Mock
     private HintsKeyPublicationHandler keyPublicationHandler;
+
+    @Mock
+    private ClprHandlers clprHandlers;
 
     @TempDir
     java.nio.file.Path tempDir;
@@ -350,6 +363,8 @@ class HandleWorkflowModuleTest {
                 hintsKeyPublicationHandler, preprocessingVoteHandler, partialSignatureHandler, crsPublicationHandler);
         final var historyHandlers =
                 new HistoryHandlers(proofSignatureHandler, proofKeyPublicationHandler, proofVoteHandler);
+        final var clprHandlers = new ClprLedgerConfigurationHandlers(
+                clprGetLedgerConfigurationHandler, clprSetLedgerConfigurationHandler);
         final var handlers = HandleWorkflowModule.provideTransactionHandlers(
                 networkAdminHandlers,
                 consensusHandlers,
@@ -360,7 +375,8 @@ class HandleWorkflowModuleTest {
                 utilHandlers,
                 addressBookHandlers,
                 hintsHandlers,
-                historyHandlers);
+                historyHandlers,
+                clprHandlers);
         assertInstanceOf(TransactionHandlers.class, handlers);
     }
 }

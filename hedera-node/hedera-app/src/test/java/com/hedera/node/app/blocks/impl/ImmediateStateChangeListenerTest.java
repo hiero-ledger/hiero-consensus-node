@@ -60,6 +60,8 @@ import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -228,6 +230,12 @@ class ImmediateStateChangeListenerTest {
                                 StateIdentifier.STATE_ID_PREPROCESSING_VOTES.protoOrdinal(),
                                 PreprocessingVoteId.DEFAULT,
                                 PreprocessingVote.DEFAULT);
+
+                    case CLPR_LEDGER_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_CLPR_LEDGER_CONFIGURATIONS.protoOrdinal(),
+                                ClprLedgerId.DEFAULT,
+                                ClprLedgerConfiguration.DEFAULT);
 
                     case NODE_ID_KEY ->
                         new MapUpdateScenario<>(

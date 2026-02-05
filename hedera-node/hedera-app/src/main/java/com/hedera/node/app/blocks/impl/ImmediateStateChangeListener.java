@@ -76,6 +76,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 
 /**
  * A state change listener that tracks an entire sequence of changes, even if this sequence
@@ -237,6 +239,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case EvmHookSlotKey evmHookSlotKey ->
                 new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.EVM_HOOK_SLOT_KEY, evmHookSlotKey));
             case HookId HookId -> new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.HOOK_ID_KEY, HookId));
+            case ClprLedgerId clprLedgerId ->
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CLPR_LEDGER_ID_KEY, clprLedgerId));
             default ->
                 throw new IllegalStateException(
                         "Unrecognized key type " + key.getClass().getSimpleName());
@@ -310,6 +314,9 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case CrsPublicationTransactionBody crsPublicationTransactionBody ->
                 new MapChangeValue(new OneOf<>(
                         MapChangeValue.ValueChoiceOneOfType.CRS_PUBLICATION_VALUE, crsPublicationTransactionBody));
+            case ClprLedgerConfiguration clprLedgerConfiguration ->
+                new MapChangeValue(new OneOf<>(
+                        MapChangeValue.ValueChoiceOneOfType.CLPR_LEDGER_CONFIGURATION_VALUE, clprLedgerConfiguration));
             case EvmHookState evmHookState ->
                 new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.EVM_HOOK_STATE_VALUE, evmHookState));
             case WrapsMessageHistory wrapsMessageHistory ->

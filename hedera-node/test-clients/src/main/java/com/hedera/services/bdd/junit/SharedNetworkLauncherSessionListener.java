@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.SHARED_NETWORK_NAME;
 import static com.hedera.services.bdd.junit.support.TestPlanUtils.hasAnnotatedTestNode;
+import static com.hedera.services.bdd.junit.support.TestPlanUtils.hasTaggedTestNode;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
@@ -90,6 +91,10 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         @Override
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
             REPEATABLE_KEY_GENERATOR.set(new RepeatableKeyGenerator());
+            final boolean hasClprTests = hasTaggedTestNode(testPlan, Set.of(TestTags.CLPR));
+            final boolean clprSystemPropertyEnabled =
+                    Boolean.parseBoolean(System.getProperty("clpr.clprEnabled", "false"));
+            final boolean enableClprOverrides = hasClprTests || clprSystemPropertyEnabled;
 
             // Validate high-volume pricing curves before starting any tests
             HighVolumePricingValidator.validateGenesisFeeSchedule();
@@ -112,6 +117,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                             LeakyRepeatableHapiTest.class,
                             RepeatableHapiTest.class))) {
                 log.info("No HapiTests found in test plan, skipping shared network startup");
+                embedding = Embedding.NA;
                 return;
             }
             embedding = embeddingMode();
@@ -132,6 +138,11 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         case REPEATABLE -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.REPEATABLE);
                     };
             if (network != null) {
+                if (network instanceof SubProcessNetwork subProcessNetwork) {
+                    if (enableClprOverrides) {
+                        upsertApplicationOverride(subProcessNetwork, "clpr.clprEnabled", "true");
+                    }
+                }
                 checkPrOverridesForBlockNodeStreaming(network);
                 network.start();
                 SHARED_NETWORK.set(network);
@@ -161,9 +172,14 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     if (embeddedNetwork.mode() != mode) {
                         SHARED_NETWORK.get().terminate();
                         SHARED_NETWORK.set(null);
+                        Optional.ofNullable(SHARED_BLOCK_NODE_NETWORK.get()).ifPresent(BlockNodeNetwork::terminate);
+                        SHARED_BLOCK_NODE_NETWORK.set(null);
                     }
                 } else {
-                    throw new IllegalStateException("Shared network is not an embedded network");
+                    SHARED_NETWORK.get().terminate();
+                    SHARED_NETWORK.set(null);
+                    Optional.ofNullable(SHARED_BLOCK_NODE_NETWORK.get()).ifPresent(BlockNodeNetwork::terminate);
+                    SHARED_BLOCK_NODE_NETWORK.set(null);
                 }
             }
             if (SHARED_NETWORK.get() == null) {
@@ -191,7 +207,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                             .map(Integer::parseInt)
                             .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
             final var initialPortProperty = System.getProperty("hapi.spec.initial.port");
-            if (!initialPortProperty.isBlank()) {
+            if (initialPortProperty != null && !initialPortProperty.isBlank()) {
                 final var initialPort = Integer.parseInt(initialPortProperty);
                 SubProcessNetwork.initializeNextPortsForNetwork(networkSize, initialPort);
             }
@@ -218,6 +234,27 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         private static void startSharedEmbedded(@NonNull final EmbeddedMode mode) {
             SHARED_NETWORK.set(EmbeddedNetwork.newSharedNetwork(mode));
             SHARED_NETWORK.get().start();
+        }
+
+        private static void upsertApplicationOverride(
+                @NonNull final SubProcessNetwork subProcessNetwork,
+                @NonNull final String property,
+                @NonNull final String value) {
+            final var overrides = subProcessNetwork.getApplicationPropertyOverrides();
+            subProcessNetwork.nodes().forEach(node -> {
+                final var existing = overrides.getOrDefault(node.getNodeId(), List.of());
+                final var updated = new ArrayList<>(existing);
+                for (int i = 0; i + 1 < updated.size(); i += 2) {
+                    if (property.equals(updated.get(i))) {
+                        updated.set(i + 1, value);
+                        overrides.put(node.getNodeId(), List.copyOf(updated));
+                        return;
+                    }
+                }
+                updated.add(property);
+                updated.add(value);
+                overrides.put(node.getNodeId(), List.copyOf(updated));
+            });
         }
 
         private static Embedding embeddingMode() {

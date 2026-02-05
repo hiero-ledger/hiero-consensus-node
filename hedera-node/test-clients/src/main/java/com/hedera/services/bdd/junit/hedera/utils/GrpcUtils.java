@@ -73,6 +73,8 @@ public class GrpcUtils {
                 clients.getNetworkSvcStub(nodeAccountId, false, asNodeOperator).getExecutionTime(query);
             case GetAccountDetails ->
                 clients.getNetworkSvcStub(nodeAccountId, false, asNodeOperator).getAccountDetails(query);
+            case ClprGetLedgerConfig ->
+                clients.getClprSvcStub(nodeAccountId, false, asNodeOperator).getLedgerConfiguration(query);
             default -> throw new IllegalArgumentException(functionality + " is not a query");
         };
     }
@@ -212,6 +214,8 @@ public class GrpcUtils {
                 clients.getTokenSvcStub(nodeAccountId, false, false).claimAirdrop(transaction);
             case AtomicBatch ->
                 clients.getUtilSvcStub(nodeAccountId, false, false).atomicBatch(transaction);
+            case ClprSetLedgerConfig ->
+                clients.getClprSvcStub(nodeAccountId, false, false).setLedgerConfiguration(transaction);
             case StateSignatureTransaction,
                     HintsPreprocessingVote,
                     HintsKeyPublication,

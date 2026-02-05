@@ -154,6 +154,7 @@ public class NetworkUtils {
             final int nextGossipPort,
             final int nextGossipTlsPort,
             final int nextPrometheusPort,
+            final int nextDebugPort,
             final long shard,
             final long realm) {
         requireNonNull(host);
@@ -172,6 +173,7 @@ public class NetworkUtils {
                 nextGossipPort + nodeId * 2,
                 nextGossipTlsPort + nodeId * 2,
                 nextPrometheusPort + nodeId,
+                nextDebugPort + nodeId,
                 workingDirFor(nodeId, scope));
     }
 
@@ -200,6 +202,7 @@ public class NetworkUtils {
             final int nextGossipPort,
             final int nextGossipTlsPort,
             final int nextPrometheusPort,
+            final int nextDebugPort,
             @NonNull final Path workingDir,
             final long shard,
             final long realm) {
@@ -220,6 +223,7 @@ public class NetworkUtils {
                 nextGossipPort + nodeId * 2,
                 nextGossipTlsPort + nodeId * 2,
                 nextPrometheusPort + nodeId,
+                nextDebugPort + nodeId,
                 workingDir);
     }
 

@@ -240,5 +240,21 @@
     <Logger name="grpc-access-log" level="INFO" additivity="false">
       <AppenderRef ref="GrpcAccessLog" />
     </Logger>
+    <Logger name="com.hedera.node.app.workflows.ingest.IngestWorkflowImpl" level="debug" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="RollingFile"/>
+    </Logger>
+    <Logger name="com.hedera.node.app.workflows.ingest.IngestWorkflowImpl" level="debug" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="fileLog"/>
+    </Logger>
+    <Logger name="org.hiero.interledger.clpr.impl.ClprEndpointClient" level="debug" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="RollingFile"/>
+    </Logger>
+    <Logger name="org.hiero.interledger.clpr.impl.client.ClprClientImpl" level="debug" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="RollingFile"/>
+    </Logger>
   </Loggers>
 </Configuration>

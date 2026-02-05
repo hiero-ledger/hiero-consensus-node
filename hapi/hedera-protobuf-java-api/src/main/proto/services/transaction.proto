@@ -103,6 +103,8 @@ import "services/auxiliary/tss/ledger_id_publication.proto";
 import "services/hook_store.proto";
 import "services/hook_dispatch.proto";
 
+import "interledger/clpr_set_ledger_configuration.proto";
+
 /**
  * A wrapper around signed transaction bytes.<br/>
  * This was originally a transaction with body, signatures, and/or bytes,
@@ -668,6 +670,11 @@ message TransactionBody {
          * An internal-only transaction body for publishing the ledger id.
          */
         com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody ledger_id_publication = 77;
+
+        /**
+         * A transaction body for setting CLPR Ledger Configuration.
+         */
+        org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody clprSetLedgerConfiguration = 100;
     }
 
     /**

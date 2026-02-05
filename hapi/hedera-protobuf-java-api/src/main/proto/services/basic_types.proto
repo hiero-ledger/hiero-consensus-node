@@ -1858,6 +1858,16 @@ enum HederaFunctionality {
      * (Internal-only) Publish a new ledger id and chain-of-trust key.
      */
     LedgerIdPublication = 112;
+
+    /**
+     * Get a CLPR ledger configuration.
+     */
+    ClprGetLedgerConfig = 130;
+
+    /**
+     * Creates or updates a CLPR remote configuration.
+     */
+    ClprSetLedgerConfig = 131;
 }
 
 /**

@@ -36,7 +36,12 @@ tasks.jacocoTestReport {
 
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            // Allow access to test resources like hapi-test-gossip-certs.json.
+            .plus(sourceSets.test.get().output)
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
@@ -93,6 +98,8 @@ val prCheckTags =
             // MATS task → explicitly REQUIRE MATS
             put("$task$matsSuffix", "($tags)&MATS")
         }
+        put("hapiTestClpr", "CLPR")
+        put("hapiTestMultiNetwork", "MULTINETWORK")
     }
 
 val remoteCheckTags =
@@ -123,6 +130,8 @@ val prCheckStartPorts =
         put("hapiTestBlockNodeCommunication", "27000")
         put("hapiTestMiscRecords", "27200")
         put("hapiTestAtomicBatch", "27400")
+        put("hapiTestClpr", "27600")
+        put("hapiTestMultiNetwork", "27800")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -160,6 +169,11 @@ val prCheckPropOverrides =
             "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestAtomicBatch", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put(
+            "hapiTestClpr",
+            "clpr.clprEnabled=true,clpr.devModeEnabled=true,clpr.connectionFrequency=100",
+        )
+        put("hapiTestMultiNetwork", "clpr.clprEnabled=false")
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -207,7 +221,12 @@ tasks {
 
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            // the following line adds access to pregenerated keys in `src/test/resources`.
+            .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -223,7 +242,49 @@ tasks.register<Test>("testSubprocess") {
             // cases
             else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
+            else if (ciTagExpression.contains("CLPR")) "(CLPR)"
+            else if (ciTagExpression.contains("MULTINETWORK")) "(MULTINETWORK)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
+        )
+    }
+
+    val commandLineIncludePatterns =
+        try {
+            @Suppress("UNCHECKED_CAST")
+            filter::class.java.getMethod("getCommandLineIncludePatterns").invoke(filter)
+                as Set<String>
+        } catch (_: Exception) {
+            emptySet()
+        }
+    val filterPatterns = filter.includePatterns + commandLineIncludePatterns
+    val taskArgs = gradle.startParameter.taskRequests.flatMap { it.args }
+    fun containsClprPattern(value: String?) = value?.contains("CLPR", ignoreCase = true) == true
+    val testFiltersClpr = filterPatterns.any(::containsClprPattern)
+    val testsArgWithEquals =
+        taskArgs
+            .filter { it.startsWith("--tests=") }
+            .map { it.substringAfter("=") }
+            .any(::containsClprPattern)
+    val testsArgWithSeparatePattern =
+        taskArgs.withIndex().any { (index, arg) ->
+            arg == "--tests" && containsClprPattern(taskArgs.getOrNull(index + 1))
+        }
+    val testSingleProperty =
+        taskArgs
+            .filter { it.startsWith("-Dtest.single=") }
+            .map { it.substringAfter("=") }
+            .any(::containsClprPattern)
+    val commandLineRequestsClpr =
+        testsArgWithEquals || testsArgWithSeparatePattern || testSingleProperty
+    val shouldEnableClpr =
+        ciTagExpression.contains("CLPR") || testFiltersClpr || commandLineRequestsClpr
+    if (shouldEnableClpr) {
+        systemProperty("clpr.clprEnabled", "true")
+        systemProperty("clpr.devModeEnabled", "true")
+        systemProperty("clpr.publicizeNetworkAddresses", "true")
+        systemProperty(
+            "clpr.connectionFrequency",
+            System.getProperty("clpr.connectionFrequency", "5000"),
         )
     }
 
@@ -316,7 +377,12 @@ tasks.register<Test>("testSubprocess") {
 
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            // Allow access to pre-generated gossip keys in `src/test/resources`.
+            .plus(sourceSets.test.get().output)
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -406,7 +472,12 @@ tasks {
 // Runs tests against an embedded network that supports concurrent tests
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            // Allow access to pre-generated gossip keys in `src/test/resources`.
+            .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -480,7 +551,12 @@ tasks {
 // single thread
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            // Allow access to pre-generated gossip keys in `src/test/resources`.
+            .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
         gradle.startParameter.taskNames

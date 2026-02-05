@@ -67,6 +67,7 @@ import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
+import com.swirlds.state.StateLifecycleManager;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -78,6 +79,8 @@ import java.util.function.Supplier;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.interledger.clpr.impl.ClprEndpointClient;
+import org.hiero.interledger.clpr.impl.ClprModule;
 
 /**
  * The infrastructure used to implement the platform contract for a Hedera Services node.
@@ -95,7 +98,8 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
             BlockStreamModule.class,
             PlatformModule.class,
             ThrottleServiceModule.class,
-            FacilityInitModule.class
+            FacilityInitModule.class,
+            ClprModule.class
         })
 public interface HederaInjectionComponent {
     InitTrigger initTrigger();
@@ -165,6 +169,8 @@ public interface HederaInjectionComponent {
 
     SelfNodeAccountIdManager selfNodeAccountIdManager();
 
+    ClprEndpointClient clprEndpoint();
+
     @Component.Builder
     interface Builder {
         @BindsInstance
@@ -211,6 +217,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder platform(Platform platform);
+
+        @BindsInstance
+        Builder stateLifecycleManager(StateLifecycleManager stateLifecycleManager);
 
         @BindsInstance
         Builder transactionPool(TransactionPoolNexus transactionPool);
