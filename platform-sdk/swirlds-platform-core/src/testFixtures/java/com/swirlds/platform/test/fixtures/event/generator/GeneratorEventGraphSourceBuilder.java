@@ -9,7 +9,6 @@ import com.swirlds.platform.test.fixtures.event.signer.EventSigner;
 import com.swirlds.platform.test.fixtures.event.signer.RandomEventSigner;
 import com.swirlds.platform.test.fixtures.event.signer.RealEventSigner;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Objects;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;
@@ -29,7 +28,6 @@ public class GeneratorEventGraphSourceBuilder {
     private Roster roster;
     private Integer numNodes;
     private boolean realSignatures = false;
-    private EventSigner signer;
 
     /**
      * Creates a new builder instance.
@@ -133,11 +131,34 @@ public class GeneratorEventGraphSourceBuilder {
     /**
      * Builds the {@link GeneratorEventGraphSource} with the configured parameters.
      *
-     * @return a new SimpleGraphGenerator instance
+     * @return a new instance
      */
     public GeneratorEventGraphSource build() {
+        final Roster actualRoster;
+        final EventSigner signer;
+        if (roster != null) {
+            signer = new RandomEventSigner(getSeed());
+            actualRoster = roster;
+        }else{
+            final int nodeCount = numNodes != null ? numNodes : DEFAULT_NUM_NODES;
+            if (realSignatures) {
+                final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(Randotron.create(getSeed()))
+                        .withSize(nodeCount)
+                        .withRealKeysEnabled(true)
+                        .buildWithKeys();
+                signer = new RealEventSigner(rosterWithKeys);
+                actualRoster = rosterWithKeys.getRoster();
+            } else {
+                signer = new RandomEventSigner(getSeed());
+                actualRoster = RandomRosterBuilder.create(Randotron.create(getSeed()))
+                        .withSize(nodeCount)
+                        .withRealKeysEnabled(false)
+                        .build();
+            }
+        }
+
         return new GeneratorEventGraphSource(
-                getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), getRoster(), getEventSigner());
+                getConfiguration(), getTime(), getSeed(), getMaxOtherParents(), actualRoster, signer);
     }
 
     private Configuration getConfiguration() {
@@ -154,31 +175,5 @@ public class GeneratorEventGraphSourceBuilder {
 
     private int getMaxOtherParents() {
         return maxOtherParents != null ? maxOtherParents : DEFAULT_MAX_OTHER_PARENTS;
-    }
-
-    private Roster getRoster() {
-        if (roster != null) {
-            signer = new RandomEventSigner(getSeed());
-            return roster;
-        }
-        final int nodeCount = numNodes != null ? numNodes : DEFAULT_NUM_NODES;
-        if (realSignatures) {
-            final RosterWithKeys rosterWithKeys = RandomRosterBuilder.create(Randotron.create(getSeed()))
-                    .withSize(nodeCount)
-                    .withRealKeysEnabled(true)
-                    .buildWithKeys();
-            signer = new RealEventSigner(rosterWithKeys);
-            return rosterWithKeys.getRoster();
-        } else {
-            signer = new RandomEventSigner(getSeed());
-            return RandomRosterBuilder.create(Randotron.create(getSeed()))
-                    .withSize(nodeCount)
-                    .withRealKeysEnabled(false)
-                    .build();
-        }
-    }
-
-    private EventSigner getEventSigner() {
-        return Objects.requireNonNull(signer, "Signer should have been set in getRoster()");
     }
 }
