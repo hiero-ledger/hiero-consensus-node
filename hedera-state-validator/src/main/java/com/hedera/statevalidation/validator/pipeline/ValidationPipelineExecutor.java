@@ -12,7 +12,9 @@ import com.hedera.statevalidation.validator.listener.ValidationListener;
 import com.hedera.statevalidation.validator.model.DataStats;
 import com.hedera.statevalidation.validator.model.DiskDataItem;
 import com.hedera.statevalidation.validator.model.DiskDataItem.Type;
+import com.hedera.statevalidation.validator.model.FileReadTaskConfig;
 import com.hedera.statevalidation.validator.model.MemoryHashItem;
+import com.hedera.statevalidation.validator.model.MemoryReadTaskConfig;
 import com.hedera.statevalidation.validator.model.ValidationItem;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
@@ -159,8 +161,8 @@ public final class ValidationPipelineExecutor {
                 final long inMemoryHashThreshold = pathToHashRam != null ? vds.getHashesRamToDiskThreshold() : 0;
 
                 // Plan read tasks
-                final var fileReadTasks = new ArrayList<FileReadTask>();
-                final var memoryReadTasks = new ArrayList<MemoryReadTask>();
+                final var fileReadTasks = new ArrayList<FileReadTaskConfig>();
+                final var memoryReadTasks = new ArrayList<MemoryReadTaskConfig>();
 
                 if (validators.containsKey(Type.P2KV)) {
                     fileReadTasks.addAll(planFileReadTasks(pathToKeyValueDfc, Type.P2KV));
@@ -204,13 +206,13 @@ public final class ValidationPipelineExecutor {
                 }
 
                 // Submit read tasks
-                for (final MemoryReadTask task : memoryReadTasks) {
+                for (final MemoryReadTaskConfig task : memoryReadTasks) {
                     ioFutures.add(ioPool.submit(() -> {
                         readInMemoryHashChunk(task.startPath(), task.endPath());
                         return null;
                     }));
                 }
-                for (final FileReadTask task : fileReadTasks) {
+                for (final FileReadTaskConfig task : fileReadTasks) {
                     ioFutures.add(ioPool.submit(() -> {
                         readFileChunk(task.reader(), task.type(), task.startByte(), task.endByte());
                         return null;
@@ -305,9 +307,9 @@ public final class ValidationPipelineExecutor {
      * @param dataType the type of data items in this collection
      * @return list of file read tasks
      */
-    private List<FileReadTask> planFileReadTasks(@NonNull final DataFileCollection dfc, @NonNull final Type dataType) {
+    private List<FileReadTaskConfig> planFileReadTasks(@NonNull final DataFileCollection dfc, @NonNull final Type dataType) {
 
-        final List<FileReadTask> tasks = new ArrayList<>();
+        final List<FileReadTaskConfig> tasks = new ArrayList<>();
 
         final long collectionTotalSize = dfc.getAllCompletedFiles().stream()
                 .mapToLong(DataFileReader::getSize)
@@ -339,7 +341,7 @@ public final class ValidationPipelineExecutor {
                     continue;
                 }
 
-                tasks.add(new FileReadTask(reader, dataType, startByte, endByte));
+                tasks.add(new FileReadTaskConfig(reader, dataType, startByte, endByte));
             }
         }
 
@@ -376,8 +378,8 @@ public final class ValidationPipelineExecutor {
      * @param totalPaths the total number of paths to read
      * @return list of memory read tasks
      */
-    private List<MemoryReadTask> planP2HMemoryReadTasks(final long totalPaths) {
-        final List<MemoryReadTask> tasks = new ArrayList<>();
+    private List<MemoryReadTaskConfig> planP2HMemoryReadTasks(final long totalPaths) {
+        final List<MemoryReadTaskConfig> tasks = new ArrayList<>();
 
         // Use a reasonable min chunk size
         final long minPathsPerChunk = 100_000L;
@@ -386,7 +388,7 @@ public final class ValidationPipelineExecutor {
 
         for (long start = 0; start < totalPaths; start += pathsPerChunk) {
             final long end = Math.min(start + pathsPerChunk, totalPaths);
-            tasks.add(new MemoryReadTask(start, end));
+            tasks.add(new MemoryReadTaskConfig(start, end));
         }
 
         return tasks;
