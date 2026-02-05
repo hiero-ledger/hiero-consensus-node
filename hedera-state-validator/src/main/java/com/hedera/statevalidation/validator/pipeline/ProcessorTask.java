@@ -196,7 +196,7 @@ public class ProcessorTask implements Callable<Void> {
             dataStats.getP2hMemory().incrementInvalidLocationCount();
         }
 
-        if (p2hValidators == null || p2hValidators.isEmpty()) {
+        if (p2hValidators == null) {
             return;
         }
 
@@ -231,7 +231,7 @@ public class ProcessorTask implements Callable<Void> {
 
             if (data.location() == pathToDiskLocationLeafNodes.get(virtualLeafBytes.path())) {
                 // Live object, perform ops on it...
-                if (p2kvValidators == null || p2kvValidators.isEmpty()) {
+                if (p2kvValidators == null) {
                     return;
                 }
                 p2kvValidators.forEach(validator -> {
@@ -294,7 +294,7 @@ public class ProcessorTask implements Callable<Void> {
 
             if (data.location() == pathToDiskLocationInternalNodes.get(path)) {
                 // Live object, perform ops on it...
-                if (p2hValidators == null || p2hValidators.isEmpty()) {
+                if (p2hValidators == null) {
                     return;
                 }
                 p2hValidators.forEach(validator -> {
@@ -345,7 +345,7 @@ public class ProcessorTask implements Callable<Void> {
 
                 if (data.location() == bucketIndexToBucketLocation.get(bucket.getBucketIndex())) {
                     // Live object, perform ops on it...
-                    if (k2pValidators == null || k2pValidators.isEmpty()) {
+                    if (k2pValidators == null) {
                         return;
                     }
                     k2pValidators.forEach(validator -> {
