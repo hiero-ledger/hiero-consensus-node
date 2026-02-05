@@ -165,6 +165,24 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         return account.hederaContractId();
     }
 
+    public ContractID getHederaContractIdNotThrowing(Address address) {
+        var account = (HederaEvmAccount) get(address);
+        if( account != null )
+            return account.hederaContractId();
+        // Also return ids for pending creations
+        if( pendingCreation != null && pendingCreation.address().equals(address) )
+            return entityIdFactory().newContractId(pendingCreation.number());
+
+        if( !contractMustBePresent ) {
+            return isLongZero(address)
+                ? asNumberedContractId(entityIdFactory(), address)
+                : asEvmContractId(entityIdFactory(), address);
+        }
+        return null;            // Instead of throwing IAE
+    }
+
+
+
     @Override
     public @NonNull Bytes entropy() {
         return pbjToTuweniBytes(enhancement.operations().entropy());

@@ -47,6 +47,8 @@ import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.gascalculator.FrontierGasCalculator;
+import org.hyperledger.besu.evm.gascalculator.TangerineWhistleGasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.log.LogTopic;
@@ -141,9 +143,10 @@ public class BonnevilleEVM extends HEVM {
  * BonnevilleEVM so it can be changed without impacting anything else.
  */
 class BEVM {
-    @NotNull BonnevilleEVM _bevm;
+    BonnevilleEVM _bevm;
 
-    @NonNull final GasCalculator _gasCalc;
+    final GasCalculator _gasCalc;
+    final boolean _gasTangerineWhistle; // True if TW, False if Frontier, ERROR is anything else
 
     final FeatureFlags _flags;
     final AddressChecks _adrChk;
@@ -175,7 +178,6 @@ class BEVM {
     private BitSet _jmpDest;
 
     // Gas available, runs down to zero
-    private long _startGas;
     private long _gas;
 
     // Recipient
@@ -218,6 +220,9 @@ class BEVM {
         // If SSTore minimum gas is ever not-zero, will need to check in sStore
         if( _gasCalc.getVeryLowTierGasCost() > 10 )
             throw new TODO("Need to restructure how gas is computed");
+        // TW gas calc has a back-door call cost computation
+        _gasTangerineWhistle = _gasCalc instanceof TangerineWhistleGasCalculator;
+        assert _gasTangerineWhistle || (_gasCalc instanceof FrontierGasCalculator);
 
         // Local temp storage
         _mem = new Memory();
@@ -248,8 +253,7 @@ class BEVM {
         assert _sp == 0;
 
         // Starting and current gas
-        _startGas = frame.getRemainingGas();
-        _gas = _startGas;
+        _gas = frame.getRemainingGas();
 
         // Account receiver.  Can be null for various broken calls
         WorldUpdater updater = frame.getWorldUpdater();
@@ -268,7 +272,10 @@ class BEVM {
         // Preload input data
         _callData = _frame.getInputData().toArrayUnsafe();
 
-        _contractId = updater instanceof ProxyWorldUpdater proxy ? proxy.getHederaContractId(_frame.getRecipientAddress()) : null;
+        // TODO: Could get lazier here
+        _contractId = updater instanceof ProxyWorldUpdater proxy
+            ? proxy.getHederaContractIdNotThrowing(_frame.getRecipientAddress())
+            : null;
 
         _originator = frame.getOriginatorAddress();
 
@@ -748,6 +755,8 @@ class BEVM {
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+
+        // TODO: BUG: 0 - -1 is busted result
 
         // If both sign bits are the same and differ from the result, we overflowed
         long sub0 = lhs0 - rhs0;
@@ -2277,16 +2286,21 @@ class BEVM {
         }
 
         // gasAvailableForChildCall; this is the "all but 1/64th" computation
-        long childGasStipend = Math.min(_gas - (_gas>>6),stipend);
-        if( hasValue ) childGasStipend += _gasCalc.getAdditionalCallStipend();
+        long gasCap = Math.min(_gas - (_gas>>6),stipend);
+        if( _gasTangerineWhistle )
+            _gas -= gasCap;
+        else
+            throw new TODO();   // Make sure FrontierGas calc is sane
         _frame.setGasRemaining(_gas);
+        // Child getting value also gets a gas stipend
+        if( hasValue ) gasCap += _gasCalc.getAdditionalCallStipend();
 
         // ----------------------------
         // child frame is added to frame stack via build method
         MessageFrame child = MessageFrame.builder()
             .parentMessageFrame(_frame)
             .type(MessageFrame.Type.MESSAGE_CALL)
-            .initialGas(childGasStipend)
+            .initialGas(gasCap)
             .address(recipient)
             .contract(contract)
             .inputData(src)
@@ -2322,14 +2336,16 @@ class BEVM {
         case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
         case MessageFrame.State.EXCEPTIONAL_HALT:  {
             FrameUtils.exceptionalHalt(child);
+            var haltReason = child.getExceptionalHaltReason().get();
             // Fairly obnoxious back-door signal to propagate a particular
             // failure 1 call level, or not.  From CustomMessageCallProcessor:324
             var maybeFailureToPropagate = FrameUtils.getAndClearPropagatedCallFailure(_frame);
             if( maybeFailureToPropagate != HevmPropagatedCallFailure.NONE ) {
-                var haltReason = child.getExceptionalHaltReason().get();
                 assert maybeFailureToPropagate.exceptionalHaltReason().get() == haltReason;
                 halt = haltReason;
             }
+            if( haltReason == CustomExceptionalHaltReason.INVALID_CONTRACT_ID )
+                halt = haltReason;
             break;
         }
         default: throw new TODO();
