@@ -283,7 +283,7 @@ message PricingCurve {
  * Contains a set of points (utilization, multiplier) that define a piecewise
  * linear curve for variable pricing. Each point represents a linear segment
  * between two utilization thresholds. The multiplier to use is interpolated
- * between these points based on the current utilization percentage.
+ * between these points based on the current utilization basis points.
  *
  * For example, given points
  *  - (0.0, 1.0)
@@ -295,11 +295,11 @@ message PricingCurve {
 message PiecewiseLinearCurve {
   /**
    * A list of points defining the piecewise linear curve.
-   * Each point is a pair of (utilization_percentage, multiplier). The list
-   * must be sorted by utilization_percentage in ascending order, and
+   * Each point is a pair of (utilization_basis_points, multiplier). The list
+   * must be sorted by utilization_basis_points in ascending order, and
    * sub-ordered by multiplier in ascending order for points with the same
-   * utilization percentage. It is legal to have two points with the same
-   * utilization percentage, but they must have different multipliers.
+   * utilization basis points. It is legal to have two points with the same
+   * utilization basis points, but they must have different multipliers.
    * This allows the creation of stepped pricing curves.
    */
   repeated PiecewiseLinearPoint points = 1;
