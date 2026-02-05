@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.calculator;
 
-import static com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl.countKeys;
+import static org.hiero.hapi.fees.FeeKeyUtils.countKeys;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -20,7 +19,7 @@ public class ConsensusCreateTopicFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull TransactionBody txnBody,
-            @Nullable FeeContext feeContext,
+            @NonNull final SimpleFeeContext simpleFeecontext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         long keys = 0;
@@ -36,7 +35,7 @@ public class ConsensusCreateTopicFeeCalculator implements ServiceFeeCalculator {
         }
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_CREATE_TOPIC);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, Extra.KEYS, feeSchedule, keys);
         final var hasCustomFees = !op.customFees().isEmpty();
         if (hasCustomFees) {

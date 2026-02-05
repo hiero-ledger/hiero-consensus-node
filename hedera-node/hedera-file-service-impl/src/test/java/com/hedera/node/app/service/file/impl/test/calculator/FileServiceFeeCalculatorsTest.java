@@ -19,9 +19,13 @@ import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.file.FileDeleteTransactionBody;
 import com.hedera.hapi.node.file.FileGetContentsQuery;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
+import com.hedera.hapi.node.file.SystemDeleteTransactionBody;
+import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.calculator.FileAppendFeeCalculator;
@@ -29,10 +33,11 @@ import com.hedera.node.app.service.file.impl.calculator.FileCreateFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileDeleteFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileGetContentsFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileGetInfoFeeCalculator;
+import com.hedera.node.app.service.file.impl.calculator.FileSystemDeleteFeeCalculator;
+import com.hedera.node.app.service.file.impl.calculator.FileSystemUndeleteFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileUpdateFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -71,7 +76,9 @@ class FileServiceFeeCalculatorsTest {
                         new FileCreateFeeCalculator(),
                         new FileAppendFeeCalculator(),
                         new FileUpdateFeeCalculator(),
-                        new FileDeleteFeeCalculator()),
+                        new FileDeleteFeeCalculator(),
+                        new FileSystemDeleteFeeCalculator(),
+                        new FileSystemUndeleteFeeCalculator()),
                 Set.of(new FileGetInfoFeeCalculator(), new FileGetContentsFeeCalculator()));
     }
 
@@ -135,7 +142,6 @@ class FileServiceFeeCalculatorsTest {
                         2100000L,
                         509000000L,
                         4200000L),
-                // ScheduleSignFeeCalculator case
                 new TestCase(
                         new FileAppendFeeCalculator(),
                         TransactionBody.newBuilder()
@@ -145,7 +151,27 @@ class FileServiceFeeCalculatorsTest {
                         1,
                         100000L,
                         499000000L,
-                        200000L));
+                        200000L),
+                new TestCase(
+                        new FileSystemDeleteFeeCalculator(),
+                        TransactionBody.newBuilder()
+                                .systemDelete(
+                                        SystemDeleteTransactionBody.newBuilder().build())
+                                .build(),
+                        1,
+                        0,
+                        0,
+                        0),
+                new TestCase(
+                        new FileSystemUndeleteFeeCalculator(),
+                        TransactionBody.newBuilder()
+                                .systemUndelete(SystemUndeleteTransactionBody.newBuilder()
+                                        .build())
+                                .build(),
+                        1,
+                        0,
+                        0,
+                        0));
     }
 
     @ParameterizedTest(name = "{index}: {0}")
@@ -154,12 +180,12 @@ class FileServiceFeeCalculatorsTest {
     void testFeeCalculators(TestCase testCase) {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
+        final var result = feeCalculator.calculateTxFee(testCase.body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
-        assertThat(result.service).isEqualTo(testCase.expectedServiceFee);
-        assertThat(result.network).isEqualTo(testCase.expectedNetworkFee);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(testCase.expectedNodeFee);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(testCase.expectedServiceFee);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(testCase.expectedNetworkFee);
     }
 
     @Test
@@ -169,11 +195,12 @@ class FileServiceFeeCalculatorsTest {
         final var fileGetInfoFeeCalculator = new FileGetInfoFeeCalculator();
         final var feeResult = new FeeResult();
 
-        fileGetInfoFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+        fileGetInfoFeeCalculator.accumulateNodePayment(
+                query, new SimpleFeeContextImpl(null, mockQueryContext), feeResult, createTestFeeSchedule());
 
-        assertThat(feeResult.node).isEqualTo(0L);
-        assertThat(feeResult.network).isEqualTo(0L);
-        assertThat(feeResult.service).isEqualTo(6L);
+        assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(6L);
     }
 
     @Test
@@ -193,11 +220,12 @@ class FileServiceFeeCalculatorsTest {
         final var fileGetContentsFeeCalculator = new FileGetContentsFeeCalculator();
         final var feeResult = new FeeResult();
 
-        fileGetContentsFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+        fileGetContentsFeeCalculator.accumulateNodePayment(
+                query, new SimpleFeeContextImpl(null, mockQueryContext), feeResult, createTestFeeSchedule());
 
-        assertThat(feeResult.node).isEqualTo(0L);
-        assertThat(feeResult.network).isEqualTo(0L);
-        assertThat(feeResult.service).isEqualTo(2347L);
+        assertThat(feeResult.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(2347L);
     }
 
     private static FeeSchedule createTestFeeSchedule() {
@@ -231,7 +259,9 @@ class FileServiceFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.BYTES, 1000)),
                         makeServiceFee(HederaFunctionality.FILE_DELETE, 69000000),
                         makeServiceFee(HederaFunctionality.FILE_GET_INFO, 6),
-                        makeServiceFee(HederaFunctionality.FILE_GET_CONTENTS, 7, makeExtraIncluded(Extra.BYTES, 1000))))
+                        makeServiceFee(HederaFunctionality.FILE_GET_CONTENTS, 7, makeExtraIncluded(Extra.BYTES, 1000)),
+                        makeServiceFee(HederaFunctionality.SYSTEM_DELETE, 50000000),
+                        makeServiceFee(HederaFunctionality.SYSTEM_UNDELETE, 50000000)))
                 .build();
     }
 

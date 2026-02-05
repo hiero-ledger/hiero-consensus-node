@@ -2,7 +2,7 @@
 package com.swirlds.platform.state.hashlogger;
 
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.StateConfig;
@@ -92,13 +92,10 @@ public class DefaultHashLogger implements HashLogger {
      */
     @NonNull
     private Message generateLogMessage(@NonNull final SignedState signedState) {
-        final String platformInfo = getInfoString(signedState.getState(), depth);
+        final String platformInfo = getInfoString(signedState.getState());
 
-        return MESSAGE_FACTORY.newMessage(
-                """
+        return MESSAGE_FACTORY.newMessage("""
                         State Info, round = {}:
-                        {}""",
-                signedState.getRound(),
-                platformInfo);
+                        {}""", signedState.getRound(), platformInfo);
     }
 }

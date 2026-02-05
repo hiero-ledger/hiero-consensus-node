@@ -4,22 +4,18 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.platform.reconnect.ReconnectStateLearner.endReconnectHandshake;
-import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -31,8 +27,12 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -46,7 +46,7 @@ public class ReconnectStateTeacher {
     private final Connection connection;
     private final Duration reconnectSocketTimeout;
 
-    private final TeacherTreeView<Long> teacherView;
+    private final TeacherTreeView teacherView;
     private final SigSet signatures;
     private final long signingWeight;
     private final Roster roster;
@@ -68,18 +68,19 @@ public class ReconnectStateTeacher {
     private final Time time;
 
     /**
-     * @param platformContext        the platform context
-     * @param threadManager          responsible for managing thread lifecycles
-     * @param connection             the connection to be used for the reconnect
+     * @param configuration the platform context
+     * @param time the source of time
+     * @param threadManager responsible for managing thread lifecycles
+     * @param connection the connection to be used for the reconnect
      * @param reconnectSocketTimeout the socket timeout to use during the reconnect
-     * @param selfId                 this node's ID
-     * @param otherId                the learner's ID
-     * @param lastRoundReceived      the round of the state
-     * @param signedState            the state used for teaching; must be a signed VirtualMapState
-     * @param statistics             reconnect metrics
+     * @param selfId this node's ID
+     * @param otherId the learner's ID
+     * @param lastRoundReceived the round of the state
+     * @param signedState the state used for teaching; must be a signed VirtualMapState
+     * @param statistics reconnect metrics
      */
     public ReconnectStateTeacher(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
@@ -99,7 +100,7 @@ public class ReconnectStateTeacher {
         this.otherId = Objects.requireNonNull(otherId);
         this.lastRoundReceived = lastRoundReceived;
         this.statistics = Objects.requireNonNull(statistics);
-        this.configuration = Objects.requireNonNull(platformContext.getConfiguration());
+        this.configuration = Objects.requireNonNull(configuration);
 
         signatures = signedState.getSigSet();
         signingWeight = signedState.getSigningWeight();
@@ -195,12 +196,9 @@ public class ReconnectStateTeacher {
                         otherId.id(),
                         lastRoundReceived));
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
-        logger.info(
-                RECONNECT.getMarker(),
-                """
+        logger.info(RECONNECT.getMarker(), """
                         The following state will be sent to the learner:
-                        {}""",
-                () -> getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
+                        {}""", () -> getInfoString(signedState.getState()));
     }
 
     private void logReconnectFinish() {
@@ -230,8 +228,8 @@ public class ReconnectStateTeacher {
         final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
                 time,
                 threadManager,
-                new MerkleDataInputStream(connection.getDis()),
-                new MerkleDataOutputStream(connection.getDos()),
+                new SerializableDataInputStream(connection.getDis()),
+                new SerializableDataOutputStream(connection.getDos()),
                 teacherView,
                 connection::disconnect,
                 reconnectConfig);
@@ -259,7 +257,8 @@ public class ReconnectStateTeacher {
                 .append(hash);
 
         logger.info(RECONNECT.getMarker(), sb);
-        connection.getDos().writeSerializable(signatures, true);
+        final WritableStreamingData wsd = new WritableStreamingData(connection.getDos());
+        signatures.serialize(wsd);
         connection.getDos().flush();
     }
 }

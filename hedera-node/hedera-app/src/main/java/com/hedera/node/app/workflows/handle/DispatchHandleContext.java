@@ -42,6 +42,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -260,6 +261,15 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     }
 
     @Override
+    public int numTxnBytes() {
+        // serialized signed transaction is null for system transaction dispatches
+        return (int)
+                (txnInfo.serializedSignedTx() != null
+                        ? txnInfo.serializedSignedTx().length()
+                        : 0);
+    }
+
+    @Override
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
         requireNonNull(childTxBody);
@@ -370,6 +380,12 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     @Override
     public SystemPrivilege hasPrivilegedAuthorization() {
         return authorizer.hasPrivilegedAuthorization(payerId, txnInfo.functionality(), txnInfo.txBody());
+    }
+
+    @NonNull
+    @Override
+    public ReadableStoreFactory readableStoreFactory() {
+        return storeFactory.asReadOnly();
     }
 
     @NonNull

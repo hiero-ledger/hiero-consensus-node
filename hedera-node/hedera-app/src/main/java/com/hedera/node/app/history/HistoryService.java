@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
-import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.impl.OnProofFinished;
@@ -41,6 +41,11 @@ public interface HistoryService extends Service, OnProofFinished {
     default int migrationOrder() {
         return MIGRATION_ORDER;
     }
+
+    /**
+     * Returns the verification key for history proofs.
+     */
+    Bytes historyProofVerificationKey();
 
     /**
      * Returns the handlers for the {@link HistoryService}.

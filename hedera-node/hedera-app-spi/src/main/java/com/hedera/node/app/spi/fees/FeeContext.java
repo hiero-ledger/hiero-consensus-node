@@ -8,6 +8,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -42,6 +43,14 @@ public interface FeeContext {
     SimpleFeeCalculator getSimpleFeeCalculator();
 
     /**
+     * Returns the readable store factory for accessing readable stores.
+     *
+     * @return the readable store factory
+     */
+    @NonNull
+    ReadableStoreFactory readableStoreFactory();
+
+    /**
      * Get a readable store given the store's interface. This gives read-only access to the store.
      *
      * @param storeInterface The store interface to find and create a store for
@@ -74,6 +83,16 @@ public interface FeeContext {
      * @return the number of signatures
      */
     int numTxnSignatures();
+
+    /**
+     * Returns the size of the full transaction in bytes.
+     * This is the length of the serialized Transaction message (signedTransactionBytes),
+     * which includes the transaction body, signatures, and all other transaction data.
+     * This represents the actual bytes received and processed by the node.
+     * <p>NOTE: this property should not be used for queries</p>
+     * @return the full transaction size in bytes
+     */
+    int numTxnBytes();
 
     /**
      * Dispatches the computation of fees for the given transaction body and synthetic payer ID.

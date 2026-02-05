@@ -1,20 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
-import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.system.address.AddressBookUtils;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableStates;
@@ -23,9 +17,8 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -216,11 +209,10 @@ public class RosterUtilsTest {
     void testFetchingCertificates() throws CertificateEncodingException {
         // Positive Case
         Assertions.assertEquals(
-                PreGeneratedX509Certs.getSigCert(0).getCertificate(),
+                PreGeneratedX509Certs.getSigCert(0),
                 RosterUtils.fetchGossipCaCertificate(RosterEntry.newBuilder()
-                        .gossipCaCertificate(Bytes.wrap(PreGeneratedX509Certs.getSigCert(0)
-                                .getCertificate()
-                                .getEncoded()))
+                        .gossipCaCertificate(
+                                Bytes.wrap(PreGeneratedX509Certs.getSigCert(0).getEncoded()))
                         .build()));
         // Negative Cases
         assertNull(RosterUtils.fetchGossipCaCertificate(
@@ -231,73 +223,5 @@ public class RosterUtilsTest {
                 .gossipCaCertificate(
                         Bytes.wrap(PreGeneratedX509Certs.createBadCertificate().getEncoded()))
                 .build()));
-    }
-
-    @Test
-    void testCreateRosterFromNonEmptyAddressBook() {
-        final Address address1 = new Address(NodeId.of(1), "", "", 10, null, 77, null, 88, null, null, "");
-        final Address address2 = new Address(NodeId.of(2), "", "", 10, null, 77, null, 88, null, null, "");
-        final AddressBook addressBook = new AddressBook();
-        addressBook.add(address1);
-        addressBook.add(address2);
-        final Roster roster = buildRoster(addressBook);
-
-        assertNotNull(roster);
-        assertEquals(2, roster.rosterEntries().size());
-        assertEquals(1L, roster.rosterEntries().getFirst().nodeId());
-        assertEquals(2L, roster.rosterEntries().getLast().nodeId());
-    }
-
-    @Test
-    void testCreateRosterFromNullAddressBook() {
-        assertNull(buildRoster(null), "A null address book should produce a null roster.");
-    }
-
-    @Test
-    void testCreateRosterFromEmptyAddressBook() {
-        final AddressBook addressBook = new AddressBook();
-        final Roster roster = buildRoster(addressBook);
-
-        assertNotNull(roster);
-        assertTrue(roster.rosterEntries().isEmpty());
-    }
-
-    @Test
-    void testToRosterEntryWithExternalHostname() {
-        final Address address = new Address().copySetHostnameExternal("hostnameExternal");
-        final AddressBook addressBook = new AddressBook(List.of(address));
-        final Roster roster = buildRoster(addressBook);
-
-        assertEquals(1, roster.rosterEntries().size());
-        assertEquals(
-                "hostnameExternal",
-                roster.rosterEntries().getFirst().gossipEndpoint().getFirst().domainName());
-    }
-
-    @Test
-    void testToRosterEntryWithInternalHostname() {
-        final Address address = new Address().copySetHostnameInternal("hostnameInternal");
-        final AddressBook addressBook = new AddressBook(List.of(address));
-        final Roster roster = buildRoster(addressBook);
-
-        assertEquals(1, roster.rosterEntries().size());
-        assertEquals(
-                "hostnameInternal",
-                roster.rosterEntries().getFirst().gossipEndpoint().getFirst().domainName());
-    }
-
-    @Test
-    void testEndpointForValidIpV4Address() {
-        final ServiceEndpoint endpoint = AddressBookUtils.endpointFor("192.168.1.1", 2);
-        assertEquals(endpoint.ipAddressV4(), Bytes.wrap(new byte[] {(byte) 192, (byte) 168, 1, 1}));
-    }
-
-    @Test
-    void testEndpointForInvalidIpAddressConvertsToDomainName() {
-        final String invalidIpAddress = "192.168.is.bad";
-        Assertions.assertEquals(
-                Bytes.EMPTY, AddressBookUtils.endpointFor(invalidIpAddress, 2).ipAddressV4());
-        Assertions.assertEquals(
-                AddressBookUtils.endpointFor(invalidIpAddress, 2).domainName(), invalidIpAddress);
     }
 }

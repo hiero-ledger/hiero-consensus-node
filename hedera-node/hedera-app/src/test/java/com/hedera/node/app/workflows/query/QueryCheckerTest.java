@@ -43,14 +43,15 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
-import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -90,10 +91,10 @@ class QueryCheckerTest extends AppTestBase {
     private TransactionDispatcher dispatcher;
 
     @Mock
-    private TransactionChecker transactionChecker;
+    private Configuration configuration;
 
     @Mock
-    private Configuration configuration;
+    private IngestChecker ingestChecker;
 
     private QueryChecker checker;
 
@@ -106,7 +107,7 @@ class QueryCheckerTest extends AppTestBase {
                 expiryValidation,
                 feeManager,
                 dispatcher,
-                transactionChecker);
+                ingestChecker);
     }
 
     @AfterEach
@@ -126,16 +127,10 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
-                        transactionChecker))
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                        authorizer,
-                        null,
-                        solvencyPreCheck,
-                        expiryValidation,
-                        feeManager,
-                        dispatcher,
-                        transactionChecker))
+                        authorizer, null, solvencyPreCheck, expiryValidation, feeManager, dispatcher, ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -144,7 +139,7 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
-                        transactionChecker))
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -153,7 +148,7 @@ class QueryCheckerTest extends AppTestBase {
                         null,
                         feeManager,
                         dispatcher,
-                        transactionChecker))
+                        ingestChecker))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -162,66 +157,113 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         null,
                         dispatcher,
-                        transactionChecker))
+                        ingestChecker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        null,
+                        ingestChecker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        null))
                 .isInstanceOf(NullPointerException.class);
     }
 
-    @SuppressWarnings("ConstantConditions")
-    @Test
-    void testValidateCryptoTransferWithIllegalArguments() {
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(null)).isInstanceOf(NullPointerException.class);
-    }
+    @Nested
+    @DisplayName("Tests for validating crypto transfer")
+    class ValidateCryptoTransferTests {
 
-    @Test
-    void testValidateCryptoTransferSucceeds() {
-        // given
-        final var txBody = TransactionBody.newBuilder()
-                .transactionID(
-                        TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
-                .build();
-        final var signatureMap = SignatureMap.newBuilder().build();
-        final var transactionInfo = new TransactionInfo(
-                SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+        private ReadableAccountStore store;
 
-        // when
-        assertThatCode(() -> checker.validateCryptoTransfer(transactionInfo)).doesNotThrowAnyException();
-    }
+        @BeforeEach
+        void setup() {
+            setupStandardStates();
 
-    @Test
-    void testValidateCryptoTransferWithWrongTransactionType() {
-        // given
-        final var txBody = TransactionBody.newBuilder()
-                .transactionID(
-                        TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
-                .build();
-        final var signatureMap = SignatureMap.newBuilder().build();
-        final var transactionInfo = new TransactionInfo(
-                SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CONSENSUS_CREATE_TOPIC, null);
+            final var storeFactory = new ReadableStoreFactoryImpl(state);
+            store = storeFactory.readableStore(ReadableAccountStore.class);
+        }
 
-        // then
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))
-                .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INSUFFICIENT_TX_FEE));
-    }
+        @SuppressWarnings("ConstantConditions")
+        @Test
+        void testValidateCryptoTransferWithIllegalArguments() {
+            final var txInfo = createPaymentInfo(ALICE.accountID());
 
-    @Test
-    void testValidateCryptoTransferWithFailingValidation() throws PreCheckException {
-        // given
-        final var txBody = TransactionBody.newBuilder()
-                .transactionID(
-                        TransactionID.newBuilder().accountID(AccountID.DEFAULT).build())
-                .build();
-        final var signatureMap = SignatureMap.newBuilder().build();
-        final var transactionInfo = new TransactionInfo(
-                SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CRYPTO_TRANSFER, null);
-        doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
-                .when(cryptoTransferHandler)
-                .pureChecks(any());
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(null, txInfo, configuration))
+                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, null, configuration))
+                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, txInfo, null))
+                    .isInstanceOf(NullPointerException.class);
+        }
 
-        // then
-        assertThatThrownBy(() -> checker.validateCryptoTransfer(transactionInfo))
-                .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
+        @Test
+        void testValidateCryptoTransferSucceeds() {
+            // given
+            final var txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.DEFAULT)
+                            .build())
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .transfers(TransferList.newBuilder().build())
+                            .build())
+                    .build();
+            final var signatureMap = SignatureMap.newBuilder().build();
+            final var transactionInfo = new TransactionInfo(
+                    SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+
+            // when
+            assertThatCode(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        void testValidateCryptoTransferWithWrongTransactionType() {
+            // given
+            final var txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.DEFAULT)
+                            .build())
+                    .build();
+            final var signatureMap = SignatureMap.newBuilder().build();
+            final var transactionInfo = new TransactionInfo(
+                    SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CONSENSUS_CREATE_TOPIC, null);
+
+            // then
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INSUFFICIENT_TX_FEE));
+        }
+
+        @Test
+        void testValidateCryptoTransferWithFailingValidation() throws PreCheckException {
+            // given
+            final var txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.DEFAULT)
+                            .build())
+                    .build();
+            final var signatureMap = SignatureMap.newBuilder().build();
+            final var transactionInfo = new TransactionInfo(
+                    SignedTransaction.DEFAULT, txBody, signatureMap, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+            doThrow(new PreCheckException(INVALID_ACCOUNT_AMOUNTS))
+                    .when(cryptoTransferHandler)
+                    .pureChecks(any());
+
+            // then
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
+        }
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -271,8 +313,8 @@ class QueryCheckerTest extends AppTestBase {
         void setup() {
             setupStandardStates();
 
-            final var storeFactory = new ReadableStoreFactory(state);
-            store = storeFactory.getStore(ReadableAccountStore.class);
+            final var storeFactory = new ReadableStoreFactoryImpl(state);
+            store = storeFactory.readableStore(ReadableAccountStore.class);
         }
 
         @SuppressWarnings("ConstantConditions")
@@ -555,11 +597,8 @@ class QueryCheckerTest extends AppTestBase {
         final var activeRate =
                 ExchangeRate.newBuilder().hbarEquiv(120).centEquiv(1000).build();
         final var simpleFeeCalculator = mock(SimpleFeeCalculator.class);
-        final var transferFeeResult = new FeeResult();
-        // create object with total fee 1000
-        transferFeeResult.addNetworkFee(500);
-        transferFeeResult.addNodeFee(2, 200);
-        transferFeeResult.addServiceFee(1, 100);
+        // create object with total fee 1000 = 100 + 300 + 300 * 2
+        final var transferFeeResult = new FeeResult(100, 300, 2);
         // hbar equivalent should be 120
         final var expectedFee = 120;
 

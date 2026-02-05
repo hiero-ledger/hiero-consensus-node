@@ -5,7 +5,6 @@ import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_OVERRIDES_YAML_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
@@ -21,11 +20,10 @@ import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
@@ -37,6 +35,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
@@ -44,20 +43,15 @@ import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.CommandLineArgs;
-import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.builder.PlatformBuilder;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.legacy.ConfigurationException;
-import com.swirlds.platform.config.legacy.LegacyConfigProperties;
-import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -71,19 +65,19 @@ import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
-import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
 
 /**
@@ -191,10 +185,6 @@ public class ServicesMain {
             throw new ConfigurationException();
         }
         final var platformConfig = buildPlatformConfig();
-        // Immediately initialize the cryptography and merkle cryptography factories
-        // to avoid using default behavior instead of that defined in platformConfig
-        final var cryptography = CryptographyProvider.getInstance();
-        final var merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         // Determine which nodes were _requested_ to run from the command line
         final var cliNodesToRun = commandLineArgs.localNodesToStart();
@@ -214,33 +204,22 @@ public class ServicesMain {
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
         hedera = newHedera(platformConfig, metrics, time);
         final var version = hedera.getSemanticVersion();
-        final AtomicReference<Network> genesisNetwork = new AtomicReference<>();
+        final AtomicBoolean genesisNetwork = new AtomicBoolean(false);
         logger.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
-        BootstrapUtils.setupConstructableRegistryWithConfiguration(platformConfig);
         final var fileSystemManager = FileSystemManager.create(platformConfig);
-        final var recycleBin =
-                RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        final var recycleBin = RecycleBinImpl.create(
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler =
                 hedera.newConsensusStateEvenHandler();
-        final PlatformContext platformContext = PlatformContext.create(
-                platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
-        final Optional<AddressBook> maybeDiskAddressBook = loadLegacyAddressBook();
+        final PlatformContext platformContext =
+                PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
                 () -> {
-                    Network network;
-                    try {
-                        network = hedera.startupNetworks().genesisNetworkOrThrow(platformConfig);
-                    } catch (final Exception ignore) {
-                        // Fallback to the legacy address book if genesis-network.json or equivalent not loaded
-                        network = DiskStartupNetworks.fromLegacyAddressBook(
-                                maybeDiskAddressBook.orElseThrow(),
-                                hedera.bootstrapConfigProvider().getConfiguration());
-                    }
-                    genesisNetwork.set(network);
+                    genesisNetwork.set(true);
                     final var genesisState = hedera.newStateRoot();
                     hedera.initializeStatesApi(genesisState, GENESIS, platformConfig);
                     return genesisState;
@@ -252,23 +231,30 @@ public class ServicesMain {
                 hedera.getStateLifecycleManager());
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
-        if (genesisNetwork.get() == null) {
+        if (!genesisNetwork.get()) {
             hedera.initializeStatesApi(state, RESTART, platformConfig);
         }
         hedera.setInitialStateHash(reservedState.hash());
+        logger.info("Initial state hash: {}", reservedState.hash().toHex());
 
-        // --- Create the platform context and initialize the cryptography ---
-        final var rosterHistory = RosterStateUtils.createRosterHistory(state);
-        final var currentRoster = rosterHistory.getCurrentRoster();
-        // For now we convert to a legacy representation of the roster for convenience
-        final var addressBook = requireNonNull(buildAddressBook(currentRoster));
-        if (!addressBook.contains(selfId)) {
-            throw new IllegalStateException("Self node id " + selfId + " is not in the address book");
+        final RosterHistory rosterHistory;
+        final List<RosterEntry> rosterEntries;
+        if (genesisNetwork.get()) {
+            final var genesisRoster = hedera.genesisRosterOrThrow();
+            rosterHistory = RosterHistory.fromGenesis(genesisRoster);
+            rosterEntries = genesisRoster.rosterEntries();
+        } else {
+            rosterHistory = RosterStateUtils.createRosterHistory(state);
+            final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
+            rosterEntries = requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
         }
-        final var networkKeysAndCerts = initNodeSecurity(addressBook, platformConfig, Set.copyOf(nodesToRun));
-        final var keysAndCerts = networkKeysAndCerts.get(selfId);
-        cryptography.digestSync(addressBook);
+        final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
 
+        final String consensusEventStreamName = genesisNetwork.get()
+                // If at genesis, base the event stream location on the genesis network metadata
+                ? eventStreamLocOrThrow(hedera.startupNetworks().genesisNetworkOrThrow(platformConfig), selfId.id())
+                // Otherwise derive if from the node's id in state or
+                : canonicalEventStreamLoc(selfId.id(), state);
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
@@ -277,11 +263,7 @@ public class ServicesMain {
                         initialState,
                         consensusStateEventHandler,
                         selfId,
-                        // If at genesis, base the event stream location on the genesis network metadata
-                        Optional.ofNullable(genesisNetwork.get())
-                                .map(network -> eventStreamLocOrThrow(network, selfId.id()))
-                                // Otherwise derive if from the node's id in state or
-                                .orElseGet(() -> canonicalEventStreamLoc(selfId.id(), state)),
+                        consensusEventStreamName,
                         rosterHistory,
                         hedera.getStateLifecycleManager())
                 .withPlatformContext(platformContext)
@@ -370,7 +352,7 @@ public class ServicesMain {
                         new HintsLibraryImpl(),
                         bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
-                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
+                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
                 TssBlockHashSigner::new,
                 configuration,
                 metrics,
@@ -429,30 +411,7 @@ public class ServicesMain {
         return nodesToRun.getFirst();
     }
 
-    /**
-     * Loads the legacy address book if it is present. Can be removed once no environment relies on using
-     * legacy <i>config.txt</i> as a startup asset.
-     * @return the address book from a legacy config file, if present
-     */
-    @Deprecated
-    private static Optional<AddressBook> loadLegacyAddressBook() {
-        try {
-            final LegacyConfigProperties props =
-                    LegacyConfigPropertiesLoader.loadConfigFile(getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
-            props.appConfig().ifPresent(c -> ParameterProvider.getInstance().setParameters(c.params()));
-            return Optional.of(props.getAddressBook());
-        } catch (final Exception ignore) {
-            return Optional.empty();
-        }
-    }
-
     private static @NonNull Hedera hederaOrThrow() {
         return requireNonNull(hedera);
-    }
-
-    @VisibleForTesting
-    static void initGlobal(@NonNull final Hedera hedera, @NonNull final Metrics metrics) {
-        ServicesMain.hedera = hedera;
-        ServicesMain.metrics = metrics;
     }
 }

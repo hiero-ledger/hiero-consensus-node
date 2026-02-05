@@ -18,8 +18,7 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -30,8 +29,6 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
@@ -53,12 +50,16 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProfilerEvent;
@@ -212,7 +213,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
             final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
-            final RecycleBin recycleBin = RecycleBin.create(
+            final RecycleBin recycleBin = RecycleBinImpl.create(
                     metrics,
                     currentConfiguration,
                     getStaticThreadManager(),
@@ -288,19 +289,17 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final SimulatedGossip gossip = network.getGossipInstance(selfId);
             gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
 
-            platformComponentBuilder
-                    .withMetricsDocumentationEnabled(false)
-                    .withGossip(network.getGossipInstance(selfId));
+            platformComponentBuilder.withGossip(network.getGossipInstance(selfId));
 
             platformComponent = platformBuildingBlocks.platformComponents();
 
             platformComponent
-                    .consensusEngineWiring()
-                    .consensusRoundsOutputWire()
+                    .hashgraphModule()
+                    .consensusRoundOutputWire()
                     .solderTo(
                             "nodeConsensusRoundsCollector",
                             "consensusRounds",
-                            wrapConsumerWithNodeContext(resultsCollector::addConsensusRounds));
+                            wrapConsumerWithNodeContext(resultsCollector::addConsensusRound));
 
             platformComponent
                     .platformMonitorWiring()

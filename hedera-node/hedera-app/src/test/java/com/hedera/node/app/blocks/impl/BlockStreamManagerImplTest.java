@@ -3,20 +3,20 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
-import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
-import static com.hedera.node.app.blocks.BlockStreamService.FAKE_RESTART_BLOCK_HASH;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_LABEL;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static java.time.Instant.EPOCH;
 import static java.util.concurrent.CompletableFuture.completedFuture;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,7 +36,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -44,6 +43,8 @@ import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -61,7 +62,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -93,6 +93,7 @@ import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
+import org.hiero.consensus.platformstate.PlatformStateService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -110,22 +111,26 @@ class BlockStreamManagerImplTest {
     private static final long N_BLOCK_NO = 666L;
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L);
     private static final Timestamp CONSENSUS_THEN = new Timestamp(890, 0);
-    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(new byte[48]);
-    private static final Bytes N_MINUS_2_BLOCK_HASH = Bytes.wrap(noThrowSha384HashOf(new byte[] {(byte) 0xAA}));
+    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(HASH_OF_ZERO.toByteArray());
+    private static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
+    private static final Bytes N_MINUS_2_BLOCK_HASH = hashLeaf(Bytes.wrap((new byte[] {(byte) 0xAB})));
+    private static final Bytes NONZERO_PREV_BLOCK_HASH =
+            BlockImplUtils.appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256);
     private static final Bytes FIRST_FAKE_SIGNATURE = Bytes.fromHex("ff".repeat(48));
     private static final Bytes SECOND_FAKE_SIGNATURE = Bytes.fromHex("ee".repeat(48));
     private static final BlockItem FAKE_SIGNED_TRANSACTION =
             BlockItem.newBuilder().signedTransaction(Bytes.EMPTY).build();
+    private static final Bytes FAKE_SIGNED_TRANSACTION_HASHED = leafHashOfItem(FAKE_SIGNED_TRANSACTION);
     private static final BlockItem FAKE_TRANSACTION_RESULT = BlockItem.newBuilder()
             .transactionResult(TransactionResult.newBuilder().consensusTimestamp(CONSENSUS_THEN))
             .build();
-    private static final Bytes FAKE_RESULT_HASH = noThrowSha384HashOfItem(FAKE_TRANSACTION_RESULT);
+    private static final Bytes FAKE_RESULT_HASH = leafHashOfItem(FAKE_TRANSACTION_RESULT);
     private static final BlockItem FAKE_STATE_CHANGES = BlockItem.newBuilder()
             .stateChanges(StateChanges.newBuilder().consensusTimestamp(CONSENSUS_THEN))
             .build();
     private static final BlockItem FAKE_RECORD_FILE_ITEM =
             BlockItem.newBuilder().recordFile(RecordFileItem.DEFAULT).build();
-    private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(ZERO_BLOCK_HASH), 0);
+    private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(HASH_OF_ZERO), 0);
 
     @Mock
     private BlockHashSigner blockHashSigner;
@@ -345,30 +350,27 @@ class BlockStreamManagerImplTest {
         final var expectedBlockInfo = new BlockStreamInfo(
                 N_BLOCK_NO,
                 asTimestamp(CONSENSUS_NOW),
-                appendHash(combine(ZERO_BLOCK_HASH, FAKE_RESULT_HASH), appendHash(ZERO_BLOCK_HASH, Bytes.EMPTY, 4), 4),
-                appendHash(FAKE_RESTART_BLOCK_HASH, appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256), 256),
-                Bytes.fromHex(
-                        "edde6b2beddb2fda438665bbe6df0a639c518e6d5352e7276944b70777d437d28d1b22813ed70f5b8a3a3cbaf08aa9a8"),
-                ZERO_BLOCK_HASH,
+                appendHash(
+                        combine(Bytes.wrap(new byte[HASH_SIZE]), FAKE_RESULT_HASH),
+                        appendHash(Bytes.wrap(new byte[HASH_SIZE]), Bytes.EMPTY, 4),
+                        4),
+                appendHash(FAKE_RESTART_BLOCK_HASH, NONZERO_PREV_BLOCK_HASH, 256),
+                FAKE_SIGNED_TRANSACTION_HASHED,
+                HASH_OF_ZERO,
                 2,
                 List.of(
-                        Bytes.EMPTY,
                         Bytes.fromHex(
-                                "839ddb854c8f4cf9c3705268b17bc7d53e91454ff14dbbfffd6c77b6118a0e79fb1e478b4924bfb0fd93ef60101d3237")),
+                                "41c6949285489fa59ddf82402a2670489ba298a235e2963d5594f952620cb91254aacdea53f97d0d6b46259392aeb198")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
                 true,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
+                HASH_OF_ZERO,
                 Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
-                Bytes.fromHex(
-                        "bf99e1dfd15ffe551ae4bc0953f396639755f0419522f323875806a55a57dca6a4df61ea6dee28bec0c37ed54881d392"),
-                Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
-                List.of(
-                        Bytes.fromHex(
-                                "a63602dae8cc657abca1999f948de14320ab2c48d58994f14abce574607d859e35acf7cb2305be511a3099243ccd876d")),
+                        "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
+                HASH_OF_ZERO,
+                List.of(FAKE_RESTART_BLOCK_HASH),
                 1);
 
         final var actualBlockInfo = infoRef.get();
@@ -524,7 +526,7 @@ class BlockStreamManagerImplTest {
         final var resultHashes = Bytes.fromHex("aa".repeat(48) + "bb".repeat(48) + "cc".repeat(48) + "dd".repeat(48));
         givenSubjectWith(
                 2,
-                2, // Use time-based blocks with 2 second period
+                2, // Use time-based blocks with 2-second period
                 blockStreamInfoWith(resultHashes, CREATION_VERSION),
                 platformStateWithFreezeTime(CONSENSUS_NOW),
                 aWriter);
@@ -578,29 +580,23 @@ class BlockStreamManagerImplTest {
                 N_BLOCK_NO,
                 asTimestamp(CONSENSUS_NOW),
                 appendHash(combine(Bytes.fromHex("dd".repeat(48)), FAKE_RESULT_HASH), resultHashes, 4),
-                appendHash(FAKE_RESTART_BLOCK_HASH, appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256), 256),
-                Bytes.fromHex(
-                        "edde6b2beddb2fda438665bbe6df0a639c518e6d5352e7276944b70777d437d28d1b22813ed70f5b8a3a3cbaf08aa9a8"),
-                ZERO_BLOCK_HASH,
+                appendHash(FAKE_RESTART_BLOCK_HASH, NONZERO_PREV_BLOCK_HASH, 256),
+                FAKE_SIGNED_TRANSACTION_HASHED,
+                HASH_OF_ZERO,
                 2,
                 List.of(
-                        Bytes.EMPTY,
                         Bytes.fromHex(
-                                "839ddb854c8f4cf9c3705268b17bc7d53e91454ff14dbbfffd6c77b6118a0e79fb1e478b4924bfb0fd93ef60101d3237")),
+                                "41c6949285489fa59ddf82402a2670489ba298a235e2963d5594f952620cb91254aacdea53f97d0d6b46259392aeb198")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
                 false,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
+                HASH_OF_ZERO,
                 Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
-                Bytes.fromHex(
-                        "8ee0718d5f75f867f85cb4e400ebf7bfbb4cd91479d7f3f8bfd28ce062c318c312b8f4de185a994b78337e6391e3f000"),
-                Bytes.fromHex(
-                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
-                List.of(
-                        Bytes.fromHex(
-                                "a63602dae8cc657abca1999f948de14320ab2c48d58994f14abce574607d859e35acf7cb2305be511a3099243ccd876d")),
+                        "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
+                HASH_OF_ZERO,
+                List.of(FAKE_RESTART_BLOCK_HASH),
                 1);
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
@@ -994,7 +990,12 @@ class BlockStreamManagerImplTest {
 
         // Set up the signature future to complete immediately
         given(blockHashSigner.sign(any()))
-                .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, ChainOfTrustProof.DEFAULT, mockSigningFuture));
+                .willReturn(new BlockHashSigner.Attempt(
+                        Bytes.EMPTY,
+                        ChainOfTrustProof.newBuilder()
+                                .aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT)
+                                .build(),
+                        mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
@@ -1021,11 +1022,7 @@ class BlockStreamManagerImplTest {
 
         final var footer = footerItem.get().blockFooterOrThrow();
         assertNotNull(footer.previousBlockRootHash(), "Previous block root hash should be set");
-        assertEquals(
-                Bytes.fromHex(
-                        "bf95370fb03d71634b937b1a19b4f8c445914600247af794788a322b1c4123798e94e328b34f166b38a9a6b1aea93414"),
-                footer.rootHashOfAllBlockHashesTree(),
-                "Block hashes tree root should be NULL_HASH until #21210 is implemented");
+        assertNotNull(footer.rootHashOfAllBlockHashesTree(), "Block hashes tree root should be set");
         assertNotNull(footer.startOfBlockStateRootHash(), "Start of block state root hash should be set");
 
         // Verify BlockProof was also written
@@ -1058,7 +1055,12 @@ class BlockStreamManagerImplTest {
 
         // Set up the signature future
         given(blockHashSigner.sign(any()))
-                .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, ChainOfTrustProof.DEFAULT, mockSigningFuture));
+                .willReturn(new BlockHashSigner.Attempt(
+                        Bytes.EMPTY,
+                        ChainOfTrustProof.newBuilder()
+                                .aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT)
+                                .build(),
+                        mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
                     consumer.accept(FIRST_FAKE_SIGNATURE);
@@ -1077,24 +1079,10 @@ class BlockStreamManagerImplTest {
         assertNotNull(footerItem.get(), "BlockFooter should be written");
         final var footer = footerItem.get().blockFooterOrThrow();
 
-        // Verify previousBlockRootHash matches the last block hash
-        assertEquals(
-                N_MINUS_2_BLOCK_HASH,
-                footer.previousBlockRootHash(),
-                "Previous block root hash should match initialized last block hash");
-
-        // Verify rootHashOfAllBlockHashesTree is correct
-        assertEquals(
-                Bytes.fromHex(
-                        "bf95370fb03d71634b937b1a19b4f8c445914600247af794788a322b1c4123798e94e328b34f166b38a9a6b1aea93414"),
-                footer.rootHashOfAllBlockHashesTree(),
-                "Block hashes tree root should be NULL_HASH placeholder");
-
-        // Verify startOfBlockStateRootHash is set
-        assertEquals(
-                FAKE_START_OF_BLOCK_STATE_HASH.getBytes(),
-                footer.startOfBlockStateRootHash(),
-                "Start of block state root hash should match expected value");
+        // Verify each hash in the footer is correct
+        assertEquals(N_MINUS_2_BLOCK_HASH, footer.previousBlockRootHash());
+        assertEquals(N_MINUS_2_BLOCK_HASH, footer.rootHashOfAllBlockHashesTree());
+        assertEquals(FAKE_START_OF_BLOCK_STATE_HASH.getBytes(), footer.startOfBlockStateRootHash());
     }
 
     @Test
@@ -1284,6 +1272,52 @@ class BlockStreamManagerImplTest {
         assertEquals(CONSENSUS_THEN, finalInfoState.blockTime());
     }
 
+    @Test
+    void zeroHashNotAddedOnInit() {
+        // Given a 2-second block period
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(blockHashSigner.isReady()).willReturn(true);
+        // Set up the async signature to return control to this test immediately upon completion
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        // Initialize the subject
+        subject.init(state, HASH_OF_ZERO);
+
+        // Start the round at t=0 with an event timestamp, and end the round at t=2 (the block's next 2-second boundary)
+        // with the round timestamp
+        final var roundStart = asInstant(CONSENSUS_THEN);
+        final var roundEnd = asInstant(CONSENSUS_THEN).plusSeconds(2);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(roundEnd);
+        given(mockEvent.getConsensusTimestamp()).willReturn(roundStart);
+        given(mockEvent.consensusTransactionIterator()).willReturn(Collections.emptyIterator());
+        given(round.iterator()).willReturn(List.of(mockEvent).iterator());
+
+        subject.startRound(round, state);
+        subject.endRound(state, ROUND_NO);
+
+        // Verify the block was closed
+        verify(aWriter).closeCompleteBlock();
+        // And that no zero hash was added to the BlockStreamInfo
+        final var actualBlockInfo = infoRef.get();
+        assertEquals(Collections.emptyList(), actualBlockInfo.intermediatePreviousBlockRootHashes());
+        assertEquals(0, actualBlockInfo.intermediateBlockRootsLeafCount());
+    }
+
     private void givenSubjectWith(
             final int roundsPerBlock,
             final int blockPeriod,
@@ -1370,7 +1404,7 @@ class BlockStreamManagerImplTest {
         return BlockStreamInfo.newBuilder()
                 .blockNumber(N_MINUS_1_BLOCK_NO)
                 .creationSoftwareVersion(creationVersion)
-                .trailingBlockHashes(appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256))
+                .trailingBlockHashes(NONZERO_PREV_BLOCK_HASH)
                 .trailingOutputHashes(resultHashes)
                 .lastIntervalProcessTime(CONSENSUS_THEN)
                 .blockEndTime(CONSENSUS_THEN)
@@ -1392,8 +1426,8 @@ class BlockStreamManagerImplTest {
         lenient().when(round.getConsensusTimestamp()).thenReturn(timestamp);
     }
 
-    private static Bytes noThrowSha384HashOfItem(@NonNull final BlockItem item) {
-        return Bytes.wrap(noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(item).toByteArray()));
+    private static Bytes leafHashOfItem(@NonNull final BlockItem item) {
+        return hashLeaf(BlockItem.PROTOBUF.toBytes(item));
     }
 
     private void mockRoundWithTxnTimestamp(Instant timestamp) {

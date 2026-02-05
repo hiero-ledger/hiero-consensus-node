@@ -7,6 +7,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -20,9 +21,12 @@ import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.hapi.node.token.TokenCancelAirdropTransactionBody;
 import com.hedera.hapi.node.token.TokenClaimAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.fees.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.config.data.TokensConfig;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.Extra;
@@ -62,6 +66,11 @@ class TokenAirdropFeeCalculatorsTest {
     @Test
     @DisplayName("TokenAirdropFeeCalculator calculates correct fees")
     void tokenAirdropFeeCalculatorCalculatesCorrectFees() {
+        final var configMock = mock(Configuration.class);
+        final var tokenConfigMock = mock(TokensConfig.class);
+        when(tokenConfigMock.airdropsEnabled()).thenReturn(true);
+        when(configMock.getConfigData(TokensConfig.class)).thenReturn(tokenConfigMock);
+        when(feeContext.configuration()).thenReturn(configMock);
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
         final var token = Token.newBuilder()
                 .tokenId(TOKEN_ID)
@@ -91,12 +100,12 @@ class TokenAirdropFeeCalculatorsTest {
                         .build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(1000L);
-        assertThat(result.service).isEqualTo(9000100L);
-        assertThat(result.network).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(9000100L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     @Test
@@ -110,17 +119,22 @@ class TokenAirdropFeeCalculatorsTest {
                         TokenCancelAirdropTransactionBody.newBuilder().build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(1000L);
-        assertThat(result.service).isEqualTo(199000000L);
-        assertThat(result.network).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(199000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     @Test
     @DisplayName("TokenClaimAirdropFeeCalculator calculates correct fees")
     void tokenClaimAirdropFeeCalculatorCalculatesCorrectFees() {
+        final var configMock = mock(Configuration.class);
+        final var tokenConfigMock = mock(TokensConfig.class);
+        when(tokenConfigMock.airdropsClaimEnabled()).thenReturn(true);
+        when(configMock.getConfigData(TokensConfig.class)).thenReturn(tokenConfigMock);
+        when(feeContext.configuration()).thenReturn(configMock);
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
         lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
 
@@ -128,12 +142,12 @@ class TokenAirdropFeeCalculatorsTest {
                 .tokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder().build())
                 .build();
 
-        final var result = feeCalculator.calculateTxFee(body, feeContext);
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result).isNotNull();
-        assertThat(result.node).isEqualTo(1000L);
-        assertThat(result.service).isEqualTo(299000000L);
-        assertThat(result.network).isEqualTo(2000L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(299000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
     private static FeeSchedule createTestFeeSchedule() {

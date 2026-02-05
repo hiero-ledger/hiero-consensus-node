@@ -13,7 +13,6 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableKVStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Iterator;
 
 /**
  * An implementation of {@link WritableKVState} backed by a {@link VirtualMap}, resulting in a state
@@ -62,13 +61,6 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
         final Bytes stateKey = getStateKeyForKv(stateId, key, keyCodec);
         final StateValue<V> stateValue = virtualMap.get(stateKey, stateValueCodec);
         return stateValue != null ? stateValue.value() : null;
-    }
-
-    /** {@inheritDoc} */
-    @NonNull
-    @Override
-    protected Iterator<K> iterateFromDataSource() {
-        return new OnDiskIterator<>(virtualMap, keyCodec, stateId);
     }
 
     /** {@inheritDoc} */
