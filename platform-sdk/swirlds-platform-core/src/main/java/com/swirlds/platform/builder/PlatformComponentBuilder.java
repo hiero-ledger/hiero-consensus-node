@@ -1,38 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getGlobalMetrics;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.gui.internal.BrowserWindowManager.getPlatforms;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static com.swirlds.platform.state.service.PlatformStateUtils.latestFreezeRoundOf;
 
-import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifier;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
-import com.swirlds.platform.components.consensus.ConsensusEngine;
-import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
 import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
-import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.gossip.SyncGossipModular;
-import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.reconnect.api.ProtocolFactory;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
@@ -56,22 +44,18 @@ import com.swirlds.platform.system.DefaultPlatformMonitor;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.util.MetricsDocUtils;
-import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.function.Supplier;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.gossip.impl.gossip.Gossip;
+import org.hiero.consensus.gossip.impl.gossip.SyncGossipModular;
+import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;
-import org.hiero.consensus.pces.impl.common.PcesFileManager;
-import org.hiero.consensus.pces.impl.common.PcesUtilities;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -96,12 +80,10 @@ public class PlatformComponentBuilder {
     private final PlatformBuildingBlocks blocks;
 
     private StateGarbageCollector stateGarbageCollector;
-    private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
     private PlatformMonitor platformMonitor;
     private TransactionPrehandler transactionPrehandler;
-    private InlinePcesWriter inlinePcesWriter;
     private IssDetector issDetector;
     private IssHandler issHandler;
     private Gossip gossip;
@@ -162,34 +144,12 @@ public class PlatformComponentBuilder {
         throwIfAlreadyUsed();
         used = true;
 
-        try (final ReservedSignedState initialState = blocks.initialState()) {
+        try (final ReservedSignedState ignored = blocks.initialState()) {
             swirldsPlatform = new SwirldsPlatform(this);
             return swirldsPlatform;
         } finally {
-            if (metricsDocumentationEnabled) {
-                // Future work: eliminate the static variables that require this code to exist
-                if (blocks.firstPlatform()) {
-                    MetricsDocUtils.writeMetricsDocumentToFile(
-                            getGlobalMetrics(),
-                            getPlatforms(),
-                            blocks.platformContext().getConfiguration());
-                    getMetricsProvider().start();
-                }
-            }
+            getMetricsProvider().start();
         }
-    }
-
-    /**
-     * If enabled, building this object will cause a metrics document to be generated. Default is true.
-     *
-     * @param metricsDocumentationEnabled whether to generate a metrics document
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withMetricsDocumentationEnabled(final boolean metricsDocumentationEnabled) {
-        throwIfAlreadyUsed();
-        this.metricsDocumentationEnabled = metricsDocumentationEnabled;
-        return this;
     }
 
     /**
@@ -222,43 +182,6 @@ public class PlatformComponentBuilder {
             stateGarbageCollector = new DefaultStateGarbageCollector(blocks.platformContext());
         }
         return stateGarbageCollector;
-    }
-
-    /**
-     * Provide a consensus engine in place of the platform's default consensus engine.
-     *
-     * @param consensusEngine the consensus engine to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withConsensusEngine(@NonNull final ConsensusEngine consensusEngine) {
-        throwIfAlreadyUsed();
-        if (this.consensusEngine != null) {
-            throw new IllegalStateException("Consensus engine has already been set");
-        }
-        this.consensusEngine = Objects.requireNonNull(consensusEngine);
-        return this;
-    }
-
-    /**
-     * Build the consensus engine if it has not yet been built. If one has been provided via
-     * {@link #withConsensusEngine(ConsensusEngine)}, that engine will be used. If this method is called more than once,
-     * only the first call will build the consensus engine. Otherwise, the default engine will be created and returned.
-     *
-     * @return the consensus engine
-     */
-    @NonNull
-    public ConsensusEngine buildConsensusEngine() {
-        if (consensusEngine == null) {
-            consensusEngine = new DefaultConsensusEngine(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    blocks.rosterHistory().getCurrentRoster(),
-                    blocks.selfId(),
-                    blocks.freezeChecker());
-        }
-        return consensusEngine;
     }
 
     /**
@@ -401,56 +324,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide an Inline PCES writer in place of the platform's default Inline PCES writer.
-     *
-     * @param inlinePcesWriter the PCES writer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withInlinePcesWriter(@NonNull final InlinePcesWriter inlinePcesWriter) {
-        throwIfAlreadyUsed();
-        if (this.inlinePcesWriter != null) {
-            throw new IllegalStateException("Inline PCES writer has already been set");
-        }
-        this.inlinePcesWriter = Objects.requireNonNull(inlinePcesWriter);
-        return this;
-    }
-
-    /**
-     * Build the Inline PCES writer if it has not yet been built. If one has been provided via
-     * {@link #withInlinePcesWriter(InlinePcesWriter)}, that writer will be used. If this method is called more than
-     * once, only the first call will build the Inline PCES writer. Otherwise, the default writer will be created and
-     * returned.
-     *
-     * @return the Inline PCES writer
-     */
-    @NonNull
-    public InlinePcesWriter buildInlinePcesWriter() {
-        if (inlinePcesWriter == null) {
-            try {
-                final PlatformContext platformContext = blocks.platformContext();
-                final Configuration configuration = platformContext.getConfiguration();
-                final Metrics metrics = platformContext.getMetrics();
-                final Time time = platformContext.getTime();
-                final NodeId selfId = blocks.selfId();
-                final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
-                        configuration,
-                        metrics,
-                        time,
-                        blocks.initialPcesFiles(),
-                        PcesUtilities.getDatabaseDirectory(configuration, selfId),
-                        blocks.initialState().get().getRound());
-                inlinePcesWriter =
-                        new DefaultInlinePcesWriter(configuration, metrics, time, preconsensusEventFileManager, selfId);
-
-            } catch (final IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-        return inlinePcesWriter;
-    }
-
-    /**
      * Provide an ISS detector in place of the platform's default ISS detector.
      *
      * @param issDetector the ISS detector to use
@@ -586,7 +459,9 @@ public class PlatformComponentBuilder {
             final ProtocolFactory factory =
                     ServiceLoader.load(ProtocolFactory.class).findFirst().orElseThrow();
             final Protocol reconnectProtocol = factory.createProtocol(
-                    blocks.platformContext(),
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
                     threadManager,
                     latestCompleteState,
                     blocks.reservedSignedStateResultPromise(),
@@ -594,7 +469,9 @@ public class PlatformComponentBuilder {
                     blocks.stateLifecycleManager());
 
             gossip = new SyncGossipModular(
-                    blocks.platformContext(),
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
                     threadManager,
                     blocks.keysAndCerts(),
                     blocks.rosterHistory().getCurrentRoster(),

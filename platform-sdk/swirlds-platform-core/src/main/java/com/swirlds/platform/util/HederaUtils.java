@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.util;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -38,9 +39,10 @@ public class HederaUtils {
             @NonNull final PlatformContext platformContext) {
         try {
             final Class<?> mainClass = Class.forName(HEDERA_MAIN_CLASS);
-            Method newHederaMethod = mainClass.getDeclaredMethod("newHedera", Metrics.class, Configuration.class);
-            return (SwirldMain<? extends MerkleNodeState>)
-                    newHederaMethod.invoke(null, new NoOpMetrics(), platformContext.getConfiguration());
+            Method newHederaMethod =
+                    mainClass.getDeclaredMethod("newHedera", Configuration.class, Metrics.class, Time.class);
+            return (SwirldMain<? extends MerkleNodeState>) newHederaMethod.invoke(
+                    null, platformContext.getConfiguration(), new NoOpMetrics(), platformContext.getTime());
         } catch (final ClassNotFoundException
                 | NoSuchMethodException
                 | InvocationTargetException

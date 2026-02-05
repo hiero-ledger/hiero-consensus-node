@@ -43,7 +43,7 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
         final ConsensusRoundSubscriber metaSubscriber = (nodeId, rounds) -> {
             // iterate over all child-subscribers and eventually remove the ones that wish to be unsubscribed
             consensusRoundSubscribers.removeIf(
-                    current -> current.onConsensusRounds(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
+                    current -> current.onConsensusRound(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
 
             // the meta-subscriber never unsubscribes
             return SubscriberAction.CONTINUE;
