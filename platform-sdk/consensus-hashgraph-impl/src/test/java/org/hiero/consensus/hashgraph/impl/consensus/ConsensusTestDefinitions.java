@@ -8,7 +8,6 @@ import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.EventUtils.integerPowerDistribution;
 
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestNode;
-import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestOrchestrator;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestUtils;
 import com.swirlds.platform.test.fixtures.consensus.framework.OrchestratorBuilder;
 import com.swirlds.platform.test.fixtures.consensus.framework.TestInput;
