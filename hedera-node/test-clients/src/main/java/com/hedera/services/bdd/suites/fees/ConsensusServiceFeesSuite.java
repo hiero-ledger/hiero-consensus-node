@@ -21,11 +21,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.SpecOperation;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Stream;
-
-import com.hedera.services.bdd.spec.SpecOperation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -38,6 +37,7 @@ public class ConsensusServiceFeesSuite {
     private static final double BASE_FEE_TOPIC_DELETE = 0.005;
     private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0008;
     public static final double EXTRA_PROCESSING_BYTE = 0.000011;
+
     public static SpecOperation doSafeSimpleValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
         return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
             if ("true".equals(flag)) {
@@ -152,21 +152,11 @@ public class ConsensusServiceFeesSuite {
                         .via("submitMessage1024"),
                 sleepFor(1000),
                 validateChargedUsd("submitMessage", BASE_FEE_TOPIC_SUBMIT_MESSAGE),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateChargedUsd("submitMessage500", BASE_FEE_TOPIC_SUBMIT_MESSAGE);
-                    } else {
-                        return validateChargedUsd("submitMessage500", 0.00088);
-                    }
-                }),
-                doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-                    if ("true".equals(flag)) {
-                        return validateChargedUsd(
-                                "submitMessage1024", BASE_FEE_TOPIC_SUBMIT_MESSAGE + 125 * EXTRA_PROCESSING_BYTE * 10);
-                    } else {
-                        return validateChargedUsd("submitMessage1024", 0.00098);
-                    }
-                }));
+                doSafeSimpleValidateChargedUsd("submitMessage500", 0.00088, BASE_FEE_TOPIC_SUBMIT_MESSAGE),
+                doSafeSimpleValidateChargedUsd(
+                        "submitMessage1024",
+                        0.00098,
+                        BASE_FEE_TOPIC_SUBMIT_MESSAGE + 125 * EXTRA_PROCESSING_BYTE * 10));
     }
 
     @HapiTest

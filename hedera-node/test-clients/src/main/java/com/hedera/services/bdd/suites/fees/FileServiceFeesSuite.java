@@ -56,8 +56,10 @@ public class FileServiceFeesSuite {
                         .contents(contents)
                         .payingWith(CIVILIAN)
                         .via("fileCreateBasic"),
-                doSafeSimpleValidateChargedUsd("fileCreateBasic",BASE_FEE_FILE_CREATE, BASE_FEE_FILE_CREATE + 196 * EXTRA_PROCESSING_BYTE * 10)
-        );
+                doSafeSimpleValidateChargedUsd(
+                        "fileCreateBasic",
+                        BASE_FEE_FILE_CREATE,
+                        BASE_FEE_FILE_CREATE + 196 * EXTRA_PROCESSING_BYTE * 10));
     }
 
     @HapiTest
@@ -75,7 +77,10 @@ public class FileServiceFeesSuite {
                         .memo(MEMO)
                         .payingWith(CIVILIAN)
                         .via("fileUpdateBasic"),
-                doSafeSimpleValidateChargedUsd("fileUpdateBasic",BASE_FEE_FILE_UPDATE, BASE_FEE_FILE_UPDATE + 156 * EXTRA_PROCESSING_BYTE * 10));
+                doSafeSimpleValidateChargedUsd(
+                        "fileUpdateBasic",
+                        BASE_FEE_FILE_UPDATE,
+                        BASE_FEE_FILE_UPDATE + 156 * EXTRA_PROCESSING_BYTE * 10));
     }
 
     @HapiTest
@@ -119,8 +124,8 @@ public class FileServiceFeesSuite {
                         .content(contentBuilder.toString())
                         .payingWith(civilian)
                         .via(baseAppend),
-                doSafeSimpleValidateChargedUsd(baseAppend, BASE_FEE_FILE_APPEND, BASE_FEE_FILE_APPEND + 100 * EXTRA_PROCESSING_BYTE * 10)
-        );
+                doSafeSimpleValidateChargedUsd(
+                        baseAppend, BASE_FEE_FILE_APPEND, BASE_FEE_FILE_APPEND + 100 * EXTRA_PROCESSING_BYTE * 10));
     }
 
     @HapiTest
