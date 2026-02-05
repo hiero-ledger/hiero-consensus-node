@@ -69,10 +69,10 @@ public interface StateLifecycleManager<S, D> {
     /**
      * Creates a snapshot for the state provided as a parameter. The state has to be hashed before calling this method.
      *
-     * @param virtualMapState The state to save.
+     * @param state The state to save.
      * @param targetPath The path to save the snapshot.
      */
-    void createSnapshot(@NonNull S virtualMapState, @NonNull Path targetPath);
+    void createSnapshot(@NonNull S state, @NonNull Path targetPath);
 
     /**
      * Loads a snapshot of a state.
